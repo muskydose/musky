@@ -1,0 +1,293 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --font-momo: var(--font-momo-trust), "Momo Trust Display", Georgia, serif;
+  --font-momo-display: var(--font-momo-trust), "Momo Trust Display", Georgia, serif;
+  --font-display: var(--font-fraunces), 'Fraunces', Georgia, serif;
+  --font-serif: var(--font-fraunces), 'Fraunces', Georgia, serif;
+  --font-sans: var(--font-karla), 'Karla', system-ui, sans-serif;
+  --font-body: var(--font-karla), 'Karla', system-ui, sans-serif;
+}
+
+@layer base {
+  :root {
+    --brand-primary: #183F2B;
+    --brand-secondary: #5F7F52;
+    --brand-henna: #9A4F32;
+    --brand-gold: #C49A55;
+    --brand-bg: #F7F3E8;
+    --brand-card: #FFFDF8;
+    --brand-text: #22231F;
+    --brand-muted: #626c66;
+    --brand-border: #e8e2d5;
+    --brand-success: #2d6a4f;
+    --brand-warning: #c5a059;
+    --brand-error: #9A4F32;
+
+    --bg-cream: var(--brand-bg, #F7F3E8);
+    --bg-cream-alt: #f5f1e8;
+    --green-dark: #0f2d22;
+    --green-primary: var(--brand-primary, #183F2B);
+    --green-medium: var(--brand-secondary, #5F7F52);
+    --green-light: #e8f3ed;
+    --gold-accent: var(--brand-gold, #C49A55);
+    --gold-hover: #b38e46;
+    --gold-light: #faf5e8;
+    --charcoal: var(--brand-text, #22231F);
+    --text-body: var(--brand-text, #22231F);
+    --text-muted: var(--brand-muted, #626c66);
+
+    --font-heading: var(--font-fraunces), 'Fraunces', Georgia, serif;
+    --font-momo: var(--font-momo-trust), "Momo Trust Display", Georgia, serif;
+    --font-display: var(--font-fraunces), 'Fraunces', Georgia, serif;
+    --font-body: var(--font-karla), 'Karla', system-ui, sans-serif;
+    --font-sans: var(--font-karla), 'Karla', system-ui, sans-serif;
+
+    /* Compact Mobile Control Boxes & Pocket Heights */
+    --m-row-gap: clamp(3px, 1vw, 5px);
+    --m-col-gap: clamp(4px, 1.2vw, 6px);
+    --m-head-py: clamp(3px, 1vw, 5px);
+    --m-head-px: clamp(8px, 2.2vw, 12px);
+    --m-ann-py: clamp(2px, 0.8vw, 4px);
+    --m-ctrl-h: clamp(29px, 7.5vw, 32px);
+    --m-ctrl-w: clamp(29px, 7.5vw, 32px);
+    --m-icon-s: 15px;
+    --m-font-ctrl: 12px;
+    --m-search-btn-w: auto;
+    --m-search-fs: 12.5px;
+    --m-cat-h: clamp(26px, 6.5vw, 29px);
+    --m-cat-fs: 12px;
+    --m-cat-icon: 14.5px;
+    --m-cat-px: clamp(7px, 2vw, 10px);
+    --m-trust-h: clamp(22px, 5.5vw, 25px);
+    --m-trust-fs: 11px;
+    --m-trust-icon: 13.5px;
+    --m-badge-fs: 11px;
+    --m-badge-h: auto;
+    --m-ann-fs: 11.5px;
+    --m-phone-fs: 11px;
+    --m-phone-icon: 12.5px;
+  }
+
+  body {
+    background-color: var(--bg-cream);
+    color: var(--text-body);
+    font-family: var(--font-body), 'Karla', system-ui, sans-serif;
+    font-size: var(--site-body-fs-base, 16px);
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-serif-heading, .font-display, .font-serif {
+    font-family: var(--font-heading), 'Fraunces', Georgia, serif;
+  }
+
+  .font-momo, .font-momo-display {
+    font-family: var(--font-momo-trust), "Momo Trust Display", Georgia, serif;
+    font-weight: 400;
+  }
+
+  .font-sans, .font-body {
+    font-family: var(--font-body), 'Karla', system-ui, sans-serif;
+  }
+
+  /* Dynamic Responsive Utilities for Admin Layout Controls */
+  .brand-logo-wrapper {
+    max-width: var(--site-mobile-logo-w, 140px);
+  }
+  @media (min-width: 640px) {
+    .brand-logo-wrapper {
+      max-width: var(--site-desktop-logo-w, 180px);
+    }
+  }
+
+  .brand-logo-img {
+    width: var(--site-mobile-logo-w, 140px);
+    max-width: 100%;
+  }
+  @media (min-width: 640px) {
+    .brand-logo-img {
+      width: var(--site-desktop-logo-w, 180px);
+    }
+  }
+
+  .site-header-dynamic {
+    padding-top: var(--site-header-padding-v, 5px);
+    padding-bottom: var(--site-header-padding-v, 5px);
+  }
+  @media (min-width: 640px) {
+    .site-header-dynamic {
+      padding-top: var(--site-header-padding-v, 10px);
+      padding-bottom: var(--site-header-padding-v, 10px);
+    }
+  }
+
+  /* Mobile Flex-Box Layout for .site-header-dynamic */
+  @media (max-width: 639px) {
+    .site-header-dynamic .header-main-row {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+    }
+
+    .site-header-dynamic .header-brand-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 1;
+      min-width: 0;
+    }
+
+    .site-header-dynamic .header-actions-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+      justify-content: flex-end;
+      margin-left: auto;
+    }
+  }
+
+  /* Mobile Header Fluid Utility Classes */
+  .mobile-header-control {
+    height: var(--m-ctrl-h);
+    font-size: var(--m-font-ctrl);
+    font-weight: 700;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(3px, 1.2vw, 6px);
+    flex-shrink: 0;
+  }
+
+  .mobile-icon-btn {
+    height: var(--m-ctrl-h);
+    width: var(--m-ctrl-w);
+    min-width: var(--m-ctrl-w);
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .mobile-search-input {
+    height: var(--m-ctrl-h);
+    font-size: var(--m-search-fs);
+    border-radius: 8px;
+  }
+
+  .mobile-search-btn {
+    height: var(--m-ctrl-h);
+    width: var(--m-search-btn-w);
+    font-size: var(--m-search-fs);
+    border-radius: 8px;
+  }
+
+  .mobile-category-control {
+    height: var(--m-cat-h);
+    font-size: var(--m-cat-fs);
+    font-weight: 700;
+    padding-left: var(--m-cat-px);
+    padding-right: var(--m-cat-px);
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(3px, 1.2vw, 6px);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .mobile-info-item {
+    height: var(--m-trust-h);
+    font-size: var(--m-trust-fs);
+    font-weight: 700;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Mobile Top-Section Compact Whitespace Optimizations */
+  @media (max-width: 639px) {
+    .announcement-bar-mobile,
+    .top-campaign-banner {
+      padding-top: 4px;
+      padding-bottom: 4px;
+      font-size: 11px;
+    }
+  }
+
+  .hero-responsive-section {
+    min-height: var(--site-mobile-hero-h, 420px);
+  }
+  @media (min-width: 640px) {
+    .hero-responsive-section {
+      min-height: var(--site-desktop-hero-h, 560px);
+    }
+  }
+
+  .hero-responsive-title {
+    font-size: var(--site-hero-mobile-fs, 28px);
+  }
+  @media (min-width: 640px) {
+    .hero-responsive-title {
+      font-size: var(--site-hero-desktop-fs, 48px);
+    }
+  }
+
+  /* Scale headings proportionally */
+  h1 { font-size: calc(2.25rem * var(--site-heading-scale, 1)); }
+  h2 { font-size: calc(1.75rem * var(--site-heading-scale, 1)); }
+  h3 { font-size: calc(1.25rem * var(--site-heading-scale, 1)); }
+
+  /* Dynamic Container Max Width */
+  .max-w-7xl {
+    max-width: var(--site-container-max-w, 1280px);
+  }
+}
+
+/* Custom Utilities */
+.bg-cream { background-color: #fcfbf7; }
+.bg-cream-alt { background-color: #f5f1e8; }
+.bg-green-primary { background-color: #1b4332; }
+.bg-green-dark { background-color: #0f2d22; }
+.bg-green-light { background-color: #e8f3ed; }
+.bg-gold-light { background-color: #faf5e8; }
+
+.text-green-primary { color: #1b4332; }
+.text-green-dark { color: #0f2d22; }
+.text-green-medium { color: #2d6a4f; }
+.text-gold-accent { color: #c5a059; }
+
+.border-green-primary { border-color: #1b4332; }
+.border-gold-accent { border-color: #c5a059; }
+.border-cream-dark { border-color: #e8e2d5; }
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f5f1e8;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2d6a4f;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #1b4332;
+}
+

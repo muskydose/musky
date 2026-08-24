@@ -1,0 +1,743 @@
+import {
+  GrowthMarket,
+  GrowthMarketMetric,
+  GrowthKeyword,
+  GrowthKeywordSnapshot,
+  GrowthLead,
+  GrowthCompetitor,
+  GrowthCompetitorObservation,
+  GrowthDataSource,
+  GrowthDataSyncLog,
+  GrowthRecommendation,
+  GrowthImportJob,
+  GrowthSettings,
+} from './types';
+import { getSupabaseAdmin } from '@/lib/supabase';
+
+// In-memory local stores for fail-safe server fallback if Supabase is disconnected
+const memoryMarkets = new Map<string, GrowthMarket>();
+const memoryMarketMetrics = new Map<string, GrowthMarketMetric>();
+const memoryKeywords = new Map<string, GrowthKeyword>();
+const memoryKeywordSnapshots: GrowthKeywordSnapshot[] = [];
+const memoryLeads = new Map<string, GrowthLead>();
+const memoryCompetitors = new Map<string, GrowthCompetitor>();
+const memoryObservations: GrowthCompetitorObservation[] = [];
+const memoryDataSources = new Map<string, GrowthDataSource>();
+const memorySyncLogs: GrowthDataSyncLog[] = [];
+const memoryRecommendations = new Map<string, GrowthRecommendation>();
+const memoryImportJobs = new Map<string, GrowthImportJob>();
+
+let memorySettings: GrowthSettings = {
+  weights: {
+    sales: 30,
+    growth: 20,
+    leads: 15,
+    wholesale: 15,
+    productFit: 10,
+    campaignResponse: 10,
+  },
+  minOrdersForScore: 1,
+  staleDataDays: 14,
+  aiEnabled: true,
+  minConfidenceThreshold: 60,
+};
+
+// Seed default data sources in memory
+memoryDataSources.set('first_party_orders', {
+  id: 'ds_first_party',
+  providerKey: 'first_party_orders',
+  name: 'Musky Dose Store Orders & Enquiries',
+  type: 'FirstParty',
+  status: 'Fresh',
+  lastSyncedAt: new Date().toISOString(),
+  recordsCount: 0,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+});
+
+import { isGoogleAdsEnabled } from './sources/google-adapter';
+
+memoryDataSources.set('google_ads_keywords', {
+  id: 'ds_google_ads',
+  providerKey: 'google_ads_keywords',
+  name: 'Google Ads & Keyword Planner',
+  type: 'Google',
+  status: 'Disabled',
+  recordsCount: 0,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+});
+
+// ==========================================
+// 1. SETTINGS (PERSISTENT IN DB)
+// ==========================================
+export async function getGrowthSettings(): Promise<GrowthSettings> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from('growth_settings').select('*').eq('id', 'default_settings').maybeSingle();
+      if (!error && data) {
+        memorySettings = {
+          weights: data.weights || memorySettings.weights,
+          minOrdersForScore: data.min_orders_for_score ?? 1,
+          staleDataDays: data.stale_data_days ?? 14,
+          aiEnabled: data.ai_enabled ?? true,
+          minConfidenceThreshold: data.min_confidence_threshold ?? 60,
+        };
+      }
+    } catch (e) {
+      console.warn('[Growth DB] Error fetching settings from Supabase:', e);
+    }
+  }
+  return memorySettings;
+}
+
+export async function saveGrowthSettings(settings: GrowthSettings): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    const { error } = await supabase.from('growth_settings').upsert({
+      id: 'default_settings',
+      weights: settings.weights,
+      min_orders_for_score: settings.minOrdersForScore,
+      stale_data_days: settings.staleDataDays,
+      ai_enabled: settings.aiEnabled,
+      min_confidence_threshold: settings.minConfidenceThreshold,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) {
+      console.error('[Growth DB] Error saving settings to Supabase:', error.message);
+      throw new Error(`Failed to save growth settings to database: ${error.message}`);
+    }
+  }
+  memorySettings = { ...settings };
+}
+
+// ==========================================
+// 2. MARKETS & METRICS
+// ==========================================
+export async function getMarketMetrics(): Promise<GrowthMarketMetric[]> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from('growth_market_metrics').select('*');
+      if (!error && data && data.length > 0) {
+        return data.map((r: any) => ({
+          id: r.id,
+          marketId: r.market_id,
+          marketName: r.market_name,
+          state: r.state,
+          district: r.district,
+          city: r.city,
+          pincode: r.pincode,
+          customersCount: r.customers_count || 0,
+          ordersCount: r.orders_count || 0,
+          revenue: Number(r.revenue || 0),
+          unitsSold: r.units_sold || 0,
+          aov: Number(r.aov || 0),
+          repeatCustomersCount: r.repeat_customers_count || 0,
+          wholesaleLeadsCount: r.wholesale_leads_count || 0,
+          retailLeadsCount: r.retail_leads_count || 0,
+          artistLeadsCount: r.artist_leads_count || 0,
+          campaignOrdersCount: r.campaign_orders_count || 0,
+          campaignRevenue: Number(r.campaign_revenue || 0),
+          productDemandScore: Number(r.product_demand_score || 0),
+          marketOpportunityScore: Number(r.market_opportunity_score || 0),
+          scoreBreakdown: r.score_breakdown || {},
+          periodStart: r.period_start,
+          periodEnd: r.period_end,
+          sourceTier: r.source_tier || 'DERIVED',
+          sourceName: r.source_name || 'FirstParty',
+          updatedAt: r.updated_at || new Date().toISOString(),
+        }));
+      }
+    } catch (e) {
+      console.warn('[Growth DB] Error fetching market metrics:', e);
+    }
+  }
+  return Array.from(memoryMarketMetrics.values());
+}
+
+export async function saveMarketRecord(market: GrowthMarket): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    const { error } = await supabase.from('growth_markets').upsert({
+      id: market.id,
+      country: market.country || 'India',
+      state: market.state,
+      state_code: market.stateCode,
+      district: market.district,
+      district_code: market.districtCode,
+      city: market.city,
+      city_code: market.cityCode,
+      pincode: market.pincode,
+      status: market.status || 'active',
+      updated_at: new Date().toISOString(),
+    });
+    if (error) {
+      console.error('[Growth DB] Error saving market to Supabase:', error.message);
+      throw new Error(`Failed to save market record: ${error.message}`);
+    }
+  }
+  memoryMarkets.set(market.id, market);
+}
+
+export async function saveMarketMetric(metric: GrowthMarketMetric): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    const { error } = await supabase.from('growth_market_metrics').upsert({
+      id: metric.id,
+      market_id: metric.marketId,
+      market_name: metric.marketName,
+      state: metric.state,
+      district: metric.district,
+      city: metric.city,
+      pincode: metric.pincode,
+      customers_count: metric.customersCount,
+      orders_count: metric.ordersCount,
+      revenue: metric.revenue,
+      units_sold: metric.unitsSold,
+      aov: metric.aov,
+      repeat_customers_count: metric.repeatCustomersCount,
+      wholesale_leads_count: metric.wholesaleLeadsCount,
+      retail_leads_count: metric.retailLeadsCount,
+      artist_leads_count: metric.artistLeadsCount,
+      campaign_orders_count: metric.campaignOrdersCount,
+      campaign_revenue: metric.campaignRevenue,
+      product_demand_score: metric.productDemandScore,
+      market_opportunity_score: metric.marketOpportunityScore,
+      score_breakdown: metric.scoreBreakdown,
+      source_tier: metric.sourceTier,
+      source_name: metric.sourceName,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) {
+      console.error('[Growth DB] Error saving market metric to Supabase:', error.message);
+      throw new Error(`Failed to save market metric: ${error.message}`);
+    }
+  }
+  memoryMarketMetrics.set(metric.id, metric);
+}
+
+// ==========================================
+// 3. KEYWORDS & SNAPSHOTS
+// ==========================================
+export async function getKeywords(): Promise<GrowthKeyword[]> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from('growth_keywords').select('*');
+      if (!error && data) {
+        return data.map((r: any) => ({
+          id: r.id,
+          keyword: r.keyword,
+          language: r.language || 'en',
+          country: r.country || 'India',
+          state: r.state,
+          district: r.district,
+          city: r.city,
+          category: r.category,
+          productId: r.product_id,
+          searchVolume: r.search_volume ?? null,
+          competition: r.competition ?? null,
+          cpc: r.cpc ? Number(r.cpc) : null,
+          trend: r.trend ?? null,
+          sourceTier: r.source_tier || 'IMPORTED',
+          sourceName: r.source_name || 'Manual',
+          collectedAt: r.collected_at || new Date().toISOString(),
+          updatedAt: r.updated_at || new Date().toISOString(),
+        }));
+      }
+    } catch (e) {
+      console.warn('[Growth DB] Error fetching keywords:', e);
+    }
+  }
+  return Array.from(memoryKeywords.values());
+}
+
+export async function saveKeywordRecord(kw: GrowthKeyword): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    const { error } = await supabase.from('growth_keywords').upsert({
+      id: kw.id,
+      keyword: kw.keyword,
+      language: kw.language,
+      country: kw.country,
+      state: kw.state,
+      district: kw.district,
+      city: kw.city,
+      category: kw.category,
+      product_id: kw.productId,
+      search_volume: kw.searchVolume,
+      competition: kw.competition,
+      cpc: kw.cpc,
+      trend: kw.trend,
+      source_tier: kw.sourceTier,
+      source_name: kw.sourceName,
+      collected_at: kw.collectedAt,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) {
+      console.error('[Growth DB] Error saving keyword to Supabase:', error.message);
+      throw new Error(`Failed to save keyword record: ${error.message}`);
+    }
+  }
+  memoryKeywords.set(kw.id, kw);
+}
+
+export async function saveGrowthKeywords(kws: GrowthKeyword[]): Promise<void> {
+  for (const kw of kws) {
+    await saveKeywordRecord(kw);
+  }
+}
+
+export async function saveKeywordSnapshot(snapshot: GrowthKeywordSnapshot): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    const { error } = await supabase.from('growth_keyword_snapshots').insert({
+      id: snapshot.id,
+      keyword_id: snapshot.keywordId,
+      keyword: snapshot.keyword,
+      snapshot_date: snapshot.snapshotDate,
+      search_volume: snapshot.searchVolume,
+      competition: snapshot.competition,
+      cpc: snapshot.cpc,
+      source_name: snapshot.sourceName,
+    });
+    if (error) {
+      console.error('[Growth DB] Error saving keyword snapshot to Supabase:', error.message);
+      throw new Error(`Failed to save keyword snapshot: ${error.message}`);
+    }
+  }
+  memoryKeywordSnapshots.push(snapshot);
+}
+
+export async function getKeywordSnapshots(keywordId?: string): Promise<GrowthKeywordSnapshot[]> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    try {
+      let query = supabase.from('growth_keyword_snapshots').select('*').order('snapshot_date', { ascending: false });
+      if (keywordId) {
+        query = query.eq('keyword_id', keywordId);
+      }
+      const { data, error } = await query;
+      if (!error && data) {
+        return data.map((r: any) => ({
+          id: r.id,
+          keywordId: r.keyword_id,
+          keyword: r.keyword,
+          snapshotDate: r.snapshot_date,
+          searchVolume: r.search_volume,
+          competition: r.competition,
+          cpc: r.cpc,
+          sourceName: r.source_name,
+          createdAt: r.created_at || new Date().toISOString(),
+        }));
+      }
+    } catch (e) {
+      console.warn('[Growth DB] Error fetching keyword snapshots:', e);
+    }
+  }
+  return keywordId ? memoryKeywordSnapshots.filter((s) => s.keywordId === keywordId) : memoryKeywordSnapshots;
+}
+
+// ==========================================
+// 4. LEADS (CRM)
+// ==========================================
+export async function getLeads(): Promise<GrowthLead[]> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from('growth_leads').select('*').order('created_at', { ascending: false });
+      if (!error && data) {
+        return data.map((r: any) => ({
+          id: r.id,
+          businessName: r.business_name,
+          contactName: r.contact_name,
+          phone: r.phone,
+          whatsapp: r.whatsapp,
+          email: r.email,
+          leadType: r.lead_type || 'Retailer',
+          state: r.state,
+          district: r.district,
+          city: r.city,
+          pincode: r.pincode,
+          address: r.address,
+          source: r.source || 'Manual',
+          interestedProducts: r.interested_products || [],
+          status: r.status || 'New',
+          priority: r.priority || 'MEDIUM',
+          assignedTo: r.assigned_to,
+          notes: r.notes,
+          nextFollowUp: r.next_follow_up,
+          lastContactedAt: r.last_contacted_at,
+          createdAt: r.created_at || new Date().toISOString(),
+          updatedAt: r.updated_at || new Date().toISOString(),
+        }));
+      }
+    } catch (e) {
+      console.warn('[Growth DB] Error fetching leads:', e);
+    }
+  }
+  return Array.from(memoryLeads.values());
+}
+
+export async function saveLeadRecord(lead: GrowthLead): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    const { error } = await supabase.from('growth_leads').upsert({
+      id: lead.id,
+      business_name: lead.businessName,
+      contact_name: lead.contactName,
+      phone: lead.phone,
+      whatsapp: lead.whatsapp,
+      email: lead.email,
+      lead_type: lead.leadType,
+      state: lead.state,
+      district: lead.district,
+      city: lead.city,
+      pincode: lead.pincode,
+      address: lead.address,
+      source: lead.source,
+      interested_products: lead.interestedProducts || [],
+      status: lead.status,
+      priority: lead.priority,
+      assigned_to: lead.assignedTo,
+      notes: lead.notes,
+      next_follow_up: lead.nextFollowUp,
+      last_contacted_at: lead.lastContactedAt,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) {
+      console.error('[Growth DB] Error saving lead to Supabase:', error.message);
+      throw new Error(`Failed to save lead record: ${error.message}`);
+    }
+  }
+  memoryLeads.set(lead.id, lead);
+}
+
+// ==========================================
+// 5. COMPETITORS & OBSERVATIONS
+// ==========================================
+export async function getCompetitors(): Promise<GrowthCompetitor[]> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from('growth_competitors').select('*');
+      if (!error && data) {
+        return data.map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          website: r.website,
+          instagram: r.instagram,
+          facebook: r.facebook,
+          state: r.state,
+          district: r.district,
+          city: r.city,
+          productCategories: r.product_categories || [],
+          positioning: r.positioning,
+          notes: r.notes,
+          sourceTier: r.source_tier || 'IMPORTED',
+          sourceName: r.source_name || 'Manual',
+          lastCheckedAt: r.last_checked_at,
+          createdAt: r.created_at || new Date().toISOString(),
+          updatedAt: r.updated_at || new Date().toISOString(),
+        }));
+      }
+    } catch (e) {
+      console.warn('[Growth DB] Error fetching competitors:', e);
+    }
+  }
+  return Array.from(memoryCompetitors.values());
+}
+
+export async function saveCompetitorRecord(comp: GrowthCompetitor): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    const { error } = await supabase.from('growth_competitors').upsert({
+      id: comp.id,
+      name: comp.name,
+      website: comp.website,
+      instagram: comp.instagram,
+      facebook: comp.facebook,
+      state: comp.state,
+      district: comp.district,
+      city: comp.city,
+      product_categories: comp.productCategories || [],
+      positioning: comp.positioning,
+      notes: comp.notes,
+      source_tier: comp.sourceTier,
+      source_name: comp.sourceName,
+      last_checked_at: comp.lastCheckedAt,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) {
+      console.error('[Growth DB] Error saving competitor to Supabase:', error.message);
+      throw new Error(`Failed to save competitor record: ${error.message}`);
+    }
+  }
+  memoryCompetitors.set(comp.id, comp);
+}
+
+export async function getCompetitorObservations(competitorId?: string): Promise<GrowthCompetitorObservation[]> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    try {
+      let query = supabase.from('growth_competitor_observations').select('*').order('created_at', { ascending: false });
+      if (competitorId) {
+        query = query.eq('competitor_id', competitorId);
+      }
+      const { data, error } = await query;
+      if (!error && data) {
+        return data.map((r: any) => ({
+          id: r.id,
+          competitorId: r.competitor_id,
+          competitorName: r.competitor_name,
+          productName: r.product_name,
+          observedPrice: Number(r.observed_price),
+          currency: r.currency || 'INR',
+          observationDate: r.observation_date,
+          source: r.source || 'Manual',
+          notes: r.notes,
+          createdAt: r.created_at || new Date().toISOString(),
+        }));
+      }
+    } catch (e) {
+      console.warn('[Growth DB] Error fetching competitor observations:', e);
+    }
+  }
+  return competitorId ? memoryObservations.filter((o) => o.competitorId === competitorId) : memoryObservations;
+}
+
+export async function saveCompetitorObservation(obs: GrowthCompetitorObservation): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    const { error } = await supabase.from('growth_competitor_observations').insert({
+      id: obs.id,
+      competitor_id: obs.competitorId,
+      competitor_name: obs.competitorName,
+      product_name: obs.productName,
+      observed_price: obs.observedPrice,
+      currency: obs.currency || 'INR',
+      observation_date: obs.observationDate,
+      source: obs.source,
+      notes: obs.notes,
+    });
+    if (error) {
+      console.error('[Growth DB] Error saving competitor observation to Supabase:', error.message);
+      throw new Error(`Failed to save competitor observation: ${error.message}`);
+    }
+  }
+  memoryObservations.push(obs);
+}
+
+// ==========================================
+// 6. RECOMMENDATIONS
+// ==========================================
+export async function getRecommendations(): Promise<GrowthRecommendation[]> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from('growth_recommendations').select('*').order('generated_at', { ascending: false });
+      if (!error && data) {
+        return data.map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          priority: r.priority || 'MEDIUM',
+          reason: r.reason,
+          supportingMetrics: r.supporting_metrics || [],
+          dataSources: r.data_sources || [],
+          recommendedActions: r.recommended_actions || [],
+          confidence: r.confidence || 'MEDIUM',
+          status: r.status || 'New',
+          generatedAt: r.generated_at || new Date().toISOString(),
+          updatedAt: r.updated_at || new Date().toISOString(),
+        }));
+      }
+    } catch (e) {
+      console.warn('[Growth DB] Error fetching recommendations:', e);
+    }
+  }
+  return Array.from(memoryRecommendations.values());
+}
+
+export async function saveRecommendation(rec: GrowthRecommendation): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    const { error } = await supabase.from('growth_recommendations').upsert({
+      id: rec.id,
+      title: rec.title,
+      priority: rec.priority,
+      reason: rec.reason,
+      supporting_metrics: rec.supportingMetrics,
+      data_sources: rec.dataSources,
+      recommended_actions: rec.recommendedActions,
+      confidence: rec.confidence,
+      status: rec.status,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) {
+      console.error('[Growth DB] Error saving recommendation to Supabase:', error.message);
+      throw new Error(`Failed to save recommendation: ${error.message}`);
+    }
+  }
+  memoryRecommendations.set(rec.id, rec);
+}
+
+// ==========================================
+// 7. DATA SOURCES & SYNC LOGS
+// ==========================================
+export async function getDataSources(includeDisabled = false): Promise<GrowthDataSource[]> {
+  const supabase = getSupabaseAdmin();
+  let sources: GrowthDataSource[] = [];
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from('growth_data_sources').select('*');
+      if (!error && data && data.length > 0) {
+        sources = data.map((r: any) => ({
+          id: r.id,
+          providerKey: r.provider_key,
+          name: r.name,
+          type: r.type,
+          status: r.status || 'Fresh',
+          lastSyncedAt: r.last_synced_at,
+          recordsCount: r.records_count || 0,
+          errorMessage: r.error_message,
+          quotaStatus: r.quota_status,
+          // Strip API keys / secrets before returning configuration
+          config: r.config ? sanitizeDataSourceConfig(r.config) : {},
+          createdAt: r.created_at || new Date().toISOString(),
+          updatedAt: r.updated_at || new Date().toISOString(),
+        }));
+      }
+    } catch (e) {
+      console.warn('[Growth DB] Error fetching data sources:', e);
+    }
+  }
+
+  if (sources.length === 0) {
+    sources = Array.from(memoryDataSources.values()).map((ds) => ({
+      ...ds,
+      config: sanitizeDataSourceConfig(ds.config || {}),
+    }));
+  }
+
+  if (!includeDisabled) {
+    sources = sources.filter((ds) => {
+      if (ds.providerKey === 'google_ads_keywords' || ds.type === 'Google') {
+        return isGoogleAdsEnabled();
+      }
+      return ds.status !== 'Disabled';
+    });
+  }
+
+  return sources;
+}
+
+function sanitizeDataSourceConfig(config: Record<string, any>): Record<string, any> {
+  const clean = { ...config };
+  delete clean.secret;
+  delete clean.apiKey;
+  delete clean.developerToken;
+  delete clean.password;
+  delete clean.clientSecret;
+  return clean;
+}
+
+export async function saveDataSourceRecord(ds: GrowthDataSource): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    const { error } = await supabase.from('growth_data_sources').upsert({
+      id: ds.id,
+      provider_key: ds.providerKey,
+      name: ds.name,
+      type: ds.type,
+      status: ds.status,
+      last_synced_at: ds.lastSyncedAt,
+      records_count: ds.recordsCount,
+      error_message: ds.errorMessage,
+      quota_status: ds.quotaStatus,
+      config: ds.config || {},
+      updated_at: new Date().toISOString(),
+    });
+    if (error) {
+      console.error('[Growth DB] Error saving data source to Supabase:', error.message);
+      throw new Error(`Failed to save data source record: ${error.message}`);
+    }
+  }
+  memoryDataSources.set(ds.providerKey, ds);
+}
+
+export async function logSyncEvent(log: GrowthDataSyncLog): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    const { error } = await supabase.from('growth_data_sync_logs').insert({
+      id: log.id,
+      source_id: log.sourceId,
+      provider_key: log.providerKey,
+      status: log.status,
+      records_imported: log.recordsImported,
+      records_updated: log.recordsUpdated,
+      error_details: log.errorDetails,
+      duration_ms: log.durationMs,
+      started_at: log.startedAt,
+      completed_at: log.completedAt || new Date().toISOString(),
+    });
+    if (error) {
+      console.error('[Growth DB] Error logging sync event to Supabase:', error.message);
+      throw new Error(`Failed to log sync event: ${error.message}`);
+    }
+  }
+  memorySyncLogs.push(log);
+}
+
+// ==========================================
+// 8. IMPORT JOBS
+// ==========================================
+export async function getImportJobs(): Promise<GrowthImportJob[]> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from('growth_import_jobs').select('*').order('created_at', { ascending: false });
+      if (!error && data) {
+        return data.map((r: any) => ({
+          id: r.id,
+          importType: r.import_type,
+          filename: r.filename,
+          totalRows: r.total_rows || 0,
+          importedRows: r.imported_rows || 0,
+          skippedRows: r.skipped_rows || 0,
+          errorCount: r.error_count || 0,
+          status: r.status || 'PENDING',
+          createdAt: r.created_at || new Date().toISOString(),
+          completedAt: r.completed_at,
+        }));
+      }
+    } catch (e) {
+      console.warn('[Growth DB] Error fetching import jobs:', e);
+    }
+  }
+  return Array.from(memoryImportJobs.values());
+}
+
+export async function saveImportJob(job: GrowthImportJob): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    const { error } = await supabase.from('growth_import_jobs').upsert({
+      id: job.id,
+      import_type: job.importType,
+      filename: job.filename,
+      total_rows: job.totalRows,
+      imported_rows: job.importedRows,
+      skipped_rows: job.skippedRows,
+      error_count: job.errorCount,
+      status: job.status,
+      created_at: job.createdAt,
+      completed_at: job.completedAt,
+    });
+    if (error) {
+      console.error('[Growth DB] Error saving import job to Supabase:', error.message);
+      throw new Error(`Failed to save import job: ${error.message}`);
+    }
+  }
+  memoryImportJobs.set(job.id, job);
+}

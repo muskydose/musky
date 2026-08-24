@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <rect width="800" height="600" fill="#faf5e8"/>
+  <rect x="40" y="40" width="720" height="520" rx="24" fill="#ffffff" stroke="#e0d6c3" stroke-width="2"/>
+  <g transform="translate(336, 210)">
+    <rect width="128" height="128" rx="24" fill="#1b4332"/>
+    <path d="M64 24C64 24 40 44 40 68C40 81.2548 50.7452 92 64 92C77.2548 92 88 81.2548 88 68C88 44 64 24 64 24Z" fill="#d4af37"/>
+    <circle cx="64" cy="68" r="8" fill="#faf5e8"/>
+  </g>
+  <text x="400" y="380" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="28" font-weight="700" fill="#1b4332" text-anchor="middle">MUSKY DOSE</text>
+  <text x="400" y="415" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="16" font-weight="500" fill="#52796f" text-anchor="middle">Pure Sojat Henna &amp; Natural Herbal Care</text>
+</svg>

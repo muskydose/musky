@@ -1,0 +1,28 @@
+import React from 'react';
+import { getSiteSettings } from '@/lib/db/settings';
+import { resolvePageSeoMetadata } from '@/lib/db/seo';
+import { INITIAL_FAQ_ITEMS } from '@/lib/data-store';
+import { FAQItem } from '@/lib/types';
+import FaqViewClient from './FaqViewClient';
+
+export const revalidate = 60; // Refresh settings every 60 seconds
+
+export async function generateMetadata() {
+  return await resolvePageSeoMetadata({
+    targetType: 'other',
+    targetUrl: '/faq',
+    defaultTitle: 'Frequently Asked Questions (FAQ) — Musky Dose Sojat Henna',
+    defaultDescription: 'Common questions about Musky Dose Sojat Henna, Lawsonia Inermis purity, shipping times, and WhatsApp ordering.',
+    defaultKeywords: ['Sojat Henna FAQ', 'Musky Dose Questions', 'Henna Powder Help'],
+  });
+}
+
+export default async function FaqPage() {
+  const settings = await getSiteSettings();
+  const faqItems: FAQItem[] = settings?.faqItems && settings.faqItems.length > 0 ? settings.faqItems : INITIAL_FAQ_ITEMS;
+  const activeFaqs = faqItems
+    .filter((item) => item.enabled !== false)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+
+  return <FaqViewClient settings={settings} faqItems={activeFaqs} />;
+}

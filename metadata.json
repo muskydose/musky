@@ -1,0 +1,6 @@
+{
+  "name": "Musky Dose",
+  "description": "Premium Henna & Herbal Products from Sojat, Rajasthan, India",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
