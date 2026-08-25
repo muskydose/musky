@@ -420,6 +420,26 @@ export async function saveMarketMetric(metric: GrowthMarketMetric): Promise<void
 // ==========================================
 // 3. KEYWORDS & SNAPSHOTS
 // ==========================================
+function parseCompetition(val: any): 'LOW' | 'MEDIUM' | 'HIGH' | null {
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'string') {
+    const s = val.trim().toUpperCase();
+    if (s === 'LOW' || s === 'MEDIUM' || s === 'HIGH') return s;
+    const num = parseFloat(s);
+    if (!isNaN(num)) {
+      if (num < 0.33) return 'LOW';
+      if (num < 0.66) return 'MEDIUM';
+      return 'HIGH';
+    }
+  }
+  if (typeof val === 'number') {
+    if (val < 0.33) return 'LOW';
+    if (val < 0.66) return 'MEDIUM';
+    return 'HIGH';
+  }
+  return 'MEDIUM';
+}
+
 export async function getKeywords(): Promise<GrowthKeyword[]> {
   const supabase = getSupabaseAdmin();
   if (supabase) {
@@ -436,8 +456,8 @@ export async function getKeywords(): Promise<GrowthKeyword[]> {
           city: r.city,
           category: r.category,
           productId: r.product_id,
-          searchVolume: r.search_volume ?? null,
-          competition: r.competition ?? null,
+          searchVolume: r.search_volume !== null && r.search_volume !== undefined ? Number(r.search_volume) : null,
+          competition: parseCompetition(r.competition),
           cpc: r.cpc ? Number(r.cpc) : null,
           trend: r.trend ?? null,
           sourceTier: r.source_tier || 'IMPORTED',
@@ -456,6 +476,17 @@ export async function getKeywords(): Promise<GrowthKeyword[]> {
 export async function saveKeywordRecord(kw: GrowthKeyword): Promise<void> {
   const supabase = getSupabaseAdmin();
   if (supabase) {
+    let numericComp: number | null = null;
+    if (typeof (kw.competition as any) === 'number') {
+      numericComp = kw.competition as any;
+    } else if (kw.competition === 'LOW') {
+      numericComp = 0.2;
+    } else if (kw.competition === 'HIGH') {
+      numericComp = 0.85;
+    } else if (kw.competition === 'MEDIUM') {
+      numericComp = 0.5;
+    }
+
     const { error } = await supabase.from('growth_keywords').upsert({
       id: kw.id,
       keyword: kw.keyword,
@@ -467,7 +498,7 @@ export async function saveKeywordRecord(kw: GrowthKeyword): Promise<void> {
       category: kw.category,
       product_id: kw.productId,
       search_volume: kw.searchVolume,
-      competition: kw.competition,
+      competition: numericComp,
       cpc: kw.cpc,
       trend: kw.trend,
       source_tier: kw.sourceTier,

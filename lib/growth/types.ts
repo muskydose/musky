@@ -101,6 +101,45 @@ export interface GrowthKeyword {
   updatedAt: string;
 }
 
+export interface SearchConsoleQuery {
+  id: string;
+  query: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+  page?: string;
+  country?: string;
+  dateRange?: string;
+  collectedAt: string;
+  sourceBadge: 'SEARCH CONSOLE';
+}
+
+export interface GoogleTrendsQuery {
+  id: string;
+  query: string;
+  relativeInterest: number; // 0 to 100 index
+  trendDirection: 'RISING' | 'STABLE' | 'DECLINING';
+  timeframe: string;
+  geoTarget: string; // e.g. "India (National)" or "Rajasthan"
+  relatedTopics?: string[];
+  collectedAt: string;
+  sourceBadge: 'GOOGLE TRENDS';
+}
+
+export interface BusinessDemandSignal {
+  productId?: string;
+  productName?: string;
+  categoryName?: string;
+  matchedQuery: string;
+  ordersCount: number;
+  totalRevenue: number;
+  unitsSold: number;
+  wholesaleInquiriesCount: number;
+  topStates: Array<{ state: string; orders: number; revenue: number }>;
+  sourceBadge: 'FIRST-PARTY STORE';
+}
+
 export interface GrowthKeywordSnapshot {
   id: string;
   keywordId: string;

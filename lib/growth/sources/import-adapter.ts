@@ -162,41 +162,113 @@ export async function parseAndImportCsvData(
         });
         importedRows += 1;
       } else if (importType === 'KEYWORDS') {
-        const keyword = rowData['keyword'] || rowData['query'] || rowData['search_term'];
-        if (!keyword) {
+        const keyword =
+          rowData['keyword'] ||
+          rowData['search_term'] ||
+          rowData['query'] ||
+          rowData['keyword phrase'] ||
+          rowData['search term'];
+
+        if (!keyword || !keyword.trim()) {
           skippedRows += 1;
           errors.push(`Row ${i + 2}: Missing keyword`);
           continue;
         }
 
-        const rawState = rowData['state'];
-        const normalizedSt = normalizeIndianState(rawState);
+        // Search volume detection (Avg. monthly searches / Search Volume / Volume)
+        const rawVol =
+          rowData['avg. monthly searches'] ||
+          rowData['avg_monthly_searches'] ||
+          rowData['average monthly searches'] ||
+          rowData['monthly searches'] ||
+          rowData['search_volume'] ||
+          rowData['volume'];
+        let vol: number | null = null;
+        if (rawVol && rawVol.trim()) {
+          const cleanedVol = rawVol.replace(/,/g, '').trim();
+          const parsed = parseInt(cleanedVol, 10);
+          if (!isNaN(parsed)) vol = parsed;
+        }
 
-        const kwId = `kw_imp_${keyword.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
-        const rawVol = rowData['search_volume'] || rowData['volume'];
-        const vol = rawVol && rawVol.trim() ? parseInt(rawVol.trim(), 10) : null;
-        const rawCpc = rowData['cpc'];
-        const parsedCpc = rawCpc && rawCpc.trim() && !isNaN(parseFloat(rawCpc.trim())) ? parseFloat(rawCpc.trim()) : null;
-        const rawTrend = rowData['trend']?.toUpperCase()?.trim();
-        const trend: 'RISING' | 'STABLE' | 'DECLINING' = (rawTrend === 'RISING' || rawTrend === 'DECLINING') ? rawTrend : (rawTrend === 'FALLING' ? 'DECLINING' : 'STABLE');
-        const rawComp = rowData['competition']?.toUpperCase()?.trim();
-        const competition: 'LOW' | 'MEDIUM' | 'HIGH' = (rawComp === 'LOW' || rawComp === 'HIGH') ? rawComp : 'MEDIUM';
+        // Location fields (Country, State, District, City)
+        const rawCountry = rowData['country'] || rowData['location'] || 'India';
+        const rawState = rowData['state'] || rowData['region'];
+        const normalizedSt = normalizeIndianState(rawState);
+        const stateName = normalizedSt ? normalizedSt.name : (rawState && rawState.trim() ? rawState.trim() : undefined);
+        const districtName = rowData['district']?.trim() || undefined;
+        const cityName = rowData['city']?.trim() || undefined;
+
+        // CPC calculation (Top of page bid low / high range / CPC)
+        let parsedCpc: number | null = null;
+        const rawLowBid = rowData['top of page bid (low range)'] || rowData['top_of_page_bid_low_range'];
+        const rawHighBid = rowData['top of page bid (high range)'] || rowData['top_of_page_bid_high_range'];
+        const rawCpc = rowData['cpc'] || rowData['top of page bid'] || rowData['bid'];
+
+        if (rawLowBid && rawHighBid) {
+          const low = parseFloat(rawLowBid.replace(/[^\d.]/g, ''));
+          const high = parseFloat(rawHighBid.replace(/[^\d.]/g, ''));
+          if (!isNaN(low) && !isNaN(high)) {
+            parsedCpc = Number(((low + high) / 2).toFixed(2));
+          }
+        } else if (rawCpc && rawCpc.trim()) {
+          const c = parseFloat(rawCpc.replace(/[^\d.]/g, ''));
+          if (!isNaN(c)) parsedCpc = Number(c.toFixed(2));
+        }
+
+        // Trend calculation (Three month change / YoY change / Trend)
+        let trend: 'RISING' | 'STABLE' | 'DECLINING' = 'STABLE';
+        const rawTrendStr = rowData['trend']?.toUpperCase()?.trim();
+        const rawChange = rowData['three month change'] || rowData['three_month_change'] || rowData['yoy change'] || rowData['yoy_change'];
+
+        if (rawTrendStr === 'RISING' || rawTrendStr === 'DECLINING' || rawTrendStr === 'STABLE') {
+          trend = rawTrendStr;
+        } else if (rawTrendStr === 'FALLING') {
+          trend = 'DECLINING';
+        } else if (rawChange && rawChange.trim()) {
+          const changePct = parseFloat(rawChange.replace(/[^\d.-]/g, ''));
+          if (!isNaN(changePct)) {
+            if (changePct >= 5) trend = 'RISING';
+            else if (changePct <= -5) trend = 'DECLINING';
+            else trend = 'STABLE';
+          }
+        }
+
+        // Competition calculation
+        let competition: 'LOW' | 'MEDIUM' | 'HIGH' = 'MEDIUM';
+        const rawComp = (rowData['competition'] || rowData['competition (indexed value)'] || '').trim().toUpperCase();
+        if (rawComp.includes('LOW')) competition = 'LOW';
+        else if (rawComp.includes('HIGH')) competition = 'HIGH';
+        else if (rawComp.includes('MEDIUM') || rawComp.includes('MED')) competition = 'MEDIUM';
+        else {
+          const compNum = parseFloat(rawComp);
+          if (!isNaN(compNum)) {
+            if (compNum <= 33) competition = 'LOW';
+            else if (compNum >= 67) competition = 'HIGH';
+            else competition = 'MEDIUM';
+          }
+        }
+
+        // Unique Location-Aware Safe Upsert ID
+        const cleanKw = keyword.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+        const locParts = [rawCountry, stateName, districtName, cityName].filter(Boolean).map(p => (p as string).toLowerCase().replace(/[^a-z0-9]/g, '_'));
+        const locKey = locParts.join('_') || 'national';
+        const kwId = `kw_gkp_${cleanKw}_${locKey}`;
 
         await saveKeywordRecord({
           id: kwId,
           keyword: keyword.trim(),
           language: rowData['language'] || 'en',
-          country: 'India',
-          state: normalizedSt ? normalizedSt.name : (rawState && rawState.trim() ? rawState.trim() : undefined),
-          district: rowData['district'] || undefined,
-          city: rowData['city'] || undefined,
-          category: rowData['category'] || undefined,
+          country: rawCountry || 'India',
+          state: stateName,
+          district: districtName,
+          city: cityName,
+          category: rowData['category']?.trim() || undefined,
           searchVolume: vol !== null && !isNaN(vol) ? vol : null,
           competition,
           cpc: parsedCpc,
           trend,
-          sourceTier: 'IMPORTED',
-          sourceName: 'CSV Import',
+          sourceTier: 'VERIFIED',
+          sourceName: 'Google Keyword Planner CSV',
           collectedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
