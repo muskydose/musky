@@ -29,6 +29,11 @@ import {
   ChevronRight,
   FolderOpen,
   Sparkles,
+  Search,
+  Key,
+  Compass,
+  RefreshCw,
+  Lightbulb,
 } from 'lucide-react';
 
 interface ProductFormClientProps {
@@ -44,7 +49,7 @@ export default function ProductFormClient({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-  const [activeTab, setActiveTab] = useState<'basic' | 'pricing' | 'content' | 'media' | 'display'>('basic');
+  const [activeTab, setActiveTab] = useState<'basic' | 'pricing' | 'content' | 'media' | 'seo' | 'display'>('basic');
   const [isDirty, setIsDirty] = useState(false);
 
   const [formData, setFormData] = useState<Partial<Product>>({
@@ -71,7 +76,15 @@ export default function ProductFormClient({
     isFeatured: initialProduct?.isFeatured ?? false,
     isActive: initialProduct?.isActive ?? true,
     sortOrder: initialProduct?.sortOrder ?? 1,
+    seoTitle: initialProduct?.seoTitle || '',
+    seoDescription: initialProduct?.seoDescription || '',
+    seoKeywords: initialProduct?.seoKeywords || [],
   });
+
+  const [keywordUniverse, setKeywordUniverse] = useState<any | null>(null);
+  const [loadingUniverse, setLoadingUniverse] = useState(false);
+  const [seoKeywordInput, setSeoKeywordInput] = useState('');
+  const [activeUniverseCategory, setActiveUniverseCategory] = useState<string>('ALL');
 
   const [imageInput, setImageInput] = useState('');
   const [ingredientInput, setIngredientInput] = useState('');
@@ -293,6 +306,45 @@ export default function ProductFormClient({
     }));
   };
 
+  const loadKeywordUniverse = async (forceRefresh: boolean = false) => {
+    if (!formData.id && !formData.name) return;
+    setLoadingUniverse(true);
+    try {
+      if (formData.id) {
+        const method = forceRefresh ? 'POST' : 'GET';
+        const res = await fetch(`/api/admin/products/${formData.id}/keywords`, { method });
+        const data = await res.json();
+        if (data.success && data.universe) {
+          setKeywordUniverse(data.universe);
+        }
+      }
+    } catch (err) {
+      console.warn('Could not load keyword universe:', err);
+    } finally {
+      setLoadingUniverse(false);
+    }
+  };
+
+  const handleAddSeoKeyword = (kw?: string) => {
+    const text = (kw || seoKeywordInput).trim();
+    if (!text) return;
+    setIsDirty(true);
+    setFormData((prev) => {
+      const current = prev.seoKeywords || [];
+      if (current.includes(text)) return prev;
+      return { ...prev, seoKeywords: [...current, text] };
+    });
+    if (!kw) setSeoKeywordInput('');
+  };
+
+  const handleRemoveSeoKeyword = (index: number) => {
+    setIsDirty(true);
+    setFormData((prev) => ({
+      ...prev,
+      seoKeywords: (prev.seoKeywords || []).filter((_, i) => i !== index),
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.name.trim()) {
@@ -443,6 +495,24 @@ export default function ProductFormClient({
           >
             <ImageIcon className="w-4 h-4" />
             <span>Product Media ({formData.images?.length || 0})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('seo');
+              if (!keywordUniverse && formData.id) {
+                loadKeywordUniverse();
+              }
+            }}
+            className={`px-5 py-3.5 flex items-center gap-2 border-b-2 transition-colors shrink-0 ${
+              activeTab === 'seo'
+                ? 'border-[#1b4332] bg-white text-[#1b4332]'
+                : 'border-transparent hover:text-[#1b4332]'
+            }`}
+          >
+            <Compass className="w-4 h-4 text-[#c5a059]" />
+            <span>SEO & Keywords {keywordUniverse ? `(${keywordUniverse.totalKeywords})` : ''}</span>
           </button>
 
           <button
@@ -874,7 +944,297 @@ export default function ProductFormClient({
           </div>
         )}
 
-        {/* Tab 5: Visibility & Display */}
+        {/* Tab 5: SEO & Autonomous Keyword Intelligence */}
+        {activeTab === 'seo' && (
+          <div className="p-8 space-y-8 text-xs">
+            {/* Top SEO Metadata Fields */}
+            <div className="bg-[#fcfbf7] p-6 rounded-2xl border border-[#e8e2d5] space-y-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Key className="w-4 h-4 text-[#c5a059]" />
+                  <h3 className="font-bold text-sm text-[#0f2d22]">Product SEO Metadata</h3>
+                </div>
+                <span className="text-[11px] text-gray-500 font-medium">Controls Search Engine Snippets</span>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-[#0f2d22]">Custom SEO Title</label>
+                    <span className="text-[10px] text-gray-500 font-semibold">
+                      {(formData.seoTitle || '').length}/60 chars
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={formData.seoTitle || ''}
+                    onChange={(e) => updateForm('seoTitle', e.target.value)}
+                    placeholder={formData.name ? `${formData.name} | Musky Dose Natural Botanicals` : 'Enter custom SEO title...'}
+                    className="w-full p-3 bg-white border border-[#e8e2d5] rounded-xl font-medium text-xs focus:outline-none focus:border-[#1b4332]"
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">If blank, defaults to product name + brand.</p>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-[#0f2d22]">Meta Description</label>
+                    <span className="text-[10px] text-gray-500 font-semibold">
+                      {(formData.seoDescription || '').length}/160 chars
+                    </span>
+                  </div>
+                  <textarea
+                    rows={3}
+                    value={formData.seoDescription || ''}
+                    onChange={(e) => updateForm('seoDescription', e.target.value)}
+                    placeholder={formData.shortDescription || 'Enter compelling snippet for Google search results...'}
+                    className="w-full p-3 bg-white border border-[#e8e2d5] rounded-xl font-medium text-xs focus:outline-none focus:border-[#1b4332]"
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">Summary displayed beneath the link in Google search results.</p>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#0f2d22] mb-1">Target SEO Keywords / Tags</label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={seoKeywordInput}
+                      onChange={(e) => setSeoKeywordInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddSeoKeyword();
+                        }
+                      }}
+                      placeholder="Type keyword and press Enter or use suggestions below..."
+                      className="flex-1 p-2.5 bg-white border border-[#e8e2d5] rounded-xl font-medium text-xs focus:outline-none focus:border-[#1b4332]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddSeoKeyword()}
+                      className="bg-[#1b4332] text-white px-4 py-2.5 rounded-xl font-bold hover:bg-[#0f2d22] transition-colors"
+                    >
+                      Add Tag
+                    </button>
+                  </div>
+
+                  {(formData.seoKeywords || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 p-3 bg-white rounded-xl border border-[#e8e2d5]">
+                      {(formData.seoKeywords || []).map((kw, i) => (
+                        <span
+                          key={i}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-[#f5f1e8] text-[#1b4332] border border-[#e8e2d5]"
+                        >
+                          <span>{kw}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSeoKeyword(i)}
+                            className="text-gray-400 hover:text-rose-600"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Autonomous Keyword Intelligence Assistant */}
+            <div className="bg-white p-6 rounded-2xl border border-[#e8e2d5] shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#e8e2d5]">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[#c5a059]" />
+                    <h3 className="font-bold text-sm text-[#0f2d22]">Autonomous Keyword Universe</h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
+                      LIVE AI ENGINE
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Automatically derived across 10 strategic categories with real Google Search demand matching.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => loadKeywordUniverse(true)}
+                  disabled={loadingUniverse}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1b4332] bg-[#f5f1e8] border border-[#e8e2d5] hover:bg-[#e8e2d5] transition-colors shrink-0 disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingUniverse ? 'animate-spin' : ''}`} />
+                  <span>{loadingUniverse ? 'Generating Universe...' : 'Re-Sync Universe'}</span>
+                </button>
+              </div>
+
+              {loadingUniverse && !keywordUniverse && (
+                <div className="p-8 text-center text-gray-500 font-bold">
+                  <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#c5a059] mb-2" />
+                  <p>Analyzing botanical attributes and generating keyword universe...</p>
+                </div>
+              )}
+
+              {keywordUniverse && (
+                <div className="space-y-6">
+                  {/* Summary Metric Strip */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-3.5 rounded-xl bg-[#fcfbf7] border border-[#e8e2d5]">
+                      <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Total Targets</div>
+                      <div className="text-lg font-black text-[#1b4332] mt-0.5">{keywordUniverse.totalKeywords}</div>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                      <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Verified Demand</div>
+                      <div className="text-lg font-black text-emerald-800 mt-0.5">{keywordUniverse.verifiedCount}</div>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
+                      <div className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Content Opportunities</div>
+                      <div className="text-lg font-black text-amber-800 mt-0.5">{keywordUniverse.opportunityCount}</div>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-[#fcfbf7] border border-[#e8e2d5]">
+                      <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Categories</div>
+                      <div className="text-lg font-black text-[#1b4332] mt-0.5">10 Types</div>
+                    </div>
+                  </div>
+
+                  {/* AI Quick Suggestions */}
+                  <div className="p-4 rounded-xl bg-[#f5f1e8] border border-[#e8e2d5] space-y-3">
+                    <div className="font-bold text-xs text-[#0f2d22] flex items-center gap-1.5">
+                      <Lightbulb className="w-4 h-4 text-[#c5a059]" />
+                      <span>One-Click SEO Suggestions</span>
+                    </div>
+
+                    <div className="space-y-2 text-[11px]">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold text-gray-600 w-24 shrink-0">Primary:</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateForm('seoTitle', `${keywordUniverse.suggestedPrimary} | Musky Dose`);
+                            handleAddSeoKeyword(keywordUniverse.suggestedPrimary);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-white border border-[#e8e2d5] font-bold text-[#1b4332] hover:bg-[#1b4332] hover:text-white transition-colors"
+                        >
+                          + {keywordUniverse.suggestedPrimary}
+                        </button>
+                      </div>
+
+                      {keywordUniverse.suggestedSecondary?.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-bold text-gray-600 w-24 shrink-0">Secondary:</span>
+                          {keywordUniverse.suggestedSecondary.slice(0, 4).map((kw: string, idx: number) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => handleAddSeoKeyword(kw)}
+                              className="px-2 py-0.5 rounded-md bg-white border border-[#e8e2d5] text-[10px] font-semibold text-gray-700 hover:bg-[#1b4332] hover:text-white transition-colors"
+                            >
+                              + {kw}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {keywordUniverse.suggestedQuestions?.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-bold text-gray-600 w-24 shrink-0">FAQ Queries:</span>
+                          {keywordUniverse.suggestedQuestions.slice(0, 3).map((kw: string, idx: number) => (
+                            <span
+                              key={idx}
+                              className="px-2 py-0.5 rounded-md bg-white/70 border border-[#e8e2d5] text-[10px] italic text-gray-600"
+                            >
+                              &ldquo;{kw}&rdquo;
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Interactive Category Filter Pills */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-2 text-[11px] font-bold">
+                    {['ALL', 'PRIMARY', 'SECONDARY', 'LONG_TAIL', 'QUESTION', 'BUYER_INTENT', 'BENEFIT', 'USE_CASE', 'INGREDIENT', 'REGIONAL', 'SEMANTIC'].map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setActiveUniverseCategory(cat)}
+                        className={`px-3 py-1.5 rounded-xl border transition-colors shrink-0 ${
+                          activeUniverseCategory === cat
+                            ? 'bg-[#1b4332] text-white border-[#1b4332]'
+                            : 'bg-[#fcfbf7] text-gray-600 border-[#e8e2d5] hover:border-[#1b4332]'
+                        }`}
+                      >
+                        {cat.replace('_', ' ')}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Keyword Targets Table */}
+                  <div className="border border-[#e8e2d5] rounded-xl overflow-hidden overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-[#f5f1e8] text-[#0f2d22] font-bold border-b border-[#e8e2d5]">
+                        <tr>
+                          <th className="p-3">Keyword Candidate</th>
+                          <th className="p-3">Category</th>
+                          <th className="p-3">Intent</th>
+                          <th className="p-3">Relevance</th>
+                          <th className="p-3">Verified Demand</th>
+                          <th className="p-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#e8e2d5]">
+                        {keywordUniverse.keywords
+                          .filter((k: any) => activeUniverseCategory === 'ALL' || k.keywordType === activeUniverseCategory)
+                          .slice(0, 40)
+                          .map((kw: any) => (
+                            <tr key={kw.id} className="hover:bg-[#fcfbf7] transition-colors">
+                              <td className="p-3 font-bold text-[#0f2d22]">
+                                <div className="flex items-center gap-2">
+                                  <span>{kw.keyword}</span>
+                                  {kw.isOpportunity && (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-100 text-amber-800" title={kw.opportunityReason}>
+                                      OPPORTUNITY
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-100 text-gray-700">
+                                  {kw.keywordType}
+                                </span>
+                              </td>
+                              <td className="p-3 text-[11px] text-gray-500 font-medium">{kw.searchIntent}</td>
+                              <td className="p-3 font-bold text-[#1b4332]">{kw.relevanceScore}%</td>
+                              <td className="p-3">
+                                {kw.verifiedSearchVolume ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[10px] bg-emerald-100 text-emerald-800">
+                                    <span>{kw.verifiedSearchVolume.toLocaleString()}/mo</span>
+                                    {kw.verifiedTrend === 'RISING' && <span>📈</span>}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-gray-400 font-medium italic">Unverified</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddSeoKeyword(kw.keyword)}
+                                  className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-[#1b4332] text-white hover:bg-[#0f2d22] transition-colors"
+                                >
+                                  + Add to SEO
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Tab 6: Visibility & Display */}
         {activeTab === 'display' && (
           <div className="p-8 space-y-6 text-xs">
             <div className="space-y-4">

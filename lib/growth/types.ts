@@ -287,3 +287,70 @@ export interface GrowthSettings {
   aiEnabled: boolean;
   minConfidenceThreshold: number;
 }
+
+export type KeywordCategoryType =
+  | 'PRIMARY'
+  | 'SECONDARY'
+  | 'LONG_TAIL'
+  | 'QUESTION'
+  | 'BUYER_INTENT'
+  | 'BENEFIT'
+  | 'USE_CASE'
+  | 'INGREDIENT'
+  | 'REGIONAL'
+  | 'SEMANTIC';
+
+export type SearchIntentType = 'INFORMATIONAL' | 'COMMERCIAL' | 'TRANSACTIONAL' | 'NAVIGATIONAL';
+
+export type ProductKeywordStatus =
+  | 'DISCOVERED'
+  | 'VERIFIED'
+  | 'TARGETED'
+  | 'OPTIMIZED'
+  | 'INDEXED'
+  | 'NEEDS_CONTENT'
+  | 'ARCHIVED';
+
+export interface ProductKeywordTarget {
+  id: string;
+  productId: string;
+  productName: string;
+  category: string;
+  keyword: string;
+  keywordType: KeywordCategoryType;
+  relevanceScore: number;
+  searchIntent: SearchIntentType;
+  generatedFrom: string;
+  status: ProductKeywordStatus;
+  isActive: boolean;
+  isOpportunity: boolean;
+  opportunityReason?: string;
+  // Verified Search Metrics (STRICTLY NULL until verified)
+  verifiedSearchVolume?: number | null;
+  verifiedCpc?: number | null;
+  verifiedCompetition?: 'LOW' | 'MEDIUM' | 'HIGH' | null;
+  verifiedTrend?: 'RISING' | 'STABLE' | 'DECLINING' | null;
+  verifiedSourceName?: string | null;
+  verifiedCollectedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductKeywordUniverse {
+  productId: string;
+  productName: string;
+  slug: string;
+  categoryName: string;
+  totalKeywords: number;
+  verifiedCount: number;
+  opportunityCount: number;
+  keywords: ProductKeywordTarget[];
+  groupedByType: Record<KeywordCategoryType, ProductKeywordTarget[]>;
+  topOpportunities: ProductKeywordTarget[];
+  suggestedPrimary: string;
+  suggestedSecondary: string[];
+  suggestedLongTail: string[];
+  suggestedQuestions: string[];
+  lastGeneratedAt: string;
+}
+

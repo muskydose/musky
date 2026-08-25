@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { sanitizeImageUrl, sanitizeImageUrls } from '@/lib/utils';
 import { getCategories } from './categories';
+import { syncProductKeywordUniverse, onProductDeletedLifecycle } from '@/lib/growth/product-keyword-engine';
 
 function requireSupabaseAdmin(): SupabaseClient {
   const client = getSupabaseAdmin();
@@ -81,6 +82,9 @@ export function mapRowToProduct(row: any): Product {
     isActive: row.is_active ?? row.isActive ?? true,
     sortOrder: row.sort_order ?? row.sortOrder ?? 1,
     productType: row.product_type || row.productType || undefined,
+    seoTitle: row.seo_title || row.seoTitle || undefined,
+    seoDescription: row.seo_description || row.seoDescription || undefined,
+    seoKeywords: Array.isArray(row.seo_keywords) ? row.seo_keywords : (typeof row.seo_keywords === 'string' ? row.seo_keywords.split(',').map((s: string) => s.trim()) : undefined),
     createdAt: row.created_at || row.createdAt || new Date().toISOString(),
     updatedAt: row.updated_at || row.updatedAt || new Date().toISOString(),
   };
@@ -108,6 +112,7 @@ export function mapProductToRow(p: Product) {
     is_featured: p.isFeatured ?? false,
     is_active: p.isActive ?? true,
     sort_order: p.sortOrder ?? 1,
+    product_type: p.productType || null,
     created_at: p.createdAt,
     updated_at: p.updatedAt,
   };
@@ -479,11 +484,14 @@ export async function saveProduct(product: Partial<Product>): Promise<Product> {
     throw new Error(`Database error saving product to Supabase: ${error.message}`);
   }
 
-  if (data && data.length > 0) {
-    return mapRowToProduct(data[0]);
-  }
+  const savedProduct = data && data.length > 0 ? mapRowToProduct(data[0]) : fullProduct;
 
-  return fullProduct;
+  // Background Autonomous Keyword Universe synchronization (fast, non-blocking)
+  syncProductKeywordUniverse(savedProduct).catch((kwErr) => {
+    console.warn(`[saveProduct] Background keyword universe sync notice for ${savedProduct.id}:`, kwErr?.message);
+  });
+
+  return savedProduct;
 }
 
 export async function deleteProduct(id: string): Promise<boolean> {
@@ -493,6 +501,11 @@ export async function deleteProduct(id: string): Promise<boolean> {
   if (error) {
     throw new Error(`Database error deleting product: ${error.message}`);
   }
+
+  // Cleanup keyword target associations
+  onProductDeletedLifecycle(id).catch((kwErr) => {
+    console.warn(`[deleteProduct] Background keyword cleanup notice for ${id}:`, kwErr?.message);
+  });
 
   return true;
 }

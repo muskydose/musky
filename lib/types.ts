@@ -47,6 +47,9 @@ export interface Product {
   isActive: boolean;
   sortOrder: number;
   productType?: 'POWDER' | 'RAW' | 'FINISHED' | string;
+  seoTitle?: string;
+  seoDescription?: string;
+  seoKeywords?: string[];
   createdAt: string;
   updatedAt: string;
 }

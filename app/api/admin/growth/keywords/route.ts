@@ -8,7 +8,8 @@ import { getSearchConsoleQueries } from '@/lib/growth/sources/search-console-ada
 import { getGoogleTrendsData } from '@/lib/growth/sources/trends-adapter';
 import { getOrdersForAnalytics } from '@/lib/db/orders';
 import { getWholesaleEnquiries } from '@/lib/db/wholesale';
-import { GrowthKeyword, SearchConsoleQuery, GoogleTrendsQuery, BusinessDemandSignal } from '@/lib/growth/types';
+import { GrowthKeyword, SearchConsoleQuery, GoogleTrendsQuery, BusinessDemandSignal, ProductKeywordTarget } from '@/lib/growth/types';
+import { generateProductKeywordUniverse } from '@/lib/growth/product-keyword-engine';
 
 export interface CatalogSearchMatch {
   id: string;
@@ -312,6 +313,23 @@ export async function GET(req: NextRequest) {
       catalogMatches.sort((a, b) => b.relevanceScore - a.relevanceScore);
     }
 
+    // 1.5. AUTONOMOUS PRODUCT KEYWORD UNIVERSE TARGETS
+    const generatedKeywords: (ProductKeywordTarget & { sourceBadge: 'GENERATED KEYWORD' })[] = [];
+    const productsToInspect = catalogMatches.length > 0 ? catalogMatches.slice(0, 3) : (q ? [] : products.slice(0, 3));
+
+    for (const p of productsToInspect) {
+      const fullProd = products.find((prod) => prod.id === p.id);
+      if (fullProd) {
+        const universe = generateProductKeywordUniverse(fullProd, keywords);
+        universe.keywords.forEach((kw) => {
+          generatedKeywords.push({
+            ...kw,
+            sourceBadge: 'GENERATED KEYWORD' as const,
+          });
+        });
+      }
+    }
+
     // 2. FIRST-PARTY STORE BUSINESS SIGNALS
     const matchingProductIds = new Set(catalogMatches.map(p => p.id));
     let matchingOrdersCount = 0;
@@ -502,10 +520,17 @@ export async function GET(req: NextRequest) {
           businessSignals,
           label: 'Musky Dose Business Signals (Orders & Wholesale)',
         },
+        productKeywords: {
+          enabled: true,
+          totalKeywords: generatedKeywords.length,
+          keywords: generatedKeywords,
+          label: 'Autonomous Product Keyword Universe (Zero Synthetic Metrics)',
+        },
       },
       overallQueryOpportunity,
       catalogMatches,
       keywordMatches: enrichedKeywords,
+      generatedKeywords,
       regionalSummary,
       googleAdsConnector: {
         configured: isGoogleConfigured,
@@ -518,6 +543,7 @@ export async function GET(req: NextRequest) {
       keywords,
       totalCatalogMatches: catalogMatches.length,
       totalKeywordMatches: enrichedKeywords.length,
+      totalGeneratedKeywords: generatedKeywords.length,
     });
   } catch (error: any) {
     return sanitizeAdminError(error, 'Failed to fetch Growth AI search intelligence.');
