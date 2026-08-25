@@ -15,6 +15,30 @@ function requireSupabaseAdmin(): SupabaseClient {
   return client;
 }
 
+// In-memory idempotency cache for rapid repeat submission protection without database column dependency
+const inMemoryOrderCache = new Map<string, { order: Order; timestamp: number }>();
+
+function getCachedOrderByIdempotency(key: string): Order | null {
+  const cached = inMemoryOrderCache.get(key);
+  if (cached) {
+    if (Date.now() - cached.timestamp < 10 * 60 * 1000) {
+      return cached.order;
+    }
+    inMemoryOrderCache.delete(key);
+  }
+  return null;
+}
+
+function setCachedOrderByIdempotency(key: string, order: Order): void {
+  if (inMemoryOrderCache.size > 200) {
+    const now = Date.now();
+    for (const [k, v] of inMemoryOrderCache.entries()) {
+      if (now - v.timestamp > 10 * 60 * 1000) inMemoryOrderCache.delete(k);
+    }
+  }
+  inMemoryOrderCache.set(key, { order, timestamp: Date.now() });
+}
+
 // ============================================================
 // ROW MAPPERS FOR ORDERS & CUSTOMERS
 // ============================================================
@@ -36,6 +60,20 @@ export function mapRowToOrder(row: any): Order {
   const discountDet = row.discount_details || row.discountDetails || '';
   const shippingVal = Number(row.shipping_fee ?? row.shippingFee ?? 0);
   const totalVal = Number(row.total_amount ?? row.totalAmount ?? 0);
+
+  // Extract coupon/campaign if encoded in notes
+  const notesStr = row.notes || '';
+  let parsedCoupon = row.coupon_code || row.couponCode;
+  if (!parsedCoupon && notesStr.includes('[Coupon: ')) {
+    const match = notesStr.match(/\[Coupon:\s*([^\]]+)\]/);
+    if (match) parsedCoupon = match[1].trim();
+  }
+
+  let parsedCampaign = row.campaign_name || row.campaignName;
+  if (!parsedCampaign && notesStr.includes('[Offer: ')) {
+    const match = notesStr.match(/\[Offer:\s*([^\]]+)\]/);
+    if (match) parsedCampaign = match[1].trim();
+  }
 
   return {
     id: row.id,
@@ -60,11 +98,11 @@ export function mapRowToOrder(row: any): Order {
     orderStatus: row.order_status || row.orderStatus || 'NEW',
     paymentStatus: row.payment_status || row.paymentStatus || 'UNPAID',
     paymentMethod: row.payment_method || row.paymentMethod || 'WhatsApp',
-    notes: row.notes || '',
+    notes: notesStr,
     campaignId: row.campaign_id || row.campaignId || undefined,
-    campaignName: row.campaign_name || row.campaignName || undefined,
-    couponCode: row.coupon_code || row.couponCode || undefined,
-    campaignDiscountAmount: Number(row.campaign_discount_amount ?? row.campaignDiscountAmount ?? 0),
+    campaignName: parsedCampaign || undefined,
+    couponCode: parsedCoupon || undefined,
+    campaignDiscountAmount: Number(row.campaign_discount_amount ?? row.campaignDiscountAmount ?? discountVal ?? 0),
     idempotencyKey: row.idempotency_key || row.idempotencyKey || undefined,
     createdAt: row.created_at || row.createdAt || new Date().toISOString(),
     updatedAt: row.updated_at || row.updatedAt || new Date().toISOString(),
@@ -72,6 +110,15 @@ export function mapRowToOrder(row: any): Order {
 }
 
 export function mapOrderToRow(o: Order) {
+  // Preserve campaign / coupon metadata in notes if present
+  const metaNotesParts: string[] = [];
+  if (o.couponCode) metaNotesParts.push(`[Coupon: ${o.couponCode}]`);
+  if (o.campaignName) metaNotesParts.push(`[Offer: ${o.campaignName}]`);
+  if (o.discountDetails) metaNotesParts.push(`[Discount: ${o.discountDetails}]`);
+
+  const metaNotes = metaNotesParts.length > 0 ? metaNotesParts.join(' ') : '';
+  const combinedNotes = [o.notes, metaNotes].filter(Boolean).join('\n').trim();
+
   return {
     id: o.id,
     order_number: o.orderNumber,
@@ -89,18 +136,14 @@ export function mapOrderToRow(o: Order) {
     items: o.items || [],
     subtotal: o.subtotal,
     discount_amount: o.discountAmount || 0,
-    discount_details: o.discountDetails || '',
+    discount_type: o.couponCode ? 'COUPON' : (o.campaignId ? 'CAMPAIGN' : (o.discountAmount ? 'BULK' : 'NONE')),
+    discount_value: o.discountAmount || 0,
     shipping_fee: o.shippingFee,
     total_amount: o.totalAmount,
-    campaign_id: o.campaignId || null,
-    campaign_name: o.campaignName || null,
-    coupon_code: o.couponCode || null,
-    campaign_discount_amount: o.campaignDiscountAmount || 0,
-    idempotency_key: o.idempotencyKey || null,
     order_status: o.orderStatus,
     payment_status: o.paymentStatus,
     payment_method: o.paymentMethod,
-    notes: o.notes || '',
+    notes: combinedNotes,
     created_at: o.createdAt,
     updated_at: o.updatedAt,
   };
@@ -286,9 +329,8 @@ export async function getCampaignOrders(days?: number): Promise<Order[]> {
   try {
     let query = supabase
       .from('orders')
-      .select('id, order_number, customer_name, campaign_id, campaign_name, coupon_code, total_amount, order_status, created_at')
-      .neq('order_status', 'CANCELLED')
-      .or('campaign_id.not.is.null,campaign_name.not.is.null');
+      .select('*')
+      .neq('order_status', 'CANCELLED');
 
     if (days && days > 0) {
       const cutoff = new Date();
@@ -304,7 +346,8 @@ export async function getCampaignOrders(days?: number): Promise<Order[]> {
       return [];
     }
 
-    return (data || []).map(mapRowToOrder);
+    const allOrders = (data || []).map(mapRowToOrder);
+    return allOrders.filter((o) => (o.discountAmount ?? 0) > 0 || o.campaignId || o.couponCode || (o.notes && o.notes.includes('[Coupon:')));
   } catch (err: any) {
     console.error('getCampaignOrders error:', err?.message);
     return [];
@@ -330,16 +373,12 @@ export async function saveOrder(orderData: Partial<Order>): Promise<Order> {
   const supabase = requireSupabaseAdmin();
   const now = new Date().toISOString();
 
-  // Check idempotency key FIRST before performing calculations or campaign allocations
+  // Check in-memory idempotency cache FIRST before performing calculations or campaign allocations
   const idempotencyKey = (orderData.idempotencyKey || (orderData as any).idempotency_key || '').toString().trim();
   if (idempotencyKey) {
-    const { data: existingRow } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('idempotency_key', idempotencyKey)
-      .maybeSingle();
-    if (existingRow) {
-      return mapRowToOrder(existingRow);
+    const cachedOrder = getCachedOrderByIdempotency(idempotencyKey);
+    if (cachedOrder) {
+      return cachedOrder;
     }
   }
 
@@ -573,6 +612,10 @@ export async function saveOrder(orderData: Partial<Order>): Promise<Order> {
     } catch (e) {
       console.warn('Non-fatal error syncing customer record:', e);
     }
+  }
+
+  if (idempotencyKey) {
+    setCachedOrderByIdempotency(idempotencyKey, finalSavedOrder);
   }
 
   return finalSavedOrder;
