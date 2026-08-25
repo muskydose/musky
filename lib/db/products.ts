@@ -112,7 +112,6 @@ export function mapProductToRow(p: Product) {
     is_featured: p.isFeatured ?? false,
     is_active: p.isActive ?? true,
     sort_order: p.sortOrder ?? 1,
-    product_type: p.productType || null,
     created_at: p.createdAt,
     updated_at: p.updatedAt,
   };
