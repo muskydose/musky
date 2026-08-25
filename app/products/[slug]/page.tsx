@@ -5,6 +5,7 @@ import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
 import WhatsAppFloat from '@/components/WhatsAppFloat';
 import { getProductByIdOrSlug, getRelatedProducts } from '@/lib/db/products';
+import { getCategories } from '@/lib/db/categories';
 import { getSiteSettings } from '@/lib/db/settings';
 import { resolvePageSeoMetadata } from '@/lib/db/seo';
 import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
@@ -44,66 +45,125 @@ export default async function ProductDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const [product, siteSettings] = await Promise.all([
+  const [product, siteSettings, categories] = await Promise.all([
     getProductByIdOrSlug(slug),
     getSiteSettings(),
+    getCategories(),
   ]);
 
   if (!product || product.isActive === false) {
     notFound();
   }
 
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
   const relatedProducts = await getRelatedProducts(product.id, product.categoryId, 3);
+  const matchedCategory = categories.find(
+    (c) => (product.categoryId && c.id === product.categoryId) || (product.categoryName && c.name === product.categoryName)
+  );
+
+  const breadcrumbElements: Array<{ '@type': string; position: number; name: string; item: string }> = [
+    {
+      '@type': 'ListItem',
+      position: 1,
+      name: 'Home',
+      item: baseUrl,
+    },
+  ];
+
+  if (matchedCategory) {
+    breadcrumbElements.push({
+      '@type': 'ListItem',
+      position: 2,
+      name: matchedCategory.name,
+      item: `${baseUrl}/categories/${matchedCategory.slug}`,
+    });
+    breadcrumbElements.push({
+      '@type': 'ListItem',
+      position: 3,
+      name: product.name,
+      item: `${baseUrl}/products/${product.slug}`,
+    });
+  } else {
+    breadcrumbElements.push({
+      '@type': 'ListItem',
+      position: 2,
+      name: 'Products',
+      item: `${baseUrl}/products`,
+    });
+    breadcrumbElements.push({
+      '@type': 'ListItem',
+      position: 3,
+      name: product.name,
+      item: `${baseUrl}/products/${product.slug}`,
+    });
+  }
 
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
       {
         '@type': 'Product',
-        '@id': `https://muskydose.in/products/${product.slug}#product`,
+        '@id': `${baseUrl}/products/${product.slug}#product`,
         name: product.name,
-        image: product.images?.[0],
+        image: product.images?.[0] ? (product.images[0].startsWith('http') ? product.images[0] : `${baseUrl}${product.images[0]}`) : undefined,
         description: product.fullDescription || product.shortDescription,
         sku: product.sku || product.id,
         brand: {
           '@type': 'Brand',
-          name: 'Musky Dose',
+          name: siteSettings?.brandName || 'Musky Dose',
         },
         offers: {
           '@type': 'Offer',
-          url: `https://muskydose.in/products/${product.slug}`,
+          url: `${baseUrl}/products/${product.slug}`,
           priceCurrency: 'INR',
           price: product.price,
           itemCondition: 'https://schema.org/NewCondition',
           availability: product.stockStatus === 'in_stock' ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
           seller: {
             '@type': 'Organization',
-            name: 'Musky Dose',
+            name: siteSettings?.brandName || 'Musky Dose',
+          },
+          hasMerchantReturnPolicy: {
+            '@type': 'MerchantReturnPolicy',
+            applicableCountry: 'IN',
+            returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+            merchantReturnDays: 7,
+            returnMethod: 'https://schema.org/ReturnByMail',
+            returnFees: 'https://schema.org/FreeReturn',
+            url: `${baseUrl}/return-policy`,
+          },
+          shippingDetails: {
+            '@type': 'OfferShippingDetails',
+            shippingRate: {
+              '@type': 'MonetaryAmount',
+              value: Number(siteSettings?.shippingFee ?? 0),
+              currency: 'INR',
+            },
+            shippingDestination: {
+              '@type': 'DefinedRegion',
+              addressCountry: 'IN',
+            },
+            deliveryTime: {
+              '@type': 'ShippingDeliveryTime',
+              handlingTime: {
+                '@type': 'QuantitativeValue',
+                minValue: 1,
+                maxValue: 2,
+                unitCode: 'DAY',
+              },
+              transitTime: {
+                '@type': 'QuantitativeValue',
+                minValue: 2,
+                maxValue: 5,
+                unitCode: 'DAY',
+              },
+            },
           },
         },
       },
       {
         '@type': 'BreadcrumbList',
-        itemListElement: [
-          {
-            '@type': 'ListItem',
-            position: 1,
-            name: 'Home',
-            item: 'https://muskydose.in',
-          },
-          {
-            '@type': 'ListItem',
-            position: 2,
-            name: 'Products',
-            item: 'https://muskydose.in/products',
-          },
-          {
-            '@type': 'ListItem',
-            position: 3,
-            name: product.name,
-            item: `https://muskydose.in/products/${product.slug}`,
-          },
-        ],
+        itemListElement: breadcrumbElements,
       },
     ],
   };

@@ -802,7 +802,7 @@ export const INITIAL_SEO_KEYWORDS: import('./types').SeoKeyword[] = [
     keyword: 'natural henna powder',
     targetType: 'category',
     targetId: 'cat-1',
-    targetUrl: '/categories/henna-care',
+    targetUrl: '/categories/henna',
     priority: 'HIGH',
     active: true,
     isPrimary: true,
