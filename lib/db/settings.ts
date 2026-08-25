@@ -9,30 +9,30 @@ let cachedPaymentSettingsMemory: PaymentSettings | null = null;
 
 export function mapRowToSiteSettings(row: any): SiteSettings {
   const base = row.data && typeof row.data === 'object' ? row.data : {};
-  const businessName = base.businessName || row.business_name || row.brand_name || base.brandName || INITIAL_SITE_SETTINGS.businessName;
-  const displayPhone = base.displayPhone || row.display_phone || row.contact_number || base.contactNumber || INITIAL_SITE_SETTINGS.displayPhone;
-  const whatsappNumber = row.whatsapp_number || row.whatsappNumber || base.whatsappNumber || INITIAL_SITE_SETTINGS.whatsappNumber;
-  const businessEmail = base.businessEmail || row.business_email || row.email || base.email || INITIAL_SITE_SETTINGS.businessEmail;
-  const websiteUrl = base.websiteUrl || row.website_url || row.site_url || base.siteUrl || INITIAL_SITE_SETTINGS.websiteUrl;
+  const businessName = base.businessName || base.brandName || row.business_name || row.brand_name || INITIAL_SITE_SETTINGS.businessName;
+  const displayPhone = base.displayPhone || base.contactNumber || row.display_phone || row.contact_number || INITIAL_SITE_SETTINGS.displayPhone;
+  const whatsappNumber = base.whatsappNumber || row.whatsapp_number || row.whatsappNumber || INITIAL_SITE_SETTINGS.whatsappNumber;
+  const businessEmail = base.businessEmail || base.email || row.business_email || row.email || INITIAL_SITE_SETTINGS.businessEmail;
+  const websiteUrl = base.websiteUrl || base.siteUrl || row.website_url || row.site_url || INITIAL_SITE_SETTINGS.websiteUrl;
 
   return {
     ...INITIAL_SITE_SETTINGS,
     ...base,
-    brandName: row.brand_name || row.brandName || base.brandName || INITIAL_SITE_SETTINGS.brandName,
+    brandName: base.brandName || row.brand_name || row.brandName || INITIAL_SITE_SETTINGS.brandName,
     businessName,
-    tagline: row.tagline || base.tagline || INITIAL_SITE_SETTINGS.tagline,
+    tagline: base.tagline || row.tagline || INITIAL_SITE_SETTINGS.tagline,
     logoUrl: (() => {
-      const candidate = (row.logo_url || row.logoUrl || base.logoUrl || INITIAL_SITE_SETTINGS.logoUrl || '').trim();
+      const candidate = (base.logoUrl || row.logo_url || row.logoUrl || INITIAL_SITE_SETTINGS.logoUrl || '').trim();
       if (!candidate || candidate.endsWith('.svg') || candidate.includes('logo.svg')) {
         return '/logo.png';
       }
       return sanitizeImageUrl(candidate, '/logo.png');
     })(),
-    faviconUrl: sanitizeImageUrl(row.favicon_url || row.faviconUrl || base.faviconUrl || INITIAL_SITE_SETTINGS.faviconUrl, '/favicon.png'),
-    heroImageUrl: sanitizeImageUrl(row.hero_image_url || row.heroImageUrl || base.heroImageUrl || INITIAL_SITE_SETTINGS.heroImageUrl),
-    aboutImageUrl: sanitizeImageUrl(row.about_image_url || row.aboutImageUrl || base.aboutImageUrl || INITIAL_SITE_SETTINGS.aboutImageUrl),
-    factoryImageUrl: sanitizeImageUrl(row.factory_image_url || row.factoryImageUrl || base.factoryImageUrl || INITIAL_SITE_SETTINGS.factoryImageUrl),
-    ogImageUrl: sanitizeImageUrl(row.og_image_url || row.ogImageUrl || base.ogImageUrl || INITIAL_SITE_SETTINGS.ogImageUrl),
+    faviconUrl: sanitizeImageUrl(base.faviconUrl || row.favicon_url || row.faviconUrl || INITIAL_SITE_SETTINGS.faviconUrl, '/favicon.png'),
+    heroImageUrl: sanitizeImageUrl(base.heroImageUrl || row.hero_image_url || row.heroImageUrl || INITIAL_SITE_SETTINGS.heroImageUrl),
+    aboutImageUrl: sanitizeImageUrl(base.aboutImageUrl || row.about_image_url || row.aboutImageUrl || INITIAL_SITE_SETTINGS.aboutImageUrl),
+    factoryImageUrl: sanitizeImageUrl(base.factoryImageUrl || row.factory_image_url || row.factoryImageUrl || INITIAL_SITE_SETTINGS.factoryImageUrl),
+    ogImageUrl: sanitizeImageUrl(base.ogImageUrl || row.og_image_url || row.ogImageUrl || INITIAL_SITE_SETTINGS.ogImageUrl),
 
     // Canonical Business Settings
     displayPhone,
@@ -47,13 +47,13 @@ export function mapRowToSiteSettings(row: any): SiteSettings {
     brandPhone: displayPhone,
     siteUrl: websiteUrl,
 
-    address: row.address || base.address || INITIAL_SITE_SETTINGS.address,
-    socials: row.socials || base.socials || INITIAL_SITE_SETTINGS.socials,
-    heroTitle: row.hero_title || row.heroTitle || base.heroTitle || INITIAL_SITE_SETTINGS.heroTitle,
-    heroSubtitle: row.hero_subtitle || row.heroSubtitle || base.heroSubtitle || INITIAL_SITE_SETTINGS.heroSubtitle,
-    seoTitle: row.seo_title || row.seoTitle || base.seoTitle || INITIAL_SITE_SETTINGS.seoTitle,
-    seoDescription: row.seo_description || row.seoDescription || base.seoDescription || INITIAL_SITE_SETTINGS.seoDescription,
-// WhatsApp 3-Step Ordering Guide
+    address: base.address || row.address || INITIAL_SITE_SETTINGS.address,
+    socials: base.socials || row.socials || INITIAL_SITE_SETTINGS.socials,
+    heroTitle: base.heroTitle || row.hero_title || row.heroTitle || INITIAL_SITE_SETTINGS.heroTitle,
+    heroSubtitle: base.heroSubtitle || row.hero_subtitle || row.heroSubtitle || INITIAL_SITE_SETTINGS.heroSubtitle,
+    seoTitle: base.seoTitle || row.seo_title || row.seoTitle || INITIAL_SITE_SETTINGS.seoTitle,
+    seoDescription: base.seoDescription || row.seo_description || row.seoDescription || INITIAL_SITE_SETTINGS.seoDescription,
+    // WhatsApp 3-Step Ordering Guide
     whatsappGuideHeading: base.whatsappGuideHeading || row.whatsapp_guide_heading || INITIAL_SITE_SETTINGS.whatsappGuideHeading,
     whatsappGuideSubheading: base.whatsappGuideSubheading || row.whatsapp_guide_subheading || INITIAL_SITE_SETTINGS.whatsappGuideSubheading,
     whatsappGuideDescription: base.whatsappGuideDescription || row.whatsapp_guide_description || INITIAL_SITE_SETTINGS.whatsappGuideDescription,
@@ -81,11 +81,34 @@ export function mapSiteSettingsToRow(s: SiteSettings) {
   const displayPhone = s.displayPhone || s.contactNumber || INITIAL_SITE_SETTINGS.displayPhone;
   const businessEmail = s.businessEmail || s.email || INITIAL_SITE_SETTINGS.businessEmail;
   const websiteUrl = s.websiteUrl || s.siteUrl || INITIAL_SITE_SETTINGS.websiteUrl;
+  const brandName = s.brandName || INITIAL_SITE_SETTINGS.brandName;
+  const tagline = s.tagline || INITIAL_SITE_SETTINGS.tagline;
+  const whatsappNumber = s.whatsappNumber || INITIAL_SITE_SETTINGS.whatsappNumber;
+  const heroTitle = s.heroTitle || INITIAL_SITE_SETTINGS.heroTitle;
+  const heroSubtitle = s.heroSubtitle || INITIAL_SITE_SETTINGS.heroSubtitle;
+  const seoTitle = s.seoTitle || INITIAL_SITE_SETTINGS.seoTitle;
+  const seoDescription = s.seoDescription || INITIAL_SITE_SETTINGS.seoDescription;
+  const address = s.address || INITIAL_SITE_SETTINGS.address;
+  const socials = s.socials || INITIAL_SITE_SETTINGS.socials;
 
   return {
     id: 'default',
+    brand_name: brandName,
+    tagline: tagline,
+    whatsapp_number: whatsappNumber,
+    contact_number: displayPhone,
+    email: businessEmail,
+    address: address,
+    socials: socials,
+    hero_title: heroTitle,
+    hero_subtitle: heroSubtitle,
+    seo_title: seoTitle,
+    seo_description: seoDescription,
     data: {
       ...s,
+      brandName,
+      tagline,
+      whatsappNumber,
       displayPhone,
       businessEmail,
       websiteUrl,
@@ -94,6 +117,12 @@ export function mapSiteSettingsToRow(s: SiteSettings) {
       brandEmail: businessEmail,
       brandPhone: displayPhone,
       siteUrl: websiteUrl,
+      heroTitle,
+      heroSubtitle,
+      seoTitle,
+      seoDescription,
+      address,
+      socials,
     },
     updated_at: new Date().toISOString(),
   };

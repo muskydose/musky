@@ -38,7 +38,7 @@ export default function ProductAutoFillModal({
 }: ProductAutoFillModalProps) {
   const [nameInput, setNameInput] = useState(productName || currentFormData.name || '');
   const [selectedCategory, setSelectedCategory] = useState(currentFormData.categoryId || '');
-  const [productType, setProductType] = useState<'POWDER' | 'RAW' | 'FINISHED'>(currentFormData.productType || 'POWDER');
+  const [productType, setProductType] = useState<string>(currentFormData.productType || 'POWDER');
   const [weightInput, setWeightInput] = useState(currentFormData.quantityOrWeight || '250g Pack');
   const [hintsInput, setHintsInput] = useState('');
 

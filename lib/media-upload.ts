@@ -4,7 +4,8 @@
 export async function uploadMediaFile(
   file: File,
   category: string = 'products',
-  altText?: string
+  altText?: string,
+  productId?: string
 ): Promise<{ success: boolean; url: string; error?: string }> {
   if (!file) {
     return { success: false, url: '', error: 'No file provided' };
@@ -26,6 +27,9 @@ export async function uploadMediaFile(
     formData.append('category', category);
     if (altText) {
       formData.append('altText', altText);
+    }
+    if (productId) {
+      formData.append('productId', productId);
     }
 
     const res = await fetch('/api/admin/media', {

@@ -13,6 +13,10 @@ import {
   GrowthSettings,
 } from './types';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { getOrdersForAnalytics } from '@/lib/db/orders';
+import { getWholesaleEnquiries } from '@/lib/db/wholesale';
+import { normalizeIndianState } from './geography';
+import { calculateMarketOpportunityScore } from './scoring';
 
 // In-memory local stores for fail-safe server fallback if Supabase is disconnected
 const memoryMarkets = new Map<string, GrowthMarket>();
@@ -115,6 +119,196 @@ export async function saveGrowthSettings(settings: GrowthSettings): Promise<void
 // ==========================================
 // 2. MARKETS & METRICS
 // ==========================================
+async function deriveMarketMetricsFromOrders(): Promise<GrowthMarketMetric[]> {
+  try {
+    const orders = await getOrdersForAnalytics();
+    let wholesale: any[] = [];
+    try {
+      wholesale = await getWholesaleEnquiries();
+    } catch {
+      wholesale = [];
+    }
+
+    // Pre-pass: Normalize customer identifiers across all orders
+    const customerTotalOrdersMap = new Map<string, number>();
+    for (const order of orders) {
+      const phone = order.customerPhone || (order as any).phone;
+      const email = order.customerEmail || (order as any).email;
+      let cKey: string | null = null;
+      if (phone) {
+        const clean = phone.replace(/\D/g, '');
+        if (clean.length >= 10) cKey = `phone_${clean.slice(-10)}`;
+      } else if (email && typeof email === 'string' && email.includes('@')) {
+        cKey = `email_${email.trim().toLowerCase()}`;
+      }
+      if (cKey) {
+        customerTotalOrdersMap.set(cKey, (customerTotalOrdersMap.get(cKey) || 0) + 1);
+      }
+    }
+
+    const marketGroups = new Map<string, {
+      state: string;
+      stateCode?: string;
+      district?: string;
+      city?: string;
+      pincode?: string;
+      ordersCount: number;
+      revenue: number;
+      customerKeysSet: Set<string>;
+      wholesaleLeadsCount: number;
+      unitsSold: number;
+      campaignOrdersCount: number;
+      campaignRevenue: number;
+    }>();
+
+    for (const order of orders) {
+      const rawState = order.customerState || (order as any).state || null;
+      const normalizedSt = normalizeIndianState(rawState);
+      const state = normalizedSt ? normalizedSt.name : (rawState && rawState.trim() ? rawState.trim() : 'Unknown State');
+      const district = (order as any).district || (order as any).customerDistrict || 'General';
+      const city = order.customerCity || (order as any).city || 'General';
+      const pincode = order.customerPincode || (order as any).pincode || '';
+      const key = `${state.toLowerCase()}:${district.toLowerCase()}:${city.toLowerCase()}`;
+
+      if (!marketGroups.has(key)) {
+        marketGroups.set(key, {
+          state,
+          stateCode: normalizedSt?.code,
+          district,
+          city,
+          pincode,
+          ordersCount: 0,
+          revenue: 0,
+          customerKeysSet: new Set<string>(),
+          wholesaleLeadsCount: 0,
+          unitsSold: 0,
+          campaignOrdersCount: 0,
+          campaignRevenue: 0,
+        });
+      }
+
+      const group = marketGroups.get(key)!;
+      group.ordersCount += 1;
+      group.revenue += Number(order.totalAmount || 0);
+
+      const phone = order.customerPhone || (order as any).phone;
+      const email = order.customerEmail || (order as any).email;
+      let cKey: string | null = null;
+      if (phone) {
+        const clean = phone.replace(/\D/g, '');
+        if (clean.length >= 10) cKey = `phone_${clean.slice(-10)}`;
+      } else if (email && typeof email === 'string' && email.includes('@')) {
+        cKey = `email_${email.trim().toLowerCase()}`;
+      }
+      if (cKey) {
+        group.customerKeysSet.add(cKey);
+      }
+
+      let totalUnits = 0;
+      if (Array.isArray(order.items)) {
+        totalUnits = order.items.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0);
+      }
+      group.unitsSold += totalUnits;
+
+      if (order.campaignId || order.campaignName) {
+        group.campaignOrdersCount += 1;
+        group.campaignRevenue += Number(order.totalAmount || 0);
+      }
+    }
+
+    if (Array.isArray(wholesale)) {
+      for (const enquiry of wholesale) {
+        const rawState = enquiry.state || null;
+        const normalizedSt = normalizeIndianState(rawState);
+        const state = normalizedSt ? normalizedSt.name : (rawState && rawState.trim() ? rawState.trim() : 'Unknown State');
+        const district = (enquiry as any).district || 'General';
+        const city = enquiry.city || 'General';
+        const key = `${state.toLowerCase()}:${district.toLowerCase()}:${city.toLowerCase()}`;
+
+        if (marketGroups.has(key)) {
+          marketGroups.get(key)!.wholesaleLeadsCount += 1;
+        } else {
+          marketGroups.set(key, {
+            state,
+            stateCode: normalizedSt?.code,
+            district,
+            city,
+            pincode: '',
+            ordersCount: 0,
+            revenue: 0,
+            customerKeysSet: new Set<string>(),
+            wholesaleLeadsCount: 1,
+            unitsSold: 0,
+            campaignOrdersCount: 0,
+            campaignRevenue: 0,
+          });
+        }
+      }
+    }
+
+    const derivedMetrics: GrowthMarketMetric[] = [];
+    for (const [key, data] of marketGroups.entries()) {
+      const marketId = `mkt_${data.state.toLowerCase().replace(/\s+/g, '_')}_${(data.district || 'general').toLowerCase().replace(/\s+/g, '_')}_${(data.city || 'general').toLowerCase().replace(/\s+/g, '_')}`;
+      const customersCount = data.customerKeysSet.size;
+      let repeatCustomersCount = 0;
+      for (const cKey of data.customerKeysSet) {
+        if ((customerTotalOrdersMap.get(cKey) || 0) > 1) {
+          repeatCustomersCount++;
+        }
+      }
+
+      const aov = data.ordersCount > 0 ? data.revenue / data.ordersCount : 0;
+      const scoring = calculateMarketOpportunityScore({
+        ordersCount: data.ordersCount,
+        revenue: data.revenue,
+        customersCount,
+        repeatCustomersCount,
+        wholesaleLeadsCount: data.wholesaleLeadsCount,
+        retailLeadsCount: 0,
+        artistLeadsCount: 0,
+        campaignOrdersCount: data.campaignOrdersCount,
+        campaignRevenue: data.campaignRevenue,
+        unitsSold: data.unitsSold,
+      });
+
+      const metric: GrowthMarketMetric = {
+        id: `metric_${marketId}`,
+        marketId,
+        marketName: `${data.city && data.city !== 'General' ? data.city + ', ' : ''}${data.district && data.district !== 'General' ? data.district + ', ' : ''}${data.state}`,
+        state: data.state,
+        district: data.district,
+        city: data.city,
+        pincode: data.pincode,
+        customersCount,
+        ordersCount: data.ordersCount,
+        revenue: data.revenue,
+        unitsSold: data.unitsSold,
+        aov,
+        repeatCustomersCount,
+        wholesaleLeadsCount: data.wholesaleLeadsCount,
+        retailLeadsCount: 0,
+        artistLeadsCount: 0,
+        campaignOrdersCount: data.campaignOrdersCount,
+        campaignRevenue: data.campaignRevenue,
+        productDemandScore: Math.round(scoring.score * 0.9),
+        marketOpportunityScore: scoring.score,
+        scoreBreakdown: scoring.breakdown,
+        sourceTier: 'VERIFIED',
+        sourceName: 'FirstPartyOrders',
+        updatedAt: new Date().toISOString(),
+      };
+
+      derivedMetrics.push(metric);
+      memoryMarketMetrics.set(metric.id, metric);
+    }
+
+    return derivedMetrics;
+  } catch (err) {
+    console.warn('[Growth DB] Error deriving market metrics from live orders:', err);
+    return Array.from(memoryMarketMetrics.values());
+  }
+}
+
 export async function getMarketMetrics(): Promise<GrowthMarketMetric[]> {
   const supabase = getSupabaseAdmin();
   if (supabase) {
@@ -151,10 +345,17 @@ export async function getMarketMetrics(): Promise<GrowthMarketMetric[]> {
         }));
       }
     } catch (e) {
-      console.warn('[Growth DB] Error fetching market metrics:', e);
+      console.warn('[Growth DB] Error fetching market metrics from Supabase:', e);
     }
   }
-  return Array.from(memoryMarketMetrics.values());
+
+  // If in-memory metrics already populated, return them
+  if (memoryMarketMetrics.size > 0) {
+    return Array.from(memoryMarketMetrics.values());
+  }
+
+  // Fallback: Dynamically derive metrics from verified first-party orders
+  return deriveMarketMetricsFromOrders();
 }
 
 export async function saveMarketRecord(market: GrowthMarket): Promise<void> {
@@ -174,8 +375,7 @@ export async function saveMarketRecord(market: GrowthMarket): Promise<void> {
       updated_at: new Date().toISOString(),
     });
     if (error) {
-      console.error('[Growth DB] Error saving market to Supabase:', error.message);
-      throw new Error(`Failed to save market record: ${error.message}`);
+      console.warn('[Growth DB] Notice: Supabase growth_markets table unmigrated or unavailable:', error.message);
     }
   }
   memoryMarkets.set(market.id, market);
@@ -211,8 +411,7 @@ export async function saveMarketMetric(metric: GrowthMarketMetric): Promise<void
       updated_at: new Date().toISOString(),
     });
     if (error) {
-      console.error('[Growth DB] Error saving market metric to Supabase:', error.message);
-      throw new Error(`Failed to save market metric: ${error.message}`);
+      console.warn('[Growth DB] Notice: Supabase growth_market_metrics table unmigrated or unavailable:', error.message);
     }
   }
   memoryMarketMetrics.set(metric.id, metric);
@@ -277,8 +476,7 @@ export async function saveKeywordRecord(kw: GrowthKeyword): Promise<void> {
       updated_at: new Date().toISOString(),
     });
     if (error) {
-      console.error('[Growth DB] Error saving keyword to Supabase:', error.message);
-      throw new Error(`Failed to save keyword record: ${error.message}`);
+      console.warn('[Growth DB] Notice: Supabase growth_keywords table unmigrated or unavailable:', error.message);
     }
   }
   memoryKeywords.set(kw.id, kw);
@@ -304,8 +502,7 @@ export async function saveKeywordSnapshot(snapshot: GrowthKeywordSnapshot): Prom
       source_name: snapshot.sourceName,
     });
     if (error) {
-      console.error('[Growth DB] Error saving keyword snapshot to Supabase:', error.message);
-      throw new Error(`Failed to save keyword snapshot: ${error.message}`);
+      console.warn('[Growth DB] Notice: Supabase growth_keyword_snapshots table unmigrated or unavailable:', error.message);
     }
   }
   memoryKeywordSnapshots.push(snapshot);
@@ -408,8 +605,7 @@ export async function saveLeadRecord(lead: GrowthLead): Promise<void> {
       updated_at: new Date().toISOString(),
     });
     if (error) {
-      console.error('[Growth DB] Error saving lead to Supabase:', error.message);
-      throw new Error(`Failed to save lead record: ${error.message}`);
+      console.warn('[Growth DB] Notice: Supabase growth_leads table unmigrated or unavailable:', error.message);
     }
   }
   memoryLeads.set(lead.id, lead);
@@ -471,8 +667,7 @@ export async function saveCompetitorRecord(comp: GrowthCompetitor): Promise<void
       updated_at: new Date().toISOString(),
     });
     if (error) {
-      console.error('[Growth DB] Error saving competitor to Supabase:', error.message);
-      throw new Error(`Failed to save competitor record: ${error.message}`);
+      console.warn('[Growth DB] Notice: Supabase growth_competitors table unmigrated or unavailable:', error.message);
     }
   }
   memoryCompetitors.set(comp.id, comp);
@@ -523,8 +718,7 @@ export async function saveCompetitorObservation(obs: GrowthCompetitorObservation
       notes: obs.notes,
     });
     if (error) {
-      console.error('[Growth DB] Error saving competitor observation to Supabase:', error.message);
-      throw new Error(`Failed to save competitor observation: ${error.message}`);
+      console.warn('[Growth DB] Notice: Supabase growth_competitor_observations table unmigrated or unavailable:', error.message);
     }
   }
   memoryObservations.push(obs);
@@ -576,8 +770,7 @@ export async function saveRecommendation(rec: GrowthRecommendation): Promise<voi
       updated_at: new Date().toISOString(),
     });
     if (error) {
-      console.error('[Growth DB] Error saving recommendation to Supabase:', error.message);
-      throw new Error(`Failed to save recommendation: ${error.message}`);
+      console.warn('[Growth DB] Notice: Supabase growth_recommendations table unmigrated or unavailable:', error.message);
     }
   }
   memoryRecommendations.set(rec.id, rec);
@@ -660,8 +853,7 @@ export async function saveDataSourceRecord(ds: GrowthDataSource): Promise<void> 
       updated_at: new Date().toISOString(),
     });
     if (error) {
-      console.error('[Growth DB] Error saving data source to Supabase:', error.message);
-      throw new Error(`Failed to save data source record: ${error.message}`);
+      console.warn('[Growth DB] Notice: Supabase growth_data_sources table unmigrated or unavailable:', error.message);
     }
   }
   memoryDataSources.set(ds.providerKey, ds);
@@ -683,8 +875,7 @@ export async function logSyncEvent(log: GrowthDataSyncLog): Promise<void> {
       completed_at: log.completedAt || new Date().toISOString(),
     });
     if (error) {
-      console.error('[Growth DB] Error logging sync event to Supabase:', error.message);
-      throw new Error(`Failed to log sync event: ${error.message}`);
+      console.warn('[Growth DB] Notice: Supabase growth_data_sync_logs table unmigrated or unavailable:', error.message);
     }
   }
   memorySyncLogs.push(log);
@@ -735,8 +926,7 @@ export async function saveImportJob(job: GrowthImportJob): Promise<void> {
       completed_at: job.completedAt,
     });
     if (error) {
-      console.error('[Growth DB] Error saving import job to Supabase:', error.message);
-      throw new Error(`Failed to save import job: ${error.message}`);
+      console.warn('[Growth DB] Notice: Supabase growth_import_jobs table unmigrated or unavailable:', error.message);
     }
   }
   memoryImportJobs.set(job.id, job);

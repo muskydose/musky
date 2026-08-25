@@ -175,6 +175,12 @@ export async function parseAndImportCsvData(
         const kwId = `kw_imp_${keyword.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
         const rawVol = rowData['search_volume'] || rowData['volume'];
         const vol = rawVol && rawVol.trim() ? parseInt(rawVol.trim(), 10) : null;
+        const rawCpc = rowData['cpc'];
+        const parsedCpc = rawCpc && rawCpc.trim() && !isNaN(parseFloat(rawCpc.trim())) ? parseFloat(rawCpc.trim()) : null;
+        const rawTrend = rowData['trend']?.toUpperCase()?.trim();
+        const trend: 'RISING' | 'STABLE' | 'DECLINING' = (rawTrend === 'RISING' || rawTrend === 'DECLINING') ? rawTrend : (rawTrend === 'FALLING' ? 'DECLINING' : 'STABLE');
+        const rawComp = rowData['competition']?.toUpperCase()?.trim();
+        const competition: 'LOW' | 'MEDIUM' | 'HIGH' = (rawComp === 'LOW' || rawComp === 'HIGH') ? rawComp : 'MEDIUM';
 
         await saveKeywordRecord({
           id: kwId,
@@ -186,7 +192,9 @@ export async function parseAndImportCsvData(
           city: rowData['city'] || undefined,
           category: rowData['category'] || undefined,
           searchVolume: vol !== null && !isNaN(vol) ? vol : null,
-          competition: (rowData['competition']?.toUpperCase() as any) || null,
+          competition,
+          cpc: parsedCpc,
+          trend,
           sourceTier: 'IMPORTED',
           sourceName: 'CSV Import',
           collectedAt: new Date().toISOString(),

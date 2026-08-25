@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { SiteSettings } from '@/lib/types';
+import { getCmsText } from '@/lib/cms';
 import BrandLogo from '@/components/BrandLogo';
 import { sanitizeImageUrl } from '@/lib/utils';
 
@@ -22,12 +23,13 @@ interface HeroCarouselProps {
 }
 
 export default function HeroCarousel({ siteSettings }: HeroCarouselProps) {
-  const eyebrow = siteSettings.heroEyebrow || 'SOJAT ORIGIN • 100% NATURAL';
-  const title = siteSettings.heroTitle || 'Authentic 100% Pure Sojat Henna & Natural Herbal Care';
-  const subtitle = siteSettings.heroSubtitle || 'Freshly processed and sourced directly from Sojat, Rajasthan. Authentic cloth-sifted mehendi powder and traditional botanical remedies.';
-  const primaryCtaText = siteSettings.heroPrimaryCtaText || 'SHOP PRODUCTS';
+  const cms = getCmsText(siteSettings);
+  const eyebrow = siteSettings.heroEyebrow || cms.heroEyebrow || 'SOJAT ORIGIN • 100% NATURAL';
+  const title = siteSettings.heroTitle || cms.heroTitle || 'Authentic 100% Pure Sojat Henna & Natural Herbal Care';
+  const subtitle = siteSettings.heroSubtitle || cms.heroSubtitle || 'Freshly processed and sourced directly from Sojat, Rajasthan. Authentic cloth-sifted mehendi powder and traditional botanical remedies.';
+  const primaryCtaText = siteSettings.heroPrimaryCtaText || cms.heroPrimaryCtaText || 'SHOP PRODUCTS';
   const primaryCtaLink = siteSettings.heroPrimaryCtaLink || '/products';
-  const secondaryCtaText = siteSettings.heroSecondaryCtaText || 'EXPLORE CATEGORIES';
+  const secondaryCtaText = siteSettings.heroSecondaryCtaText || cms.heroSecondaryCtaText || 'EXPLORE CATEGORIES';
   const secondaryCtaLink = siteSettings.heroSecondaryCtaLink || '/categories';
   const imageUrl = siteSettings.heroImageUrl || '/images/fallback.svg';
 

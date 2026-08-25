@@ -81,7 +81,38 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
   >(null);
 
   const updateField = (key: keyof SiteSettings, value: any) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
+    setSettings((prev) => {
+      const updated: SiteSettings = { ...prev, [key]: value };
+      if (typeof value === 'string') {
+        const cmsSyncMap: Partial<Record<keyof SiteSettings, keyof CmsTextConfig>> = {
+          heroEyebrow: 'heroEyebrow',
+          heroTitle: 'heroTitle',
+          heroSubtitle: 'heroSubtitle',
+          heroPrimaryCtaText: 'heroPrimaryCtaText',
+          heroSecondaryCtaText: 'heroSecondaryCtaText',
+          featuredSectionTitle: 'featuredSectionTitle',
+          featuredSectionDescription: 'featuredSectionDescription',
+          categorySectionTitle: 'categorySectionTitle',
+          categorySectionDescription: 'categorySectionDescription',
+          whyMuskyDoseTitle: 'whyMuskyDoseTitle',
+          whyMuskyDoseDescription: 'whyMuskyDoseDescription',
+          finalCtaHeading: 'finalCtaHeading',
+          finalCtaDescription: 'finalCtaDescription',
+          finalCtaButtonText: 'finalCtaButtonText',
+          footerDescription: 'footerBrandDescription',
+          copyrightText: 'footerCopyrightText',
+        };
+        const cmsKey = cmsSyncMap[key];
+        if (cmsKey) {
+          updated.cmsText = {
+            ...(updated.cmsText || {}),
+            [cmsKey]: value,
+          };
+        }
+      }
+      return updated;
+    });
+
     if (validationErrors[key]) {
       setValidationErrors((prev) => {
         const next = { ...prev };
@@ -102,13 +133,36 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
   };
 
   const updateCmsField = (key: keyof CmsTextConfig, value: string) => {
-    setSettings((prev) => ({
-      ...prev,
-      cmsText: {
+    setSettings((prev) => {
+      const updatedCms = {
         ...(prev.cmsText || {}),
         [key]: value,
-      },
-    }));
+      };
+      const updated: SiteSettings = {
+        ...prev,
+        cmsText: updatedCms,
+      };
+
+      // Synchronize matching top-level fields
+      if (key === 'heroEyebrow') updated.heroEyebrow = value;
+      if (key === 'heroTitle') updated.heroTitle = value;
+      if (key === 'heroSubtitle') updated.heroSubtitle = value;
+      if (key === 'heroPrimaryCtaText') updated.heroPrimaryCtaText = value;
+      if (key === 'heroSecondaryCtaText') updated.heroSecondaryCtaText = value;
+      if (key === 'featuredSectionTitle') updated.featuredSectionTitle = value;
+      if (key === 'featuredSectionDescription') updated.featuredSectionDescription = value;
+      if (key === 'categorySectionTitle') updated.categorySectionTitle = value;
+      if (key === 'categorySectionDescription') updated.categorySectionDescription = value;
+      if (key === 'whyMuskyDoseTitle') updated.whyMuskyDoseTitle = value;
+      if (key === 'whyMuskyDoseDescription') updated.whyMuskyDoseDescription = value;
+      if (key === 'finalCtaHeading') updated.finalCtaHeading = value;
+      if (key === 'finalCtaDescription') updated.finalCtaDescription = value;
+      if (key === 'finalCtaButtonText') updated.finalCtaButtonText = value;
+      if (key === 'footerBrandDescription') updated.footerDescription = value;
+      if (key === 'footerCopyrightText') updated.copyrightText = value;
+
+      return updated;
+    });
   };
 
   const handleResetCmsDefaults = () => {

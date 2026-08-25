@@ -232,12 +232,13 @@ export default function ProductFormClient({
         return;
       }
 
-      const res = await uploadMediaFile(file, 'products');
+      const targetProductId = formData.id || formData.slug || 'new-product';
+      const res = await uploadMediaFile(file, 'products', undefined, targetProductId);
       if (res.success && res.url) {
         setIsDirty(true);
         setFormData((prev) => ({
           ...prev,
-          images: [...(prev.images || []), res.url],
+          images: [...(prev.images || []).filter((img) => img !== '/images/fallback.svg'), res.url],
         }));
       } else {
         setImageUploadError(`Failed to upload "${file.name}": ${res.error || 'Upload error'}`);

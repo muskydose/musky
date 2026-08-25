@@ -46,7 +46,7 @@ export interface Product {
   isSeasonal?: boolean;
   isActive: boolean;
   sortOrder: number;
-  productType?: 'POWDER' | 'RAW' | 'FINISHED';
+  productType?: 'POWDER' | 'RAW' | 'FINISHED' | string;
   createdAt: string;
   updatedAt: string;
 }

@@ -251,25 +251,31 @@ export const DEFAULT_CMS_TEXT: Required<CmsTextConfig> = {
 };
 
 export function getCmsText(siteSettings?: Partial<SiteSettings> | null): Required<CmsTextConfig> {
-  const mergedCms = { ...DEFAULT_CMS_TEXT, ...(siteSettings?.cmsText || {}) };
+  const topLevelFallbacks: Partial<CmsTextConfig> = {};
+  if (siteSettings?.heroEyebrow) topLevelFallbacks.heroEyebrow = siteSettings.heroEyebrow;
+  if (siteSettings?.heroTitle) topLevelFallbacks.heroTitle = siteSettings.heroTitle;
+  if (siteSettings?.heroSubtitle) topLevelFallbacks.heroSubtitle = siteSettings.heroSubtitle;
+  if (siteSettings?.heroPrimaryCtaText) topLevelFallbacks.heroPrimaryCtaText = siteSettings.heroPrimaryCtaText;
+  if (siteSettings?.heroSecondaryCtaText) topLevelFallbacks.heroSecondaryCtaText = siteSettings.heroSecondaryCtaText;
+  if (siteSettings?.featuredSectionTitle) topLevelFallbacks.featuredSectionTitle = siteSettings.featuredSectionTitle;
+  if (siteSettings?.featuredSectionDescription) topLevelFallbacks.featuredSectionDescription = siteSettings.featuredSectionDescription;
+  if (siteSettings?.categorySectionTitle) topLevelFallbacks.categorySectionTitle = siteSettings.categorySectionTitle;
+  if (siteSettings?.categorySectionDescription) topLevelFallbacks.categorySectionDescription = siteSettings.categorySectionDescription;
+  if (siteSettings?.whyMuskyDoseTitle) topLevelFallbacks.whyMuskyDoseTitle = siteSettings.whyMuskyDoseTitle;
+  if (siteSettings?.whyMuskyDoseDescription) topLevelFallbacks.whyMuskyDoseDescription = siteSettings.whyMuskyDoseDescription;
+  if (siteSettings?.finalCtaHeading) topLevelFallbacks.finalCtaHeading = siteSettings.finalCtaHeading;
+  if (siteSettings?.finalCtaDescription) topLevelFallbacks.finalCtaDescription = siteSettings.finalCtaDescription;
+  if (siteSettings?.finalCtaButtonText) topLevelFallbacks.finalCtaButtonText = siteSettings.finalCtaButtonText;
+  if (siteSettings?.copyrightText) topLevelFallbacks.footerCopyrightText = siteSettings.copyrightText;
+  if (siteSettings?.footerDescription) topLevelFallbacks.footerBrandDescription = siteSettings.footerDescription;
 
-  // Sync specific legacy siteSettings fields if provided
-  if (siteSettings?.heroEyebrow) mergedCms.heroEyebrow = siteSettings.heroEyebrow;
-  if (siteSettings?.heroTitle) mergedCms.heroTitle = siteSettings.heroTitle;
-  if (siteSettings?.heroSubtitle) mergedCms.heroSubtitle = siteSettings.heroSubtitle;
-  if (siteSettings?.heroPrimaryCtaText) mergedCms.heroPrimaryCtaText = siteSettings.heroPrimaryCtaText;
-  if (siteSettings?.heroSecondaryCtaText) mergedCms.heroSecondaryCtaText = siteSettings.heroSecondaryCtaText;
-  if (siteSettings?.featuredSectionTitle) mergedCms.featuredSectionTitle = siteSettings.featuredSectionTitle;
-  if (siteSettings?.featuredSectionDescription) mergedCms.featuredSectionDescription = siteSettings.featuredSectionDescription;
-  if (siteSettings?.categorySectionTitle) mergedCms.categorySectionTitle = siteSettings.categorySectionTitle;
-  if (siteSettings?.categorySectionDescription) mergedCms.categorySectionDescription = siteSettings.categorySectionDescription;
-  if (siteSettings?.whyMuskyDoseTitle) mergedCms.whyMuskyDoseTitle = siteSettings.whyMuskyDoseTitle;
-  if (siteSettings?.whyMuskyDoseDescription) mergedCms.whyMuskyDoseDescription = siteSettings.whyMuskyDoseDescription;
-  if (siteSettings?.finalCtaHeading) mergedCms.finalCtaHeading = siteSettings.finalCtaHeading;
-  if (siteSettings?.finalCtaDescription) mergedCms.finalCtaDescription = siteSettings.finalCtaDescription;
-  if (siteSettings?.finalCtaButtonText) mergedCms.finalCtaButtonText = siteSettings.finalCtaButtonText;
-  if (siteSettings?.copyrightText) mergedCms.footerCopyrightText = siteSettings.copyrightText;
-  if (siteSettings?.footerDescription) mergedCms.footerBrandDescription = siteSettings.footerDescription;
-
-  return mergedCms;
+  // Canonical resolution order:
+  // 1. DEFAULT_CMS_TEXT (system fallback)
+  // 2. topLevelFallbacks (legacy / tab-specific fields like settings.heroTitle)
+  // 3. siteSettings.cmsText (explicit user edits in CMS tab take authoritative precedence)
+  return {
+    ...DEFAULT_CMS_TEXT,
+    ...topLevelFallbacks,
+    ...(siteSettings?.cmsText || {}),
+  };
 }

@@ -255,7 +255,7 @@ export async function getOrdersForAnalytics(days?: number): Promise<Order[]> {
   try {
     let query = supabase
       .from('orders')
-      .select('id, order_number, customer_name, customer_phone, customer_state, items, total_amount, campaign_id, campaign_name, coupon_code, order_status, created_at')
+      .select('id, order_number, customer_name, customer_phone, state, city, pincode, items, total_amount, discount_amount, discount_type, discount_value, order_status, created_at')
       .neq('order_status', 'CANCELLED');
 
     if (days && days > 0) {

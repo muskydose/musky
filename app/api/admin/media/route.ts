@@ -174,6 +174,7 @@ export async function POST(req: NextRequest) {
       const category = (formData.get('category') as string) || 'general';
       const altText = (formData.get('altText') as string) || '';
       const customName = (formData.get('customName') as string) || '';
+      const productId = (formData.get('productId') as string) || '';
 
       if (!file) {
         return NextResponse.json({ success: false, error: 'No file provided in request' }, { status: 400 });
@@ -230,7 +231,10 @@ export async function POST(req: NextRequest) {
 
       let publicUrl = '';
       const cleanName = sanitizeFileName(customName || file.name);
-      const storagePath = `${category}/${Date.now()}-${cleanName}`;
+      const storagePath = productId
+        ? `products/${sanitizeFileName(productId)}/${Date.now()}-${cleanName}`
+        : `${category}/${Date.now()}-${cleanName}`;
+      const bucketName = 'product-images';
 
       // Upload to Supabase Storage
       const supabaseAdmin = getSupabaseAdmin();
@@ -238,15 +242,15 @@ export async function POST(req: NextRequest) {
         try {
           if (!isBucketInitialized) {
             const { data: buckets } = await supabaseAdmin.storage.listBuckets();
-            const bucketExists = buckets?.some((b) => b.name === 'musky-dose-media');
+            const bucketExists = buckets?.some((b) => b.name === bucketName);
             if (!bucketExists) {
-              await supabaseAdmin.storage.createBucket('musky-dose-media', { public: true });
+              await supabaseAdmin.storage.createBucket(bucketName, { public: true });
             }
             isBucketInitialized = true;
           }
 
           const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-            .from('musky-dose-media')
+            .from(bucketName)
             .upload(storagePath, buffer, {
               contentType: mimeType,
               upsert: true,
@@ -254,7 +258,7 @@ export async function POST(req: NextRequest) {
 
           if (!uploadError && uploadData) {
             const { data: urlData } = supabaseAdmin.storage
-              .from('musky-dose-media')
+              .from(bucketName)
               .getPublicUrl(storagePath);
             publicUrl = urlData.publicUrl;
           } else if (uploadError) {
