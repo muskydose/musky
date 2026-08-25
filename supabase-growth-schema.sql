@@ -20,6 +20,16 @@ CREATE TABLE IF NOT EXISTS growth_markets (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Migrations for growth_markets
+ALTER TABLE growth_markets ADD COLUMN IF NOT EXISTS country TEXT NOT NULL DEFAULT 'India';
+ALTER TABLE growth_markets ADD COLUMN IF NOT EXISTS state_code TEXT;
+ALTER TABLE growth_markets ADD COLUMN IF NOT EXISTS district_code TEXT;
+ALTER TABLE growth_markets ADD COLUMN IF NOT EXISTS city_code TEXT;
+ALTER TABLE growth_markets ADD COLUMN IF NOT EXISTS pincode TEXT;
+ALTER TABLE growth_markets ADD COLUMN IF NOT EXISTS latitude NUMERIC;
+ALTER TABLE growth_markets ADD COLUMN IF NOT EXISTS longitude NUMERIC;
+ALTER TABLE growth_markets ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+
 CREATE INDEX IF NOT EXISTS idx_growth_markets_state ON growth_markets(state);
 CREATE INDEX IF NOT EXISTS idx_growth_markets_district ON growth_markets(district);
 CREATE INDEX IF NOT EXISTS idx_growth_markets_pincode ON growth_markets(pincode);
@@ -75,6 +85,14 @@ CREATE TABLE IF NOT EXISTS growth_keywords (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Migrations for growth_keywords
+ALTER TABLE growth_keywords ADD COLUMN IF NOT EXISTS country TEXT DEFAULT 'India';
+ALTER TABLE growth_keywords ADD COLUMN IF NOT EXISTS district TEXT;
+ALTER TABLE growth_keywords ADD COLUMN IF NOT EXISTS product_id TEXT;
+ALTER TABLE growth_keywords ADD COLUMN IF NOT EXISTS trend TEXT;
+ALTER TABLE growth_keywords ADD COLUMN IF NOT EXISTS source_name TEXT DEFAULT 'Manual';
+ALTER TABLE growth_keywords ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
 CREATE INDEX IF NOT EXISTS idx_growth_keywords_keyword ON growth_keywords(keyword);
 
 -- 4. GROWTH KEYWORD SNAPSHOTS TABLE
@@ -89,6 +107,10 @@ CREATE TABLE IF NOT EXISTS growth_keyword_snapshots (
   source_name TEXT DEFAULT 'Manual',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migrations for growth_keyword_snapshots
+ALTER TABLE growth_keyword_snapshots ADD COLUMN IF NOT EXISTS keyword TEXT;
+ALTER TABLE growth_keyword_snapshots ADD COLUMN IF NOT EXISTS source_name TEXT DEFAULT 'Manual';
 
 -- 5. GROWTH LEADS TABLE (CRM)
 CREATE TABLE IF NOT EXISTS growth_leads (
@@ -115,6 +137,17 @@ CREATE TABLE IF NOT EXISTS growth_leads (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migrations for growth_leads
+ALTER TABLE growth_leads ADD COLUMN IF NOT EXISTS contact_name TEXT;
+ALTER TABLE growth_leads ADD COLUMN IF NOT EXISTS whatsapp TEXT;
+ALTER TABLE growth_leads ADD COLUMN IF NOT EXISTS lead_type TEXT DEFAULT 'Wholesaler';
+ALTER TABLE growth_leads ADD COLUMN IF NOT EXISTS pincode TEXT;
+ALTER TABLE growth_leads ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE growth_leads ADD COLUMN IF NOT EXISTS interested_products TEXT[] DEFAULT '{}';
+ALTER TABLE growth_leads ADD COLUMN IF NOT EXISTS assigned_to TEXT;
+ALTER TABLE growth_leads ADD COLUMN IF NOT EXISTS next_follow_up TIMESTAMPTZ;
+ALTER TABLE growth_leads ADD COLUMN IF NOT EXISTS last_contacted_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_growth_leads_status ON growth_leads(status);
 CREATE INDEX IF NOT EXISTS idx_growth_leads_state ON growth_leads(state);

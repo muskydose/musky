@@ -30,22 +30,27 @@ export default async function ProductsPage() {
   ]);
 
   const cms = getCmsText(siteSettings);
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
 
   const jsonLdCollection = {
     '@context': 'https://schema.org',
-    '@type': 'CollectionPage',
-    name: cms.productsPageTitle,
-    url: 'https://muskydose.in/products',
-    description: cms.productsPageSubtitle,
-    mainEntity: {
-      '@type': 'ItemList',
-      itemListElement: products.map((prod, index) => ({
-        '@type': 'ListItem',
-        position: index + 1,
-        url: `https://muskydose.in/products/${prod.slug}`,
-        name: prod.name,
-      })),
-    },
+    '@graph': [
+      {
+        '@type': 'CollectionPage',
+        name: cms.productsPageTitle,
+        url: `${baseUrl}/products`,
+        description: cms.productsPageSubtitle,
+        mainEntity: {
+          '@type': 'ItemList',
+          itemListElement: products.map((prod, index) => ({
+            '@type': 'ListItem',
+            position: index + 1,
+            url: `${baseUrl}/products/${prod.slug}`,
+            name: prod.name,
+          })),
+        },
+      },
+    ],
   };
 
   return (

@@ -85,6 +85,8 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS pincode TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS subtotal NUMERIC DEFAULT 0;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC DEFAULT 0;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_details TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_type TEXT DEFAULT 'FIXED';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_value NUMERIC DEFAULT 0;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS campaign_id TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS campaign_name TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_code TEXT;
@@ -545,7 +547,7 @@ GRANT EXECUTE ON FUNCTION rollback_campaign_usage(TEXT, TEXT) TO service_role;
 CREATE INDEX IF NOT EXISTS idx_products_lookup ON products(slug, is_active, category_id, is_featured, sort_order);
 CREATE INDEX IF NOT EXISTS idx_categories_lookup ON categories(slug, is_active, sort_order);
 CREATE INDEX IF NOT EXISTS idx_orders_lookup ON orders(order_number, idempotency_key, order_status, payment_status, created_at);
-CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_phone, customer_email, customer_state, customer_city);
+CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_phone, customer_email, state, city);
 CREATE INDEX IF NOT EXISTS idx_customers_lookup ON customers(phone, email, state, city, created_at);
 CREATE INDEX IF NOT EXISTS idx_admin_otps_lookup ON admin_otps(mobile, expires_at);
 

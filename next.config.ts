@@ -27,6 +27,21 @@ const nextConfig: NextConfig = {
   },
   output: 'standalone',
   transpilePackages: ['motion'],
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [
+          {
+            type: 'host',
+            value: 'www.muskydose.in',
+          },
+        ],
+        destination: 'https://muskydose.in/:path*',
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     const isDevPreview = process.env.NODE_ENV !== 'production' || process.env.DISABLE_HMR === 'true';
 

@@ -61,6 +61,7 @@ export default async function CategoryPage({
     notFound();
   }
 
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
   const categoryProducts = await getProductsByCategory(category.id);
 
   const jsonLdCategory = {
@@ -69,14 +70,14 @@ export default async function CategoryPage({
       {
         '@type': 'CollectionPage',
         name: `${category.name} - Musky Dose`,
-        url: `https://muskydose.in/categories/${category.slug}`,
+        url: `${baseUrl}/categories/${category.slug}`,
         description: category.description,
         mainEntity: {
           '@type': 'ItemList',
           itemListElement: categoryProducts.map((prod, index) => ({
             '@type': 'ListItem',
             position: index + 1,
-            url: `https://muskydose.in/products/${prod.slug}`,
+            url: `${baseUrl}/products/${prod.slug}`,
             name: prod.name,
           })),
         },
@@ -88,19 +89,19 @@ export default async function CategoryPage({
             '@type': 'ListItem',
             position: 1,
             name: 'Home',
-            item: 'https://muskydose.in',
+            item: baseUrl,
           },
           {
             '@type': 'ListItem',
             position: 2,
             name: 'Categories',
-            item: 'https://muskydose.in/categories',
+            item: `${baseUrl}/categories`,
           },
           {
             '@type': 'ListItem',
             position: 3,
             name: category.name,
-            item: `https://muskydose.in/categories/${category.slug}`,
+            item: `${baseUrl}/categories/${category.slug}`,
           },
         ],
       },
