@@ -55,21 +55,52 @@ export default async function HomePage() {
   const whatsappNumber = getConfiguredWhatsAppNumber(siteSettings);
   const cms = getCmsText(siteSettings);
 
-  // Filter Active Categories
-  const activeCategories = categories
-    .filter((cat) => cat.isActive !== false)
-    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  // 1. Filter & Order Active Categories for Homepage
+  let activeCategories = categories.filter((cat) => cat.isActive !== false);
 
-  // Active Products Only
+  if (siteSettings.homepageCategories && siteSettings.homepageCategories.length > 0) {
+    const catMap = new Map(siteSettings.homepageCategories.map((c) => [c.id, c]));
+    activeCategories = activeCategories
+      .filter((cat) => catMap.get(cat.id)?.enabled !== false)
+      .sort((a, b) => {
+        const orderA = catMap.get(a.id)?.sortOrder ?? a.sortOrder ?? 999;
+        const orderB = catMap.get(b.id)?.sortOrder ?? b.sortOrder ?? 999;
+        return orderA - orderB;
+      });
+  } else {
+    activeCategories.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  }
+
+  // 2. Active Products Only (Never render inactive products on public homepage)
   const activeProducts = products.filter((p) => p.isActive !== false);
 
-  // Best Sellers & Featured Products
-  const featuredProducts = activeProducts
-    .filter((p) => p.isFeatured || p.isBestSeller)
-    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  // 3. Merchandised Homepage Products
+  let displayFeaturedProducts: typeof activeProducts = [];
 
-  const fallbackFeatured = activeProducts.slice(0, 6);
-  const displayFeaturedProducts = featuredProducts.length > 0 ? featuredProducts : fallbackFeatured;
+  if (siteSettings.homepageProducts && siteSettings.homepageProducts.length > 0) {
+    const prodMap = new Map(siteSettings.homepageProducts.map((p) => [p.id, p]));
+    const configuredList = activeProducts.filter((p) => {
+      const config = prodMap.get(p.id);
+      return config ? config.enabled !== false : false;
+    });
+
+    configuredList.sort((a, b) => {
+      const orderA = prodMap.get(a.id)?.sortOrder ?? (a.sortOrder || 999);
+      const orderB = prodMap.get(b.id)?.sortOrder ?? (b.sortOrder || 999);
+      return orderA - orderB;
+    });
+
+    if (configuredList.length > 0) {
+      displayFeaturedProducts = configuredList;
+    }
+  }
+
+  if (displayFeaturedProducts.length === 0) {
+    const fallbackFeatured = activeProducts
+      .filter((p) => p.isFeatured || p.isBestSeller)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    displayFeaturedProducts = fallbackFeatured.length > 0 ? fallbackFeatured : activeProducts.slice(0, 6);
+  }
 
   // Active Sections Configuration from Settings or Default
   const configuredSections: HomepageSectionConfig[] =
@@ -112,7 +143,14 @@ export default async function HomePage() {
             let displayBestsellers = displayFeaturedProducts;
             if (sec.selectedProductIds && sec.selectedProductIds.length > 0) {
               const selected = activeProducts.filter((p) => sec.selectedProductIds?.includes(p.id));
-              if (selected.length > 0) displayBestsellers = selected;
+              if (selected.length > 0) {
+                selected.sort((a, b) => {
+                  const idxA = sec.selectedProductIds!.indexOf(a.id);
+                  const idxB = sec.selectedProductIds!.indexOf(b.id);
+                  return (idxA >= 0 ? idxA : 999) - (idxB >= 0 ? idxB : 999);
+                });
+                displayBestsellers = selected;
+              }
             }
             displayBestsellers = displayBestsellers.slice(0, sec.itemLimit || 8);
             if (displayBestsellers.length === 0) return null;
@@ -156,9 +194,21 @@ export default async function HomePage() {
           }
 
           case 'categories':
-            if (activeCategories.length === 0) return null;
-            const categoryLimit = siteSettings?.homepageCategoryCount ?? 6;
-            const homepageCategories = activeCategories.slice(0, categoryLimit);
+            let displayCategories = activeCategories;
+            if (sec.selectedCategoryIds && sec.selectedCategoryIds.length > 0) {
+              const selected = activeCategories.filter((c) => sec.selectedCategoryIds?.includes(c.id));
+              if (selected.length > 0) {
+                selected.sort((a, b) => {
+                  const idxA = sec.selectedCategoryIds!.indexOf(a.id);
+                  const idxB = sec.selectedCategoryIds!.indexOf(b.id);
+                  return (idxA >= 0 ? idxA : 999) - (idxB >= 0 ? idxB : 999);
+                });
+                displayCategories = selected;
+              }
+            }
+            const categoryLimit = sec.itemLimit || siteSettings?.homepageCategoryCount || 6;
+            const homepageCategories = displayCategories.slice(0, categoryLimit);
+            if (homepageCategories.length === 0) return null;
 
             return (
               <section key={sec.id} className="py-8 sm:py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">

@@ -46,11 +46,19 @@ import SeoMetaTab from '@/components/admin/settings/tabs/SeoMetaTab';
 import PaymentStatusTab from '@/components/admin/settings/tabs/PaymentStatusTab';
 import AboutFactoryTab from '@/components/admin/settings/tabs/AboutFactoryTab';
 
+import { Product, Category } from '@/lib/types';
+
 interface AdminSettingsClientProps {
   initialSettings: SiteSettings;
+  products?: Product[];
+  categories?: Category[];
 }
 
-export default function AdminSettingsClient({ initialSettings }: AdminSettingsClientProps) {
+export default function AdminSettingsClient({
+  initialSettings,
+  products = [],
+  categories = [],
+}: AdminSettingsClientProps) {
   const [settings, setSettings] = useState<SiteSettings>(initialSettings);
   const [activeTab, setActiveTab] = useState<
     | 'brand'
@@ -403,6 +411,8 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
             updateField={updateField}
             setSettings={setSettings}
             setMediaModalTarget={setMediaModalTarget}
+            products={products}
+            categories={categories}
           />
         )}
 

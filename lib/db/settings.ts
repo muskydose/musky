@@ -64,6 +64,8 @@ export function mapRowToSiteSettings(row: any): SiteSettings {
     whatsappStep3Title: base.whatsappStep3Title || row.whatsapp_step_3_title || INITIAL_SITE_SETTINGS.whatsappStep3Title,
     whatsappStep3Description: base.whatsappStep3Description || row.whatsapp_step_3_desc || INITIAL_SITE_SETTINGS.whatsappStep3Description,
     homepageSections: Array.isArray(base.homepageSections) && base.homepageSections.length > 0 ? base.homepageSections : INITIAL_SITE_SETTINGS.homepageSections,
+    homepageProducts: Array.isArray(base.homepageProducts) ? base.homepageProducts : (INITIAL_SITE_SETTINGS.homepageProducts || []),
+    homepageCategories: Array.isArray(base.homepageCategories) ? base.homepageCategories : (INITIAL_SITE_SETTINGS.homepageCategories || []),
     navItems: Array.isArray(base.navItems) && base.navItems.length > 0 ? base.navItems : INITIAL_SITE_SETTINGS.navItems,
     footerSections: Array.isArray(base.footerSections) && base.footerSections.length > 0 ? base.footerSections : INITIAL_SITE_SETTINGS.footerSections,
     cmsText: {

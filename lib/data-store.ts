@@ -1422,8 +1422,10 @@ export const INITIAL_SITE_SETTINGS: SiteSettings = {
   heroSecondaryCtaLink: '/products',
   heroImageUrl: '/images/fallback.svg',
 
-  // Homepage Section Reordering & Control
+  // Homepage Section, Product & Category Merchandising & Ordering
   homepageSections: DEFAULT_HOMEPAGE_SECTIONS,
+  homepageProducts: [],
+  homepageCategories: [],
 
   // Homepage Announcement Bar
   announcementEnabled: true,

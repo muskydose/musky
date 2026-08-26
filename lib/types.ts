@@ -144,6 +144,13 @@ export interface CheckoutFieldConfig {
   notes: CheckoutFieldSetting;
 }
 
+export interface HomepageItemConfig {
+  id: string;
+  enabled: boolean;
+  sortOrder: number;
+  isFeatured?: boolean;
+}
+
 export interface HomepageSectionConfig {
   id: string; // 'announcement' | 'navbar' | 'hero' | 'trust_strip' | 'bestsellers' | 'categories' | 'why_musky_dose' | 'sojat_story' | 'new_arrivals' | 'guides' | 'reviews' | 'wholesale_cta' | 'whatsapp_cta' | 'footer'
   name: string;
@@ -738,8 +745,10 @@ export interface SiteSettings {
   heroImageUrl?: string;
   homepageHero?: HeroSlide[];
 
-  // Homepage Section Reordering & Control
+  // Homepage Section, Product & Category Merchandising & Ordering
   homepageSections?: HomepageSectionConfig[];
+  homepageProducts?: HomepageItemConfig[];
+  homepageCategories?: HomepageItemConfig[];
 
   // Homepage Announcement Bar
   announcementEnabled?: boolean;
