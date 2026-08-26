@@ -38,27 +38,29 @@ export function mapCategoryToRow(c: Category) {
 }
 
 export async function getCategories(): Promise<Category[]> {
-  const supabase = getSupabaseAdmin() || getSupabase();
-  if (!supabase) {
-    console.error('[getCategories] Supabase client is unavailable.');
-    return [];
+  const admin = getSupabaseAdmin();
+  if (admin) {
+    const { data, error } = await admin.from('categories').select('*');
+    if (!error && data && data.length > 0) {
+      return data
+        .map(mapRowToCategory)
+        .filter((c) => c.isActive !== false)
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+    }
   }
 
-  const { data, error } = await supabase.from('categories').select('*');
-
-  if (error) {
-    console.error(`[getCategories] Database query error: ${error.message}`);
-    return [];
+  const anon = getSupabase();
+  if (anon) {
+    const { data, error } = await anon.from('categories').select('*');
+    if (!error && data && data.length > 0) {
+      return data
+        .map(mapRowToCategory)
+        .filter((c) => c.isActive !== false)
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+    }
   }
 
-  if (!data || data.length === 0) {
-    return [];
-  }
-
-  return data
-    .map(mapRowToCategory)
-    .filter((c) => c.isActive !== false)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
+  return [];
 }
 
 export async function getAllCategoriesAdmin(): Promise<Category[]> {

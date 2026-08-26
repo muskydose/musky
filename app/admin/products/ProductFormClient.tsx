@@ -599,15 +599,32 @@ export default function ProductFormClient({
 
               <div>
                 <label className="block text-[#0f2d22] font-bold mb-1">Product Type / Classification</label>
-                <select
-                  value={formData.productType || 'POWDER'}
-                  onChange={(e) => updateForm('productType', e.target.value)}
-                  className="w-full p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
-                >
-                  <option value="POWDER">POWDER (Henna & Herbal Powders)</option>
-                  <option value="RAW">RAW (Whole Leaves & Raw Materials)</option>
-                  <option value="FINISHED">FINISHED (Cones, Spray, Oil, Shampoos)</option>
-                </select>
+                <div className="flex gap-2">
+                  <select
+                    value={['POWDER', 'RAW', 'FINISHED', 'OIL', 'PASTE', 'MIST'].includes((formData.productType || '').toUpperCase()) ? (formData.productType || '').toUpperCase() : 'CUSTOM'}
+                    onChange={(e) => {
+                      if (e.target.value !== 'CUSTOM') {
+                        updateForm('productType', e.target.value);
+                      }
+                    }}
+                    className="w-1/2 p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
+                  >
+                    <option value="POWDER">POWDER (Henna & Herbal Powders)</option>
+                    <option value="RAW">RAW (Whole Leaves & Raw Herbs)</option>
+                    <option value="FINISHED">FINISHED (Cones, Shampoos, Packs)</option>
+                    <option value="OIL">OIL (Essential & Hair Oils)</option>
+                    <option value="PASTE">PASTE (Body Art & Herbal Paste)</option>
+                    <option value="MIST">MIST (Hydrosols & Rose Water)</option>
+                    <option value="CUSTOM">Custom Type...</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={formData.productType || ''}
+                    onChange={(e) => updateForm('productType', e.target.value)}
+                    placeholder="Enter type / classification"
+                    className="w-1/2 p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
+                  />
+                </div>
               </div>
 
               <div>

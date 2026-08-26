@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -41,6 +42,7 @@ interface NavbarProps {
 }
 
 function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
+  const [mounted, setMounted] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [settings, setSettings] = useState<Partial<SiteSettings> | undefined>(initialSettings);
@@ -60,8 +62,9 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
   const { totalItems, openCart } = useCart();
   const { totalWishlistItems, openWishlist } = useWishlist();
 
-  // Handle scroll shadow
+  // Handle client mount & scroll shadow
   useEffect(() => {
+    setMounted(true);
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
     };
@@ -131,15 +134,29 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
     .filter((item) => item.enabled !== false)
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
-  // Search handler
-  const handleSearchSubmit = (e: React.FormEvent) => {
+  // Search handler with Smart Keyword Routing
+  const handleSearchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const query = searchQuery.trim();
-    if (query) {
-      router.push(`/products?search=${encodeURIComponent(query)}`);
-    } else {
+    if (!query) {
       router.push('/products');
+      return;
     }
+
+    try {
+      const res = await fetch(`/api/search/smart-route?q=${encodeURIComponent(query)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.destinationUrl) {
+          router.push(data.destinationUrl);
+          return;
+        }
+      }
+    } catch {
+      // Fallback seamlessly on any network error
+    }
+
+    router.push(`/products?search=${encodeURIComponent(query)}`);
   };
 
   const handleClearSearch = () => {
@@ -505,106 +522,111 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
             </div>
           </div>
         </div>
-
-        {/* MOBILE SLIDE-OVER MENU DRAWER */}
-        <AnimatePresence>
-          {mobileMenuOpen && (
-            <div className="fixed inset-0 z-50 md:hidden flex justify-end">
-              {/* Full-Screen Backdrop Overlay */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                onClick={() => setMobileMenuOpen(false)}
-                className="fixed inset-0 bg-[#0f2d22]/60 backdrop-blur-xs"
-                aria-hidden="true"
-              />
-
-              {/* Compact Drawer Container Panel (50-55vw responsive clamp) */}
-              <motion.div
-                initial={{ x: '100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '100%' }}
-                transition={{ type: 'tween', duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                className="relative z-10 w-[55vw] min-w-[250px] max-w-[320px] max-h-[100dvh] h-full bg-[#fcfbf7] border-l border-[#e8e2d5] shadow-2xl flex flex-col overflow-hidden"
-              >
-                {/* 1. Fixed / Sticky Drawer Header */}
-                <div className="shrink-0 px-3 py-2.5 bg-[#0f2d22] text-white flex items-center justify-between border-b border-[#2d6a4f] sticky top-0 z-20">
-                  <Link
-                    href="/"
-                    onClick={() => setMobileMenuOpen(false)}
-                    aria-label="Musky Dose Homepage"
-                    className="inline-flex items-center"
-                  >
-                    <BrandLogo logoUrl={logoUrl} size="sm" className="bg-white/95 px-2 py-0.5 rounded-lg shadow-xs" />
-                  </Link>
-                  <button
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="p-1.5 text-gray-300 hover:text-white rounded-lg bg-[#1b4332] active:scale-95 transition-transform cursor-pointer"
-                    aria-label="Close menu"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* 2. Compact Scrollable Content Area (Natural Document Flow) */}
-                <div
-                  className="flex-1 overflow-y-auto overscroll-contain flex flex-col p-3 space-y-3"
-                  style={{
-                    paddingBottom: 'max(16px, env(safe-area-inset-bottom, 16px))',
-                  }}
-                >
-                  {/* Menu Items List */}
-                  <div className="space-y-0.5">
-                    {navItems.map((item) => {
-                      const isSelected = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
-                      const icon = getNavIcon(item.href, item.label);
-                      return (
-                        <Link
-                          key={item.id || item.href}
-                          href={item.href}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-colors ${
-                            isSelected
-                              ? 'bg-[#1b4332] text-[#c5a059] shadow-2xs'
-                              : 'text-[#0f2d22] hover:bg-[#f5f1e8] active:bg-[#ede8dc]'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            {icon}
-                            <span className="truncate">{item.label}</span>
-                          </div>
-                          <ChevronRight className="w-3.5 h-3.5 opacity-40 shrink-0" />
-                        </Link>
-                      );
-                    })}
-                  </div>
-
-                  {/* Divider & Utilities in Natural Document Flow */}
-                  <div className="pt-2 border-t border-[#e8e2d5] space-y-2.5 shrink-0">
-                    <div className="flex items-center justify-between py-0.5 bg-white px-2 py-1.5 rounded-lg border border-[#e8e2d5]">
-                      <span className="text-[11px] font-bold text-[#0f2d22]">App:</span>
-                      <PwaInstallCTA />
-                    </div>
-                    <Link
-                      href="/products"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] font-extrabold text-xs rounded-lg shadow-xs active:scale-[0.99] transition-all"
-                    >
-                      <ShoppingBag className="w-3.5 h-3.5 text-[#c5a059]" />
-                      <span>EXPLORE PRODUCTS</span>
-                    </Link>
-                    <p className="text-[9.5px] text-center text-gray-500 font-medium leading-tight">
-                      Sojat, Rajasthan | +91 {whatsappNumber}
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
       </header>
+
+      {/* MOBILE SLIDE-OVER MENU DRAWER (PORTALED TO BODY TO GUARANTEE TRUE VIEWPORT POSITIONING) */}
+      {mounted && typeof document !== 'undefined'
+        ? createPortal(
+            <AnimatePresence>
+              {mobileMenuOpen && (
+                <div className="fixed inset-0 z-50 md:hidden flex justify-end">
+                  {/* Full-Screen Backdrop Overlay */}
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="fixed inset-0 bg-[#0f2d22]/60 backdrop-blur-xs"
+                    aria-hidden="true"
+                  />
+
+                  {/* Compact Drawer Container Panel (50-55vw responsive clamp) */}
+                  <motion.div
+                    initial={{ x: '100%' }}
+                    animate={{ x: 0 }}
+                    exit={{ x: '100%' }}
+                    transition={{ type: 'tween', duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                    className="relative z-10 w-[55vw] min-w-[250px] max-w-[320px] max-h-[100dvh] h-full bg-[#fcfbf7] border-l border-[#e8e2d5] shadow-2xl flex flex-col overflow-hidden"
+                  >
+                    {/* 1. Fixed / Sticky Drawer Header */}
+                    <div className="shrink-0 px-3 py-2.5 bg-[#0f2d22] text-white flex items-center justify-between border-b border-[#2d6a4f] sticky top-0 z-20">
+                      <Link
+                        href="/"
+                        onClick={() => setMobileMenuOpen(false)}
+                        aria-label="Musky Dose Homepage"
+                        className="inline-flex items-center"
+                      >
+                        <BrandLogo logoUrl={logoUrl} size="sm" className="bg-white/95 px-2 py-0.5 rounded-lg shadow-xs" />
+                      </Link>
+                      <button
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="p-1.5 text-gray-300 hover:text-white rounded-lg bg-[#1b4332] active:scale-95 transition-transform cursor-pointer"
+                        aria-label="Close menu"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* 2. Compact Scrollable Content Area (Natural Document Flow) */}
+                    <div
+                      className="flex-1 overflow-y-auto overscroll-contain flex flex-col p-3 space-y-3"
+                      style={{
+                        paddingBottom: 'max(16px, env(safe-area-inset-bottom, 16px))',
+                      }}
+                    >
+                      {/* Menu Items List */}
+                      <div className="space-y-0.5">
+                        {navItems.map((item) => {
+                          const isSelected = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+                          const icon = getNavIcon(item.href, item.label);
+                          return (
+                            <Link
+                              key={item.id || item.href}
+                              href={item.href}
+                              onClick={() => setMobileMenuOpen(false)}
+                              className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-colors ${
+                                isSelected
+                                  ? 'bg-[#1b4332] text-[#c5a059] shadow-2xs'
+                                  : 'text-[#0f2d22] hover:bg-[#f5f1e8] active:bg-[#ede8dc]'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                {icon}
+                                <span className="truncate">{item.label}</span>
+                              </div>
+                              <ChevronRight className="w-3.5 h-3.5 opacity-40 shrink-0" />
+                            </Link>
+                          );
+                        })}
+                      </div>
+
+                      {/* Divider & Utilities in Natural Document Flow */}
+                      <div className="pt-2 border-t border-[#e8e2d5] space-y-2.5 shrink-0">
+                        <div className="flex items-center justify-between py-0.5 bg-white px-2 py-1.5 rounded-lg border border-[#e8e2d5]">
+                          <span className="text-[11px] font-bold text-[#0f2d22]">App:</span>
+                          <PwaInstallCTA />
+                        </div>
+                        <Link
+                          href="/products"
+                          onClick={() => setMobileMenuOpen(false)}
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] font-extrabold text-xs rounded-lg shadow-xs active:scale-[0.99] transition-all"
+                        >
+                          <ShoppingBag className="w-3.5 h-3.5 text-[#c5a059]" />
+                          <span>EXPLORE PRODUCTS</span>
+                        </Link>
+                        <p className="text-[9.5px] text-center text-gray-500 font-medium leading-tight">
+                          Sojat, Rajasthan | +91 {whatsappNumber}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>,
+            document.body
+          )
+        : null}
 
       {/* FIXED MOBILE BOTTOM NAVIGATION BAR */}
       <MobileBottomNav />
