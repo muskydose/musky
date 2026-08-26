@@ -354,3 +354,161 @@ export interface ProductKeywordUniverse {
   lastGeneratedAt: string;
 }
 
+// ============================================================
+// PHASE 2 — BUSINESS GROWTH & SEO OPPORTUNITY ENGINE TYPES
+// ============================================================
+
+export type ProductSeoRating = 'EXCELLENT' | 'GOOD' | 'NEEDS_WORK';
+
+export interface ProductSeoHealthScore {
+  productId: string;
+  productName: string;
+  overallScore: number; // 0 to 100
+  rating: ProductSeoRating;
+  completenessScore: number; // 0 to 100
+  metadataScore: number; // 0 to 100
+  keywordCoverageScore: number; // 0 to 100
+  demandMatchScore: number; // 0 to 100
+  breakdown: {
+    hasPrimaryKeyword: boolean;
+    hasSeoTitle: boolean;
+    hasSeoDescription: boolean;
+    hasKeywords: boolean;
+    titleLengthValid: boolean; // 30-65 chars
+    descriptionLengthValid: boolean; // 120-165 chars
+    completenessMissingFields: string[];
+    keywordUniverseCount: number;
+    verifiedDemandCount: number;
+    longTailCount: number;
+    questionCount: number;
+    imageCount: number;
+  };
+  recommendations: string[];
+  lastReviewedAt: string;
+}
+
+export type GrowthOpportunityPriority = 'P1_NOW' | 'P2_NEXT' | 'P3_LATER';
+
+export type GrowthOpportunityType =
+  | 'HIGH_DEMAND_UNTARGETED'
+  | 'GSC_RANKING_STRIKE'
+  | 'LONGTAIL_UNCOVERED'
+  | 'QUESTION_CONTENT_GAP'
+  | 'REGIONAL_MARKET_EXPANSION'
+  | 'METADATA_INCOMPLETE'
+  | 'SUPPORTING_CONTENT_GAP'
+  | 'ADS_TARGETING_READY';
+
+export type GrowthOpportunityAction =
+  | 'OPTIMIZE_PRODUCT'
+  | 'CREATE_GUIDE_DRAFT'
+  | 'CREATE_FAQ_DRAFT'
+  | 'CREATE_LANDING_PAGE_DRAFT'
+  | 'PREPARE_ADS_DRAFT'
+  | 'ADD_INTERNAL_LINKS';
+
+export interface GrowthOpportunity {
+  id: string;
+  title: string;
+  description: string;
+  type: GrowthOpportunityType;
+  priority: GrowthOpportunityPriority;
+  keyword: string;
+  productId?: string;
+  productName?: string;
+  productSlug?: string;
+  marketDemand?: {
+    searchVolume?: number | null;
+    cpc?: number | null;
+    competition?: 'LOW' | 'MEDIUM' | 'HIGH' | null;
+    sourceName?: string;
+    collectedAt?: string;
+  };
+  gscPerformance?: {
+    impressions?: number;
+    clicks?: number;
+    ctr?: number;
+    position?: number;
+  };
+  storeDemand?: {
+    ordersCount?: number;
+    revenue?: number;
+    unitsSold?: number;
+  };
+  location?: {
+    state?: string;
+    city?: string;
+  };
+  suggestedAction: GrowthOpportunityAction;
+  actionLabel: string;
+  actionLink?: string;
+  relevanceScore: number;
+  isDismissed?: boolean;
+  freshnessStatus: FreshnessStatus;
+  createdAt: string;
+}
+
+export interface InternalLinkSuggestion {
+  id: string;
+  sourceProductId: string;
+  sourceProductName: string;
+  targetType: 'CATEGORY' | 'PRODUCT' | 'GUIDE' | 'FAQ' | 'WHOLESALE';
+  targetTitle: string;
+  targetUrl: string;
+  anchorText: string;
+  relevanceReason: string;
+  relevanceScore: number;
+}
+
+export interface MarketProductMapping {
+  keyword: string;
+  state?: string;
+  city?: string;
+  searchVolume?: number | null;
+  cpc?: number | null;
+  competition?: 'LOW' | 'MEDIUM' | 'HIGH' | null;
+  primaryProduct?: {
+    id: string;
+    name: string;
+    slug: string;
+    categoryName: string;
+    inStock: boolean;
+    relevance: number;
+  };
+  alternativeProducts: {
+    id: string;
+    name: string;
+    slug: string;
+    categoryName: string;
+    inStock: boolean;
+    relevance: number;
+  }[];
+  relatedProducts: {
+    id: string;
+    name: string;
+    slug: string;
+    categoryName: string;
+    inStock: boolean;
+    relevance: number;
+  }[];
+  businessSignals?: {
+    orders: number;
+    revenue: number;
+  };
+  actionSuggested: GrowthOpportunityAction;
+}
+
+export interface OpportunityDashboardStats {
+  totalOpportunities: number;
+  p1Count: number;
+  p2Count: number;
+  p3Count: number;
+  productsNeedingSeoCount: number;
+  highDemandUntargetedCount: number;
+  gscRankingStrikeCount: number;
+  regionalExpansionCount: number;
+  questionGapsCount: number;
+  adsDraftsCount: number;
+  averageSeoHealthScore: number;
+}
+

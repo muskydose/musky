@@ -34,6 +34,7 @@ import {
   Compass,
   RefreshCw,
   Lightbulb,
+  Layers,
 } from 'lucide-react';
 
 interface ProductFormClientProps {
@@ -82,6 +83,8 @@ export default function ProductFormClient({
   });
 
   const [keywordUniverse, setKeywordUniverse] = useState<any | null>(null);
+  const [seoHealth, setSeoHealth] = useState<any | null>(null);
+  const [internalLinks, setInternalLinks] = useState<any[]>([]);
   const [loadingUniverse, setLoadingUniverse] = useState(false);
   const [seoKeywordInput, setSeoKeywordInput] = useState('');
   const [activeUniverseCategory, setActiveUniverseCategory] = useState<string>('ALL');
@@ -314,8 +317,10 @@ export default function ProductFormClient({
         const method = forceRefresh ? 'POST' : 'GET';
         const res = await fetch(`/api/admin/products/${formData.id}/keywords`, { method });
         const data = await res.json();
-        if (data.success && data.universe) {
-          setKeywordUniverse(data.universe);
+        if (data.success) {
+          if (data.universe) setKeywordUniverse(data.universe);
+          if (data.seoHealth) setSeoHealth(data.seoHealth);
+          if (data.internalLinks) setInternalLinks(data.internalLinks);
         }
       }
     } catch (err) {
@@ -1039,6 +1044,104 @@ export default function ProductFormClient({
                 </div>
               </div>
             </div>
+
+            {/* Product SEO Health & Quality Score Card */}
+            {seoHealth && (
+              <div className="bg-white p-6 rounded-2xl border border-[#e8e2d5] shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#e8e2d5]">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-emerald-700" />
+                      <h3 className="font-bold text-sm text-[#0f2d22]">Product SEO Health Evaluation</h3>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+                          seoHealth.rating === 'EXCELLENT'
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            : seoHealth.rating === 'GOOD'
+                            ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                            : 'bg-red-100 text-red-800 border border-red-200'
+                        }`}
+                      >
+                        {seoHealth.overallScore}% — {seoHealth.rating}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      Internal assessment evaluating metadata completeness, keyword universe coverage, and demand matching.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase">Metadata</span>
+                    <div className="text-base font-extrabold text-[#1b4332] mt-0.5">{seoHealth.metadataScore}%</div>
+                  </div>
+                  <div className="p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase">Completeness</span>
+                    <div className="text-base font-extrabold text-[#1b4332] mt-0.5">{seoHealth.completenessScore}%</div>
+                  </div>
+                  <div className="p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase">Keyword Depth</span>
+                    <div className="text-base font-extrabold text-[#1b4332] mt-0.5">{seoHealth.keywordCoverageScore}%</div>
+                  </div>
+                  <div className="p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase">Demand Match</span>
+                    <div className="text-base font-extrabold text-[#1b4332] mt-0.5">{seoHealth.demandMatchScore}%</div>
+                  </div>
+                </div>
+
+                {seoHealth.recommendations?.length > 0 && (
+                  <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-1.5 text-xs text-amber-900">
+                    <div className="font-bold text-[11px] uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
+                      <Lightbulb className="w-3.5 h-3.5" />
+                      <span>Recommended Actions to Improve Health:</span>
+                    </div>
+                    <ul className="list-disc list-inside space-y-1 text-[11px] text-amber-800">
+                      {seoHealth.recommendations.map((rec: string, idx: number) => (
+                        <li key={idx}>{rec}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Semantic Internal Linking Suggestions */}
+            {internalLinks?.length > 0 && (
+              <div className="bg-white p-6 rounded-2xl border border-[#e8e2d5] shadow-xs space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-[#e8e2d5]">
+                  <div>
+                    <h3 className="font-bold text-sm text-[#0f2d22] flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-[#c5a059]" />
+                      <span>Semantic Internal Linking Network</span>
+                    </h3>
+                    <p className="text-[11px] text-gray-500">
+                      Recommended internal links to strengthen topical authority and cross-product discovery.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                  {internalLinks.map((link: any) => (
+                    <div key={link.id} className="p-3 rounded-xl bg-[#fcfbf7] border border-[#e8e2d5] flex flex-col justify-between gap-1.5">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-[#0f2d22]">{link.targetTitle}</span>
+                          <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-stone-200 text-stone-700">
+                            {link.targetType}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-gray-600 italic mt-0.5">&ldquo;{link.anchorText}&rdquo;</div>
+                      </div>
+                      <div className="flex items-center justify-between pt-1 border-t border-stone-200/60 text-[10px] text-stone-500">
+                        <span className="font-mono">{link.targetUrl}</span>
+                        <span className="font-bold text-emerald-700">{link.relevanceScore}% Fit</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Autonomous Keyword Intelligence Assistant */}
             <div className="bg-white p-6 rounded-2xl border border-[#e8e2d5] shadow-xs space-y-6">

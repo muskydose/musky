@@ -1,5 +1,5 @@
 import { Category } from '@/lib/types';
-import { getSupabaseAdmin } from '@/lib/supabase';
+import { getSupabase, getSupabaseAdmin } from '@/lib/supabase';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { sanitizeImageUrl } from '@/lib/utils';
 
@@ -38,7 +38,7 @@ export function mapCategoryToRow(c: Category) {
 }
 
 export async function getCategories(): Promise<Category[]> {
-  const supabase = getSupabaseAdmin();
+  const supabase = getSupabaseAdmin() || getSupabase();
   if (!supabase) {
     console.error('[getCategories] Supabase client is unavailable.');
     return [];
@@ -80,7 +80,7 @@ export async function getCategoryByIdOrSlug(identifier: string): Promise<Categor
   const decoded = decodeURIComponent(identifier).trim();
   const lower = decoded.toLowerCase();
 
-  const supabase = getSupabaseAdmin();
+  const supabase = getSupabaseAdmin() || getSupabase();
   if (supabase) {
     try {
       const { data, error } = await supabase

@@ -1,7 +1,7 @@
 import { cache } from 'react';
 import { SiteSettings, PaymentSettings } from '../types';
 import { INITIAL_SITE_SETTINGS, INITIAL_PAYMENT_SETTINGS } from '../data-store';
-import { getSupabaseAdmin } from '../supabase';
+import { getSupabase, getSupabaseAdmin } from '../supabase';
 import { sanitizeImageUrl } from '../utils';
 
 let cachedSiteSettingsMemory: SiteSettings | null = null;
@@ -155,7 +155,7 @@ export function mapPaymentSettingsToRow(s: PaymentSettings) {
 }
 
 export const getSiteSettings = cache(async (): Promise<SiteSettings> => {
-  const supabase = getSupabaseAdmin();
+  const supabase = getSupabaseAdmin() || getSupabase();
   if (!supabase) {
     return cachedSiteSettingsMemory || INITIAL_SITE_SETTINGS;
   }

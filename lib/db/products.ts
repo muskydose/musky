@@ -1,5 +1,5 @@
 import { Product } from '@/lib/types';
-import { getSupabaseAdmin } from '@/lib/supabase';
+import { getSupabase, getSupabaseAdmin } from '@/lib/supabase';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { sanitizeImageUrl, sanitizeImageUrls } from '@/lib/utils';
 import { getCategories } from './categories';
@@ -139,7 +139,7 @@ export async function getAllProductsAdmin(): Promise<Product[]> {
 }
 
 export async function getActiveProductsForStore(): Promise<Product[]> {
-  const supabase = getSupabaseAdmin();
+  const supabase = getSupabaseAdmin() || getSupabase();
   if (!supabase) {
     console.error('[getActiveProductsForStore] Supabase client is unavailable.');
     return [];
@@ -153,8 +153,7 @@ export async function getActiveProductsForStore(): Promise<Product[]> {
 
   if (error) {
     console.error(`[getActiveProductsForStore] Database query error: ${error.message}`);
-    const all = await getAllProductsAdmin();
-    return all.filter((p) => p.isActive !== false);
+    return [];
   }
 
   if (!data || data.length === 0) {
@@ -171,7 +170,7 @@ export async function getProducts(): Promise<Product[]> {
 export async function getProductsByCategory(categoryIdOrSlug: string): Promise<Product[]> {
   if (!categoryIdOrSlug) return [];
   const clean = categoryIdOrSlug.trim();
-  const supabase = getSupabaseAdmin();
+  const supabase = getSupabaseAdmin() || getSupabase();
 
   if (!supabase) {
     const all = await getActiveProductsForStore();
@@ -217,7 +216,7 @@ export async function getRelatedProducts(
   categoryId?: string,
   limit: number = 4
 ): Promise<Product[]> {
-  const supabase = getSupabaseAdmin();
+  const supabase = getSupabaseAdmin() || getSupabase();
   if (!supabase) {
     const all = await getActiveProductsForStore();
     const sameCat = all.filter((p) => p.id !== productId && (!categoryId || p.categoryId === categoryId));
@@ -277,7 +276,7 @@ export async function getRelatedProducts(
 }
 
 export async function getFeaturedProducts(limit: number = 8): Promise<Product[]> {
-  const supabase = getSupabaseAdmin();
+  const supabase = getSupabaseAdmin() || getSupabase();
   if (!supabase) {
     const all = await getActiveProductsForStore();
     const featured = all.filter((p) => p.isFeatured || p.isBestSeller);
@@ -319,7 +318,7 @@ export async function getProductByIdOrSlug(
   const decoded = decodeURIComponent(identifier).trim();
   const lower = decoded.toLowerCase();
 
-  const supabase = getSupabaseAdmin();
+  const supabase = getSupabaseAdmin() || getSupabase();
   if (supabase) {
     try {
       const { data, error } = await supabase
@@ -340,8 +339,8 @@ export async function getProductByIdOrSlug(
     }
   }
 
-  // Fallback to searching loaded list only if direct query yields nothing
-  const all = await getAllProductsAdmin();
+  // Fallback to searching active store list if direct query yields nothing
+  const all = await getActiveProductsForStore();
   const found = all.find(
     (p) =>
       p.id === decoded ||
