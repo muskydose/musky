@@ -12,40 +12,125 @@ import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
 interface ProductsClientViewProps {
   initialProducts: Product[];
   categories: Category[];
+  initialCategory?: string;
+  initialSearch?: string;
   whatsappNumber?: string;
   siteSettings?: SiteSettings;
+}
+
+function resolveCategoryId(paramCategory: string | undefined, categories: Category[]): string {
+  if (!paramCategory || paramCategory.trim() === '' || paramCategory.toLowerCase() === 'all') {
+    return 'all';
+  }
+  const clean = paramCategory.trim().toLowerCase();
+  const matched = categories.find(
+    (c) =>
+      c.id.toLowerCase() === clean ||
+      c.slug.toLowerCase() === clean ||
+      c.name.toLowerCase() === clean
+  );
+  return matched ? matched.id : 'all';
+}
+
+function getCategorySlug(catId: string, categories: Category[]): string | undefined {
+  if (!catId || catId === 'all') return undefined;
+  const matched = categories.find((c) => c.id === catId || c.slug === catId);
+  return matched ? matched.slug : catId;
 }
 
 export default function ProductsClientView({
   initialProducts,
   categories,
+  initialCategory,
+  initialSearch,
   whatsappNumber: propWhatsappNumber,
   siteSettings,
 }: ProductsClientViewProps) {
   const cms = getCmsText(siteSettings);
   const activeWhatsAppNumber = getConfiguredWhatsAppNumber(siteSettings) || propWhatsappNumber || '918233703080';
 
-  const [searchQuery, setSearchQuery] = useState(() => {
+  const [searchQuery, setSearchQuery] = useState<string>(() => {
+    if (initialSearch !== undefined) {
+      return initialSearch;
+    }
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      return params.get('search') || '';
+      return params.get('search') || params.get('q') || '';
     }
     return '';
   });
 
   const [selectedCategory, setSelectedCategory] = useState<string>(() => {
+    if (initialCategory) {
+      return resolveCategoryId(initialCategory, categories);
+    }
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const urlCategory = params.get('category');
       if (urlCategory) {
-        const matchingCat = categories.find(
-          (c) => c.id === urlCategory || c.slug === urlCategory || c.name.toLowerCase() === urlCategory.toLowerCase()
-        );
-        return matchingCat ? matchingCat.id : urlCategory;
+        return resolveCategoryId(urlCategory, categories);
       }
     }
     return 'all';
   });
+
+  const updateUrl = (catId: string, search: string) => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+
+    if (catId && catId !== 'all') {
+      const slug = getCategorySlug(catId, categories);
+      url.searchParams.set('category', slug || catId);
+    } else {
+      url.searchParams.delete('category');
+    }
+
+    if (search && search.trim()) {
+      url.searchParams.set('search', search.trim());
+      url.searchParams.delete('q');
+    } else {
+      url.searchParams.delete('search');
+      url.searchParams.delete('q');
+    }
+
+    const nextUrl = url.pathname + (url.search ? url.search : '');
+    window.history.replaceState({ ...window.history.state, as: nextUrl, url: nextUrl }, '', nextUrl);
+  };
+
+  const handleCategorySelect = (catId: string) => {
+    setSelectedCategory(catId);
+    updateUrl(catId, searchQuery);
+  };
+
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+    updateUrl(selectedCategory, query);
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const urlCat = params.get('category') || undefined;
+      const urlSearch = params.get('search') || params.get('q') || '';
+      setSelectedCategory(resolveCategoryId(urlCat, categories));
+      setSearchQuery(urlSearch);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [categories]);
+
+  useEffect(() => {
+    if (initialCategory !== undefined) {
+      setSelectedCategory(resolveCategoryId(initialCategory, categories));
+    }
+  }, [initialCategory, categories]);
+
+  useEffect(() => {
+    if (initialSearch !== undefined) {
+      setSearchQuery(initialSearch);
+    }
+  }, [initialSearch]);
 
   const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'out_of_stock'>('all');
   const [sortBy, setSortBy] = useState<'featured' | 'price-low' | 'price-high' | 'newest' | 'name-az'>('featured');
@@ -177,12 +262,21 @@ export default function ProductsClientView({
   // Count products per category
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    initialProducts.forEach((p) => {
-      const catKey = p.categoryId || p.categoryName || 'other';
-      counts[catKey] = (counts[catKey] || 0) + 1;
+    categories.forEach((cat) => {
+      const targetCatId = cat.id;
+      const targetCatName = cat.name.toLowerCase();
+      const targetCatSlug = cat.slug.toLowerCase();
+      const matchCount = initialProducts.filter(
+        (p) =>
+          p.categoryId === targetCatId ||
+          (p.categoryName && p.categoryName.toLowerCase() === targetCatName) ||
+          (p.categoryId && p.categoryId.toLowerCase() === targetCatSlug)
+      ).length;
+      counts[cat.id] = matchCount;
+      counts[cat.slug] = matchCount;
     });
     return counts;
-  }, [initialProducts]);
+  }, [initialProducts, categories]);
 
   const filteredProducts = useMemo(() => {
     let result = [...initialProducts];
@@ -253,14 +347,14 @@ export default function ProductsClientView({
               type="text"
               placeholder="Search products, henna, indigo, rose water..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="w-full pl-10 pr-8 py-2.5 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-xs font-medium text-[#1f2421] focus:outline-none focus:border-[#1b4332]"
             />
             {searchQuery && (
               <button
                 type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5"
+                onClick={() => handleSearchChange('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 cursor-pointer"
                 title="Clear search"
               >
                 <X className="w-3.5 h-3.5" />
@@ -272,12 +366,12 @@ export default function ProductsClientView({
           <div className="md:col-span-3">
             <select
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
+              onChange={(e) => handleCategorySelect(e.target.value)}
+              className="w-full px-3.5 py-2.5 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332] cursor-pointer"
             >
               <option value="all">All Categories ({initialProducts.length})</option>
               {categories.map((cat) => {
-                const count = categoryCounts[cat.id] || categoryCounts[cat.name] || 0;
+                const count = categoryCounts[cat.id] || 0;
                 return (
                   <option key={cat.id} value={cat.id}>
                     {cat.name} ({count})
@@ -292,7 +386,7 @@ export default function ProductsClientView({
             <select
               value={stockFilter}
               onChange={(e: any) => setStockFilter(e.target.value)}
-              className="w-full px-3 py-2.5 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
+              className="w-full px-3.5 py-2.5 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
             >
               <option value="all">All Items</option>
               <option value="in_stock">In Stock Only</option>
@@ -305,7 +399,7 @@ export default function ProductsClientView({
             <select
               value={sortBy}
               onChange={(e: any) => setSortBy(e.target.value)}
-              className="w-full px-3 py-2.5 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
+              className="w-full px-3.5 py-2.5 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
             >
               <option value="featured">Featured First</option>
               <option value="newest">Newest Arrivals</option>
@@ -323,8 +417,9 @@ export default function ProductsClientView({
             Quick Category:
           </span>
           <button
-            onClick={() => setSelectedCategory('all')}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+            type="button"
+            onClick={() => handleCategorySelect('all')}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
               selectedCategory === 'all'
                 ? 'bg-[#1b4332] text-white shadow-xs'
                 : 'bg-[#f5f1e8] text-[#0f2d22] hover:bg-[#e8e2d5]'
@@ -333,12 +428,13 @@ export default function ProductsClientView({
             All ({initialProducts.length})
           </button>
           {categories.map((cat) => {
-            const count = categoryCounts[cat.id] || categoryCounts[cat.name] || 0;
+            const count = categoryCounts[cat.id] || 0;
             return (
               <button
                 key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                type="button"
+                onClick={() => handleCategorySelect(cat.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                   selectedCategory === cat.id
                     ? 'bg-[#1b4332] text-white shadow-xs'
                     : 'bg-[#f5f1e8] text-[#0f2d22] hover:bg-[#e8e2d5]'
@@ -359,12 +455,13 @@ export default function ProductsClientView({
         </span>
         {(searchQuery || selectedCategory !== 'all' || stockFilter !== 'all') && (
           <button
+            type="button"
             onClick={() => {
-              setSearchQuery('');
-              setSelectedCategory('all');
+              handleSearchChange('');
+              handleCategorySelect('all');
               setStockFilter('all');
             }}
-            className="text-rose-600 hover:underline font-semibold text-xs"
+            className="text-rose-600 hover:underline font-semibold text-xs cursor-pointer"
           >
             Reset all filters
           </button>

@@ -22,27 +22,74 @@ export async function generateMetadata() {
   });
 }
 
-export default async function ProductsPage() {
-  const [products, categories, siteSettings] = await Promise.all([
+export default async function ProductsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const [products, categories, siteSettings, resolvedSearchParams] = await Promise.all([
     getProducts(),
     getCategories(),
     getSiteSettings(),
+    searchParams ? searchParams : Promise.resolve(undefined),
   ]);
+
+  const rawCategory = typeof resolvedSearchParams?.category === 'string'
+    ? resolvedSearchParams.category
+    : Array.isArray(resolvedSearchParams?.category)
+    ? resolvedSearchParams.category[0]
+    : undefined;
+
+  const rawSearch = typeof resolvedSearchParams?.search === 'string'
+    ? resolvedSearchParams.search
+    : typeof resolvedSearchParams?.q === 'string'
+    ? resolvedSearchParams.q
+    : Array.isArray(resolvedSearchParams?.search)
+    ? resolvedSearchParams.search[0]
+    : Array.isArray(resolvedSearchParams?.q)
+    ? resolvedSearchParams.q[0]
+    : undefined;
 
   const cms = getCmsText(siteSettings);
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
+
+  const matchedCategory = rawCategory && rawCategory !== 'all'
+    ? categories.find(
+        (c) =>
+          c.id.toLowerCase() === rawCategory.toLowerCase() ||
+          c.slug.toLowerCase() === rawCategory.toLowerCase() ||
+          c.name.toLowerCase() === rawCategory.toLowerCase()
+      )
+    : undefined;
+
+  const seoProducts = matchedCategory
+    ? products.filter(
+        (p) =>
+          p.categoryId === matchedCategory.id ||
+          p.categoryId === matchedCategory.slug ||
+          (p.categoryName && p.categoryName.toLowerCase() === matchedCategory.name.toLowerCase())
+      )
+    : products;
+
+  const collectionUrl = matchedCategory
+    ? `${baseUrl}/products?category=${matchedCategory.slug}`
+    : `${baseUrl}/products`;
+
+  const pageTitle = matchedCategory
+    ? `${matchedCategory.name} Products | ${cms.productsPageTitle}`
+    : cms.productsPageTitle;
 
   const jsonLdCollection = {
     '@context': 'https://schema.org',
     '@graph': [
       {
         '@type': 'CollectionPage',
-        name: cms.productsPageTitle,
-        url: `${baseUrl}/products`,
-        description: cms.productsPageSubtitle,
+        name: pageTitle,
+        url: collectionUrl,
+        description: matchedCategory?.description || cms.productsPageSubtitle,
         mainEntity: {
           '@type': 'ItemList',
-          itemListElement: products.map((prod, index) => ({
+          itemListElement: seoProducts.map((prod, index) => ({
             '@type': 'ListItem',
             position: index + 1,
             url: `${baseUrl}/products/${prod.slug}`,
@@ -81,6 +128,8 @@ export default async function ProductsPage() {
         <ProductsClientView
           initialProducts={products}
           categories={categories}
+          initialCategory={rawCategory}
+          initialSearch={rawSearch}
           whatsappNumber={getConfiguredWhatsAppNumber(siteSettings)}
           siteSettings={siteSettings}
         />

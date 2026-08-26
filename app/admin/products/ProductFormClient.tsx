@@ -75,7 +75,7 @@ export default function ProductFormClient({
       'Mix with warm water into smooth paste. Soak for 6 hours before application.',
     stockStatus: initialProduct?.stockStatus || 'in_stock',
     isFeatured: initialProduct?.isFeatured ?? false,
-    isActive: initialProduct?.isActive ?? true,
+    isActive: initialProduct?.isActive ?? false,
     sortOrder: initialProduct?.sortOrder ?? 1,
     seoTitle: initialProduct?.seoTitle || '',
     seoDescription: initialProduct?.seoDescription || '',
