@@ -148,7 +148,9 @@ export default function ProductDetailClient({
       const msg = `Customer Question:\nName: ${cleanName}\nMobile: ${cleanPhone}\nProduct: ${product.name}\nQuestion: ${cleanText}\n\nProduct URL: ${currentUrl}`;
       const url = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(msg)}`;
       setShowQuestionModal(false);
-      window.open(url, '_blank', 'noopener,noreferrer');
+      if (typeof window !== 'undefined') {
+        window.location.href = url;
+      }
     } catch (err: any) {
       setQuestionError(err.message || 'Unable to save your question. Please try again.');
     } finally {
@@ -163,6 +165,7 @@ export default function ProductDetailClient({
 
   const handleSendBulkInquiry = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isBulkSubmitting) return; // Prevent duplicate submissions
     setBulkError('');
 
     const cleanName = bulkName.trim();
@@ -214,7 +217,9 @@ export default function ProductDetailClient({
       const msg = `Bulk Inquiry:\nCustomer Name: ${cleanName}\nPhone / WhatsApp: ${cleanPhone}\nProduct: ${product.name} (SKU: ${product.sku || 'N/A'})\nRequested Quantity: ${cleanQty}\nRequirement / Message: ${cleanReq}\nProduct Link: ${currentUrl}`;
       const url = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(msg)}`;
       setShowBulkModal(false);
-      window.open(url, '_blank', 'noopener,noreferrer');
+      if (typeof window !== 'undefined') {
+        window.location.href = url;
+      }
     } catch (err: any) {
       setBulkError(err.message || 'Unable to save your bulk inquiry. Please try again.');
     } finally {

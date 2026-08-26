@@ -94,6 +94,32 @@ interface BusinessDemandSignal {
   sourceBadge: 'FIRST-PARTY STORE';
 }
 
+interface EnrichedProductKeywordMatch {
+  id: string;
+  productId: string;
+  productName: string;
+  category: string;
+  keyword: string;
+  keywordType: string;
+  relevanceScore: number;
+  searchIntent: string;
+  generatedFrom: string;
+  status: string;
+  isActive: boolean;
+  isOpportunity: boolean;
+  verifiedDemandAvailable: boolean;
+  verifiedSearchVolume?: number | null;
+  verifiedCpc?: number | null;
+  verifiedCompetition?: 'LOW' | 'MEDIUM' | 'HIGH' | null;
+  verifiedTrend?: 'RISING' | 'STABLE' | 'DECLINING' | null;
+  verifiedSourceName?: string | null;
+  noDataExplanation?: string;
+  matchedFields: string[];
+  sourceBadge: 'GENERATED KEYWORD';
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export default function MicroMarketHubPage() {
   const [search, setSearch] = useState('henna');
   const [loading, setLoading] = useState(false);
@@ -106,6 +132,7 @@ export default function MicroMarketHubPage() {
   // Response State
   const [catalogMatches, setCatalogMatches] = useState<CatalogSearchMatch[]>([]);
   const [keywordMatches, setKeywordMatches] = useState<EnrichedKeyword[]>([]);
+  const [generatedKeywords, setGeneratedKeywords] = useState<EnrichedProductKeywordMatch[]>([]);
   const [gscQueries, setGscQueries] = useState<SearchConsoleQuery[]>([]);
   const [businessSignals, setBusinessSignals] = useState<BusinessDemandSignal | null>(null);
   const [sourcesMetadata, setSourcesMetadata] = useState<any>(null);
@@ -132,6 +159,7 @@ export default function MicroMarketHubPage() {
         const data = await res.json();
         setCatalogMatches(data.catalogMatches || []);
         setKeywordMatches(data.keywordMatches || []);
+        setGeneratedKeywords(data.generatedKeywords || []);
         setGscQueries(data.sources?.searchConsole?.queries || []);
         setBusinessSignals(data.sources?.firstPartyStore?.businessSignals || null);
         setSourcesMetadata(data.sources || null);
@@ -706,6 +734,130 @@ export default function MicroMarketHubPage() {
                                 locationTarget: 'India (National)',
                                 suggestedCampaign: 'Search_Growth_GSC_' + gsc.query.replace(/\s+/g, '_'),
                                 suggestedAdGroup: 'AG_' + gsc.query.replace(/\s+/g, '_'),
+                                requiresAdminConfirmation: true,
+                                autoSpendAllowed: false,
+                              },
+                            });
+                          }}
+                          className="px-3 py-1.5 bg-[#1b4332] text-white hover:bg-[#2d6a4f] rounded-lg text-xs font-bold transition-all shadow-xs"
+                        >
+                          Prepare Ads Target
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* ========================================================================= */}
+        {/* SECTION 4: AUTONOMOUS PRODUCT KEYWORD UNIVERSE TARGETS                    */}
+        {/* ========================================================================= */}
+        <div className="bg-white p-6 rounded-3xl border border-[#e8e2d5] shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-[#e8e2d5] pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Target className="w-5 h-5 text-purple-700" />
+                <h3 className="font-serif-heading font-bold text-xl text-[#0f2d22]">
+                  Autonomous Product Keyword Targets
+                </h3>
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Target keywords derived from botanical entity profiles and product catalog metadata.
+              </p>
+            </div>
+
+            <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-800 border border-purple-200">
+              {generatedKeywords.length} Target Keywords
+            </span>
+          </div>
+
+          {generatedKeywords.length === 0 ? (
+            <div className="p-8 text-center bg-[#faf8f5] rounded-2xl border border-dashed border-[#e8e2d5] space-y-2">
+              <Target className="w-8 h-8 text-gray-400 mx-auto" />
+              <p className="font-bold text-gray-700 text-sm">No autonomous keyword targets matching &quot;{search}&quot;.</p>
+              <p className="text-xs text-gray-500 max-w-md mx-auto">
+                Keyword universes are dynamically generated for all catalog products based on botanical entities, intent, and use cases.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-[#e8e2d5] bg-[#faf8f5] text-[#626c66] uppercase tracking-wider font-bold">
+                    <th className="p-3.5">Target Keyword</th>
+                    <th className="p-3.5">Product Link</th>
+                    <th className="p-3.5 text-center">Category Type</th>
+                    <th className="p-3.5 text-right">Search Volume</th>
+                    <th className="p-3.5 text-center">Demand Status</th>
+                    <th className="p-3.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#e8e2d5]">
+                  {generatedKeywords.slice(0, 25).map((gkw) => (
+                    <tr key={gkw.id} className="hover:bg-[#fdfbf7] transition-colors">
+                      <td className="p-3.5">
+                        <div className="font-bold text-[#0f2d22] text-sm flex items-center gap-1.5">
+                          <span>{gkw.keyword}</span>
+                          <span className="px-1.5 py-0.2 rounded bg-purple-100 text-purple-800 text-[10px] font-bold">
+                            GENERATED
+                          </span>
+                        </div>
+                        {gkw.matchedFields && gkw.matchedFields.length > 0 && (
+                          <div className="text-[10px] text-gray-500 mt-0.5">
+                            {gkw.matchedFields.join(' • ')}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3.5 text-gray-800">
+                        <span className="font-medium text-[#1b4332] bg-[#1b4332]/10 px-2 py-0.5 rounded-full text-[11px]">
+                          {gkw.productName}
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-center">
+                        <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 font-bold text-[10px] uppercase">
+                          {gkw.keywordType}
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-right font-extrabold text-[#0f2d22]">
+                        {typeof gkw.verifiedSearchVolume === 'number' && gkw.verifiedSearchVolume > 0 ? (
+                          `${gkw.verifiedSearchVolume.toLocaleString()}/mo`
+                        ) : (
+                          <span className="text-gray-400 font-normal text-[11px]">Unavailable</span>
+                        )}
+                      </td>
+                      <td className="p-3.5 text-center">
+                        {gkw.verifiedDemandAvailable ? (
+                          <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 font-bold text-[10px]">
+                            VERIFIED DEMAND
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 font-medium text-[10px]" title="Verified search-demand data unavailable yet. Target derived from autonomous botanical universe.">
+                            UNVERIFIED DEMAND
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3.5 text-right">
+                        <button
+                          onClick={() => {
+                            setSelectedAdsTarget({
+                              id: gkw.id,
+                              keyword: gkw.keyword,
+                              language: 'en',
+                              country: 'India',
+                              category: gkw.category || 'Herbal',
+                              sourceTier: 'DERIVED',
+                              sourceName: `Product Target (${gkw.productName})`,
+                              collectedAt: gkw.createdAt || new Date().toISOString(),
+                              muskyOpportunityScore: gkw.relevanceScore,
+                              suggestedGoogleAdsTarget: {
+                                keyword: gkw.keyword,
+                                matchType: 'PHRASE',
+                                locationTarget: 'India (National)',
+                                suggestedCampaign: `Search_Product_${gkw.category.replace(/\s+/g, '_')}`,
+                                suggestedAdGroup: `AG_${gkw.keyword.replace(/\s+/g, '_')}`,
                                 requiresAdminConfirmation: true,
                                 autoSpendAllowed: false,
                               },

@@ -19,6 +19,7 @@ export default function ContactForm({ whatsappNumber }: ContactFormProps) {
 
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [whatsappUrl, setWhatsappUrl] = useState('');
 
   const enquiryTypeLabels: Record<string, string> = {
     retail: 'Retail Product Enquiry',
@@ -37,6 +38,7 @@ export default function ContactForm({ whatsappNumber }: ContactFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return; // Prevent duplicate submissions
     setError('');
 
     const cleanName = formData.fullName.trim();
@@ -94,9 +96,11 @@ export default function ContactForm({ whatsappNumber }: ContactFormProps) {
       const destNumber = getConfiguredWhatsAppNumber({ whatsappNumber });
       const waUrl = getWhatsAppDirectUrl(destNumber, messageText);
 
+      setWhatsappUrl(waUrl);
       setSubmitted(true);
+
       if (typeof window !== 'undefined') {
-        window.open(waUrl, '_blank');
+        window.location.href = waUrl;
       }
     } catch (err: any) {
       setError(err.message || 'Unable to submit your contact inquiry. Please try again.');
@@ -130,39 +134,27 @@ export default function ContactForm({ whatsappNumber }: ContactFormProps) {
           </div>
           <div>
             <h4 className="font-serif-heading text-lg font-bold text-[#0f2d22]">
-              WhatsApp Window Opened!
+              Enquiry Submitted Successfully!
             </h4>
             <p className="text-xs text-[#2b302c] mt-1 leading-relaxed">
-              Your message has been pre-formatted and sent to WhatsApp. If the window did not open automatically, click below:
+              Your message has been pre-formatted. If WhatsApp did not open automatically, click below to connect:
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              const typeLabel = enquiryTypeLabels[formData.enquiryType] || formData.enquiryType;
-              const msgLines = [
-                '👋 *Hello Musky Dose!*',
-                'I am submitting a contact enquiry from your website:\n',
-                `*Name:* ${formData.fullName.trim()}`,
-                `*Phone:* ${formData.phone.trim()}`,
-                `*Email:* ${formData.email.trim() || 'Not provided'}`,
-                `*Enquiry Type:* ${typeLabel}`,
-                `*Message:*\n${formData.message.trim()}`,
-              ];
-              const destNumber = getConfiguredWhatsAppNumber({ whatsappNumber });
-              const waUrl = getWhatsAppDirectUrl(destNumber, msgLines.join('\n'));
-              window.open(waUrl, '_blank');
-            }}
+          <a
+            href={whatsappUrl || '#'}
             className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
           >
             <MessageCircle className="w-4 h-4 fill-white" />
-            <span>Re-open WhatsApp Chat</span>
-          </button>
+            <span>Open WhatsApp Chat Now</span>
+          </a>
           <div className="pt-2">
             <button
               type="button"
-              onClick={() => setSubmitted(false)}
-              className="text-xs text-[#1b4332] underline font-semibold"
+              onClick={() => {
+                setSubmitted(false);
+                setWhatsappUrl('');
+              }}
+              className="text-xs text-[#1b4332] underline font-semibold cursor-pointer"
             >
               Send another message
             </button>

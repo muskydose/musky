@@ -80,7 +80,10 @@ export default function FaqViewClient({ settings, faqItems }: FaqViewClientProps
         `FAQ Inquiry:\nName: ${cleanName}\nMobile: ${cleanPhone}\nQuestion: ${cleanText}\n\nSource: muskydose.in/faq`
       );
       setShowQuestionModal(false);
-      window.open(`https://wa.me/${activeWhatsAppNumber}?text=${text}`, '_blank', 'noopener,noreferrer');
+      const waUrl = `https://wa.me/${activeWhatsAppNumber}?text=${text}`;
+      if (typeof window !== 'undefined') {
+        window.location.href = waUrl;
+      }
     } catch (err: any) {
       setErrorMsg(err.message || 'Unable to save your question. Please try again.');
     } finally {

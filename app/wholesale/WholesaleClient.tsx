@@ -55,6 +55,7 @@ function WholesaleContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [submittedEnquiry, setSubmittedEnquiry] = useState<any | null>(null);
+  const [whatsappUrl, setWhatsappUrl] = useState<string>('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -62,14 +63,16 @@ function WholesaleContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return; // Prevent duplicate submissions
     setError('');
 
     if (!formData.customerName.trim()) {
       setError('Please enter your full name.');
       return;
     }
-    if (!formData.phone.trim()) {
-      setError('Please enter your phone number.');
+    const cleanPhone = formData.phone.replace(/\D/g, '');
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      setError('Please enter a valid 10-digit mobile/WhatsApp number.');
       return;
     }
     if (!formData.productsRequired.trim()) {
@@ -89,46 +92,58 @@ function WholesaleContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
+          phone: cleanPhone,
           enquiryType: isBulkMode ? 'bulk_order' : 'wholesale',
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to submit enquiry.');
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || 'Failed to submit enquiry.');
       }
 
       setSubmittedEnquiry(data.enquiry);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const openDirectWhatsApp = async () => {
-    setError('');
-
-    if (submittedEnquiry) {
+      // Generate verified WhatsApp redirect URL
       const msg = generateWholesaleWhatsAppMessage(
         {
-          customerName: submittedEnquiry.customerName,
-          businessName: submittedEnquiry.businessName || (isBulkMode ? 'Bulk Order Enquiry' : 'Wholesale Buyer'),
-          phone: submittedEnquiry.phone,
-          whatsapp: submittedEnquiry.whatsapp || submittedEnquiry.phone,
-          email: submittedEnquiry.email,
-          city: submittedEnquiry.city,
-          state: submittedEnquiry.state,
-          productsRequired: submittedEnquiry.productsRequired,
-          approxQuantity: submittedEnquiry.approxQuantity,
-          notes: submittedEnquiry.notes,
+          customerName: formData.customerName.trim(),
+          businessName: formData.businessName.trim() || (isBulkMode ? 'Bulk Order Enquiry' : 'Wholesale Buyer'),
+          phone: cleanPhone,
+          whatsapp: formData.whatsapp.trim() ? formData.whatsapp.replace(/\D/g, '') : cleanPhone,
+          email: formData.email.trim(),
+          city: formData.city.trim(),
+          state: formData.state.trim(),
+          productsRequired: formData.productsRequired.trim(),
+          approxQuantity: formData.approxQuantity.trim(),
+          notes: formData.notes.trim(),
         },
         siteSettings?.whatsappWholesaleMessageTemplate
       );
 
       const destNum = getConfiguredWhatsAppNumber(siteSettings);
       const url = getWhatsAppDirectUrl(destNum, msg);
-      window.open(url, '_blank');
+      setWhatsappUrl(url);
+
+      // Top-level navigation bypasses browser async popup blocker
+      if (typeof window !== 'undefined') {
+        window.location.href = url;
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to submit enquiry. Please check your connection.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openDirectWhatsApp = async () => {
+    if (loading) return; // Prevent duplicate submissions
+    setError('');
+
+    if (submittedEnquiry && whatsappUrl) {
+      if (typeof window !== 'undefined') {
+        window.location.href = whatsappUrl;
+      }
       return;
     }
 
@@ -157,6 +172,7 @@ function WholesaleContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
+          phone: cleanPhone,
           enquiryType: isBulkMode ? 'bulk_order' : 'wholesale',
         }),
       });
@@ -172,8 +188,8 @@ function WholesaleContent() {
         {
           customerName: formData.customerName.trim(),
           businessName: formData.businessName.trim() || (isBulkMode ? 'Bulk Order Enquiry' : 'Wholesale Buyer'),
-          phone: formData.phone.trim(),
-          whatsapp: formData.whatsapp.trim() || formData.phone.trim(),
+          phone: cleanPhone,
+          whatsapp: formData.whatsapp.trim() ? formData.whatsapp.replace(/\D/g, '') : cleanPhone,
           email: formData.email.trim(),
           city: formData.city.trim(),
           state: formData.state.trim(),
@@ -186,7 +202,11 @@ function WholesaleContent() {
 
       const destNum = getConfiguredWhatsAppNumber(siteSettings);
       const url = getWhatsAppDirectUrl(destNum, msg);
-      window.open(url, '_blank');
+      setWhatsappUrl(url);
+
+      if (typeof window !== 'undefined') {
+        window.location.href = url;
+      }
     } catch (err: any) {
       setError(err.message || 'Unable to save your enquiry. Please try again.');
     } finally {
@@ -288,15 +308,27 @@ function WholesaleContent() {
                   </div>
 
                   <div className="pt-4 space-y-3">
+                    {whatsappUrl ? (
+                      <a
+                        href={whatsappUrl}
+                        className="inline-flex items-center justify-center gap-2 w-full max-w-md py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-md"
+                      >
+                        <MessageCircle className="w-4 h-4" /> Open WhatsApp Now
+                      </a>
+                    ) : (
+                      <button
+                        onClick={openDirectWhatsApp}
+                        className="inline-flex items-center justify-center gap-2 w-full max-w-md py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-md cursor-pointer"
+                      >
+                        <MessageCircle className="w-4 h-4" /> Connect Directly on WhatsApp
+                      </button>
+                    )}
                     <button
-                      onClick={openDirectWhatsApp}
-                      className="inline-flex items-center justify-center gap-2 w-full max-w-md py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-md"
-                    >
-                      <MessageCircle className="w-4 h-4" /> Connect Directly on WhatsApp
-                    </button>
-                    <button
-                      onClick={() => setSubmittedEnquiry(null)}
-                      className="block text-xs text-[#1b4332] underline hover:text-[#0f2d22] mx-auto font-semibold"
+                      onClick={() => {
+                        setSubmittedEnquiry(null);
+                        setWhatsappUrl('');
+                      }}
+                      className="block text-xs text-[#1b4332] underline hover:text-[#0f2d22] mx-auto font-semibold cursor-pointer"
                     >
                       Submit Another Wholesale Enquiry
                     </button>

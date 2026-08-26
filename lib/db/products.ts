@@ -118,7 +118,7 @@ export function mapProductToRow(p: Product) {
 }
 
 export async function getAllProductsAdmin(): Promise<Product[]> {
-  const supabase = getSupabaseAdmin();
+  const supabase = getSupabaseAdmin() || getSupabase();
   if (!supabase) {
     console.error('[getAllProductsAdmin] Supabase client is unavailable.');
     return [];

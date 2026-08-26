@@ -106,7 +106,9 @@ export default function ProductsClientView({
 
       const msg = `Hello Musky Dose, I have a custom product requirement:\nName: ${cleanName}\nMobile: ${cleanPhone}\nRequirement: ${reqText}\n\nPlease share availability and pricing from Sojat.`;
       const url = `https://wa.me/${activeWhatsAppNumber}?text=${encodeURIComponent(msg)}`;
-      window.open(url, '_blank', 'noopener,noreferrer');
+      if (typeof window !== 'undefined') {
+        window.location.href = url;
+      }
     } catch (err: any) {
       setReqError(err.message || 'Unable to save your requirement. Please try again.');
     } finally {
@@ -154,7 +156,9 @@ export default function ProductsClientView({
 
       const msg = `Hello Musky Dose, I could not find the product "${queryText}" on your website.\nName: ${cleanName}\nMobile: ${cleanPhone}\nPlease help me find or order it.`;
       const url = `https://wa.me/${activeWhatsAppNumber}?text=${encodeURIComponent(msg)}`;
-      window.open(url, '_blank', 'noopener,noreferrer');
+      if (typeof window !== 'undefined') {
+        window.location.href = url;
+      }
     } catch (err: any) {
       setZeroResultError(err.message || 'Unable to save your query. Please try again.');
     } finally {

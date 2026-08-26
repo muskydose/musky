@@ -69,6 +69,27 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Handle body scroll lock when mobile menu is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      const originalOverflow = document.body.style.overflow;
+      const originalTouchAction = document.body.style.touchAction;
+
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        document.body.style.touchAction = originalTouchAction;
+      };
+    }
+  }, [mobileMenuOpen]);
+
+  // Close mobile drawer on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
+
   // Fetch site settings if not provided
   useEffect(() => {
     if (!initialSettings && typeof window !== 'undefined') {
@@ -488,71 +509,96 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
         {/* MOBILE SLIDE-OVER MENU DRAWER */}
         <AnimatePresence>
           {mobileMenuOpen && (
-            <div className="fixed inset-0 z-50 overflow-hidden md:hidden">
+            <div className="fixed inset-0 z-50 md:hidden flex justify-end">
+              {/* Full-Screen Backdrop Overlay */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
+                transition={{ duration: 0.22 }}
                 onClick={() => setMobileMenuOpen(false)}
-                className="absolute inset-0 bg-[#0f2d22]/60 backdrop-blur-xs"
+                className="fixed inset-0 bg-[#0f2d22]/60 backdrop-blur-xs"
+                aria-hidden="true"
               />
 
+              {/* Drawer Container Panel */}
               <motion.div
-                initial={{ x: '-100%' }}
+                initial={{ x: '100%' }}
                 animate={{ x: 0 }}
-                exit={{ x: '-100%' }}
-                transition={{ type: 'spring', damping: 25, stiffness: 250 }}
-                className="relative w-4/5 max-w-sm h-full bg-[#fcfbf7] border-r border-[#e8e2d5] shadow-2xl flex flex-col justify-between overflow-y-auto"
+                exit={{ x: '100%' }}
+                transition={{ type: 'tween', duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                className="relative z-10 w-[85vw] max-w-sm h-[100dvh] max-h-[100dvh] bg-[#fcfbf7] border-l border-[#e8e2d5] shadow-2xl flex flex-col overflow-hidden"
               >
-                <div>
-                  <div className="p-4 bg-[#0f2d22] text-white flex items-center justify-between border-b border-[#2d6a4f]">
-                    <Link href="/" onClick={() => setMobileMenuOpen(false)} aria-label="Musky Dose Homepage" className="inline-flex items-center">
-                      <BrandLogo logoUrl={logoUrl} size="md" className="bg-white/95 px-2.5 py-1 rounded-xl shadow-xs" />
-                    </Link>
-                    <button
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="p-1.5 text-gray-300 hover:text-white rounded-lg bg-[#1b4332]"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
+                {/* 1. Fixed / Sticky Drawer Header */}
+                <div className="shrink-0 p-4 bg-[#0f2d22] text-white flex items-center justify-between border-b border-[#2d6a4f] sticky top-0 z-20">
+                  <Link
+                    href="/"
+                    onClick={() => setMobileMenuOpen(false)}
+                    aria-label="Musky Dose Homepage"
+                    className="inline-flex items-center"
+                  >
+                    <BrandLogo logoUrl={logoUrl} size="md" className="bg-white/95 px-2.5 py-1 rounded-xl shadow-xs" />
+                  </Link>
+                  <button
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="p-2 text-gray-300 hover:text-white rounded-lg bg-[#1b4332] active:scale-95 transition-transform cursor-pointer"
+                    aria-label="Close menu"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
 
+                {/* 2. Scrollable Content Area */}
+                <div
+                  className="flex-1 overflow-y-auto overscroll-contain flex flex-col justify-between"
+                  style={{
+                    paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))',
+                  }}
+                >
+                  {/* Menu Items List */}
                   <div className="p-4 space-y-1">
                     {navItems.map((item) => {
                       const isSelected = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+                      const icon = getNavIcon(item.href, item.label);
                       return (
                         <Link
                           key={item.id || item.href}
                           href={item.href}
                           onClick={() => setMobileMenuOpen(false)}
                           className={`flex items-center justify-between p-3 rounded-xl text-sm font-bold transition-colors ${
-                            isSelected ? 'bg-[#1b4332] text-[#c5a059]' : 'text-[#0f2d22] hover:bg-[#f5f1e8]'
+                            isSelected
+                              ? 'bg-[#1b4332] text-[#c5a059]'
+                              : 'text-[#0f2d22] hover:bg-[#f5f1e8] active:bg-[#ede8dc]'
                           }`}
                         >
-                          <span>{item.label}</span>
+                          <div className="flex items-center gap-2.5">
+                            {icon}
+                            <span>{item.label}</span>
+                          </div>
                           <ChevronRight className="w-4 h-4 opacity-50" />
                         </Link>
                       );
                     })}
                   </div>
-                </div>
 
-                <div className="p-4 bg-white border-t border-[#e8e2d5] space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[#0f2d22]">Musky Dose App:</span>
-                    <PwaInstallCTA />
+                  {/* Bottom Elements in Normal Flow */}
+                  <div className="p-4 pt-2 space-y-3 bg-white border-t border-[#e8e2d5] mt-auto shrink-0">
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-xs font-bold text-[#0f2d22]">Musky Dose App:</span>
+                      <PwaInstallCTA />
+                    </div>
+                    <Link
+                      href="/products"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] font-extrabold text-xs rounded-xl shadow-md active:scale-[0.99] transition-all"
+                    >
+                      <ShoppingBag className="w-4 h-4 text-[#c5a059]" />
+                      <span>EXPLORE PRODUCTS</span>
+                    </Link>
+                    <p className="text-[10px] text-center text-gray-500 font-medium pt-1">
+                      Sojat, Rajasthan, India | +91 {whatsappNumber}
+                    </p>
                   </div>
-                  <Link
-                    href="/products"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] font-extrabold text-xs rounded-xl shadow-md"
-                  >
-                    <ShoppingBag className="w-4 h-4 text-[#c5a059]" />
-                    <span>EXPLORE PRODUCTS</span>
-                  </Link>
-                  <p className="text-[10px] text-center text-gray-500 font-medium">
-                    Sojat, Rajasthan, India | +91 {whatsappNumber}
-                  </p>
                 </div>
               </motion.div>
             </div>

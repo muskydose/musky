@@ -100,7 +100,10 @@ export default function PolicyPageLayout({
       setFullName('');
       setPhone('');
       setQuestionText('');
-      window.open(`https://wa.me/${whatsappNumber}?text=${text}`, '_blank', 'noopener,noreferrer');
+      const waUrl = `https://wa.me/${whatsappNumber}?text=${text}`;
+      if (typeof window !== 'undefined') {
+        window.location.href = waUrl;
+      }
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to submit question. Please try again.');
     } finally {

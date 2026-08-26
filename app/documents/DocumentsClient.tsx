@@ -124,7 +124,10 @@ export default function DocumentsClient({ initialItems, siteSettings }: Document
       setCoaName('');
       setCoaPhone('');
       setCoaReq('');
-      window.open(`https://wa.me/${num}?text=${text}`, '_blank', 'noopener,noreferrer');
+      const waUrl = `https://wa.me/${num}?text=${text}`;
+      if (typeof window !== 'undefined') {
+        window.location.href = waUrl;
+      }
     } catch (err: any) {
       setCoaError(err.message || 'Failed to submit COA request. Please try again.');
     } finally {
