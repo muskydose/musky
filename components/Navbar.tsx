@@ -109,7 +109,7 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
   const whatsappNumber = getConfiguredWhatsAppNumber(settings);
   const displayPhone = settings?.displayPhone || '+91 82337 03080';
   const announcementEnabled = settings?.announcementEnabled ?? true;
-  const announcementText = settings?.announcementText || 'Pure Natural & Triple-Shifted Henna Direct from Sojat, Rajasthan';
+  const announcementText = settings?.announcementText || 'Pure Natural & Ultra-Fine Sifted Henna Direct from Sojat, Rajasthan';
   const announcementLink = settings?.announcementLink || '/products';
   const logoUrl = settings?.logoUrl;
 

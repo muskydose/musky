@@ -96,18 +96,29 @@ export default async function ProductGuideDetailPage({
 
   const whatsappPhone = getConfiguredWhatsAppNumber(siteSettings);
 
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
+  const guideImageUrl = guide.coverImage
+    ? guide.coverImage.startsWith('http')
+      ? guide.coverImage
+      : `${baseUrl}${guide.coverImage}`
+    : `${baseUrl}/images/fallback.svg`;
+
   const articleLd = {
     '@context': 'https://schema.org',
     '@type': 'Article',
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': `${baseUrl}/guides/${guide.slug}`,
+    },
     headline: guide.title,
     description: guide.shortIntro || guide.seoDescription,
-    image: [guide.coverImage || '/images/fallback.svg'],
+    image: [guideImageUrl],
     datePublished: guide.createdAt || new Date().toISOString(),
     dateModified: guide.updatedAt || guide.createdAt || new Date().toISOString(),
     author: {
       '@type': 'Organization',
       name: siteSettings.brandName || 'Musky Dose',
-      url: process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in',
+      url: baseUrl,
     },
     publisher: {
       '@type': 'Organization',

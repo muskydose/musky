@@ -163,7 +163,7 @@ export default function BrandColorsTab({ settings, setSettings }: BrandColorsTab
                           color: (settings.brandColors || DEFAULT_BRAND_COLORS).henna || '#9A4F32',
                         }}
                       >
-                        Triple Shifted
+                        Ultra-Fine Sifted
                       </span>
                       <span
                         className="font-extrabold text-sm"

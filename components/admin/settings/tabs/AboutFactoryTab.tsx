@@ -155,7 +155,7 @@ export default function AboutFactoryTab({
                       value={settings.aboutPillar2Title || ''}
                       onChange={(e) => updateField('aboutPillar2Title', e.target.value)}
                       className="w-full p-2 bg-[#fcfbf7] border border-[#e8e2d5] rounded-lg font-bold"
-                      placeholder="Triple Cloth Sifted"
+                      placeholder="Ultra-Fine Sifted"
                     />
                     <textarea
                       rows={2}
@@ -295,7 +295,7 @@ export default function AboutFactoryTab({
                       value={settings.factoryStep3Title || ''}
                       onChange={(e) => updateField('factoryStep3Title', e.target.value)}
                       className="w-full p-2 bg-[#fcfbf7] border border-[#e8e2d5] rounded-lg font-bold"
-                      placeholder="Triple Cloth Sifting"
+                      placeholder="Ultra-Fine Cloth Sifting"
                     />
                     <textarea
                       rows={2}

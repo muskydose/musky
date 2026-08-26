@@ -565,7 +565,7 @@ export default function ProductFormClient({
                       );
                     }
                   }}
-                  placeholder="e.g. Sojat Pure Triple-Shifted Henna Powder"
+                  placeholder="e.g. Sojat Pure Ultra-Fine Sifted Henna Powder"
                   className="w-full p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
                 />
               </div>

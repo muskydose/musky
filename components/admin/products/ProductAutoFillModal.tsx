@@ -222,7 +222,7 @@ export default function ProductAutoFillModal({
                   type="text"
                   value={hintsInput}
                   onChange={(e) => setHintsInput(e.target.value)}
-                  placeholder="Optional hints: e.g. 'Triple cloth sifted, rich burgundy dye, cooling scalp conditioner'"
+                  placeholder="Optional hints: e.g. 'Ultra-fine sifted, rich burgundy dye, cooling scalp conditioner'"
                   className="w-full px-3 py-1.5 bg-[#FAF8F5] border border-[#e8e2d5] rounded-lg text-xs text-[#0f2d22] placeholder:text-[#626c66]/60 focus:outline-none focus:border-[#183F2B]"
                 />
               </div>

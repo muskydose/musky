@@ -902,7 +902,7 @@ export default function CheckoutPage() {
                   🌿 Authentic Sojat Heritage Guarantee
                 </p>
                 <p>
-                  100% pure triple-shifted natural henna and herbal formulations dispatched directly from Sojat, Rajasthan.
+                  100% pure ultra-fine sifted natural henna and herbal formulations dispatched directly from Sojat, Rajasthan.
                 </p>
               </div>
             </div>

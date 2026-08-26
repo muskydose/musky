@@ -13,10 +13,45 @@ import { getSiteSettings } from '@/lib/db/settings';
 import { resolvePageSeoMetadata } from '@/lib/db/seo';
 import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
 import { safeJsonLd } from '@/lib/utils';
-import { ArrowLeft, PackageX, Sparkles } from 'lucide-react';
+import { ArrowLeft, PackageX, Sparkles, CheckCircle2, Leaf } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 export const dynamicParams = true;
+
+const CATEGORY_BOTANICAL_INSIGHTS: Record<string, { title: string; points: string[] }> = {
+  henna: {
+    title: 'Sojat Lawsonia Inermis Origin & Processing',
+    points: [
+      'Cultivated in the semi-arid soil of Sojat City, Rajasthan — naturally rich in pure Lawsone dye pigment.',
+      'Ultra-fine cloth-sifted for silk-smooth cone paste and lump-free hair mixing.',
+      '100% natural, unadulterated botanical powders with zero synthetic dyes, PPD, or metallic additives.',
+    ],
+  },
+  'hair-care': {
+    title: 'Pure Plant-Based Hair Nourishment & 2-Step Color',
+    points: [
+      'Organic Indigofera Tinctoria (Indigo) formulated for permanent 2-step natural black and brown hair coloring.',
+      'Ayurvedic fruit & leaf blends (Amla, Reetha, Shikakai, Hibiscus) that naturally restore scalp pH and strengthen hair roots.',
+      'Safe for color-treated hair and sensitive scalps seeking genuine chemical-free alternatives.',
+    ],
+  },
+  'face-care': {
+    title: 'Steam-Distilled Pure Floral Hydrosols',
+    points: [
+      'Hydro-distilled from freshly plucked Rajasthani Damask Rose petals capturing pure volatile floral waters.',
+      'Acts as a natural hydrating facial mist, pore refiner, and soothing toner for all skin types.',
+      'Free from artificial fragrances, parabens, alcohol, and synthetic solubilizers.',
+    ],
+  },
+  'herbal-products': {
+    title: 'Whole Dried Botanicals & Raw Herbs',
+    points: [
+      'Solar shade-dried raw leaves, pods, and herbs harvested at peak potency from Rajasthan.',
+      'Ideal for traditional DIY oil infusions, herbal decoctions, and customized beauty recipes.',
+      'Direct farm-to-dispatch traceability ensuring maximum botanical freshness.',
+    ],
+  },
+};
 
 export async function generateMetadata({
   params,
@@ -187,6 +222,26 @@ export default async function CategoryPage({
             >
               Browse All Products
             </Link>
+          </div>
+        )}
+
+        {/* Category Botanical Insight & Origin Note */}
+        {CATEGORY_BOTANICAL_INSIGHTS[category.slug] && (
+          <div className="mt-16 bg-white rounded-2xl border border-[#e8e2d5] p-6 sm:p-8 space-y-4 shadow-xs">
+            <div className="flex items-center gap-2 border-b border-[#e8e2d5] pb-3">
+              <Leaf className="w-5 h-5 text-[#1b4332]" />
+              <h3 className="font-momo-display text-xl sm:text-2xl font-normal text-[#0f2d22]">
+                {CATEGORY_BOTANICAL_INSIGHTS[category.slug].title}
+              </h3>
+            </div>
+            <ul className="space-y-2 text-xs text-[#626c66] leading-relaxed">
+              {CATEGORY_BOTANICAL_INSIGHTS[category.slug].points.map((pt, idx) => (
+                <li key={idx} className="flex items-start gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-[#c5a059] shrink-0 mt-0.5" />
+                  <span>{pt}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </div>

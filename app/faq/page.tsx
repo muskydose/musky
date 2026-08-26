@@ -3,6 +3,7 @@ import { getSiteSettings } from '@/lib/db/settings';
 import { resolvePageSeoMetadata } from '@/lib/db/seo';
 import { INITIAL_FAQ_ITEMS } from '@/lib/data-store';
 import { FAQItem } from '@/lib/types';
+import { safeJsonLd } from '@/lib/utils';
 import FaqViewClient from './FaqViewClient';
 
 export const revalidate = 60; // Refresh settings every 60 seconds
@@ -24,5 +25,28 @@ export default async function FaqPage() {
     .filter((item) => item.enabled !== false)
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
-  return <FaqViewClient settings={settings} faqItems={activeFaqs} />;
+  const faqJsonLd = activeFaqs.length > 0 ? {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: activeFaqs.map((item) => ({
+      '@type': 'Question',
+      name: item.question,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: item.answer,
+      },
+    })),
+  } : null;
+
+  return (
+    <>
+      {faqJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(faqJsonLd) }}
+        />
+      )}
+      <FaqViewClient settings={settings} faqItems={activeFaqs} />
+    </>
+  );
 }

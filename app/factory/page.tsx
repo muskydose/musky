@@ -6,6 +6,7 @@ import WhatsAppFloat from '@/components/WhatsAppFloat';
 import { Factory, CheckCircle, Shield, Droplets, Sparkles } from 'lucide-react';
 import { getSiteSettings } from '@/lib/db/settings';
 import { resolvePageSeoMetadata } from '@/lib/db/seo';
+import { safeJsonLd } from '@/lib/utils';
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/Motion';
 
 export async function generateMetadata() {
@@ -13,16 +14,41 @@ export async function generateMetadata() {
     targetType: 'factory',
     targetUrl: '/factory',
     defaultTitle: 'Our Sojat Factory | Musky Dose — Manufacturing & Quality Lab',
-    defaultDescription: 'Explore our processing facility in Sojat City, Rajasthan. Learn about our triple cloth-sifting and lab testing standards.',
-    defaultKeywords: ['Sojat Factory', 'Mehendi Processing', 'Triple Sifted Henna Lab'],
+    defaultDescription: 'Explore our processing facility in Sojat City, Rajasthan. Learn about our ultra-fine cloth-sifting and lab testing standards.',
+    defaultKeywords: ['Sojat Factory', 'Mehendi Processing', 'Ultra-Fine Sifted Henna Lab'],
   });
 }
 
 export default async function FactoryPage() {
   const siteSettings = await getSiteSettings();
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
+
+  const localBusinessLd = {
+    '@context': 'https://schema.org',
+    '@type': 'LocalBusiness',
+    '@id': `${baseUrl}/factory#facility`,
+    name: `${siteSettings.brandName || 'Musky Dose'} — Sojat Processing Plant`,
+    description: siteSettings.factoryHeroSubtitle || 'Where traditional Rajasthani herbal expertise meets modern hygienic processing in Sojat City, Rajasthan.',
+    image: siteSettings.factoryImageUrl ? (siteSettings.factoryImageUrl.startsWith('http') ? siteSettings.factoryImageUrl : `${baseUrl}${siteSettings.factoryImageUrl}`) : `${baseUrl}/logo.png`,
+    url: `${baseUrl}/factory`,
+    telephone: siteSettings.displayPhone || '+91 82337 03080',
+    priceRange: '₹₹',
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: 'Musky Dose Herbal Complex, Station Road',
+      addressLocality: 'Sojat City',
+      addressRegion: 'Rajasthan',
+      postalCode: '306104',
+      addressCountry: 'IN',
+    },
+  };
 
   return (
     <div className="min-h-screen bg-[#fcfbf7] flex flex-col">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(localBusinessLd) }}
+      />
       <Navbar siteSettings={siteSettings} />
 
       <div className="bg-[#0f2d22] text-white py-16 px-4 sm:px-6 lg:px-8 overflow-hidden">
@@ -49,7 +75,7 @@ export default async function FactoryPage() {
             </h2>
             <p className="text-sm text-[#2b302c] leading-relaxed">
               {siteSettings.factoryStory ||
-                'Located in Sojat City, Pali district, our plant handles solar drying, stainless steel micro-pulverizing, and triple cloth-sifting. Every batch is sealed in moisture-proof food grade pouches to preserve peak dye potency.'}
+                'Located in Sojat City, Pali district, our plant handles solar drying, stainless steel micro-pulverizing, and ultra-fine cloth-sifting. Every batch is sealed in moisture-proof food grade pouches to preserve peak dye potency.'}
             </p>
 
             <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4" staggerDelay={0.12}>
@@ -72,9 +98,9 @@ export default async function FactoryPage() {
               <StaggerItem className="p-4 rounded-xl bg-[#f5f1e8] space-y-2 border border-[#e8e2d5] hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-2 text-[#0f2d22] font-bold text-sm">
                   <span className="w-6 h-6 rounded-full bg-[#1b4332] text-white flex items-center justify-center text-xs">3</span>
-                  <span>{siteSettings.factoryStep3Title || 'Triple Cloth Sifting'}</span>
+                  <span>{siteSettings.factoryStep3Title || 'Ultra-Fine Cloth Sifting'}</span>
                 </div>
-                <p className="text-xs text-[#626c66]">{siteSettings.factoryStep3Description || 'Milled powder passes three distinct micro-mesh cloth filters to eliminate any stem fibers or coarse residue.'}</p>
+                <p className="text-xs text-[#626c66]">{siteSettings.factoryStep3Description || 'Milled powder passes ultra-fine micro cloth filters to eliminate any stem fibers or coarse residue.'}</p>
               </StaggerItem>
 
               <StaggerItem className="p-4 rounded-xl bg-[#f5f1e8] space-y-2 border border-[#e8e2d5] hover:shadow-md transition-shadow">

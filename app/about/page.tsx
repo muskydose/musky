@@ -6,7 +6,7 @@ import WhatsAppFloat from '@/components/WhatsAppFloat';
 import { Leaf, ShieldCheck, Award, Heart, MapPin, CheckCircle } from 'lucide-react';
 import { getSiteSettings } from '@/lib/db/settings';
 import { resolvePageSeoMetadata } from '@/lib/db/seo';
-import { sanitizeImageUrl } from '@/lib/utils';
+import { sanitizeImageUrl, safeJsonLd } from '@/lib/utils';
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/Motion';
 
 export async function generateMetadata() {
@@ -21,9 +21,34 @@ export async function generateMetadata() {
 
 export default async function AboutPage() {
   const siteSettings = await getSiteSettings();
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
+
+  const localBusinessLd = {
+    '@context': 'https://schema.org',
+    '@type': 'LocalBusiness',
+    '@id': `${baseUrl}/#localbusiness`,
+    name: siteSettings.brandName || 'Musky Dose',
+    description: siteSettings.aboutHeroSubtitle || 'Delivering authentic, highest-pigment Henna & pure Indian herbal wellness directly from Sojat, Rajasthan.',
+    image: siteSettings.heroImageUrl ? (siteSettings.heroImageUrl.startsWith('http') ? siteSettings.heroImageUrl : `${baseUrl}${siteSettings.heroImageUrl}`) : `${baseUrl}/logo.png`,
+    url: baseUrl,
+    telephone: siteSettings.displayPhone || '+91 82337 03080',
+    priceRange: '₹₹',
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: 'Musky Dose Herbal Complex, Station Road',
+      addressLocality: 'Sojat City',
+      addressRegion: 'Rajasthan',
+      postalCode: '306104',
+      addressCountry: 'IN',
+    },
+  };
 
   return (
     <div className="min-h-screen bg-[#fcfbf7] flex flex-col">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(localBusinessLd) }}
+      />
       <Navbar siteSettings={siteSettings} />
 
       {/* Header */}
@@ -94,7 +119,7 @@ export default async function AboutPage() {
           <StaggerItem className="bg-white p-6 rounded-2xl border border-[#e8e2d5] space-y-3 hover:shadow-md transition-shadow">
             <Award className="w-8 h-8 text-[#c5a059]" />
             <h3 className="font-momo-display text-xl font-normal text-[#0f2d22]">
-              {siteSettings.aboutPillar2Title || 'Triple Cloth Sifted'}
+              {siteSettings.aboutPillar2Title || 'Ultra-Fine Sifted'}
             </h3>
             <p className="text-xs text-[#626c66] leading-relaxed">
               {siteSettings.aboutPillar2Description || 'Our ultra-fine sifting process ensures smooth, clog-free cone flow and rich dye release.'}

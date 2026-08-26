@@ -128,7 +128,7 @@ export default function HeroCarousel({ siteSettings }: HeroCarouselProps) {
           <div className="flex flex-col lg:flex-row items-center lg:items-start gap-1.5 lg:gap-2.5">
             <Factory className="w-4 h-4 sm:w-5 sm:h-5 text-[#c5a059] shrink-0 hidden lg:block" />
             <div>
-              <div className="font-momo-display text-xs sm:text-base font-normal text-[#c5a059] leading-tight">3X Cloth Sifted</div>
+              <div className="font-momo-display text-xs sm:text-base font-normal text-[#c5a059] leading-tight">Ultra-Fine Sifted</div>
               <div className="text-[9px] sm:text-xs text-[#9bb3a6] leading-snug">Micro-Fine Silky Powder</div>
             </div>
           </div>

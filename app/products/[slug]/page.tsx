@@ -6,6 +6,7 @@ import ProductCard from '@/components/ProductCard';
 import WhatsAppFloat from '@/components/WhatsAppFloat';
 import { getProductByIdOrSlug, getRelatedProducts } from '@/lib/db/products';
 import { getCategories } from '@/lib/db/categories';
+import { getPublishedGuides } from '@/lib/db/guides';
 import { getSiteSettings } from '@/lib/db/settings';
 import { resolvePageSeoMetadata } from '@/lib/db/seo';
 import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
@@ -45,15 +46,33 @@ export default async function ProductDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const [product, siteSettings, categories] = await Promise.all([
+  const [product, siteSettings, categories, allGuides] = await Promise.all([
     getProductByIdOrSlug(slug),
     getSiteSettings(),
     getCategories(),
+    getPublishedGuides(),
   ]);
 
   if (!product || product.isActive === false) {
     notFound();
   }
+
+  const prodNameLower = (product.name || '').toLowerCase();
+  const prodSlugLower = (product.slug || '').toLowerCase();
+  const catNameLower = (product.categoryName || '').toLowerCase();
+
+  const relevantGuides = allGuides.filter((g) => {
+    if (g.productId === product.id) return true;
+    if (Array.isArray(g.productIds) && g.productIds.includes(product.id)) return true;
+    if (Array.isArray(g.relatedProductIds) && g.relatedProductIds.includes(product.id)) return true;
+    
+    // Topic matching
+    if ((prodNameLower.includes('indigo') || prodSlugLower.includes('indigo')) && g.slug.includes('indigo')) return true;
+    if ((prodNameLower.includes('henna') || prodSlugLower.includes('henna') || catNameLower.includes('henna')) && g.slug.includes('henna')) return true;
+    if ((prodNameLower.includes('amla') || prodNameLower.includes('hair pack')) && g.slug.includes('which-henna')) return true;
+    
+    return false;
+  }).slice(0, 2);
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
   const relatedProducts = await getRelatedProducts(product.id, product.categoryId, 3);
@@ -183,6 +202,7 @@ export default async function ProductDetailPage({
           whatsappTemplate={siteSettings.whatsappMessageTemplate}
           brandName={siteSettings.brandName || 'Musky Dose'}
           faqItems={siteSettings.faqItems}
+          relevantGuides={relevantGuides}
         />
 
         {/* Related Products Section */}

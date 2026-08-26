@@ -467,7 +467,7 @@ export default function HomepageBuilderTab({
                     value={settings.announcementText || ''}
                     onChange={(e) => updateField('announcementText', e.target.value)}
                     className="w-full p-2.5 bg-white border border-[#e8e2d5] rounded-xl"
-                    placeholder="Pure Natural & Triple-Shifted Henna Direct from Sojat, Rajasthan"
+                    placeholder="Pure Natural & Ultra-Fine Sifted Henna Direct from Sojat, Rajasthan"
                   />
                 </div>
 
@@ -520,7 +520,7 @@ export default function HomepageBuilderTab({
                     value={settings.heroSubtitle || ''}
                     onChange={(e) => updateField('heroSubtitle', e.target.value)}
                     className="w-full p-2.5 bg-white border border-[#e8e2d5] rounded-xl text-[#0f2d22]"
-                    placeholder="Triple cloth-sifted natural mehendi, natural indigo..."
+                    placeholder="Ultra-fine sifted natural mehendi, natural indigo..."
                   />
                 </div>
 

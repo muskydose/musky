@@ -7,7 +7,7 @@ export async function generateMetadata() {
     targetType: 'wholesale',
     targetUrl: '/wholesale',
     defaultTitle: 'Wholesale & B2B Bulk Henna Supply | Musky Dose Sojat',
-    defaultDescription: 'Order premium triple-sifted Sojat henna powder and herbal products in bulk quantities directly from our factory in Sojat, Rajasthan.',
+    defaultDescription: 'Order premium ultra-fine sifted Sojat henna powder and herbal products in bulk quantities directly from our factory in Sojat, Rajasthan.',
     defaultKeywords: ['Wholesale Henna', 'B2B Sojat Henna', 'Bulk Mehendi Powder', 'Henna Manufacturer Rajasthan'],
   });
 }

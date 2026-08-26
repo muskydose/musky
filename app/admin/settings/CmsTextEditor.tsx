@@ -183,7 +183,7 @@ export default function CmsTextEditor({
           {renderInput('productCardInStockBadge', 'Product Card "In Stock" Badge')}
           {renderInput('productCardOutOfStockBadge', 'Product Card "Out of Stock" Badge')}
           {renderInput('productCardHeritageBadge', 'Product Card Sojat Heritage Badge')}
-          {renderInput('productCardTripleShiftedBadge', 'Product Card Triple Sifted Badge')}
+          {renderInput('productCardTripleShiftedBadge', 'Product Card Ultra-Fine Sifted Badge')}
           {renderInput('productCardViewDetailsText', 'Product Card "View Details" Link')}
           {renderInput('productCardAddToCartText', 'Product Card "Add to Cart" Button')}
           {renderInput('productCardWhatsappOrderText', 'Product Card WhatsApp Order Button')}

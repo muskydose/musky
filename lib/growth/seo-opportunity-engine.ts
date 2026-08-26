@@ -678,7 +678,7 @@ export function generateActionDraftTemplate(
       const md = `### Frequently Asked Question: ${kw}
 
 **Q: ${kw.charAt(0).toUpperCase() + kw.slice(1)}?**
-**A:** Musky Dose ${pName} is cultivated and packaged directly in Sojat, Rajasthan. Our triple-shifted, 100% chemical-free formula ensures maximum natural potency without PPD, ammonia, or synthetic additives. Apply as directed for optimal, long-lasting natural results.
+**A:** Musky Dose ${pName} is cultivated and packaged directly in Sojat, Rajasthan. Our ultra-fine sifted, 100% chemical-free formula ensures maximum natural potency without PPD, ammonia, or synthetic additives. Apply as directed for optimal, long-lasting natural results.
 
 *Key Botanical Benefits:*
 - Pure GI-origin Sojat cultivation
@@ -722,7 +722,7 @@ Discover the traditional benefits and authentic purity of ${pName} sourced direc
 Headline 1: Pure Sojat Henna & Botanicals
 Headline 2: 100% Organic | Direct From Sojat
 Headline 3: Fast All-India Delivery
-Description 1: Direct from Sojat, Rajasthan. Triple-shifted chemical-free purity with rich natural color.
+Description 1: Direct from Sojat, Rajasthan. Ultra-fine sifted chemical-free purity with rich natural color.
 Description 2: Guaranteed fresh harvest botanicals. WhatsApp ordering & COD available nationwide.
 Target Keyword: [${kw}] (Exact Match) / "${kw}" (Phrase Match)
 Final URL: https://muskydose.in/products/${product?.slug || ''}`;

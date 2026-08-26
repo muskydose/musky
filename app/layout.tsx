@@ -35,7 +35,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const title = siteSettings.seoTitle || 'Musky Dose | Premium Henna & Herbal Products from Sojat, Rajasthan';
   const description =
     siteSettings.seoDescription ||
-    'Pure Botanical, Triple-Shifted Sojat Mehendi, Pure Natural Henna, Hair Care & Herbal Wellness Products direct from Sojat, Rajasthan, India.';
+    'Pure Botanical, Ultra-Fine Sifted Sojat Mehendi, Pure Natural Henna, Hair Care & Herbal Wellness Products direct from Sojat, Rajasthan, India.';
   const keywords = siteSettings.seoKeywords
     ? siteSettings.seoKeywords.split(',').map((k: string) => k.trim())
     : ['Musky Dose', 'Sojat Henna', 'Natural Henna Powder', 'Pure Mehendi', 'Herbal Hair Care', 'Rajasthan Henna', 'Pure Mehendi Powder'];

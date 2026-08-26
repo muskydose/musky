@@ -554,7 +554,7 @@ export default function ProductsClientView({
           <div className="flex flex-col sm:flex-row gap-3">
             <input
               type="text"
-              placeholder="Type your product requirement (e.g., Triple Sifted Rajasthani Henna 25kg, Pure Indigo)... *"
+              placeholder="Type your product requirement (e.g., Ultra-Fine Sifted Rajasthani Henna 25kg, Pure Indigo)... *"
               value={customRequirement}
               onChange={(e) => {
                 setCustomRequirement(e.target.value);

@@ -110,7 +110,7 @@ export function generateGroundedFallbackDraft(input: ProductAutoFillInput): Prod
     ingredients = ['100% Pure Lawsonia Inermis (Natural Sojat Henna) Leaf Powder'];
     benefits = [
       'Authentic Sojat origin Lawsonia Inermis with rich natural Lawsone pigment',
-      'Micro-fine triple cloth-sifted powder ensuring effortless mixing and smooth application',
+      'Ultra-fine sifted powder ensuring effortless mixing and smooth application',
       'Guaranteed 100% pure with zero added chemicals, metallic salts, or PPD',
       'Acts as a natural cooling conditioner, strengthening hair roots and imparting rich color',
     ];
@@ -246,7 +246,7 @@ export function generateGroundedFallbackDraft(input: ProductAutoFillInput): Prod
     benefits = [
       `Authentic pure botanical formulation crafted from premium natural herbs`,
       `Gently nourishes and revitalizes with traditional Ayurvedic herbal nutrients`,
-      `Triple cloth-sifted for an ultra-fine, smooth, lump-free consistency`,
+      `Ultra-fine sifted for a smooth, lump-free consistency`,
       `100% chemical-free with zero added artificial colors, fragrances, or preservatives`,
     ];
     usage = `Mix required quantity of ${name} with warm water or suitable natural liquid into a smooth paste. Apply evenly to desired area, allow to absorb for 20 to 30 minutes, then rinse thoroughly with plain water.`;

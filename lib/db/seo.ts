@@ -374,7 +374,7 @@ export async function resolvePageSeoMetadata(input: PageSeoResolutionInput) {
 
   let description = pageConfig?.metaDescription?.trim() || input.defaultDescription;
   if (!description) {
-    description = siteSettings.seoDescription || 'Pure Botanical, Triple-Shifted Sojat Mehendi & Natural Hair Care Products directly from Sojat, Rajasthan.';
+    description = siteSettings.seoDescription || 'Pure Botanical, Ultra-Fine Sifted Sojat Mehendi & Natural Hair Care Products directly from Sojat, Rajasthan.';
   }
 
   const keywordSet = new Set<string>();

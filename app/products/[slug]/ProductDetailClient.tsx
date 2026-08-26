@@ -28,6 +28,7 @@ import {
   Maximize2,
   HelpCircle,
   ChevronDown,
+  BookOpen,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -37,6 +38,7 @@ interface ProductDetailClientProps {
   whatsappTemplate?: string;
   brandName?: string;
   faqItems?: any[];
+  relevantGuides?: { id: string; title: string; slug: string; shortIntro?: string }[];
 }
 
 export default function ProductDetailClient({
@@ -45,6 +47,7 @@ export default function ProductDetailClient({
   whatsappTemplate,
   brandName = 'Musky Dose',
   faqItems,
+  relevantGuides = [],
 }: ProductDetailClientProps) {
   const { addToCart } = useCart();
   const [selectedImage, setSelectedImage] = useState<string>(
@@ -656,6 +659,45 @@ export default function ProductDetailClient({
             </h4>
             <div className="bg-[#fcfbf7] p-5 rounded-xl border border-[#e8e2d5] text-xs text-[#2b302c] leading-relaxed">
               {product.usageInstructions}
+            </div>
+          </div>
+        )}
+
+        {/* Contextual Botanical Educational Guides */}
+        {relevantGuides && relevantGuides.length > 0 && (
+          <div className="space-y-3 pt-4 border-t border-[#f5f1e8]">
+            <div className="flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-[#c5a059]" />
+              <h4 className="font-momo-display text-xl font-normal text-[#0f2d22]">
+                Recommended Botanical Guides & Tutorials
+              </h4>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {relevantGuides.map((guide) => (
+                <Link
+                  key={guide.id || guide.slug}
+                  href={`/guides/${guide.slug}`}
+                  className="group bg-[#fcfbf7] hover:bg-[#f5f1e8] p-4 rounded-xl border border-[#e8e2d5] hover:border-[#1b4332]/40 transition-all flex flex-col justify-between"
+                >
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-[#c5a059] uppercase tracking-wider block">
+                      Knowledge Base
+                    </span>
+                    <h5 className="font-serif-heading font-bold text-xs text-[#0f2d22] group-hover:text-[#1b4332] transition-colors line-clamp-2">
+                      {guide.title}
+                    </h5>
+                    {guide.shortIntro && (
+                      <p className="text-[11px] text-gray-600 line-clamp-2 leading-relaxed">
+                        {guide.shortIntro}
+                      </p>
+                    )}
+                  </div>
+                  <div className="mt-3 flex items-center gap-1 text-[11px] font-bold text-[#1b4332]">
+                    <span>Read Step-by-Step Guide</span>
+                    <span className="group-hover:translate-x-0.5 transition-transform">&rarr;</span>
+                  </div>
+                </Link>
+              ))}
             </div>
           </div>
         )}

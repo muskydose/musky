@@ -133,7 +133,7 @@ export default function SeoPageConfigTab({
                   {editingConfig.seoTitle || 'Musky Dose — Pure Sojat Henna & Natural Herbal Products'}
                 </div>
                 <p className="text-xs text-[#4d5156] line-clamp-2 leading-relaxed">
-                  {editingConfig.metaDescription || 'Triple cloth-sifted authentic Lawsonia Inermis henna powder and natural botanical hair care direct from Sojat, Rajasthan.'}
+                  {editingConfig.metaDescription || 'Ultra-fine sifted authentic Lawsonia Inermis henna powder and natural botanical hair care direct from Sojat, Rajasthan.'}
                 </p>
               </div>
 

@@ -10,7 +10,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
   return {
     name: `${brandName} — Premium Henna & Herbal Products`,
     short_name: brandName,
-    description: 'Pure Botanical, Triple-Shifted Sojat Mehendi, Pure Natural Henna & Herbal Wellness Products direct from Sojat, Rajasthan, India.',
+    description: 'Pure Botanical, Ultra-Fine Sifted Sojat Mehendi, Pure Natural Henna & Herbal Wellness Products direct from Sojat, Rajasthan, India.',
     start_url: '/',
     display: 'standalone',
     background_color: '#fcfbf7',

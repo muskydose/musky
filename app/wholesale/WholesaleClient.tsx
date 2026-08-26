@@ -240,8 +240,8 @@ function WholesaleContent() {
             </h1>
             <p className="text-sm md:text-base text-[#b2c8be] max-w-2xl mx-auto leading-relaxed">
               {isBulkMode
-                ? 'Order custom weight packs (5kg, 10kg, 25kg, 50kg, 100kg+), raw triple-sifted henna, indigo, and specialized botanical powders with fast factory dispatch.'
-                : siteSettings?.wholesaleHeroSubtitle || 'We partner with salons, distributors, retailers, and exporters worldwide to supply 100% natural, triple-shifted Henna and traditional herbal products.'}
+                ? 'Order custom weight packs (5kg, 10kg, 25kg, 50kg, 100kg+), raw ultra-fine sifted henna, indigo, and specialized botanical powders with fast factory dispatch.'
+                : siteSettings?.wholesaleHeroSubtitle || 'We partner with salons, distributors, retailers, and exporters worldwide to supply 100% natural, ultra-fine sifted Henna and traditional herbal products.'}
             </p>
           </div>
         </section>
@@ -461,7 +461,7 @@ function WholesaleContent() {
                       rows={2}
                       value={formData.productsRequired}
                       onChange={handleChange}
-                      placeholder="e.g. Triple Shifted Henna Powder, Indigo Powder, Amla-Reetha Mix"
+                      placeholder="e.g. Ultra-Fine Sifted Henna Powder, Indigo Powder, Amla-Reetha Mix"
                       required
                       className="w-full px-3 py-2 text-xs rounded-lg border border-[#e8e2d5] bg-[#FAF8F5] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#1b4332]"
                     />
@@ -491,7 +491,7 @@ function WholesaleContent() {
                       rows={2}
                       value={formData.notes}
                       onChange={handleChange}
-                      placeholder="Mention any specific sifting mesh grade, packaging preferences, or delivery target date..."
+                      placeholder="Mention any specific sifting grade, packaging preferences, or delivery target date..."
                       className="w-full px-3 py-2 text-xs rounded-lg border border-[#e8e2d5] bg-[#FAF8F5] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#1b4332]"
                     />
                   </div>
@@ -569,6 +569,61 @@ function WholesaleContent() {
                     To receive a quotation on WhatsApp, please complete the required form with your requirement details.
                   </p>
                 </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Bulk Grades & Wholesale Supply Specifications */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+          <div className="bg-white rounded-2xl border border-[#e8e2d5] p-6 sm:p-8 space-y-6 shadow-xs">
+            <div className="border-b border-[#e8e2d5] pb-4">
+              <span className="text-[11px] font-bold text-[#c5a059] uppercase tracking-wider block">
+                Commercial Standards & Direct Supply
+              </span>
+              <h2 className="font-momo-display text-2xl sm:text-3xl font-normal text-[#0f2d22] mt-1">
+                Sojat Wholesale Henna & Botanical Powder Specifications
+              </h2>
+              <p className="text-xs text-[#626c66] mt-1 leading-relaxed max-w-3xl">
+                Direct factory manufacturing and wholesale supply from Sojat City, Rajasthan. We supply certified cosmetic grade Lawsonia Inermis, organic Indigo, and Ayurvedic hair-care botanicals in bulk commercial formats.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs text-[#2b302c]">
+              <div className="p-4 rounded-xl bg-[#fcfbf7] border border-[#e8e2d5] space-y-2">
+                <div className="font-serif-heading font-bold text-[#0f2d22] text-sm flex items-center gap-2">
+                  <Leaf className="w-4 h-4 text-[#1b4332]" />
+                  <span>Sifting & Purity Grades</span>
+                </div>
+                <ul className="space-y-1.5 text-[#626c66] list-disc list-inside">
+                  <li><strong>Standard Hair Dye Grade:</strong> Natural botanical hair application.</li>
+                  <li><strong>Salon & Herbal Pack Grade:</strong> Ultra-fine consistency for hair and scalp treatments.</li>
+                  <li><strong>BAQ Grade:</strong> Ultra-fine sifted Body Art Quality for clog-free cone flow.</li>
+                </ul>
+              </div>
+
+              <div className="p-4 rounded-xl bg-[#fcfbf7] border border-[#e8e2d5] space-y-2">
+                <div className="font-serif-heading font-bold text-[#0f2d22] text-sm flex items-center gap-2">
+                  <Package className="w-4 h-4 text-[#1b4332]" />
+                  <span>Bulk Packaging Tiers</span>
+                </div>
+                <ul className="space-y-1.5 text-[#626c66] list-disc list-inside">
+                  <li><strong>Retail Masters:</strong> 100g, 250g, 500g pouches (5kg–25kg master cartons).</li>
+                  <li><strong>Commercial Bags:</strong> 25 kg multi-wall moisture-barrier kraft bags.</li>
+                  <li><strong>Bulk Sacks:</strong> 50 kg bulk export sacks.</li>
+                </ul>
+              </div>
+
+              <div className="p-4 rounded-xl bg-[#fcfbf7] border border-[#e8e2d5] space-y-2">
+                <div className="font-serif-heading font-bold text-[#0f2d22] text-sm flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-[#1b4332]" />
+                  <span>Logistics & Dispatch Origin</span>
+                </div>
+                <ul className="space-y-1.5 text-[#626c66] list-disc list-inside">
+                  <li><strong>Factory Origin:</strong> Sojat City, Pali District, Rajasthan (Pincode: 306104).</li>
+                  <li><strong>Dispatch Time:</strong> 24–48 hours for standard bulk lots.</li>
+                  <li><strong>Coverage:</strong> Pan-India road transport, express cargo, and surface logistics.</li>
+                </ul>
               </div>
             </div>
           </div>
