@@ -8,6 +8,8 @@ import {
   TestimonialItem,
   HomepageSectionConfig,
   HomepageItemConfig,
+  HomepageVideoConfig,
+  AnnouncementItem,
   Product,
   Category,
 } from '@/lib/types';
@@ -15,6 +17,8 @@ import {
   DEFAULT_WHY_CARDS,
   DEFAULT_TESTIMONIALS,
   DEFAULT_HOMEPAGE_SECTIONS,
+  DEFAULT_HOMEPAGE_VIDEO,
+  DEFAULT_ANNOUNCEMENTS,
 } from '@/lib/data-store';
 import {
   Layout,
@@ -32,8 +36,20 @@ import {
   Search,
   Filter,
   FolderTree,
+  Video,
+  Megaphone,
+  UploadCloud,
+  Film,
+  Play,
+  Volume2,
+  VolumeX,
+  Radio,
+  ExternalLink,
+  Clock,
+  Tag,
 } from 'lucide-react';
 import { sanitizeImageUrl } from '@/lib/utils';
+import { uploadMediaFile } from '@/lib/media-upload';
 
 interface HomepageBuilderTabProps {
   settings: SiteSettings;
@@ -51,7 +67,10 @@ export default function HomepageBuilderTab({
   products: propProducts = [],
   categories: propCategories = [],
 }: HomepageBuilderTabProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'sections' | 'products' | 'categories' | 'content'>('sections');
+  const [activeSubTab, setActiveSubTab] = useState<'sections' | 'products' | 'categories' | 'video' | 'announcements' | 'content'>('sections');
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [uploadingPoster, setUploadingPoster] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   
   // Local products & categories state with client fallback fetching
   const [allProducts, setAllProducts] = useState<Product[]>(propProducts);
@@ -350,6 +369,114 @@ export default function HomepageBuilderTab({
     setSettings((prev) => ({ ...prev, testimonials: updated }));
   };
 
+  // ---------------------------------------------------------------------------
+  // 5. ANNOUNCEMENTS & TICKER HANDLERS
+  // ---------------------------------------------------------------------------
+  const announcements: AnnouncementItem[] =
+    settings.announcements && settings.announcements.length > 0
+      ? settings.announcements
+      : DEFAULT_ANNOUNCEMENTS;
+
+  const handleAddAnnouncement = () => {
+    const newAnn: AnnouncementItem = {
+      id: `ann-${Date.now()}`,
+      text: 'Direct Farm Dispatch from Sojat, Rajasthan • Pure Lawsonia Inermis',
+      link: '/about',
+      enabled: true,
+      sortOrder: announcements.length + 1,
+      badge: 'ORIGIN SOJAT',
+      priority: 'NORMAL',
+    };
+    updateField('announcements', [...announcements, newAnn]);
+  };
+
+  const handleUpdateAnnouncement = (id: string, field: keyof AnnouncementItem, value: any) => {
+    const updated = announcements.map((a) => (a.id === id ? { ...a, [field]: value } : a));
+    updateField('announcements', updated);
+  };
+
+  const handleDeleteAnnouncement = (id: string) => {
+    const updated = announcements.filter((a) => a.id !== id);
+    updateField('announcements', updated);
+  };
+
+  const handleMoveAnnouncement = (index: number, direction: 'up' | 'down') => {
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= announcements.length) return;
+    const updated = [...announcements];
+    const temp = updated[index];
+    updated[index] = updated[newIndex];
+    updated[newIndex] = temp;
+    const reordered = updated.map((item, idx) => ({
+      ...item,
+      sortOrder: idx + 1,
+    }));
+    updateField('announcements', reordered);
+  };
+
+  // ---------------------------------------------------------------------------
+  // 6. HOMEPAGE VIDEO SHOWCASE HANDLERS
+  // ---------------------------------------------------------------------------
+  const videoConfig: HomepageVideoConfig = settings.homepageVideo || DEFAULT_HOMEPAGE_VIDEO;
+
+  const handleUpdateVideoField = (field: keyof HomepageVideoConfig, value: any) => {
+    const updated: HomepageVideoConfig = {
+      ...videoConfig,
+      [field]: value,
+    };
+    updateField('homepageVideo', updated);
+
+    // Keep the 'video' section in homepageSections synchronized if present
+    if (field === 'enabled') {
+      const secIdx = currentSections.findIndex((s) => s.id === 'video' || s.id === 'homepage_video');
+      if (secIdx >= 0) {
+        const updatedSecs = [...currentSections];
+        updatedSecs[secIdx] = { ...updatedSecs[secIdx], enabled: Boolean(value) };
+        updateField('homepageSections', updatedSecs);
+      }
+    }
+  };
+
+  const handleVideoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingVideo(true);
+    setUploadMessage(null);
+    try {
+      const res = await uploadMediaFile(file, 'videos');
+      if (res.success && res.url) {
+        handleUpdateVideoField('videoUrl', res.url);
+        setUploadMessage({ type: 'success', text: 'Video uploaded and linked successfully!' });
+      } else {
+        setUploadMessage({ type: 'error', text: res.error || 'Failed to upload video.' });
+      }
+    } catch (err: any) {
+      setUploadMessage({ type: 'error', text: `Upload failed: ${err.message || String(err)}` });
+    } finally {
+      setUploadingVideo(false);
+    }
+  };
+
+  const handlePosterFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPoster(true);
+    setUploadMessage(null);
+    try {
+      const res = await uploadMediaFile(file, 'banners');
+      if (res.success && res.url) {
+        handleUpdateVideoField('posterUrl', res.url);
+        setUploadMessage({ type: 'success', text: 'Poster image uploaded successfully!' });
+      } else {
+        setUploadMessage({ type: 'error', text: res.error || 'Failed to upload poster image.' });
+      }
+    } catch (err: any) {
+      setUploadMessage({ type: 'error', text: `Upload failed: ${err.message || String(err)}` });
+    } finally {
+      setUploadingPoster(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Header */}
@@ -360,7 +487,7 @@ export default function HomepageBuilderTab({
             <span>Homepage Merchandising & Builder</span>
           </h3>
           <p className="text-gray-500 text-xs sm:text-sm mt-1">
-            Drag & drop products, categories, and sections to visually control the customer homepage layout.
+            Drag & drop products, categories, sections, video showcase, and announcements to visually control the customer storefront.
           </p>
         </div>
 
@@ -407,6 +534,32 @@ export default function HomepageBuilderTab({
 
           <button
             type="button"
+            onClick={() => setActiveSubTab('video')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeSubTab === 'video'
+                ? 'bg-[#1b4332] text-white shadow-xs'
+                : 'text-[#0f2d22] hover:bg-white/60'
+            }`}
+          >
+            <Video className="w-3.5 h-3.5" />
+            <span>Video Showcase</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('announcements')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeSubTab === 'announcements'
+                ? 'bg-[#1b4332] text-white shadow-xs'
+                : 'text-[#0f2d22] hover:bg-white/60'
+            }`}
+          >
+            <Megaphone className="w-3.5 h-3.5" />
+            <span>Announcements ({announcements.length})</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveSubTab('content')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeSubTab === 'content'
@@ -415,7 +568,7 @@ export default function HomepageBuilderTab({
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Content & Reviews</span>
+            <span>Why & Reviews</span>
           </button>
         </div>
       </div>
@@ -1158,6 +1311,463 @@ export default function HomepageBuilderTab({
                         value={item.reviewText}
                         onChange={(e) => handleUpdateTestimonial(item.id, 'reviewText', e.target.value)}
                         className="w-full p-2 bg-[#FAF8F5] border border-[#e8e2d5] rounded-lg text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SUB-TAB: HOMEPAGE VIDEO SHOWCASE */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'video' && (
+        <div className="space-y-6">
+          <div className="bg-[#fcfbf7] p-5 sm:p-6 rounded-2xl border border-[#e8e2d5] space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#e8e2d5] pb-4">
+              <div>
+                <h4 className="font-bold text-[#0f2d22] text-base flex items-center gap-2">
+                  <Video className="w-5 h-5 text-[#c5a059]" />
+                  <span>Homepage Video Showcase Section</span>
+                </h4>
+                <p className="text-gray-500 text-xs mt-0.5">
+                  Configure the dedicated brand, harvesting, and traditional Sojat processing video showcase.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleUpdateVideoField('enabled', !videoConfig.enabled)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    videoConfig.enabled
+                      ? 'bg-emerald-700 text-white shadow-xs'
+                      : 'bg-gray-200 text-gray-700'
+                  }`}
+                >
+                  {videoConfig.enabled ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                  <span>{videoConfig.enabled ? 'SECTION VISIBLE' : 'SECTION HIDDEN'}</span>
+                </button>
+              </div>
+            </div>
+
+            {uploadMessage && (
+              <div
+                className={`p-3 rounded-xl text-xs font-semibold flex items-center justify-between ${
+                  uploadMessage.type === 'success'
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}
+              >
+                <span>{uploadMessage.text}</span>
+                <button
+                  type="button"
+                  onClick={() => setUploadMessage(null)}
+                  className="text-gray-500 hover:text-black text-xs font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left Column: Form Fields */}
+              <div className="lg:col-span-7 space-y-4 text-xs">
+                {/* Video Media Source */}
+                <div className="bg-white p-4 rounded-xl border border-[#e8e2d5] space-y-3">
+                  <h5 className="font-bold text-[#0f2d22] text-xs flex items-center gap-1.5">
+                    <Film className="w-4 h-4 text-[#c5a059]" />
+                    <span>Video Media Asset (MP4 / WebM)</span>
+                  </h5>
+                  <p className="text-[11px] text-gray-500">
+                    Upload an MP4/WebM video file (up to 25MB) or enter an existing HTTPS URL.
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="url"
+                      placeholder="https://.../video.mp4 or /videos/sojat.mp4"
+                      value={videoConfig.videoUrl || ''}
+                      onChange={(e) => handleUpdateVideoField('videoUrl', e.target.value)}
+                      className="flex-1 p-2 bg-[#FAF8F5] border border-[#e8e2d5] rounded-lg text-xs font-mono"
+                    />
+                    <label className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-[#1b4332] hover:bg-[#0f2d22] text-white rounded-lg font-bold text-xs cursor-pointer shrink-0 transition-colors">
+                      <UploadCloud className="w-4 h-4 text-[#c5a059]" />
+                      <span>{uploadingVideo ? 'Uploading...' : 'Upload Video'}</span>
+                      <input
+                        type="file"
+                        accept="video/mp4,video/webm"
+                        disabled={uploadingVideo}
+                        onChange={handleVideoFileUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Poster / Thumbnail Image */}
+                <div className="bg-white p-4 rounded-xl border border-[#e8e2d5] space-y-3">
+                  <h5 className="font-bold text-[#0f2d22] text-xs flex items-center gap-1.5">
+                    <Play className="w-4 h-4 text-[#c5a059]" />
+                    <span>Poster / Thumbnail Image</span>
+                  </h5>
+                  <p className="text-[11px] text-gray-500">
+                    Lightweight image rendered on initial page load (zero video byte download before play).
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      placeholder="/images/hero-1.webp or cloud URL"
+                      value={videoConfig.posterUrl || ''}
+                      onChange={(e) => handleUpdateVideoField('posterUrl', e.target.value)}
+                      className="flex-1 p-2 bg-[#FAF8F5] border border-[#e8e2d5] rounded-lg text-xs font-mono"
+                    />
+                    <label className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-[#FAF8F5] hover:bg-[#e8e2d5] text-[#0f2d22] border border-[#e8e2d5] rounded-lg font-bold text-xs cursor-pointer shrink-0 transition-colors">
+                      <UploadCloud className="w-4 h-4 text-[#c5a059]" />
+                      <span>{uploadingPoster ? 'Uploading...' : 'Upload Poster'}</span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        disabled={uploadingPoster}
+                        onChange={handlePosterFileUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Content & Headings */}
+                <div className="bg-white p-4 rounded-xl border border-[#e8e2d5] space-y-3">
+                  <h5 className="font-bold text-[#0f2d22] text-xs">Section Text & Call to Action</h5>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold text-[#0f2d22] text-[10px] mb-1">Subheading / Eyebrow</label>
+                      <input
+                        type="text"
+                        value={videoConfig.subheading || ''}
+                        onChange={(e) => handleUpdateVideoField('subheading', e.target.value)}
+                        placeholder="SOJAT HERITAGE IN MOTION"
+                        className="w-full p-2 bg-[#FAF8F5] border border-[#e8e2d5] rounded-lg text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-[#0f2d22] text-[10px] mb-1">Video Badge Overlay</label>
+                      <input
+                        type="text"
+                        value={videoConfig.badgeText || ''}
+                        onChange={(e) => handleUpdateVideoField('badgeText', e.target.value)}
+                        placeholder="DIRECT FROM SOJAT FARMS"
+                        className="w-full p-2 bg-[#FAF8F5] border border-[#e8e2d5] rounded-lg text-xs"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block font-semibold text-[#0f2d22] text-[10px] mb-1">Main Heading</label>
+                      <input
+                        type="text"
+                        value={videoConfig.heading || ''}
+                        onChange={(e) => handleUpdateVideoField('heading', e.target.value)}
+                        placeholder="Behind The Scenes: Pure Sojat Henna Processing"
+                        className="w-full p-2 bg-[#FAF8F5] border border-[#e8e2d5] rounded-lg text-xs font-bold"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block font-semibold text-[#0f2d22] text-[10px] mb-1">Supporting Description</label>
+                      <textarea
+                        rows={2}
+                        value={videoConfig.description || ''}
+                        onChange={(e) => handleUpdateVideoField('description', e.target.value)}
+                        placeholder="Experience the traditional harvest, solar drying, and fine micro-sifting of authentic Rajasthani Lawsonia Inermis henna in Sojat City."
+                        className="w-full p-2 bg-[#FAF8F5] border border-[#e8e2d5] rounded-lg text-xs leading-relaxed"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-[#0f2d22] text-[10px] mb-1">CTA Button Text</label>
+                      <input
+                        type="text"
+                        value={videoConfig.ctaText || ''}
+                        onChange={(e) => handleUpdateVideoField('ctaText', e.target.value)}
+                        placeholder="Explore Henna Collection"
+                        className="w-full p-2 bg-[#FAF8F5] border border-[#e8e2d5] rounded-lg text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-[#0f2d22] text-[10px] mb-1">CTA Button URL</label>
+                      <input
+                        type="text"
+                        value={videoConfig.ctaUrl || ''}
+                        onChange={(e) => handleUpdateVideoField('ctaUrl', e.target.value)}
+                        placeholder="/categories/henna"
+                        className="w-full p-2 bg-[#FAF8F5] border border-[#e8e2d5] rounded-lg text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Playback Controls & Performance Flags */}
+                <div className="bg-white p-4 rounded-xl border border-[#e8e2d5] space-y-3">
+                  <h5 className="font-bold text-[#0f2d22] text-xs">Playback Options & Performance</h5>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <label className="flex items-center gap-2 p-2.5 bg-[#FAF8F5] border border-[#e8e2d5] rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(videoConfig.autoplay)}
+                        onChange={(e) => handleUpdateVideoField('autoplay', e.target.checked)}
+                        className="rounded text-[#1b4332]"
+                      />
+                      <span className="font-bold text-[11px] text-[#0f2d22]">Autoplay (Deferred)</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 p-2.5 bg-[#FAF8F5] border border-[#e8e2d5] rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={videoConfig.muted !== false}
+                        onChange={(e) => handleUpdateVideoField('muted', e.target.checked)}
+                        className="rounded text-[#1b4332]"
+                      />
+                      <span className="font-bold text-[11px] text-[#0f2d22]">Muted by Default</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 p-2.5 bg-[#FAF8F5] border border-[#e8e2d5] rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(videoConfig.loop)}
+                        onChange={(e) => handleUpdateVideoField('loop', e.target.checked)}
+                        className="rounded text-[#1b4332]"
+                      />
+                      <span className="font-bold text-[11px] text-[#0f2d22]">Loop Playback</span>
+                    </label>
+                  </div>
+
+                  <p className="text-[10px] text-gray-500 italic">
+                    💡 Performance rule: Autoplay is disabled by default so initial page load transfers 0 KB of video data. Click-to-play ensures fastest Core Web Vitals.
+                  </p>
+                </div>
+              </div>
+
+              {/* Right Column: Live Interactive Preview */}
+              <div className="lg:col-span-5 space-y-3">
+                <h5 className="font-bold text-[#0f2d22] text-xs">Customer Storefront Preview</h5>
+                <div className="bg-[#0f2d22] p-4 rounded-2xl border border-[#2d6a4f]/30 space-y-3 text-white">
+                  <div className="relative aspect-video rounded-xl overflow-hidden bg-black/60 border border-[#c5a059]/30 flex items-center justify-center">
+                    {videoConfig.posterUrl ? (
+                      <Image
+                        src={sanitizeImageUrl(videoConfig.posterUrl, '/images/hero-1.webp')}
+                        alt="Preview"
+                        fill
+                        className="object-cover opacity-80"
+                      />
+                    ) : null}
+                    <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center p-3 text-center">
+                      <div className="w-12 h-12 rounded-full bg-[#c5a059] text-[#0f2d22] flex items-center justify-center shadow-lg">
+                        <Play className="w-6 h-6 fill-[#0f2d22] translate-x-0.5" />
+                      </div>
+                      <span className="text-[11px] font-bold text-white mt-2 drop-shadow-sm">
+                        {videoConfig.videoUrl ? 'HTML5 Video Ready' : 'Poster Mode Active'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-center space-y-1">
+                    <span className="text-[10px] text-[#c5a059] font-bold uppercase tracking-wider block">
+                      {videoConfig.subheading || 'SOJAT HERITAGE IN MOTION'}
+                    </span>
+                    <h6 className="font-serif-heading text-sm font-bold text-white truncate">
+                      {videoConfig.heading || 'Behind The Scenes: Pure Sojat Henna Processing'}
+                    </h6>
+                    <p className="text-[10px] text-[#b2c8be] line-clamp-2">
+                      {videoConfig.description || 'Experience the traditional harvest, solar drying, and fine micro-sifting of authentic Rajasthani Lawsonia Inermis henna in Sojat City.'}
+                    </p>
+                  </div>
+
+                  {videoConfig.ctaText && (
+                    <div className="text-center pt-1">
+                      <span className="inline-block px-4 py-1.5 rounded-lg bg-[#c5a059] text-[#0f2d22] font-bold text-[10px] uppercase">
+                        {videoConfig.ctaText}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SUB-TAB: ANNOUNCEMENTS & TICKER */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'announcements' && (
+        <div className="space-y-6">
+          <div className="bg-[#fcfbf7] p-5 sm:p-6 rounded-2xl border border-[#e8e2d5] space-y-6">
+            {/* Top Bar Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#e8e2d5] pb-4">
+              <div>
+                <h4 className="font-bold text-[#0f2d22] text-base flex items-center gap-2">
+                  <Megaphone className="w-5 h-5 text-[#c5a059]" />
+                  <span>Announcement Bar & Running Ticker</span>
+                </h4>
+                <p className="text-gray-500 text-xs mt-0.5">
+                  Manage the top announcement line and multi-item CSS running marquee ticker across the storefront.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleAddAnnouncement}
+                  className="px-3.5 py-1.5 rounded-xl bg-[#1b4332] text-white font-bold text-xs flex items-center gap-1.5 hover:bg-[#0f2d22] shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 text-[#c5a059]" />
+                  <span>Add Announcement</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Global Announcement Settings Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-4 rounded-xl border border-[#e8e2d5] text-xs">
+              <label className="flex items-center gap-2.5 p-2.5 bg-[#FAF8F5] border border-[#e8e2d5] rounded-lg cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.announcementEnabled !== false}
+                  onChange={(e) => updateField('announcementEnabled', e.target.checked)}
+                  className="rounded text-[#1b4332]"
+                />
+                <div>
+                  <span className="font-bold text-[#0f2d22] block text-[11px]">Show Announcement Bar</span>
+                  <span className="text-[10px] text-gray-500">Master visibility toggle in site header</span>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-2.5 p-2.5 bg-[#FAF8F5] border border-[#e8e2d5] rounded-lg cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.announcementTickerEnabled !== false}
+                  onChange={(e) => updateField('announcementTickerEnabled', e.target.checked)}
+                  className="rounded text-[#1b4332]"
+                />
+                <div>
+                  <span className="font-bold text-[#0f2d22] block text-[11px]">Running Marquee Ticker</span>
+                  <span className="text-[10px] text-gray-500">Smooth CSS horizontal scroll for &gt;1 items</span>
+                </div>
+              </label>
+
+              <div className="p-2.5 bg-[#FAF8F5] border border-[#e8e2d5] rounded-lg">
+                <label className="font-bold text-[#0f2d22] block text-[11px] mb-1">Ticker Scroll Speed</label>
+                <select
+                  value={settings.announcementTickerSpeed || 'normal'}
+                  onChange={(e) => updateField('announcementTickerSpeed', e.target.value)}
+                  className="w-full p-1 bg-white border border-[#e8e2d5] rounded text-xs font-bold text-[#0f2d22]"
+                >
+                  <option value="slow">Slow & Relaxed (48s)</option>
+                  <option value="normal">Normal (32s)</option>
+                  <option value="fast">Fast (20s)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* List of Announcements */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs font-bold text-[#0f2d22]">
+                <span>Configured Announcements ({announcements.length})</span>
+                <span className="text-gray-500 font-normal text-[11px]">Hovering over the ticker pauses animation for readability</span>
+              </div>
+
+              {announcements.map((item, idx) => (
+                <div key={item.id} className="p-4 bg-white border border-[#e8e2d5] rounded-xl space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-lg bg-[#FAF8F5] border border-[#e8e2d5] text-[11px] font-bold text-[#1b4332] flex items-center justify-center shrink-0">
+                        {idx + 1}
+                      </span>
+                      {item.badge && (
+                        <span className="px-2 py-0.5 rounded font-extrabold bg-[#c5a059] text-[#0f2d22] text-[10px] uppercase tracking-wider">
+                          {item.badge}
+                        </span>
+                      )}
+                      <span className="font-bold text-xs text-[#0f2d22] truncate max-w-sm">{item.text || 'Untitled Announcement'}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateAnnouncement(item.id, 'enabled', !item.enabled)}
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                          item.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600'
+                        }`}
+                      >
+                        {item.enabled ? 'ACTIVE' : 'DISABLED'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => handleMoveAnnouncement(idx, 'up')}
+                        className="p-1 rounded bg-[#FAF8F5] border border-[#e8e2d5] text-[#0f2d22] disabled:opacity-30 cursor-pointer"
+                        title="Move Up"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === announcements.length - 1}
+                        onClick={() => handleMoveAnnouncement(idx, 'down')}
+                        className="p-1 rounded bg-[#FAF8F5] border border-[#e8e2d5] text-[#0f2d22] disabled:opacity-30 cursor-pointer"
+                        title="Move Down"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAnnouncement(item.id)}
+                        className="p-1 rounded bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 cursor-pointer"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 text-xs">
+                    <div className="sm:col-span-6">
+                      <label className="block font-semibold text-[#0f2d22] text-[10px] mb-1">Announcement Text</label>
+                      <input
+                        type="text"
+                        value={item.text}
+                        onChange={(e) => handleUpdateAnnouncement(item.id, 'text', e.target.value)}
+                        placeholder="Direct Farm Dispatch from Sojat, Rajasthan • Pure Lawsonia Inermis"
+                        className="w-full p-2 bg-[#FAF8F5] border border-[#e8e2d5] rounded-lg text-xs"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-3">
+                      <label className="block font-semibold text-[#0f2d22] text-[10px] mb-1">Badge / Tag (Optional)</label>
+                      <input
+                        type="text"
+                        value={item.badge || ''}
+                        onChange={(e) => handleUpdateAnnouncement(item.id, 'badge', e.target.value)}
+                        placeholder="ORIGIN SOJAT"
+                        className="w-full p-2 bg-[#FAF8F5] border border-[#e8e2d5] rounded-lg text-xs font-bold uppercase"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-3">
+                      <label className="block font-semibold text-[#0f2d22] text-[10px] mb-1">Link URL (Optional)</label>
+                      <input
+                        type="text"
+                        value={item.link || ''}
+                        onChange={(e) => handleUpdateAnnouncement(item.id, 'link', e.target.value)}
+                        placeholder="/about or /wholesale"
+                        className="w-full p-2 bg-[#FAF8F5] border border-[#e8e2d5] rounded-lg text-xs font-mono"
                       />
                     </div>
                   </div>

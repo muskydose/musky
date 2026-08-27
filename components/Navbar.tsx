@@ -35,6 +35,7 @@ import BrandLogo from '@/components/BrandLogo';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import OfferBanner from '@/components/OfferBanner';
 import PwaInstallCTA from '@/components/PwaInstallCTA';
+import AnnouncementTicker from '@/components/AnnouncementTicker';
 import { getClientSiteSettings } from '@/lib/api-client';
 
 interface NavbarProps {
@@ -171,66 +172,25 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
       {/* FESTIVAL CAMPAIGN BANNER */}
       <OfferBanner position="announcement_bar" />
 
-      {/* 1. TOP ANNOUNCEMENT BANNER */}
+      {/* ROW 1 — ALWAYS-VISIBLE RUNNING ANNOUNCEMENT (STICKY TOP-0) */}
       {announcementEnabled && (
-        <div
-          className="bg-[#0f2d22] text-[#e8f3ed] border-b border-[#2d6a4f]/30"
-          style={{
-            paddingTop: 'var(--m-ann-py, clamp(2px, 0.8vw, 4px))',
-            paddingBottom: 'var(--m-ann-py, clamp(2px, 0.8vw, 4px))',
-            paddingLeft: 'var(--m-head-px, clamp(8px, 2.2vw, 12px))',
-            paddingRight: 'var(--m-head-px, clamp(8px, 2.2vw, 12px))',
-          }}
-        >
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-1 sm:gap-2 text-center sm:text-left">
-            <Link
-              href={announcementLink}
-              className="flex items-center justify-center sm:justify-start gap-1.5 hover:text-[#c5a059] transition-colors leading-[1.15]"
-            >
-              <span
-                className="inline-flex items-center justify-center font-extrabold bg-[#c5a059] text-[#0f2d22] shrink-0 uppercase tracking-wider rounded-md w-fit whitespace-nowrap"
-                style={{
-                  height: 'auto',
-                  minHeight: '20px',
-                  fontSize: 'var(--m-badge-fs, 11px)',
-                  paddingTop: '2px',
-                  paddingBottom: '2px',
-                  paddingLeft: '8px',
-                  paddingRight: '8px',
-                  lineHeight: '1.1',
-                }}
-              >
-                {cms.sojatBadgeText || 'SOJAT ORIGIN'}
-              </span>
-              <span
-                className="font-semibold leading-[1.15] truncate max-w-[210px] min-[360px]:max-w-[260px] min-[390px]:max-w-none"
-                style={{ fontSize: 'var(--m-ann-fs, clamp(11px, 2.8vw, 12px))' }}
-              >
-                {announcementText}
-              </span>
-            </Link>
-            <div className="flex items-center justify-center gap-3 font-medium shrink-0">
-              <a
-                href={`tel:${displayPhone}`}
-                className="flex items-center gap-1 hover:text-[#c5a059] transition-colors"
-                style={{ fontSize: 'var(--m-phone-fs, clamp(10.5px, 2.6vw, 11.5px))' }}
-              >
-                <Phone className="text-[#c5a059]" style={{ width: 'var(--m-phone-icon, clamp(11.5px, 3vw, 13.5px))', height: 'var(--m-phone-icon, clamp(11.5px, 3vw, 13.5px))' }} />
-                <span>{displayPhone}</span>
-              </a>
-              <span className="hidden sm:inline text-[#2d6a4f]">|</span>
-              <Link href="/wholesale" className="hidden sm:inline-flex items-center gap-1 text-[#c5a059] font-bold hover:underline text-xs">
-                <Sparkles className="w-3 h-3" />
-                <span>Bulk / Wholesale Enquiries</span>
-              </Link>
-            </div>
+        <div className="sticky top-0 z-50 bg-[#0f2d22] text-[#e8f3ed] border-b border-[#2d6a4f]/30 h-[28px] sm:h-[32px] flex items-center px-3 sm:px-6 overflow-hidden">
+          <div className="max-w-7xl mx-auto w-full">
+            <AnnouncementTicker
+              announcements={settings?.announcements}
+              fallbackText={announcementText}
+              fallbackLink={announcementLink}
+              fallbackBadge={cms.sojatBadgeText || 'SOJAT ORIGIN'}
+              speed={settings?.announcementTickerSpeed || 'normal'}
+              enabled={settings?.announcementTickerEnabled !== false}
+            />
           </div>
         </div>
       )}
 
-      {/* 2. MAIN HEADER */}
+      {/* ROW 2 & ROW 3 — MAIN HEADER (STICKY BELOW ROW 1) */}
       <header
-        className={`sticky top-0 z-40 site-header-dynamic transition-all duration-300 ${
+        className={`sticky ${announcementEnabled ? 'top-[28px] sm:top-[32px]' : 'top-0'} z-40 site-header-dynamic transition-all duration-300 ${
           isScrolled
             ? 'bg-[#fcfbf7]/98 backdrop-blur-md shadow-md border-b border-[#e8e2d5]'
             : 'bg-[#fcfbf7] border-b border-[#e8e2d5]/80'
@@ -261,22 +221,22 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
             </div>
 
             {/* Middle: Desktop Search Bar */}
-            <form onSubmit={handleSearchSubmit} className="flex-1 max-w-lg relative flex items-center">
-              <div className="relative w-full">
+            <form onSubmit={handleSearchSubmit} className="flex-1 max-w-lg relative flex items-center h-10">
+              <div className="relative w-full h-full">
                 <input
                   id="desktop-search-input"
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={cms.navSearchPlaceholder || 'Search products, Sojat henna, hair care...'}
-                  className="w-full pl-9 pr-8 py-2 bg-white border border-[#e8e2d5] rounded-xl text-xs sm:text-sm text-[#0f2d22] placeholder-gray-400 focus:outline-none focus:border-[#1b4332] focus:ring-2 focus:ring-[#1b4332]/10 transition-all shadow-2xs"
+                  className="w-full h-full pl-9 pr-8 bg-white border border-[#e8e2d5] rounded-xl text-xs sm:text-sm text-[#0f2d22] placeholder-gray-400 focus:outline-none focus:border-[#1b4332] focus:ring-2 focus:ring-[#1b4332]/10 transition-all shadow-2xs"
                 />
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                 {searchQuery && (
                   <button
                     type="button"
                     onClick={handleClearSearch}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -284,7 +244,7 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
               </div>
               <button
                 type="submit"
-                className="ml-2 px-3.5 py-2 bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] font-bold text-xs rounded-xl transition-colors shrink-0 shadow-2xs"
+                className="ml-2 h-full px-4 bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] font-bold text-xs rounded-xl transition-colors shrink-0 shadow-2xs flex items-center justify-center cursor-pointer border border-[#1b4332]"
               >
                 Search
               </button>
@@ -472,30 +432,6 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
                 </button>
               </form>
             </div>
-
-            {/* MOBILE ROW 4: Compact Shipping / Trust Info Banner Strip */}
-            <div
-              className="bg-[#f5f1e8] text-[#1b4332] font-bold rounded-lg border border-[#e8e2d5] flex items-center justify-center whitespace-nowrap max-w-full overflow-hidden"
-              style={{
-                height: 'var(--m-trust-h, clamp(22px, 5.5vw, 25px))',
-                fontSize: '11px',
-                paddingLeft: '8px',
-                paddingRight: '8px',
-                gap: 'var(--m-col-gap, clamp(4px, 1.2vw, 6px))',
-              }}
-            >
-              <span className="flex items-center gap-1 shrink-0">
-                <ShieldCheck className="text-[#c5a059]" style={{ width: 'var(--m-trust-icon, clamp(13px, 3.5vw, 15px))', height: 'var(--m-trust-icon, clamp(13px, 3.5vw, 15px))' }} /> Pure Sojat Henna
-              </span>
-              <span className="text-gray-300">•</span>
-              <span className="flex items-center gap-1 shrink-0">
-                <Truck className="text-[#1b4332]" style={{ width: 'var(--m-trust-icon, clamp(13px, 3.5vw, 15px))', height: 'var(--m-trust-icon, clamp(13px, 3.5vw, 15px))' }} /> Fast All-India Dispatch
-              </span>
-              <span className="hidden md:inline text-gray-300">•</span>
-              <span className="hidden md:inline-flex items-center gap-1 shrink-0 text-[#25D366]">
-                <MessageCircle className="fill-[#25D366] text-[#25D366]" style={{ width: 'var(--m-trust-icon, clamp(13px, 3.5vw, 15px))', height: 'var(--m-trust-icon, clamp(13px, 3.5vw, 15px))' }} /> WhatsApp Support
-              </span>
-            </div>
           </div>
 
           {/* DESKTOP SECOND ROW: CATEGORY / SITE NAVIGATION STRIP */}
@@ -523,6 +459,50 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
           </div>
         </div>
       </header>
+
+      {/* ROW 4 — TRUST / CONTACT STRIP (COLLAPSIBLE ON SCROLL) */}
+      <div className="bg-[#f5f1e8] text-[#1b4332] border-b border-[#e8e2d5] py-1.5 sm:py-2 px-1.5 sm:px-4 lg:px-6 relative z-10 min-w-0">
+        <div className="max-w-7xl mx-auto flex items-center justify-center sm:justify-between text-[10.5px] xs:text-[11.5px] sm:text-xs font-bold tracking-tight whitespace-nowrap min-w-0">
+          <div className="flex items-center justify-center gap-1.5 xs:gap-2 sm:gap-4 md:gap-6 w-full sm:w-auto min-w-0">
+            {/* Trust Point 1: Pure Sojat Henna */}
+            <span className="inline-flex items-center gap-1 sm:gap-1.5 shrink-0 text-[#0f2d22] min-w-0">
+              <Leaf className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#1b4332] shrink-0" />
+              <span>Pure Sojat Henna</span>
+            </span>
+
+            <span className="text-[#c5a059]/60 font-normal select-none shrink-0">•</span>
+
+            {/* Trust Point 2: Fast All-India Dispatch */}
+            <span className="inline-flex items-center gap-1 sm:gap-1.5 shrink-0 text-[#0f2d22] min-w-0">
+              <Truck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#1b4332] shrink-0" />
+              <span><span className="hidden min-[360px]:inline">Fast </span>All-India Dispatch</span>
+            </span>
+
+            <span className="text-[#c5a059]/60 font-normal select-none shrink-0">•</span>
+
+            {/* Trust Point 3: Clickable Phone Contact (FULL NUMBER, NEVER CLIPPED) */}
+            <a
+              href={`tel:${displayPhone.replace(/[\s-]/g, '')}`}
+              className="inline-flex items-center gap-1 sm:gap-1.5 shrink-0 text-[#1b4332] hover:text-[#c5a059] transition-colors focus:outline-none focus:ring-1 focus:ring-[#1b4332] rounded-md px-0.5 sm:px-1 py-0.5 whitespace-nowrap"
+              aria-label="Call Musky Dose"
+            >
+              <Phone className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#c5a059] shrink-0" />
+              <span className="whitespace-nowrap font-bold">{displayPhone}</span>
+            </a>
+          </div>
+
+          {/* Desktop Right Secondary: Wholesale Quick Link */}
+          <div className="hidden lg:flex items-center gap-2 text-xs shrink-0">
+            <Link
+              href="/wholesale"
+              className="inline-flex items-center gap-1 text-[#1b4332] hover:text-[#c5a059] font-bold transition-colors"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-[#c5a059]" />
+              <span>Wholesale & Bulk Enquiries</span>
+            </Link>
+          </div>
+        </div>
+      </div>
 
       {/* MOBILE SLIDE-OVER MENU DRAWER (PORTALED TO BODY TO GUARANTEE TRUE VIEWPORT POSITIONING) */}
       {mounted && typeof document !== 'undefined'

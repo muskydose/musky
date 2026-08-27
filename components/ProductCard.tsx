@@ -101,14 +101,14 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
           />
         </div>
         
-        {/* Badges */}
+        {/* Badges: Max 2 meaningful badges */}
         <div className="absolute top-1.5 sm:top-2.5 left-1.5 sm:left-2.5 flex items-center gap-1 z-10">
           {product.isFeatured ? (
-            <span className="bg-[#1b4332] text-[#faf5e8] text-[8px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-0.5 border border-[#c5a059]/30">
-              <ShieldCheck className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-[#c5a059]" /> {cms.productCardHeritageBadge}
+            <span className="bg-[#1b4332] text-[#faf5e8] text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1 border border-[#c5a059]/30">
+              <ShieldCheck className="w-3 h-3 text-[#c5a059]" /> {cms.productCardHeritageBadge}
             </span>
           ) : discountPercent > 0 ? (
-            <span className="bg-[#c5a059] text-[#0f2d22] text-[8px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider shadow-2xs">
+            <span className="bg-[#c5a059] text-[#0f2d22] text-[9px] sm:text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-2xs">
               {discountPercent}% OFF
             </span>
           ) : null}
@@ -134,7 +134,7 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
         </button>
 
         {product.quantityOrWeight && (
-          <div className="absolute bottom-1.5 sm:bottom-2.5 right-1.5 sm:right-2.5 bg-white/90 backdrop-blur-xs text-[#0f2d22] text-[8px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full border border-[#e8e2d5] shadow-2xs max-w-[85%] truncate">
+          <div className="absolute bottom-1.5 sm:bottom-2.5 right-1.5 sm:right-2.5 bg-white/95 backdrop-blur-xs text-[#0f2d22] text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full border border-[#e8e2d5] shadow-2xs max-w-[85%] truncate">
             {product.quantityOrWeight}
           </div>
         )}
@@ -143,63 +143,63 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
       {/* Product Content */}
       <div className={`${paddingClass} flex flex-col flex-1 justify-between bg-white border-t border-[#f0ebe0]`}>
         <div className="flex-1 flex flex-col justify-start">
-          <div className="flex items-center justify-between text-[8.5px] sm:text-[10.5px] text-[#8c7b60] font-semibold uppercase tracking-wider mb-0.5 flex-wrap gap-1">
-            <span className="truncate max-w-[90px] sm:max-w-none">{product.categoryName || 'Sojat Henna'}</span>
+          <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-[#8c7b60] font-semibold uppercase tracking-wider mb-1 flex-wrap gap-1">
+            <span className="truncate max-w-[120px] sm:max-w-none">{product.categoryName || 'Sojat Henna'}</span>
             {product.stockStatus === 'out_of_stock' && (
-              <span className="text-amber-800 text-[8px] sm:text-[9px] font-bold bg-amber-50 px-1 sm:px-1.5 py-0.5 rounded-full border border-amber-200 shrink-0">
+              <span className="text-amber-800 text-[9px] sm:text-[10px] font-bold bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200 shrink-0">
                 {cms.productCardOutOfStockBadge}
               </span>
             )}
           </div>
 
           <Link href={`/products/${product.slug || product.id}`}>
-            <h3 className="font-momo-display text-xs sm:text-[14px] font-normal text-[#0f2d22] group-hover:text-[#1b4332] line-clamp-2 leading-tight transition-colors mb-0.5">
+            <h3 className="font-momo-display text-xs sm:text-[14px] font-normal text-[#0f2d22] group-hover:text-[#1b4332] line-clamp-2 leading-snug transition-colors mb-1">
               {product.name}
             </h3>
           </Link>
 
           {product.shortDescription && (
-            <p className="text-[9.5px] sm:text-[10.5px] text-[#556059] line-clamp-1 leading-tight mb-1 font-sans truncate">
+            <p className="text-[11px] sm:text-xs text-[#556059] line-clamp-2 leading-relaxed mb-2 font-sans">
               {product.shortDescription}
             </p>
           )}
         </div>
 
         {/* Price & Action Row */}
-        <div className="mt-auto pt-1 sm:pt-2 border-t border-[#f5f1e8] space-y-1 sm:space-y-1.5">
+        <div className="mt-auto pt-2 border-t border-[#f5f1e8] space-y-2">
           <div className="flex items-baseline justify-between gap-1">
-            <div className="flex items-baseline gap-1">
-              <span className="text-xs sm:text-base font-extrabold text-[#0f2d22]">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-sm sm:text-base font-bold text-[#0f2d22]">
                 ₹{product.price}
               </span>
               {product.compareAtPrice && product.compareAtPrice > product.price && (
-                <span className="text-[9px] sm:text-xs text-gray-400 line-through">
+                <span className="text-[10px] sm:text-xs text-gray-400 line-through">
                   ₹{product.compareAtPrice}
                 </span>
               )}
             </div>
-            <span className="text-[8px] sm:text-[9.5px] font-bold text-[#1b4332] bg-[#f5f1e8] px-1 sm:px-1.5 py-0.5 rounded-md shrink-0">
+            <span className="text-[9px] sm:text-[10px] font-bold text-[#1b4332] bg-[#f5f1e8] px-1.5 py-0.5 rounded-md shrink-0">
               {cms.productCardInStockBadge}
             </span>
           </div>
 
-          {/* Strictly 2 Action Buttons: [ 🛒 Cart ] [ 🟢 Order ] */}
-          <div className="grid grid-cols-2 gap-1 sm:gap-1.5">
+          {/* Action Buttons: [ 🛒 Cart (Primary) ] [ 🟢 Order (Secondary) ] */}
+          <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
             <motion.button
               type="button"
               whileTap={{ scale: 0.95 }}
               onClick={handleAddToCart}
               disabled={product.stockStatus === 'out_of_stock'}
-              className={`w-full min-h-[34px] sm:min-h-[36px] inline-flex items-center justify-center gap-1 text-[11.5px] sm:text-xs font-bold px-2 rounded-lg transition-all shadow-2xs cursor-pointer touch-manipulation ${
+              className={`w-full min-h-[36px] sm:min-h-[38px] py-1.5 sm:py-2 inline-flex items-center justify-center gap-1.5 text-xs font-bold px-2 rounded-xl transition-all shadow-xs cursor-pointer touch-manipulation ${
                 product.stockStatus === 'out_of_stock'
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
-                  : 'bg-[#f5f1e8] hover:bg-[#e8e2d5] text-[#0f2d22] border border-[#e8e2d5]'
+                  : 'bg-[#1b4332] hover:bg-[#0f2d22] text-[#faf5e8] hover:text-[#c5a059] border border-[#1b4332]'
               }`}
-              title={product.stockStatus === 'out_of_stock' ? cms.productCardOutOfStockBadge : 'Add item to order cart'}
+              title={product.stockStatus === 'out_of_stock' ? cms.productCardOutOfStockBadge : 'Add to Cart'}
               aria-label="Add to Cart"
             >
-              <ShoppingBag className="w-3.5 h-3.5 text-[#1b4332] shrink-0" />
-              <span className="truncate">{product.stockStatus === 'out_of_stock' ? cms.productCardOutOfStockBadge : 'Cart'}</span>
+              <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#c5a059] shrink-0" />
+              <span>{product.stockStatus === 'out_of_stock' ? cms.productCardOutOfStockBadge : 'Cart'}</span>
             </motion.button>
 
             <motion.button
@@ -207,16 +207,16 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
               whileTap={{ scale: 0.95 }}
               onClick={handleWhatsAppOrder}
               disabled={product.stockStatus === 'out_of_stock'}
-              className={`w-full min-h-[34px] sm:min-h-[36px] inline-flex items-center justify-center gap-1 text-[11.5px] sm:text-xs font-bold px-2 rounded-lg transition-all shadow-2xs cursor-pointer touch-manipulation ${
+              className={`w-full min-h-[36px] sm:min-h-[38px] py-1.5 sm:py-2 inline-flex items-center justify-center gap-1.5 text-xs font-bold px-2 rounded-xl transition-all shadow-2xs cursor-pointer touch-manipulation ${
                 product.stockStatus === 'out_of_stock'
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
-                  : 'bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] border border-[#1b4332]'
+                  : 'bg-[#f4faf6] hover:bg-[#e6f4ec] text-[#1b4332] border border-[#25D366]/40'
               }`}
-              title="Order directly on WhatsApp"
+              title="Order on WhatsApp"
               aria-label="Order on WhatsApp"
             >
-              <MessageCircle className="w-3.5 h-3.5 fill-[#25D366] text-[#25D366] shrink-0" />
-              <span className="truncate">Order</span>
+              <MessageCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-[#25D366] text-[#25D366] shrink-0" />
+              <span>Order</span>
             </motion.button>
           </div>
         </div>
@@ -224,5 +224,3 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
     </motion.div>
   );
 }
-
-

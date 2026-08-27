@@ -291,3 +291,53 @@
   background: #1b4332;
 }
 
+/* Running Announcement Ticker Keyframes & Animation */
+@keyframes ticker-marquee {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.animate-ticker-marquee {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+  animation: ticker-marquee 32s linear infinite;
+}
+
+.animate-ticker-marquee-slow {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+  animation: ticker-marquee 48s linear infinite;
+}
+
+.animate-ticker-marquee-fast {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+  animation: ticker-marquee 20s linear infinite;
+}
+
+.animate-ticker-marquee:hover,
+.animate-ticker-marquee-slow:hover,
+.animate-ticker-marquee-fast:hover,
+.animate-ticker-marquee:focus-within,
+.animate-ticker-marquee-slow:focus-within,
+.animate-ticker-marquee-fast:focus-within {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-ticker-marquee,
+  .animate-ticker-marquee-slow,
+  .animate-ticker-marquee-fast {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+

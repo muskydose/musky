@@ -152,7 +152,7 @@ export interface HomepageItemConfig {
 }
 
 export interface HomepageSectionConfig {
-  id: string; // 'announcement' | 'navbar' | 'hero' | 'trust_strip' | 'bestsellers' | 'categories' | 'why_musky_dose' | 'sojat_story' | 'new_arrivals' | 'guides' | 'reviews' | 'wholesale_cta' | 'whatsapp_cta' | 'footer'
+  id: string; // 'announcement' | 'navbar' | 'hero' | 'trust_strip' | 'bestsellers' | 'categories' | 'video' | 'why_musky_dose' | 'sojat_story' | 'new_arrivals' | 'guides' | 'reviews' | 'wholesale_cta' | 'whatsapp_cta' | 'footer'
   name: string;
   enabled: boolean;
   sortOrder: number;
@@ -166,6 +166,31 @@ export interface HomepageSectionConfig {
   selectedProductIds?: string[];
   selectedCategoryIds?: string[];
   itemLimit?: number;
+}
+
+export interface HomepageVideoConfig {
+  enabled: boolean;
+  videoUrl: string;
+  posterUrl: string;
+  heading?: string;
+  subheading?: string;
+  description?: string;
+  ctaText?: string;
+  ctaUrl?: string;
+  badgeText?: string;
+  autoplay?: boolean;
+  muted?: boolean;
+  loop?: boolean;
+}
+
+export interface AnnouncementItem {
+  id: string;
+  text: string;
+  link?: string;
+  enabled: boolean;
+  sortOrder: number;
+  priority?: 'NORMAL' | 'HIGH' | 'URGENT' | string;
+  badge?: string;
 }
 
 export interface NavItem {
@@ -750,10 +775,16 @@ export interface SiteSettings {
   homepageProducts?: HomepageItemConfig[];
   homepageCategories?: HomepageItemConfig[];
 
-  // Homepage Announcement Bar
+  // Homepage Video Showcase Section
+  homepageVideo?: HomepageVideoConfig;
+
+  // Homepage Announcement Bar & Running Ticker
   announcementEnabled?: boolean;
   announcementText?: string;
   announcementLink?: string;
+  announcements?: AnnouncementItem[];
+  announcementTickerEnabled?: boolean;
+  announcementTickerSpeed?: 'slow' | 'normal' | 'fast';
 
   // Homepage Sections & Toggles
   featuredSectionTitle?: string;

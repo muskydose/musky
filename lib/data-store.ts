@@ -1,4 +1,4 @@
-import { Product, Category, Order, SiteSettings, PaymentSettings, Customer, HomepageSectionConfig, NavItem, FooterLink, FooterSectionConfig, FAQItem, PolicyContent, MediaItem, WhyCard, TestimonialItem, LayoutControls, ProductGuide, BusinessContentItem, BrandColors, TrustStripItem } from './types';
+import { Product, Category, Order, SiteSettings, PaymentSettings, Customer, HomepageSectionConfig, HomepageVideoConfig, AnnouncementItem, NavItem, FooterLink, FooterSectionConfig, FAQItem, PolicyContent, MediaItem, WhyCard, TestimonialItem, LayoutControls, ProductGuide, BusinessContentItem, BrandColors, TrustStripItem } from './types';
 
 export const INITIAL_BUSINESS_CONTENT: BusinessContentItem[] = [
   {
@@ -333,7 +333,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     slug: 'herbal-amla-reetha-shikakai-hair-pack',
     categoryId: 'cat-2',
     categoryName: 'Hair Care',
-    shortDescription: 'Traditional 5-in-1 herbal cleanser & mask for dense, shiny, thick hair growth.',
+    shortDescription: 'Traditional herbal hair-care blend for gentle cleansing, nourishing and conditioning.',
     fullDescription: 'A classic Indian ayurvedic formulation combining sun-dried natural Amla (Indian Gooseberry), Reetha (Soapnut), Shikakai, Hibiscus flower petals, and Bhringraj. Natural saponins cleanse hair without stripping natural scalp oils.',
     price: 399,
     compareAtPrice: 499,
@@ -404,7 +404,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     ],
     ingredients: ['100% Whole Sun-Dried Henna Leaves'],
     benefits: [
-      'Guaranteed zero blending or adulteration',
+      'Pure, 100% natural whole henna harvest',
       'Ideal for home grinding, hair oils, or botanical dye extracts',
     ],
     usageInstructions: 'Grind in a dry grinder or soak overnight in water or hair oil infusions.',
@@ -1011,6 +1011,51 @@ export const DEFAULT_TRUST_STRIP_ITEMS: import('./types').TrustStripItem[] = [
   },
 ];
 
+export const DEFAULT_HOMEPAGE_VIDEO: HomepageVideoConfig = {
+  enabled: true,
+  videoUrl: '',
+  posterUrl: '/images/hero-1.webp',
+  heading: 'Behind The Scenes: Pure Sojat Henna Processing',
+  subheading: 'SOJAT HERITAGE IN MOTION',
+  description: 'Experience the traditional harvest, solar drying, and fine micro-sifting of authentic Rajasthani Lawsonia Inermis henna in Sojat City.',
+  ctaText: 'Explore Henna Collection',
+  ctaUrl: '/categories/henna',
+  badgeText: 'DIRECT FROM SOJAT FARMS',
+  autoplay: false,
+  muted: true,
+  loop: false,
+};
+
+export const DEFAULT_ANNOUNCEMENTS: AnnouncementItem[] = [
+  {
+    id: 'ann-1',
+    text: 'Direct Farm Dispatch from Sojat, Rajasthan • 100% Pure Lawsonia Inermis',
+    link: '/about',
+    enabled: true,
+    sortOrder: 1,
+    badge: 'ORIGIN SOJAT',
+    priority: 'HIGH',
+  },
+  {
+    id: 'ann-2',
+    text: 'Wholesale & Bulk Orders Welcome • 25kg & 50kg Bags Available',
+    link: '/wholesale',
+    enabled: true,
+    sortOrder: 2,
+    badge: 'BULK & WHOLESALE',
+    priority: 'NORMAL',
+  },
+  {
+    id: 'ann-3',
+    text: 'Fresh Batch Harvest Stock with Fast Courier Dispatch Across India',
+    link: '/shipping-policy',
+    enabled: true,
+    sortOrder: 3,
+    badge: 'FRESH BATCH',
+    priority: 'NORMAL',
+  },
+];
+
 export const DEFAULT_HOMEPAGE_SECTIONS: HomepageSectionConfig[] = [
   {
     id: 'announcement',
@@ -1058,10 +1103,21 @@ export const DEFAULT_HOMEPAGE_SECTIONS: HomepageSectionConfig[] = [
     description: 'Handpicked, high-lawsone Sojat henna and customer-favorite herbal remedies.',
   },
   {
+    id: 'video',
+    name: 'Brand & Processing Video Showcase',
+    enabled: true,
+    sortOrder: 4,
+    heading: 'Behind The Scenes: Pure Sojat Henna Processing',
+    subheading: 'SOJAT HERITAGE IN MOTION',
+    description: 'Experience the traditional harvest, solar drying, and fine micro-sifting of authentic Rajasthani Lawsonia Inermis henna in Sojat City.',
+    ctaText: 'Explore Henna Collection',
+    ctaLink: '/categories/henna',
+  },
+  {
     id: 'why_musky_dose',
     name: 'Why Musky Dose',
     enabled: true,
-    sortOrder: 4,
+    sortOrder: 5,
     heading: 'Pure Lawsonia Inermis Sourced From Sojat',
     subheading: 'WHY CHOOSE MUSKY DOSE',
     description: 'Sojat in Pali district, Rajasthan is globally celebrated for cultivating the finest quality henna leaves due to its ideal climate and rich soil.',
@@ -1070,7 +1126,7 @@ export const DEFAULT_HOMEPAGE_SECTIONS: HomepageSectionConfig[] = [
     id: 'sojat_story',
     name: 'Sojat / Factory Story',
     enabled: true,
-    sortOrder: 5,
+    sortOrder: 6,
     heading: 'From Sojat, Rajasthan — The Henna City of India',
     subheading: 'OUR HERITAGE',
     description: 'Nestled in Pali district, Sojat produces over 90% of India’s natural henna. High lawsone density delivers rich, long-lasting natural color.',
@@ -1079,7 +1135,7 @@ export const DEFAULT_HOMEPAGE_SECTIONS: HomepageSectionConfig[] = [
     id: 'reviews',
     name: 'Verified Customer Reviews',
     enabled: true,
-    sortOrder: 6,
+    sortOrder: 7,
     heading: 'Verified Customer Testimonials',
     subheading: 'CUSTOMER TRUST',
     description: 'Read genuine feedback from salons, artists, and retail customers.',
@@ -1088,7 +1144,7 @@ export const DEFAULT_HOMEPAGE_SECTIONS: HomepageSectionConfig[] = [
     id: 'whatsapp_cta',
     name: '3-Step WhatsApp Order Guide',
     enabled: true,
-    sortOrder: 7,
+    sortOrder: 8,
     heading: 'How to Order Direct on WhatsApp',
     subheading: 'SIMPLE 3-STEP ORDERING',
     description: 'Experience effortless ordering directly with our Sojat team on WhatsApp in three quick steps.',
@@ -1427,10 +1483,16 @@ export const INITIAL_SITE_SETTINGS: SiteSettings = {
   homepageProducts: [],
   homepageCategories: [],
 
-  // Homepage Announcement Bar
+  // Homepage Video Showcase Section
+  homepageVideo: DEFAULT_HOMEPAGE_VIDEO,
+
+  // Homepage Announcement Bar & Running Ticker
   announcementEnabled: true,
   announcementText: 'Pure Natural & Ultra-Fine Sifted Henna Direct from Sojat, Rajasthan',
   announcementLink: '/products',
+  announcements: DEFAULT_ANNOUNCEMENTS,
+  announcementTickerEnabled: true,
+  announcementTickerSpeed: 'normal',
 
   // Homepage Sections & Toggles
   featuredSectionTitle: 'Featured Henna & Herbal Products',

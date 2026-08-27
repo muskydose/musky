@@ -89,26 +89,26 @@ export default function MobileBottomNav({}: MobileBottomNavProps) {
               <button
                 key={item.label}
                 onClick={item.onClick}
-                className={`relative flex flex-col items-center justify-center py-1 px-0.5 rounded-lg transition-all min-h-[44px] w-full text-center ${
-                  isCurrent ? 'text-[#1b4332]' : 'text-gray-500 hover:text-[#0f2d22]'
+                className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all min-h-[44px] w-full text-center cursor-pointer ${
+                  isCurrent ? 'bg-[#e8f3ed] text-[#1b4332]' : 'text-gray-600 hover:text-[#0f2d22]'
                 }`}
                 aria-label={item.label}
               >
                 <div className="relative">
-                  <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${isCurrent ? 'text-[#1b4332]' : 'text-gray-600'}`} />
+                  <Icon className={`w-5 h-5 transition-transform ${isCurrent ? 'text-[#1b4332] stroke-[2.5px] scale-105' : 'text-gray-600'}`} />
                   {item.badge !== undefined && item.badge > 0 && (
-                    <span className="absolute -top-1.5 -right-2 bg-[#c5a059] text-[#0f2d22] text-[9px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border border-white">
+                    <span className="absolute -top-1.5 -right-2.5 bg-[#c5a059] text-[#0f2d22] text-[9px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border border-white shadow-2xs">
                       {item.badge}
                     </span>
                   )}
                 </div>
-                <span className={`text-[9.5px] font-semibold mt-0.5 whitespace-nowrap tracking-tight ${isCurrent ? 'font-bold text-[#1b4332]' : 'text-gray-600'}`}>
+                <span className={`text-[10px] mt-0.5 whitespace-nowrap tracking-tight ${isCurrent ? 'font-extrabold text-[#1b4332]' : 'font-medium text-gray-600'}`}>
                   {item.label}
                 </span>
                 {isCurrent && (
                   <motion.div
                     layoutId="mobileBottomTab"
-                    className="absolute bottom-0 w-6 h-0.5 bg-[#c5a059] rounded-full"
+                    className="absolute bottom-0.5 w-6 h-0.5 bg-[#c5a059] rounded-full"
                   />
                 )}
               </button>
@@ -119,26 +119,26 @@ export default function MobileBottomNav({}: MobileBottomNavProps) {
             <Link
               key={item.label}
               href={item.href}
-              className={`relative flex flex-col items-center justify-center py-1 px-0.5 rounded-lg transition-all min-h-[44px] w-full text-center ${
-                isCurrent ? 'text-[#1b4332]' : 'text-gray-500 hover:text-[#0f2d22]'
+              className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all min-h-[44px] w-full text-center cursor-pointer ${
+                isCurrent ? 'bg-[#e8f3ed] text-[#1b4332]' : 'text-gray-600 hover:text-[#0f2d22]'
               }`}
               aria-label={item.label}
             >
               <div className="relative">
-                <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${isCurrent ? 'text-[#1b4332]' : 'text-gray-600'}`} />
+                <Icon className={`w-5 h-5 transition-transform ${isCurrent ? 'text-[#1b4332] stroke-[2.5px] scale-105' : 'text-gray-600'}`} />
                 {item.badge !== undefined && item.badge > 0 && (
-                  <span className="absolute -top-1.5 -right-2 bg-[#c5a059] text-[#0f2d22] text-[9px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border border-white">
+                  <span className="absolute -top-1.5 -right-2.5 bg-[#c5a059] text-[#0f2d22] text-[9px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border border-white shadow-2xs">
                     {item.badge}
                   </span>
                 )}
               </div>
-              <span className={`text-[9.5px] font-semibold mt-0.5 whitespace-nowrap tracking-tight ${isCurrent ? 'font-bold text-[#1b4332]' : 'text-gray-600'}`}>
+              <span className={`text-[10px] mt-0.5 whitespace-nowrap tracking-tight ${isCurrent ? 'font-extrabold text-[#1b4332]' : 'font-medium text-gray-600'}`}>
                 {item.label}
               </span>
               {isCurrent && (
                 <motion.div
                   layoutId="mobileBottomTab"
-                  className="absolute bottom-0 w-6 h-0.5 bg-[#c5a059] rounded-full"
+                  className="absolute bottom-0.5 w-6 h-0.5 bg-[#c5a059] rounded-full"
                 />
               )}
             </Link>

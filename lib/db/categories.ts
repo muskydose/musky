@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { Category } from '@/lib/types';
 import { getSupabase, getSupabaseAdmin } from '@/lib/supabase';
 import { SupabaseClient } from '@supabase/supabase-js';
@@ -37,7 +38,7 @@ export function mapCategoryToRow(c: Category) {
   };
 }
 
-export async function getCategories(): Promise<Category[]> {
+export const getCategories = cache(async (): Promise<Category[]> => {
   const admin = getSupabaseAdmin();
   if (admin) {
     const { data, error } = await admin.from('categories').select('*');
@@ -61,7 +62,7 @@ export async function getCategories(): Promise<Category[]> {
   }
 
   return [];
-}
+});
 
 export async function getAllCategoriesAdmin(): Promise<Category[]> {
   const supabase = getSupabaseAdmin();

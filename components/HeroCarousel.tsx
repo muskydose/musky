@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -10,10 +8,11 @@ import {
   ShieldCheck,
   Leaf,
   Factory,
+  MessageCircle,
 } from 'lucide-react';
-import { motion } from 'motion/react';
 import { SiteSettings } from '@/lib/types';
 import { getCmsText } from '@/lib/cms';
+import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
 import BrandLogo from '@/components/BrandLogo';
 import { sanitizeImageUrl } from '@/lib/utils';
 
@@ -22,16 +21,21 @@ interface HeroCarouselProps {
   whatsappUrl?: string;
 }
 
-export default function HeroCarousel({ siteSettings }: HeroCarouselProps) {
+export default function HeroCarousel({ siteSettings, whatsappUrl }: HeroCarouselProps) {
   const cms = getCmsText(siteSettings);
-  const eyebrow = siteSettings.heroEyebrow || cms.heroEyebrow || 'SOJAT ORIGIN • 100% NATURAL';
+  const whatsappNum = getConfiguredWhatsAppNumber(siteSettings);
+  const defaultWhatsAppLink = whatsappUrl || `https://wa.me/${whatsappNum}?text=${encodeURIComponent('Hello Musky Dose! I am visiting your website and would like to order fresh Sojat Henna products.')}`;
+
+  const eyebrow = siteSettings.heroEyebrow || cms.heroEyebrow || 'Sojat Origin • 100% Natural';
   const title = siteSettings.heroTitle || cms.heroTitle || 'Authentic 100% Pure Sojat Henna & Natural Herbal Care';
   const subtitle = siteSettings.heroSubtitle || cms.heroSubtitle || 'Freshly processed and sourced directly from Sojat, Rajasthan. Authentic cloth-sifted mehendi powder and traditional botanical remedies.';
-  const primaryCtaText = siteSettings.heroPrimaryCtaText || cms.heroPrimaryCtaText || 'SHOP PRODUCTS';
+  const primaryCtaText = siteSettings.heroPrimaryCtaText || cms.heroPrimaryCtaText || 'Explore Products';
   const primaryCtaLink = siteSettings.heroPrimaryCtaLink || '/products';
-  const secondaryCtaText = siteSettings.heroSecondaryCtaText || cms.heroSecondaryCtaText || 'EXPLORE CATEGORIES';
-  const secondaryCtaLink = siteSettings.heroSecondaryCtaLink || '/categories';
+  const secondaryCtaText = siteSettings.heroSecondaryCtaText || cms.heroSecondaryCtaText || 'Order on WhatsApp';
+  const secondaryCtaLink = siteSettings.heroSecondaryCtaLink || defaultWhatsAppLink;
   const imageUrl = siteSettings.heroImageUrl || '/images/fallback.svg';
+
+  const isWhatsAppSecondary = secondaryCtaText.toLowerCase().includes('whatsapp') || secondaryCtaLink.includes('wa.me');
 
   return (
     <section className="relative bg-gradient-to-b from-[#0a1f17] via-[#0f2d22] to-[#13382b] text-[#faf5e8] hero-responsive-section pt-4 pb-8 sm:pt-10 sm:pb-14 px-3 sm:px-6 lg:px-8 overflow-hidden">
@@ -61,24 +65,31 @@ export default function HeroCarousel({ siteSettings }: HeroCarouselProps) {
 
             {/* Action Buttons */}
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-2.5 sm:gap-4 w-full">
-              {/* Primary CTA: Shop Products */}
+              {/* Primary CTA: Explore Products (Filled gold brand treatment) */}
               <Link
                 href={primaryCtaLink}
-                className="w-full sm:w-auto min-h-[42px] sm:min-h-[48px] inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white px-6 py-3 sm:px-8 sm:py-4 rounded-xl font-extrabold text-xs sm:text-sm tracking-wider uppercase shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 active:translate-y-0"
+                className="w-full sm:w-auto min-h-[44px] sm:min-h-[48px] inline-flex items-center justify-center gap-2 bg-[#c5a059] hover:bg-[#b38e46] text-[#0f2d22] px-6 py-3 sm:px-8 sm:py-4 rounded-xl font-extrabold text-xs sm:text-sm tracking-wider uppercase shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 active:translate-y-0"
               >
-                <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 text-[#0f2d22]" />
                 <span>{primaryCtaText}</span>
               </Link>
 
-              {/* Secondary CTA: Explore Categories */}
+              {/* Secondary CTA: Order on WhatsApp / Explore (Outline treatment) */}
               {secondaryCtaText && (
-                <Link
+                <a
                   href={secondaryCtaLink}
-                  className="w-full sm:w-auto min-h-[42px] sm:min-h-[48px] inline-flex items-center justify-center gap-2 bg-[#1b4332] hover:bg-[#143326] text-[#faf5e8] border border-[#c5a059]/40 px-5 py-3 sm:px-7 sm:py-4 rounded-xl font-bold text-xs sm:text-sm tracking-wider uppercase shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0"
+                  target={isWhatsAppSecondary ? '_blank' : undefined}
+                  rel={isWhatsAppSecondary ? 'noopener noreferrer' : undefined}
+                  className="w-full sm:w-auto min-h-[44px] sm:min-h-[48px] inline-flex items-center justify-center gap-2 bg-[#1b4332] hover:bg-[#143326] text-[#faf5e8] border border-[#c5a059]/40 px-5 py-3 sm:px-7 sm:py-4 rounded-xl font-bold text-xs sm:text-sm tracking-wider uppercase shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0"
                 >
+                  {isWhatsAppSecondary ? (
+                    <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 fill-[#25D366] text-[#25D366]" />
+                  ) : null}
                   <span>{secondaryCtaText}</span>
-                  <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#c5a059]" />
-                </Link>
+                  {!isWhatsAppSecondary ? (
+                    <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#c5a059]" />
+                  ) : null}
+                </a>
               )}
             </div>
           </div>

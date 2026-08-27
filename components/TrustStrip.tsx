@@ -1,10 +1,7 @@
-'use client';
-
 import React from 'react';
 import { SiteSettings, TrustStripItem } from '@/lib/types';
 import { DEFAULT_TRUST_STRIP_ITEMS } from '@/lib/data-store';
 import { Leaf, ShieldCheck, Sparkles, Truck, Award, CheckCircle, Droplets, Factory, Heart, Star } from 'lucide-react';
-import { FadeIn, StaggerContainer, StaggerItem } from '@/components/Motion';
 
 interface TrustStripProps {
   siteSettings?: SiteSettings;
@@ -53,9 +50,9 @@ export default function TrustStrip({ siteSettings, heading, subheading }: TrustS
           </div>
         )}
 
-        <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6" staggerDelay={0.08}>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
           {activeItems.map((item) => (
-            <StaggerItem
+            <div
               key={item.id}
               className="bg-[#FFFDF8] p-3.5 sm:p-5 rounded-2xl border border-[#e8e2d5] flex items-center gap-3 shadow-2xs hover:shadow-md transition-all"
             >
@@ -70,9 +67,9 @@ export default function TrustStrip({ siteSettings, heading, subheading }: TrustS
                   {item.description}
                 </p>
               </div>
-            </StaggerItem>
+            </div>
           ))}
-        </StaggerContainer>
+        </div>
       </div>
     </section>
   );

@@ -126,7 +126,24 @@ export default async function ProductsPage({
       {/* Client Filter View */}
       <div className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <ProductsClientView
-          initialProducts={products}
+          initialProducts={products.map((p) => ({
+            id: p.id,
+            name: p.name,
+            slug: p.slug,
+            price: p.price,
+            compareAtPrice: p.compareAtPrice,
+            stockStatus: p.stockStatus,
+            isFeatured: p.isFeatured,
+            isBestSeller: p.isBestSeller,
+            categoryId: p.categoryId,
+            categoryName: p.categoryName || '',
+            images: p.images && p.images.length > 0 ? [p.images[0]] : ['/images/fallback.svg'],
+            shortDescription: p.shortDescription || '',
+            quantityOrWeight: p.quantityOrWeight || '',
+            productType: p.productType,
+            sortOrder: p.sortOrder,
+            isActive: p.isActive,
+          })) as unknown as typeof products}
           categories={categories}
           initialCategory={rawCategory}
           initialSearch={rawSearch}

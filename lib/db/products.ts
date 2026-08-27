@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { Product } from '@/lib/types';
 import { getSupabase, getSupabaseAdmin } from '@/lib/supabase';
 import { SupabaseClient } from '@supabase/supabase-js';
@@ -139,7 +140,7 @@ export async function getAllProductsAdmin(): Promise<Product[]> {
   return data.map(mapRowToProduct).sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
-export async function getActiveProductsForStore(): Promise<Product[]> {
+export const getActiveProductsForStore = cache(async (): Promise<Product[]> => {
   const supabase = getSupabaseAdmin() || getSupabase();
   if (!supabase) {
     console.error('[getActiveProductsForStore] Supabase client is unavailable.');
@@ -162,13 +163,13 @@ export async function getActiveProductsForStore(): Promise<Product[]> {
   }
 
   return data.map(mapRowToProduct);
-}
+});
 
 export async function getProducts(): Promise<Product[]> {
   return await getActiveProductsForStore();
 }
 
-export async function getProductsByCategory(categoryIdOrSlug: string): Promise<Product[]> {
+export const getProductsByCategory = cache(async (categoryIdOrSlug: string): Promise<Product[]> => {
   if (!categoryIdOrSlug) return [];
   const clean = categoryIdOrSlug.trim();
   const supabase = getSupabaseAdmin() || getSupabase();
@@ -210,7 +211,7 @@ export async function getProductsByCategory(categoryIdOrSlug: string): Promise<P
     const all = await getActiveProductsForStore();
     return all.filter((p) => p.categoryId === clean);
   }
-}
+});
 
 export async function getRelatedProducts(
   productId: string,
@@ -311,10 +312,10 @@ export async function getFeaturedProducts(limit: number = 8): Promise<Product[]>
   }
 }
 
-export async function getProductByIdOrSlug(
+export const getProductByIdOrSlug = cache(async (
   identifier: string,
   includeInactive: boolean = false
-): Promise<Product | null> {
+): Promise<Product | null> => {
   if (!identifier) return null;
   const decoded = decodeURIComponent(identifier).trim();
   const lower = decoded.toLowerCase();
@@ -358,7 +359,7 @@ export async function getProductByIdOrSlug(
   }
 
   return null;
-}
+});
 
 export async function saveProduct(product: Partial<Product>): Promise<Product> {
   const supabase = requireSupabaseAdmin();

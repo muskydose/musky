@@ -551,14 +551,14 @@ export default function ProductDetailClient({
                     quantity,
                   });
                 }}
-                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-xs tracking-wider border transition-all shadow-2xs ${
+                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-xs tracking-wider border transition-all shadow-xs cursor-pointer touch-manipulation ${
                   product.stockStatus === 'out_of_stock'
                     ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                    : 'bg-[#f5f1e8] hover:bg-[#e8e2d5] text-[#0f2d22] border-[#e8e2d5]'
+                    : 'bg-[#1b4332] hover:bg-[#0f2d22] text-[#faf5e8] hover:text-[#c5a059] border border-[#1b4332]'
                 }`}
               >
-                <ShoppingBag className="w-4 h-4 text-[#1b4332]" />
-                <span>{product.stockStatus === 'out_of_stock' ? 'OUT OF STOCK' : 'ADD TO CART'}</span>
+                <ShoppingBag className="w-4 h-4 text-[#c5a059]" />
+                <span>{product.stockStatus === 'out_of_stock' ? 'Out of Stock' : 'Add to Cart'}</span>
               </button>
 
               <Link
@@ -567,23 +567,23 @@ export default function ProductDetailClient({
                   if (product.stockStatus === 'out_of_stock') return;
                   addToCart(product, quantity);
                 }}
-                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-extrabold text-xs tracking-wider transition-all shadow-md ${
+                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-extrabold text-xs tracking-wider transition-all shadow-sm ${
                   product.stockStatus === 'out_of_stock'
                     ? 'bg-gray-200 text-gray-500 cursor-not-allowed pointer-events-none'
-                    : 'bg-[#1b4332] hover:bg-[#0f2d22] text-white'
+                    : 'bg-[#c5a059] hover:bg-[#b38e46] text-[#0f2d22]'
                 }`}
               >
-                <span>PROCEED TO CHECKOUT</span>
+                <span>Buy Now (Checkout)</span>
               </Link>
             </div>
 
             <button
               type="button"
               onClick={handleOpenQuestionModal}
-              className="w-full flex items-center justify-center gap-2 bg-[#f2fcf5] hover:bg-[#e2f7e7] text-[#1b4332] border border-[#25D366]/40 py-2.5 rounded-xl font-bold text-xs tracking-wider transition-all"
+              className="w-full flex items-center justify-center gap-2 bg-[#f2fcf5] hover:bg-[#e2f7e7] text-[#1b4332] border border-[#25D366]/40 py-2.5 rounded-xl font-bold text-xs tracking-wider transition-all cursor-pointer"
             >
-              <MessageCircle className="w-4 h-4 text-[#25D366]" />
-              <span>ASK QUESTION ON WHATSAPP ({displayPhone})</span>
+              <MessageCircle className="w-4 h-4 fill-[#25D366] text-[#25D366]" />
+              <span>Ask Question on WhatsApp</span>
             </button>
 
             <p className="text-[11px] text-center text-gray-500">

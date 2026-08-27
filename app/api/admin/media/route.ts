@@ -48,6 +48,20 @@ function validateMagicBytes(buffer: Buffer, mimeType: string): boolean {
     const head = buffer.toString('utf-8', 0, Math.min(buffer.length, 512)).toLowerCase();
     return head.includes('<svg') || head.includes('<?xml');
   }
+  // MP4
+  if (mimeType === 'video/mp4') {
+    const ftyp = buffer.toString('ascii', 4, 16);
+    return ftyp.includes('ftyp') || ftyp.includes('isom') || ftyp.includes('mp4');
+  }
+  // WebM
+  if (mimeType === 'video/webm') {
+    return (
+      buffer[0] === 0x1a &&
+      buffer[1] === 0x45 &&
+      buffer[2] === 0xdf &&
+      buffer[3] === 0xa3
+    );
+  }
 
   return true;
 }
@@ -60,6 +74,8 @@ const ALLOWED_MIME_TYPES = [
   'image/webp',
   'image/avif',
   'image/svg+xml',
+  'video/mp4',
+  'video/webm',
 ];
 
 // Helper to scan references across the site
