@@ -7,6 +7,7 @@ import { UIProvider } from '@/context/UIContext';
 import CartDrawer from '@/components/CartDrawer';
 import WishlistDrawer from '@/components/WishlistDrawer';
 import SearchDrawer from '@/components/SearchDrawer';
+import CategoryDrawer from '@/components/CategoryDrawer';
 import AccountDrawer from '@/components/AccountDrawer';
 import NotificationsDrawer from '@/components/NotificationsDrawer';
 
@@ -19,6 +20,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           <CartDrawer />
           <WishlistDrawer />
           <SearchDrawer />
+          <CategoryDrawer />
           <AccountDrawer />
           <NotificationsDrawer />
         </WishlistProvider>

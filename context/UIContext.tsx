@@ -8,6 +8,11 @@ interface UIContextType {
   closeSearch: () => void;
   toggleSearch: () => void;
 
+  isCategoryOpen: boolean;
+  openCategory: () => void;
+  closeCategory: () => void;
+  toggleCategory: () => void;
+
   isAccountOpen: boolean;
   openAccount: () => void;
   closeAccount: () => void;
@@ -30,11 +35,13 @@ const UIContext = createContext<UIContextType | undefined>(undefined);
 
 export function UIProvider({ children }: { children: React.ReactNode }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const openSearch = useCallback(() => {
+    setIsCategoryOpen(false);
     setIsAccountOpen(false);
     setIsNotificationsOpen(false);
     setIsMobileMenuOpen(false);
@@ -49,8 +56,25 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
     setIsSearchOpen((prev) => !prev);
   }, []);
 
+  const openCategory = useCallback(() => {
+    setIsSearchOpen(false);
+    setIsAccountOpen(false);
+    setIsNotificationsOpen(false);
+    setIsMobileMenuOpen(false);
+    setIsCategoryOpen(true);
+  }, []);
+
+  const closeCategory = useCallback(() => {
+    setIsCategoryOpen(false);
+  }, []);
+
+  const toggleCategory = useCallback(() => {
+    setIsCategoryOpen((prev) => !prev);
+  }, []);
+
   const openAccount = useCallback(() => {
     setIsSearchOpen(false);
+    setIsCategoryOpen(false);
     setIsNotificationsOpen(false);
     setIsMobileMenuOpen(false);
     setIsAccountOpen(true);
@@ -66,6 +90,7 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
 
   const openNotifications = useCallback(() => {
     setIsSearchOpen(false);
+    setIsCategoryOpen(false);
     setIsAccountOpen(false);
     setIsMobileMenuOpen(false);
     setIsNotificationsOpen(true);
@@ -81,6 +106,7 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
 
   const openMobileMenu = useCallback(() => {
     setIsSearchOpen(false);
+    setIsCategoryOpen(false);
     setIsAccountOpen(false);
     setIsNotificationsOpen(false);
     setIsMobileMenuOpen(true);
@@ -96,6 +122,7 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
 
   const closeAllDrawers = useCallback(() => {
     setIsSearchOpen(false);
+    setIsCategoryOpen(false);
     setIsAccountOpen(false);
     setIsNotificationsOpen(false);
     setIsMobileMenuOpen(false);
@@ -108,6 +135,10 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
         openSearch,
         closeSearch,
         toggleSearch,
+        isCategoryOpen,
+        openCategory,
+        closeCategory,
+        toggleCategory,
         isAccountOpen,
         openAccount,
         closeAccount,

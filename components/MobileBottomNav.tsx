@@ -20,7 +20,7 @@ interface NavItem {
 export default function MobileBottomNav() {
   const pathname = usePathname();
   const { totalItems, isCartOpen, openCart } = useCart();
-  const { isMobileMenuOpen, openMobileMenu } = useUI();
+  const { isCategoryOpen, openCategory, isMobileMenuOpen, openMobileMenu } = useUI();
 
   // Admin pages exclusion - never show on admin
   if (pathname.startsWith('/admin')) {
@@ -29,7 +29,7 @@ export default function MobileBottomNav() {
 
   const isHomeActive = pathname === '/';
   const isShopActive = pathname === '/products' || (pathname.startsWith('/products/') && pathname !== '/products');
-  const isCategoryActive = pathname === '/categories' || pathname.startsWith('/categories/');
+  const isCategoryActive = isCategoryOpen || pathname === '/categories' || pathname.startsWith('/categories/');
   const isCartActive = isCartOpen || pathname === '/cart';
   const isMenuActive = isMobileMenuOpen;
 
@@ -48,9 +48,13 @@ export default function MobileBottomNav() {
     },
     {
       label: 'Category',
-      href: '/categories',
+      href: '#category',
       icon: Grid,
       isActive: isCategoryActive,
+      onClick: (e: React.MouseEvent) => {
+        e.preventDefault();
+        openCategory();
+      },
     },
     {
       label: 'Cart',

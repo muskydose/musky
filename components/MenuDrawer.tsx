@@ -189,6 +189,63 @@ export default function MenuDrawer({
         })}
       </div>
 
+      {/* Customer Quick Links */}
+      <div className="pt-2 border-t border-[#e8e2d5] space-y-1">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-3 py-1">
+          Explore & Help
+        </div>
+        <div className="grid grid-cols-2 gap-1.5 px-1">
+          <Link
+            href="/offers"
+            onClick={onClose}
+            className="flex items-center gap-1.5 px-2.5 py-2 bg-white hover:bg-[#f5f1e8] rounded-lg border border-[#e8e2d5] text-[11px] font-bold text-[#0f2d22] transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-[#c5a059]" />
+            <span>Active Offers</span>
+          </Link>
+          <Link
+            href="/guides"
+            onClick={onClose}
+            className="flex items-center gap-1.5 px-2.5 py-2 bg-white hover:bg-[#f5f1e8] rounded-lg border border-[#e8e2d5] text-[11px] font-bold text-[#0f2d22] transition-colors"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-[#1b4332]" />
+            <span>Herbal Guides</span>
+          </Link>
+          <Link
+            href="/faq"
+            onClick={onClose}
+            className="flex items-center gap-1.5 px-2.5 py-2 bg-white hover:bg-[#f5f1e8] rounded-lg border border-[#e8e2d5] text-[11px] font-bold text-[#0f2d22] transition-colors"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-[#1b4332]" />
+            <span>Help & FAQ</span>
+          </Link>
+          <Link
+            href="/contact"
+            onClick={onClose}
+            className="flex items-center gap-1.5 px-2.5 py-2 bg-white hover:bg-[#f5f1e8] rounded-lg border border-[#e8e2d5] text-[11px] font-bold text-[#0f2d22] transition-colors"
+          >
+            <Phone className="w-3.5 h-3.5 text-[#1b4332]" />
+            <span>Support</span>
+          </Link>
+        </div>
+      </div>
+
+      {/* Policies & Legal Links */}
+      <div className="pt-2 border-t border-[#e8e2d5] px-2 flex flex-wrap items-center justify-between text-[10px] text-gray-400 gap-x-3 gap-y-1">
+        <Link href="/privacy-policy" onClick={onClose} className="hover:text-[#1b4332]">
+          Privacy
+        </Link>
+        <Link href="/terms" onClick={onClose} className="hover:text-[#1b4332]">
+          Terms
+        </Link>
+        <Link href="/shipping-policy" onClick={onClose} className="hover:text-[#1b4332]">
+          Shipping
+        </Link>
+        <Link href="/return-policy" onClick={onClose} className="hover:text-[#1b4332]">
+          Returns
+        </Link>
+      </div>
+
       {/* PWA App Install CTA */}
       <div className="pt-2 border-t border-[#e8e2d5]">
         <div className="flex items-center justify-between bg-white px-2.5 py-2 rounded-xl border border-[#e8e2d5]">
