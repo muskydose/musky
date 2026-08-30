@@ -1,23 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import {
-  getWholesaleEnquiries,
   getWholesaleEnquiriesPaginated,
   saveWholesaleEnquiry,
   updateWholesaleEnquiryStatus,
   deleteWholesaleEnquiry,
 } from '@/lib/db/wholesale';
-import { requireAdminAuthAndCsrf, isRequestAdminAuthenticated, recordAuditLog } from '@/lib/auth';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
+import { recordAuditLog } from '@/lib/auth';
 import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limit';
 import { sanitizeAdminError, createSuccessResponse, getRequestId } from '@/lib/api-errors';
 
 export async function GET(req: NextRequest) {
   const requestId = getRequestId();
   try {
-    if (!isRequestAdminAuthenticated(req)) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized: Admin authentication required', requestId },
-        { status: 401 }
-      );
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
     }
 
     const { searchParams } = new URL(req.url);

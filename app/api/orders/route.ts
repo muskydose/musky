@@ -1,16 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getOrders, getOrdersPaginated, saveOrder, deleteOrderAdmin, deleteOrdersBulkAdmin } from '@/lib/db/orders';
-import { isRequestAdminAuthenticated, verifyAdminCsrfAndOrigin, recordAuditLog } from '@/lib/auth';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { getOrdersPaginated, saveOrder, deleteOrderAdmin, deleteOrdersBulkAdmin } from '@/lib/db/orders';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
+import { recordAuditLog } from '@/lib/auth';
 import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limit';
 import { sanitizePublicError, sanitizeAdminError } from '@/lib/api-errors';
 
 export async function GET(req: NextRequest) {
   try {
-    if (!isRequestAdminAuthenticated(req)) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized: Admin authentication required' },
-        { status: 401 }
-      );
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
     }
 
     const { searchParams } = new URL(req.url);
@@ -139,7 +138,7 @@ export async function POST(req: NextRequest) {
       customerPincode: cleanPincode,
       notes,
       couponCode,
-      idempotencyKey: body.idempotencyKey || body.idempotency_key || req.headers.get('x-idempotency-key') || undefined,
+      idempotencyKey: body.idempotencyKey || body.idempotency_key || req.headers.get('x-idempotency-key') || req.headers.get('idempotency-key') || undefined,
       orderStatus: 'NEW' as const,
       paymentStatus: 'UNPAID' as const,
       paymentMethod: 'WhatsApp' as const,
@@ -169,15 +168,9 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    if (!isRequestAdminAuthenticated(req)) {
-      return NextResponse.json({ success: false, error: 'Unauthorized: Admin authentication required' }, { status: 401 });
-    }
-
-    if (!verifyAdminCsrfAndOrigin(req)) {
-      return NextResponse.json(
-        { success: false, error: 'Forbidden: CSRF / Origin mismatch' },
-        { status: 403 }
-      );
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
     }
 
     const { searchParams } = new URL(req.url);

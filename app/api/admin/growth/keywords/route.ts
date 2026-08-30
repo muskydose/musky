@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { isRequestAdminAuthenticated, verifyAdminCsrfAndOrigin } from '@/lib/auth';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
 import { sanitizeAdminError } from '@/lib/api-errors';
 import { getKeywords, saveKeywordRecord } from '@/lib/growth/growth-db';
 import { getAllProductsAdmin } from '@/lib/db/products';
@@ -20,8 +20,9 @@ export type { CatalogSearchMatch, EnrichedProductKeywordMatch, EnrichedVerifiedG
 
 export async function GET(req: NextRequest) {
   try {
-    if (!isRequestAdminAuthenticated(req)) {
-      return NextResponse.json({ success: false, error: 'Unauthorized admin access' }, { status: 401 });
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
     }
 
     const { searchParams } = new URL(req.url);
@@ -173,11 +174,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    if (!isRequestAdminAuthenticated(req)) {
-      return NextResponse.json({ success: false, error: 'Unauthorized admin access' }, { status: 401 });
-    }
-    if (!verifyAdminCsrfAndOrigin(req)) {
-      return NextResponse.json({ success: false, error: 'Forbidden: CSRF / Origin mismatch' }, { status: 403 });
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
     }
 
     const body = await req.json();
@@ -185,20 +184,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Keyword is required' }, { status: 400 });
     }
 
-    const id = body.id || 'kw_' + body.keyword.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now();
+    const id = body.id || 'kw_' + String(body.keyword).toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now();
     const kwRecord: GrowthKeyword = {
       id,
-      keyword: String(body.keyword).trim(),
-      language: body.language || 'en',
-      country: body.country || 'India',
-      state: body.state || undefined,
-      district: body.district || undefined,
-      city: body.city || undefined,
-      category: body.category || undefined,
-      productId: body.productId || undefined,
-      searchVolume: typeof body.searchVolume === 'number' ? body.searchVolume : null,
+      keyword: String(body.keyword).trim().substring(0, 200),
+      language: body.language ? String(body.language).substring(0, 10) : 'en',
+      country: body.country ? String(body.country).substring(0, 50) : 'India',
+      state: body.state ? String(body.state).substring(0, 100) : undefined,
+      district: body.district ? String(body.district).substring(0, 100) : undefined,
+      city: body.city ? String(body.city).substring(0, 100) : undefined,
+      category: body.category ? String(body.category).substring(0, 100) : undefined,
+      productId: body.productId ? String(body.productId).substring(0, 100) : undefined,
+      searchVolume: typeof body.searchVolume === 'number' ? Math.max(0, Math.floor(body.searchVolume)) : null,
       competition: body.competition || 'MEDIUM',
-      cpc: typeof body.cpc === 'number' ? body.cpc : null,
+      cpc: typeof body.cpc === 'number' ? Math.max(0, Number(body.cpc.toFixed(2))) : null,
       trend: body.trend || 'STABLE',
       sourceTier: body.sourceTier || 'IMPORTED',
       sourceName: body.sourceName || 'Manual Entry',

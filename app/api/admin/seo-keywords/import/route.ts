@@ -1,6 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { isRequestAdminAuthenticated } from '@/lib/auth';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
+import { sanitizeAdminError } from '@/lib/api-errors';
 import { saveSeoKeyword } from '@/lib/db/seo';
+import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limit';
+
+const MAX_CSV_SIZE = 5 * 1024 * 1024; // 5 MiB cap
 
 function parseCsvLine(line: string): string[] {
   const result: string[] = [];
@@ -28,8 +32,18 @@ function parseCsvLine(line: string): string[] {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isRequestAdminAuthenticated(req)) {
-    return NextResponse.json({ success: false, error: 'Unauthorized admin access.' }, { status: 401 });
+  const authCheck = requireAdminAuthAndCsrf(req);
+  if (!authCheck.authenticated) {
+    return authCheck.errorResponse!;
+  }
+
+  const ip = getClientIp(req.headers);
+  const rl = await checkRateLimitAsync(`seo_import:${ip}`, 10, 15 * 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Too many import requests. Please wait a moment before trying again.' },
+      { status: 429 }
+    );
   }
 
   try {
@@ -46,6 +60,10 @@ export async function POST(req: NextRequest) {
     } else {
       // Parse CSV text with quoted comma support
       const csvText = await req.text();
+      if (Buffer.byteLength(csvText, 'utf8') > MAX_CSV_SIZE) {
+        return NextResponse.json({ success: false, error: 'CSV file exceeds maximum allowed size of 5MB.' }, { status: 413 });
+      }
+
       const lines = csvText.split(/\r?\n/).filter((l) => l.trim().length > 0);
       if (lines.length > 1) {
         const header = parseCsvLine(lines[0]).map((h) => h.toLowerCase());
@@ -59,9 +77,9 @@ export async function POST(req: NextRequest) {
           const kw = kwIdx >= 0 ? cols[kwIdx] : cols[0];
           if (kw) {
             itemsToImport.push({
-              keyword: kw,
-              targetType: targetTypeIdx >= 0 && cols[targetTypeIdx] ? cols[targetTypeIdx] : 'homepage',
-              targetUrl: targetUrlIdx >= 0 && cols[targetUrlIdx] ? cols[targetUrlIdx] : '/',
+              keyword: kw.substring(0, 200),
+              targetType: targetTypeIdx >= 0 && cols[targetTypeIdx] ? cols[targetTypeIdx].substring(0, 50) : 'homepage',
+              targetUrl: targetUrlIdx >= 0 && cols[targetUrlIdx] ? cols[targetUrlIdx].substring(0, 255) : '/',
               priority: priorityIdx >= 0 && cols[priorityIdx] ? cols[priorityIdx].toUpperCase() : 'MEDIUM',
               active: true,
             });
@@ -72,6 +90,10 @@ export async function POST(req: NextRequest) {
 
     if (itemsToImport.length === 0) {
       return NextResponse.json({ success: false, error: 'No valid keywords provided for import.' }, { status: 400 });
+    }
+
+    if (itemsToImport.length > 2000) {
+      return NextResponse.json({ success: false, error: 'Maximum batch size is 2,000 keywords per import.' }, { status: 400 });
     }
 
     let importedCount = 0;
@@ -101,7 +123,6 @@ export async function POST(req: NextRequest) {
       errors: errors.slice(0, 10),
     });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return sanitizeAdminError(err, 'Failed to import SEO keywords.');
   }
 }
-

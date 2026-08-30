@@ -1,12 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { isRequestAdminAuthenticated } from '@/lib/auth';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
 import { sanitizeAdminError } from '@/lib/api-errors';
 import { getMarketMetrics } from '@/lib/growth/growth-db';
 
 export async function GET(req: NextRequest) {
   try {
-    if (!isRequestAdminAuthenticated(req)) {
-      return NextResponse.json({ success: false, error: 'Unauthorized admin access' }, { status: 401 });
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
     }
 
     const metrics = await getMarketMetrics();

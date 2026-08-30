@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { isRequestAdminAuthenticated, verifyAdminCsrfAndOrigin } from '@/lib/auth';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
 import { sanitizeAdminError } from '@/lib/api-errors';
 import { getDataSources } from '@/lib/growth/growth-db';
 import { FirstPartyDataSourceAdapter } from '@/lib/growth/sources/first-party-adapter';
@@ -7,8 +7,9 @@ import { GoogleAdsDataSourceAdapter, isGoogleAdsEnabled } from '@/lib/growth/sou
 
 export async function GET(req: NextRequest) {
   try {
-    if (!isRequestAdminAuthenticated(req)) {
-      return NextResponse.json({ success: false, error: 'Unauthorized admin access' }, { status: 401 });
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
     }
 
     const sources = await getDataSources();
@@ -20,11 +21,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    if (!isRequestAdminAuthenticated(req)) {
-      return NextResponse.json({ success: false, error: 'Unauthorized admin access' }, { status: 401 });
-    }
-    if (!verifyAdminCsrfAndOrigin(req)) {
-      return NextResponse.json({ success: false, error: 'Forbidden: CSRF / Origin mismatch' }, { status: 403 });
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
     }
 
     const body = await req.json();

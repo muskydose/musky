@@ -1,12 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { requireAdminAuthAndCsrf, isRequestAdminAuthenticated, recordAuditLog } from '@/lib/auth';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
+import { recordAuditLog } from '@/lib/auth';
 import { getSeoKeywords, saveSeoKeyword, deleteSeoKeyword } from '@/lib/db/seo';
 import { sanitizeAdminError, createSuccessResponse, getRequestId } from '@/lib/api-errors';
 
 export async function GET(req: NextRequest) {
   const requestId = getRequestId();
-  if (!isRequestAdminAuthenticated(req)) {
-    return NextResponse.json({ success: false, error: 'Unauthorized admin access.', requestId }, { status: 401 });
+  const authCheck = requireAdminAuthAndCsrf(req);
+  if (!authCheck.authenticated) {
+    return authCheck.errorResponse!;
   }
 
   try {

@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { getCategories, saveCategory, deleteCategory } from '@/lib/db/categories';
-import { requireAdminAuthAndCsrf, recordAuditLog } from '@/lib/auth';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
+import { recordAuditLog } from '@/lib/auth';
 import { sanitizeAdminError, createSuccessResponse, getRequestId } from '@/lib/api-errors';
 
 export async function GET() {

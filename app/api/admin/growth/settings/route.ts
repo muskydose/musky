@@ -1,12 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { isRequestAdminAuthenticated, verifyAdminCsrfAndOrigin, recordAuditLog } from '@/lib/auth';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
+import { recordAuditLog } from '@/lib/auth';
 import { sanitizeAdminError } from '@/lib/api-errors';
 import { getGrowthSettings, saveGrowthSettings } from '@/lib/growth/growth-db';
 
 export async function GET(req: NextRequest) {
   try {
-    if (!isRequestAdminAuthenticated(req)) {
-      return NextResponse.json({ success: false, error: 'Unauthorized admin access' }, { status: 401 });
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
     }
 
     const settings = await getGrowthSettings();
@@ -18,11 +20,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    if (!isRequestAdminAuthenticated(req)) {
-      return NextResponse.json({ success: false, error: 'Unauthorized admin access' }, { status: 401 });
-    }
-    if (!verifyAdminCsrfAndOrigin(req)) {
-      return NextResponse.json({ success: false, error: 'Forbidden: CSRF / Origin mismatch' }, { status: 403 });
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
     }
 
     const body = await req.json();

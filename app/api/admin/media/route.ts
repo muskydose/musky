@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { isRequestAdminAuthenticated, verifyAdminCsrfAndOrigin, recordAuditLog } from '@/lib/auth';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
+import { recordAuditLog } from '@/lib/auth';
+import { sanitizeAdminError } from '@/lib/api-errors';
 import { getSiteSettings, updateSiteSettings } from '@/lib/db/settings';
 import { getProducts } from '@/lib/db/products';
 import { getCategories } from '@/lib/db/categories';
@@ -114,11 +116,9 @@ async function scanMediaUsage(url: string, mediaId: string) {
 
 export async function GET(req: NextRequest) {
   try {
-    if (!isRequestAdminAuthenticated(req)) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized: Admin authentication required' },
-        { status: 401 }
-      );
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
     }
 
     const siteSettings = await getSiteSettings();
@@ -160,24 +160,15 @@ export async function GET(req: NextRequest) {
       mediaLibrary: updatedItems,
     });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return sanitizeAdminError(error, 'Failed to fetch media library.');
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    if (!isRequestAdminAuthenticated(req)) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized: Admin authentication required' },
-        { status: 401 }
-      );
-    }
-
-    if (!verifyAdminCsrfAndOrigin(req)) {
-      return NextResponse.json(
-        { success: false, error: 'Forbidden: CSRF / Origin mismatch' },
-        { status: 403 }
-      );
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
     }
 
     const contentTypeHeader = req.headers.get('content-type') || '';
@@ -201,7 +192,7 @@ export async function POST(req: NextRequest) {
       if (file.size > MAX_SIZE) {
         return NextResponse.json(
           { success: false, error: 'File size exceeds maximum limit of 10MB.' },
-          { status: 400 }
+          { status: 413 }
         );
       }
 
@@ -211,7 +202,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            error: `Invalid file format (${file.type}). Allowed types: JPG, PNG, WEBP, AVIF, SVG.`,
+            error: `Invalid file format (${file.type}). Allowed types: JPG, PNG, WEBP, AVIF, SVG, MP4, WEBM.`,
           },
           { status: 400 }
         );
@@ -285,7 +276,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Return explicit error if storage upload failed rather than Base64 fallback in production
+      // Return explicit error if storage upload failed
       if (!publicUrl) {
         return NextResponse.json(
           {
@@ -329,12 +320,12 @@ export async function POST(req: NextRequest) {
 
       mediaItem = {
         id: `media-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-        name,
-        url,
+        name: String(name).trim().substring(0, 150),
+        url: String(url).trim().substring(0, 500),
         type: type || 'image/jpeg',
-        size: size || 100000,
+        size: typeof size === 'number' ? size : 100000,
         category: category || 'general',
-        altText: altText || '',
+        altText: altText ? String(altText).trim().substring(0, 255) : '',
         uploadedAt: new Date().toISOString(),
         usedIn: [],
       };
@@ -366,24 +357,15 @@ export async function POST(req: NextRequest) {
       mediaLibrary: updatedSettings.mediaLibrary,
     });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return sanitizeAdminError(error, 'Failed to process media upload.');
   }
 }
 
 export async function DELETE(req: NextRequest) {
   try {
-    if (!isRequestAdminAuthenticated(req)) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized: Admin authentication required' },
-        { status: 401 }
-      );
-    }
-
-    if (!verifyAdminCsrfAndOrigin(req)) {
-      return NextResponse.json(
-        { success: false, error: 'Forbidden: CSRF / Origin mismatch' },
-        { status: 403 }
-      );
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
     }
 
     const { searchParams } = new URL(req.url);
@@ -465,6 +447,6 @@ export async function DELETE(req: NextRequest) {
       message: 'Media item deleted successfully',
     });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return sanitizeAdminError(error, 'Failed to delete media item.');
   }
 }

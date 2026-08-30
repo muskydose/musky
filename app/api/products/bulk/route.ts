@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { bulkUpdateProducts, bulkDeleteProducts } from '@/lib/db/products';
-import { requireAdminAuthAndCsrf, recordAuditLog } from '@/lib/auth';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
+import { recordAuditLog } from '@/lib/auth';
 import { sanitizeAdminError, createSuccessResponse, getRequestId } from '@/lib/api-errors';
 
 export async function POST(req: NextRequest) {
@@ -30,6 +31,7 @@ export async function POST(req: NextRequest) {
 
     if (action === 'activate') {
       const result = await bulkUpdateProducts(productIds, { isActive: true });
+      await recordAuditLog({ action: 'PRODUCTS_BULK_ACTIVATE', resource: `${result.updatedCount} products` });
       return NextResponse.json({
         success: true,
         message: `${result.updatedCount} product(s) activated successfully`,
@@ -39,6 +41,7 @@ export async function POST(req: NextRequest) {
 
     if (action === 'deactivate') {
       const result = await bulkUpdateProducts(productIds, { isActive: false });
+      await recordAuditLog({ action: 'PRODUCTS_BULK_DEACTIVATE', resource: `${result.updatedCount} products` });
       return NextResponse.json({
         success: true,
         message: `${result.updatedCount} product(s) deactivated successfully`,
@@ -48,6 +51,7 @@ export async function POST(req: NextRequest) {
 
     if (action === 'feature') {
       const result = await bulkUpdateProducts(productIds, { isFeatured: true });
+      await recordAuditLog({ action: 'PRODUCTS_BULK_FEATURE', resource: `${result.updatedCount} products` });
       return NextResponse.json({
         success: true,
         message: `${result.updatedCount} product(s) marked as featured`,
@@ -57,6 +61,7 @@ export async function POST(req: NextRequest) {
 
     if (action === 'unfeature') {
       const result = await bulkUpdateProducts(productIds, { isFeatured: false });
+      await recordAuditLog({ action: 'PRODUCTS_BULK_UNFEATURE', resource: `${result.updatedCount} products` });
       return NextResponse.json({
         success: true,
         message: `${result.updatedCount} product(s) unfeatured`,
@@ -67,7 +72,7 @@ export async function POST(req: NextRequest) {
     if (action === 'change_category') {
       if (!categoryId) {
         return NextResponse.json(
-          { success: false, error: 'Category ID is required for bulk category change' },
+          { success: false, error: 'Category ID is required for bulk category change', requestId },
           { status: 400 }
         );
       }
@@ -75,6 +80,7 @@ export async function POST(req: NextRequest) {
         categoryId,
         categoryName: categoryName || 'Updated Category',
       });
+      await recordAuditLog({ action: 'PRODUCTS_BULK_CATEGORY_CHANGE', resource: `${result.updatedCount} products` });
       return NextResponse.json({
         success: true,
         message: `Category updated for ${result.updatedCount} product(s)`,
@@ -84,6 +90,7 @@ export async function POST(req: NextRequest) {
 
     if (action === 'delete') {
       const result = await bulkDeleteProducts(productIds);
+      await recordAuditLog({ action: 'PRODUCTS_BULK_DELETE', resource: `${result.deletedCount} products` });
       return NextResponse.json({
         success: true,
         message: `${result.deletedCount} product(s) deleted permanently`,
@@ -92,13 +99,10 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { success: false, error: `Invalid bulk action: ${action}` },
+      { success: false, error: `Invalid bulk action: ${action}`, requestId },
       { status: 400 }
     );
   } catch (error: any) {
-    return NextResponse.json(
-      { success: false, error: error.message || 'Server error during bulk operation' },
-      { status: 500 }
-    );
+    return sanitizeAdminError(error, 'Server error during bulk operation.', 500, requestId);
   }
 }

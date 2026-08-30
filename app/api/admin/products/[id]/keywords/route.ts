@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { getProductByIdOrSlug, getAllProductsAdmin } from '@/lib/db/products';
 import { getCategories } from '@/lib/db/categories';
 import { getKeywords } from '@/lib/growth/growth-db';
 import { getProductKeywordUniverse, syncProductKeywordUniverse } from '@/lib/growth/product-keyword-engine';
 import { calculateProductSeoHealth, generateProductInternalLinks } from '@/lib/growth/seo-opportunity-engine';
-import { isRequestAdminAuthenticated } from '@/lib/auth';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
 import { sanitizeAdminError, createSuccessResponse, getRequestId } from '@/lib/api-errors';
 
 export async function GET(
@@ -13,8 +13,9 @@ export async function GET(
 ) {
   const requestId = getRequestId();
   try {
-    if (!isRequestAdminAuthenticated(req)) {
-      return NextResponse.json({ success: false, error: 'Unauthorized admin access', requestId }, { status: 401 });
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
     }
 
     const { id } = await params;
@@ -45,8 +46,9 @@ export async function POST(
 ) {
   const requestId = getRequestId();
   try {
-    if (!isRequestAdminAuthenticated(req)) {
-      return NextResponse.json({ success: false, error: 'Unauthorized admin access', requestId }, { status: 401 });
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
     }
 
     const { id } = await params;
@@ -71,4 +73,3 @@ export async function POST(
     return sanitizeAdminError(error, 'Failed to sync product keyword universe.', 500, requestId);
   }
 }
-

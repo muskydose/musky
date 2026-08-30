@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { isRequestAdminAuthenticated } from '@/lib/auth';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
 import { sanitizeAdminError } from '@/lib/api-errors';
 import { getMarketMetrics, getLeads, getRecommendations, getDataSources } from '@/lib/growth/growth-db';
 import { getOrdersForAnalytics, getCustomersAdmin } from '@/lib/db/orders';
@@ -8,8 +8,9 @@ import { getDataQualityAudit } from '@/lib/growth/analytics';
 
 export async function GET(req: NextRequest) {
   try {
-    if (!isRequestAdminAuthenticated(req)) {
-      return NextResponse.json({ success: false, error: 'Unauthorized admin access' }, { status: 401 });
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
     }
 
     // Read stored metrics & records without blocking GET on external sync

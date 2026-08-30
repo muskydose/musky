@@ -1,7 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { getCampaigns, getCampaignsAdmin, saveCampaign, deleteCampaign, duplicateCampaign, calculateCampaignDiscount } from '@/lib/db/campaigns';
-import { requireAdminAuthAndCsrf, isRequestAdminAuthenticated, recordAuditLog } from '@/lib/auth';
+import { requireAdminAuthAndCsrf, isRequestAdminAuthenticated } from '@/lib/admin-middleware';
+import { recordAuditLog } from '@/lib/auth';
 import { sanitizeAdminError, createSuccessResponse, getRequestId } from '@/lib/api-errors';
+import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limit';
 
 export async function GET(req: NextRequest) {
   const requestId = getRequestId();
@@ -10,8 +12,9 @@ export async function GET(req: NextRequest) {
     const isAdmin = searchParams.get('admin') === 'true';
 
     if (isAdmin) {
-      if (!isRequestAdminAuthenticated(req)) {
-        return NextResponse.json({ success: false, error: 'Unauthorized', requestId }, { status: 401 });
+      const authCheck = requireAdminAuthAndCsrf(req);
+      if (!authCheck.authenticated) {
+        return authCheck.errorResponse!;
       }
       const campaigns = await getCampaignsAdmin();
       return createSuccessResponse({ campaigns }, undefined, requestId);
@@ -56,10 +59,20 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const requestId = getRequestId();
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
 
     // If request is asking for discount calculation preview
     if (body.action === 'calculate' && Array.isArray(body.items)) {
+      const ip = getClientIp(req.headers);
+      const rl = await checkRateLimitAsync(`campaign_calc:${ip}`, 60, 60 * 1000);
+      if (!rl.allowed) {
+        return NextResponse.json({ success: false, error: 'Rate limit exceeded.', requestId }, { status: 429 });
+      }
+
+      if (body.items.length > 50) {
+        return NextResponse.json({ success: false, error: 'Too many items in calculation.', requestId }, { status: 400 });
+      }
+
       const result = await calculateCampaignDiscount(body.items, body.couponCode, body.customerPhone);
       return createSuccessResponse({ result }, undefined, requestId);
     }

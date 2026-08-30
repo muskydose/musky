@@ -1,11 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getCustomers, getCustomersPaginated, deleteCustomerByPhone } from '@/lib/db/orders';
-import { isRequestAdminAuthenticated } from '@/lib/auth';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { getCustomersPaginated, deleteCustomerByPhone } from '@/lib/db/orders';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
+import { sanitizeAdminError } from '@/lib/api-errors';
+import { recordAuditLog } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   try {
-    if (!isRequestAdminAuthenticated(req)) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
     }
 
     const { searchParams } = new URL(req.url);
@@ -23,23 +26,29 @@ export async function GET(req: NextRequest) {
       totalPages: result.totalPages,
     });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return sanitizeAdminError(error, 'Failed to retrieve customers.');
   }
 }
 
 export async function DELETE(req: NextRequest) {
   try {
-    if (!isRequestAdminAuthenticated(req)) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
     }
+
     const { searchParams } = new URL(req.url);
     const phone = searchParams.get('phone');
     if (!phone) {
       return NextResponse.json({ success: false, error: 'Phone parameter required' }, { status: 400 });
     }
     await deleteCustomerByPhone(phone);
+    await recordAuditLog({
+      action: 'CUSTOMER_DELETE',
+      resource: phone,
+    });
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return sanitizeAdminError(error, 'Failed to delete customer.');
   }
 }

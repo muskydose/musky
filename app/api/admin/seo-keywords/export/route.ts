@@ -1,10 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { isRequestAdminAuthenticated } from '@/lib/auth';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
+import { sanitizeAdminError } from '@/lib/api-errors';
 import { getSeoKeywords } from '@/lib/db/seo';
 
 export async function GET(req: NextRequest) {
-  if (!isRequestAdminAuthenticated(req)) {
-    return NextResponse.json({ success: false, error: 'Unauthorized admin access.' }, { status: 401 });
+  const authCheck = requireAdminAuthAndCsrf(req);
+  if (!authCheck.authenticated) {
+    return authCheck.errorResponse!;
   }
 
   try {
@@ -40,6 +42,6 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return sanitizeAdminError(err, 'Failed to export SEO keywords.');
   }
 }

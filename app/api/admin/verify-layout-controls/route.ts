@@ -1,15 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { getSiteSettings } from '@/lib/db/settings';
-import { isRequestAdminAuthenticated } from '@/lib/auth';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
+import { sanitizeAdminError } from '@/lib/api-errors';
 
 export async function GET(req: NextRequest) {
   try {
-    const isAdmin = isRequestAdminAuthenticated(req);
-    if (!isAdmin) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized: Admin authentication required' },
-        { status: 401 }
-      );
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
     }
 
     const siteSettings = await getSiteSettings();
@@ -72,6 +70,6 @@ export async function GET(req: NextRequest) {
       auditChecks,
     });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return sanitizeAdminError(error, 'Failed to verify layout controls.');
   }
 }

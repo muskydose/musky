@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { getCustomPages, getCustomPageBySlug, saveCustomPage, deleteCustomPage, sanitizeSlug } from '@/lib/db/custom-pages';
-import { requireAdminAuthAndCsrf, isRequestAdminAuthenticated, recordAuditLog } from '@/lib/auth';
+import { requireAdminAuthAndCsrf, isRequestAdminAuthenticated } from '@/lib/admin-middleware';
+import { recordAuditLog } from '@/lib/auth';
 import { CustomPage } from '@/lib/types';
 import { sanitizeAdminError, createSuccessResponse, getRequestId } from '@/lib/api-errors';
 
@@ -60,11 +61,11 @@ export async function POST(req: NextRequest) {
 
     const pageToSave: CustomPage = {
       id: body.id || `page-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      title: body.title.trim(),
-      slug: cleanSlug,
-      description: body.description || '',
-      seoTitle: body.seoTitle || '',
-      seoDescription: body.seoDescription || '',
+      title: String(body.title).trim().substring(0, 200),
+      slug: cleanSlug.substring(0, 100),
+      description: body.description ? String(body.description).substring(0, 1000) : '',
+      seoTitle: body.seoTitle ? String(body.seoTitle).substring(0, 200) : '',
+      seoDescription: body.seoDescription ? String(body.seoDescription).substring(0, 500) : '',
       published: Boolean(body.published),
       sections: Array.isArray(body.sections) ? body.sections : [],
       createdAt: body.createdAt || new Date().toISOString(),

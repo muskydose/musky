@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { requireAdminAuthAndCsrf } from '@/lib/auth';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
 import { generateProductAutoFillDraft, ProductAutoFillInput } from '@/lib/ai/product-autofill';
 import { getCategories } from '@/lib/db/categories';
+import { sanitizeAdminError } from '@/lib/api-errors';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,10 +59,6 @@ export async function POST(req: NextRequest) {
       draft,
     });
   } catch (error: any) {
-    console.error('Error generating product auto-fill draft:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Failed to generate product draft.' },
-      { status: 500 }
-    );
+    return sanitizeAdminError(error, 'Failed to generate product draft.');
   }
 }

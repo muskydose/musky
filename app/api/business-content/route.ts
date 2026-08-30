@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { getBusinessContentItems, getPublishedBusinessContentItems, getBusinessContentByLocation, saveBusinessContentItem, deleteBusinessContentItem } from '@/lib/db/business-content';
-import { requireAdminAuthAndCsrf, isRequestAdminAuthenticated, recordAuditLog } from '@/lib/auth';
+import { requireAdminAuthAndCsrf, isRequestAdminAuthenticated } from '@/lib/admin-middleware';
+import { recordAuditLog } from '@/lib/auth';
 import { sanitizeAdminError, createSuccessResponse, getRequestId } from '@/lib/api-errors';
 
 export async function GET(req: NextRequest) {
