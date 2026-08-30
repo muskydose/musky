@@ -7,7 +7,7 @@ import {
   deleteWholesaleEnquiry,
 } from '@/lib/db/wholesale';
 import { requireAdminAuthAndCsrf, isRequestAdminAuthenticated, recordAuditLog } from '@/lib/auth';
-import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
+import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limit';
 import { sanitizeAdminError, createSuccessResponse, getRequestId } from '@/lib/api-errors';
 
 export async function GET(req: NextRequest) {
@@ -47,13 +47,18 @@ export async function POST(req: NextRequest) {
   const requestId = getRequestId();
   try {
     const ip = getClientIp(req.headers);
-
-    // Rate limiting: max 5 submissions per 15 minutes per IP
-    const rl = checkRateLimit(`wholesale:${ip}`, 5, 15 * 60 * 1000);
+    const rl = await checkRateLimitAsync(`wholesale:${ip}`, 5, 15 * 60 * 1000);
     if (!rl.allowed) {
       return NextResponse.json(
         { success: false, error: 'Too many enquiry submissions. Please try again in 15 minutes.', requestId },
-        { status: 429 }
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.max(1, Math.ceil(rl.resetMs / 1000))),
+            'X-RateLimit-Limit': '5',
+            'X-RateLimit-Remaining': String(rl.remaining),
+          },
+        }
       );
     }
 
@@ -101,7 +106,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Notes must not exceed 2000 characters.', requestId }, { status: 400 });
     }
 
-    // Force server authority for status, timestamp, and IDs
     const safeEnquiryData = {
       customerName,
       phone: cleanPhone,
