@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getOrders, getOrdersPaginated, saveOrder, deleteOrderAdmin, deleteOrdersBulkAdmin } from '@/lib/db/orders';
 import { isRequestAdminAuthenticated, verifyAdminCsrfAndOrigin, recordAuditLog } from '@/lib/auth';
-import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
+import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limit';
 import { sanitizePublicError, sanitizeAdminError } from '@/lib/api-errors';
 
 export async function GET(req: NextRequest) {
@@ -36,11 +36,18 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIp(req.headers);
-    const rl = checkRateLimit(`order:${ip}`, 10, 15 * 60 * 1000);
+    const rl = await checkRateLimitAsync(`order:${ip}`, 10, 15 * 60 * 1000);
     if (!rl.allowed) {
       return NextResponse.json(
         { success: false, error: 'Too many order requests. Please try again shortly.' },
-        { status: 429 }
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.max(1, Math.ceil(rl.resetMs / 1000))),
+            'X-RateLimit-Limit': '10',
+            'X-RateLimit-Remaining': String(rl.remaining),
+          },
+        }
       );
     }
 
@@ -117,7 +124,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Coupon code cannot exceed 50 characters' }, { status: 400 });
     }
 
-    // Sanitize input to enforce server authority and public order security
     const safeOrderData = {
       ...body,
       customerName,
@@ -139,7 +145,6 @@ export async function POST(req: NextRequest) {
       paymentMethod: 'WhatsApp' as const,
     };
 
-    // Remove client-controlled fields that must be server-authoritative
     delete (safeOrderData as any).id;
     delete (safeOrderData as any).orderNumber;
     delete (safeOrderData as any).subtotal;
@@ -148,7 +153,15 @@ export async function POST(req: NextRequest) {
     delete (safeOrderData as any).totalAmount;
 
     const order = await saveOrder(safeOrderData);
-    return NextResponse.json({ success: true, order });
+    return NextResponse.json(
+      { success: true, order },
+      {
+        headers: {
+          'X-RateLimit-Limit': '10',
+          'X-RateLimit-Remaining': String(rl.remaining),
+        },
+      }
+    );
   } catch (error: any) {
     return sanitizePublicError(error, 'Failed to process order. Please check your details and try again.');
   }
