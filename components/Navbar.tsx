@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -9,33 +8,31 @@ import {
   ShoppingBag,
   Heart,
   User,
-  MessageCircle,
+  Bell,
   Menu,
   X,
   Phone,
   Grid,
-  ChevronRight,
   Sparkles,
   Home,
   BookOpen,
   Building2,
-  Truck,
   ShieldCheck,
-  Award,
   Leaf,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { SiteSettings } from '@/lib/types';
 import { getCmsText } from '@/lib/cms';
 import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
 import { DEFAULT_NAV_ITEMS } from '@/lib/data-store';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
+import { useUI } from '@/context/UIContext';
 import BrandLogo from '@/components/BrandLogo';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import OfferBanner from '@/components/OfferBanner';
 import PwaInstallCTA from '@/components/PwaInstallCTA';
 import AnnouncementTicker from '@/components/AnnouncementTicker';
+import MenuDrawer from '@/components/MenuDrawer';
 import { getClientSiteSettings } from '@/lib/api-client';
 
 interface NavbarProps {
@@ -45,7 +42,6 @@ interface NavbarProps {
 function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
   const [mounted, setMounted] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [settings, setSettings] = useState<Partial<SiteSettings> | undefined>(initialSettings);
 
   const pathname = usePathname();
@@ -62,6 +58,14 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
 
   const { totalItems, openCart } = useCart();
   const { totalWishlistItems, openWishlist } = useWishlist();
+  const {
+    openSearch,
+    openAccount,
+    openNotifications,
+    isMobileMenuOpen,
+    openMobileMenu,
+    closeMobileMenu,
+  } = useUI();
 
   // Handle client mount & scroll shadow
   useEffect(() => {
@@ -73,26 +77,10 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Handle body scroll lock when mobile menu is open
-  useEffect(() => {
-    if (mobileMenuOpen) {
-      const originalOverflow = document.body.style.overflow;
-      const originalTouchAction = document.body.style.touchAction;
-
-      document.body.style.overflow = 'hidden';
-      document.body.style.touchAction = 'none';
-
-      return () => {
-        document.body.style.overflow = originalOverflow;
-        document.body.style.touchAction = originalTouchAction;
-      };
-    }
-  }, [mobileMenuOpen]);
-
   // Close mobile drawer on route change
   useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [pathname]);
+    closeMobileMenu();
+  }, [pathname, closeMobileMenu]);
 
   // Fetch site settings if not provided
   useEffect(() => {
@@ -108,7 +96,6 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
   // Settings & CMS values
   const cms = getCmsText(settings);
   const whatsappNumber = getConfiguredWhatsAppNumber(settings);
-  const displayPhone = settings?.displayPhone || '+91 82337 03080';
   const announcementEnabled = settings?.announcementEnabled ?? true;
   const announcementText = settings?.announcementText || 'Pure Natural & Ultra-Fine Sifted Henna Direct from Sojat, Rajasthan';
   const announcementLink = settings?.announcementLink || '/products';
@@ -140,7 +127,7 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
     e.preventDefault();
     const query = searchQuery.trim();
     if (!query) {
-      router.push('/products');
+      openSearch();
       return;
     }
 
@@ -220,7 +207,7 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
               <PwaInstallCTA />
             </div>
 
-            {/* Middle: Desktop Search Bar */}
+            {/* Middle: Desktop Search Bar & Drawer Trigger */}
             <form onSubmit={handleSearchSubmit} className="flex-1 max-w-lg relative flex items-center h-10">
               <div className="relative w-full h-full">
                 <input
@@ -229,18 +216,37 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={cms.navSearchPlaceholder || 'Search products, Sojat henna, hair care...'}
-                  className="w-full h-full pl-9 pr-8 bg-white border border-[#e8e2d5] rounded-xl text-xs sm:text-sm text-[#0f2d22] placeholder-gray-400 focus:outline-none focus:border-[#1b4332] focus:ring-2 focus:ring-[#1b4332]/10 transition-all shadow-2xs"
+                  className="w-full h-full pl-9 pr-20 bg-white border border-[#e8e2d5] rounded-xl text-xs sm:text-sm text-[#0f2d22] placeholder-gray-400 focus:outline-none focus:border-[#1b4332] focus:ring-2 focus:ring-[#1b4332]/10 transition-all shadow-2xs"
                 />
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={handleClearSearch}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={openSearch}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#1b4332] cursor-pointer"
+                  title="Open Search Drawer"
+                >
+                  <Search className="w-4 h-4" />
+                </button>
+
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  {searchQuery ? (
+                    <button
+                      type="button"
+                      onClick={handleClearSearch}
+                      className="p-1 text-gray-400 hover:text-gray-600 rounded-full cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={openSearch}
+                      className="text-[10.5px] font-bold text-[#1b4332] bg-[#f5f1e8] px-1.5 py-0.5 rounded cursor-pointer hover:bg-[#ede8dc]"
+                      title="Open Search Drawer"
+                    >
+                      Quick
+                    </button>
+                  )}
+                </div>
               </div>
               <button
                 type="submit"
@@ -250,11 +256,38 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
               </button>
             </form>
 
-            {/* Right: Desktop Actions */}
+            {/* Right: Desktop Action Drawers (Notifications, Account, Wishlist, Cart) */}
             <div className="flex items-center gap-2 shrink-0">
+              {/* Notifications Drawer Trigger */}
               <button
+                type="button"
+                onClick={openNotifications}
+                className="relative p-2 bg-white hover:bg-[#f5f1e8] text-[#0f2d22] border border-[#e8e2d5] rounded-xl transition-all flex items-center justify-center shadow-2xs cursor-pointer"
+                title="View Updates & Offers"
+                aria-label="View Updates and Notifications"
+              >
+                <Bell className="w-4 h-4 text-[#1b4332]" />
+                <span className="absolute -top-1 -right-1 bg-[#c5a059] text-[#0f2d22] text-[9px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white">
+                  3
+                </span>
+              </button>
+
+              {/* Account / Track Order Drawer Trigger */}
+              <button
+                type="button"
+                onClick={openAccount}
+                className="relative p-2 bg-white hover:bg-[#f5f1e8] text-[#0f2d22] border border-[#e8e2d5] rounded-xl transition-all flex items-center justify-center shadow-2xs cursor-pointer"
+                title="Account & Order Tracking"
+                aria-label="Account and Order Tracking"
+              >
+                <User className="w-4 h-4 text-[#1b4332]" />
+              </button>
+
+              {/* Wishlist Drawer Trigger */}
+              <button
+                type="button"
                 onClick={openWishlist}
-                className="relative p-2 bg-white hover:bg-[#f5f1e8] text-[#0f2d22] border border-[#e8e2d5] rounded-xl transition-all flex items-center justify-center shadow-2xs"
+                className="relative p-2 bg-white hover:bg-[#f5f1e8] text-[#0f2d22] border border-[#e8e2d5] rounded-xl transition-all flex items-center justify-center shadow-2xs cursor-pointer"
                 title="View Wishlist"
                 aria-label="View Wishlist"
               >
@@ -266,9 +299,11 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
                 )}
               </button>
 
+              {/* Cart Drawer Trigger */}
               <button
+                type="button"
                 onClick={openCart}
-                className="relative p-2 bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] rounded-xl transition-all flex items-center justify-center shadow-2xs"
+                className="relative p-2 bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] rounded-xl transition-all flex items-center justify-center shadow-2xs cursor-pointer"
                 title="View Order Cart"
                 aria-label="View Order Cart"
               >
@@ -284,10 +319,9 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
 
           {/* =========================================
               MOBILE HEADER VIEW (md:hidden)
-              Fluid Responsive Scale System
              ========================================= */}
           <div className="md:hidden flex flex-col" style={{ gap: 'var(--m-row-gap, clamp(3px, 1vw, 5px))' }}>
-            {/* MOBILE ROW 1: Logo | Install App | Wishlist | Cart | Menu */}
+            {/* MOBILE ROW 1: Logo | Notifications | Account | Wishlist | Cart | Menu */}
             <div
               className="flex items-center justify-between"
               style={{
@@ -295,7 +329,7 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
                 gap: 'var(--m-col-gap, clamp(4px, 1.2vw, 6px))',
               }}
             >
-              {/* Left Group: Logo + Install App */}
+              {/* Left Group: Logo */}
               <div className="flex items-center shrink-0 min-w-0" style={{ gap: 'var(--m-col-gap, clamp(4px, 1.2vw, 6px))' }}>
                 <Link href="/" aria-label="Musky Dose Homepage" className="shrink-0 flex items-center">
                   <BrandLogo logoUrl={logoUrl} size="sm" priority />
@@ -312,9 +346,46 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
                 />
               </div>
 
-              {/* Right Group: Wishlist | Cart | Menu */}
-              <div className="flex items-center shrink-0" style={{ gap: 'var(--m-col-gap, clamp(4px, 1.2vw, 6px))' }}>
+              {/* Right Group: Notifications | Account | Wishlist | Cart | Menu Drawer Triggers */}
+              <div className="flex items-center shrink-0" style={{ gap: 'var(--m-col-gap, clamp(3px, 1vw, 5px))' }}>
+                {/* Notifications Drawer */}
                 <button
+                  type="button"
+                  onClick={openNotifications}
+                  className="relative bg-white hover:bg-[#f5f1e8] text-[#0f2d22] border border-[#e8e2d5] rounded-lg transition-all flex items-center justify-center shadow-2xs shrink-0 cursor-pointer"
+                  style={{
+                    height: 'var(--m-ctrl-h, clamp(29px, 7.5vw, 32px))',
+                    width: 'var(--m-ctrl-w, clamp(29px, 7.5vw, 32px))',
+                    minWidth: 'var(--m-ctrl-w, clamp(29px, 7.5vw, 32px))',
+                  }}
+                  title="Notifications"
+                  aria-label="View notifications"
+                >
+                  <Bell className="text-[#1b4332]" style={{ width: '14px', height: '14px' }} />
+                  <span className="absolute -top-1 -right-1 bg-[#c5a059] text-[#0f2d22] text-[8px] font-black w-3 h-3 rounded-full flex items-center justify-center border border-white">
+                    3
+                  </span>
+                </button>
+
+                {/* Account / Track Order Drawer */}
+                <button
+                  type="button"
+                  onClick={openAccount}
+                  className="relative bg-white hover:bg-[#f5f1e8] text-[#0f2d22] border border-[#e8e2d5] rounded-lg transition-all flex items-center justify-center shadow-2xs shrink-0 cursor-pointer"
+                  style={{
+                    height: 'var(--m-ctrl-h, clamp(29px, 7.5vw, 32px))',
+                    width: 'var(--m-ctrl-w, clamp(29px, 7.5vw, 32px))',
+                    minWidth: 'var(--m-ctrl-w, clamp(29px, 7.5vw, 32px))',
+                  }}
+                  title="Account"
+                  aria-label="View account"
+                >
+                  <User className="text-[#1b4332]" style={{ width: '14px', height: '14px' }} />
+                </button>
+
+                {/* Wishlist Drawer */}
+                <button
+                  type="button"
                   onClick={openWishlist}
                   className="relative bg-white hover:bg-[#f5f1e8] text-[#0f2d22] border border-[#e8e2d5] rounded-lg transition-all flex items-center justify-center shadow-2xs shrink-0 cursor-pointer"
                   style={{
@@ -327,7 +398,7 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
                 >
                   <Heart
                     className={`${totalWishlistItems > 0 ? 'fill-rose-500 text-rose-500' : 'text-[#1b4332]'}`}
-                    style={{ width: '15px', height: '15px' }}
+                    style={{ width: '14px', height: '14px' }}
                   />
                   {totalWishlistItems > 0 && (
                     <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-extrabold w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white">
@@ -336,7 +407,9 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
                   )}
                 </button>
 
+                {/* Cart Drawer */}
                 <button
+                  type="button"
                   onClick={openCart}
                   className="relative bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] rounded-lg transition-all flex items-center justify-center shadow-2xs shrink-0 cursor-pointer"
                   style={{
@@ -349,7 +422,7 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
                 >
                   <ShoppingBag
                     className="text-[#c5a059]"
-                    style={{ width: '15px', height: '15px' }}
+                    style={{ width: '14px', height: '14px' }}
                   />
                   {totalItems > 0 && (
                     <span className="absolute -top-1 -right-1 bg-[#c5a059] text-[#0f2d22] text-[9px] font-extrabold w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white">
@@ -358,29 +431,26 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
                   )}
                 </button>
 
+                {/* Menu Drawer */}
                 <button
-                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  type="button"
+                  onClick={openMobileMenu}
                   className="rounded-lg text-[#0f2d22] bg-white border border-[#e8e2d5] hover:bg-[#f5f1e8] focus:outline-none shrink-0 flex items-center justify-center cursor-pointer"
                   style={{
                     height: 'var(--m-ctrl-h, clamp(29px, 7.5vw, 32px))',
                     width: 'var(--m-ctrl-w, clamp(29px, 7.5vw, 32px))',
                     minWidth: 'var(--m-ctrl-w, clamp(29px, 7.5vw, 32px))',
                   }}
-                  aria-label="Toggle Menu"
+                  aria-label="Open Navigation Menu"
                 >
-                  {mobileMenuOpen ? (
-                    <X style={{ width: '15px', height: '15px' }} />
-                  ) : (
-                    <Menu style={{ width: '15px', height: '15px' }} />
-                  )}
+                  <Menu style={{ width: '14px', height: '14px' }} />
                 </button>
               </div>
             </div>
 
-            {/* MOBILE ROW 2: Search Input + Search Action Button */}
+            {/* MOBILE ROW 2: Search Input & Instant Search Drawer Launcher */}
             <div>
-              <form
-                onSubmit={handleSearchSubmit}
+              <div
                 className="flex items-center w-full min-w-0"
                 style={{
                   height: 'var(--m-ctrl-h, clamp(29px, 7.5vw, 32px))',
@@ -388,16 +458,17 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
                 }}
               >
                 <div
-                  className="relative flex-1 min-w-0"
+                  className="relative flex-1 min-w-0 cursor-pointer"
                   style={{ height: 'var(--m-ctrl-h, clamp(29px, 7.5vw, 32px))' }}
+                  onClick={openSearch}
                 >
                   <input
                     id="mobile-search-input"
                     type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder={cms.navSearchPlaceholder || "Search products, Sojat henna..."}
-                    className="w-full pl-7 pr-7 bg-white border border-[#e8e2d5] rounded-lg text-[#0f2d22] placeholder-gray-400 focus:outline-none focus:border-[#1b4332] focus:ring-1 focus:ring-[#1b4332]/20 shadow-2xs truncate font-sans"
+                    readOnly
+                    onClick={openSearch}
+                    placeholder={cms.navSearchPlaceholder || 'Search products, Sojat henna...'}
+                    className="w-full pl-7 pr-7 bg-white border border-[#e8e2d5] rounded-lg text-[#0f2d22] placeholder-gray-400 focus:outline-none shadow-2xs truncate font-sans cursor-pointer"
                     style={{
                       height: 'var(--m-ctrl-h, clamp(29px, 7.5vw, 32px))',
                       fontSize: '12.5px',
@@ -407,18 +478,10 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
                     className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
                     style={{ width: '14px', height: '14px' }}
                   />
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={handleClearSearch}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600 rounded-full cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
                 </div>
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={openSearch}
                   className="bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] font-bold rounded-lg transition-colors shrink-0 shadow-2xs flex items-center justify-center border border-[#1b4332] cursor-pointer"
                   style={{
                     height: 'var(--m-ctrl-h, clamp(29px, 7.5vw, 32px))',
@@ -430,7 +493,7 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
                 >
                   Search
                 </button>
-              </form>
+              </div>
             </div>
           </div>
 
@@ -455,158 +518,27 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
                   </Link>
                 );
               })}
+
+              <Link
+                href="/wholesale"
+                className="ml-auto px-3 py-1.5 rounded-xl text-xs font-extrabold bg-[#e8f3ed] text-[#1b4332] border border-[#b7dfcb] hover:bg-[#d8ecdf] transition-all shrink-0 flex items-center gap-1.5 shadow-2xs"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#c5a059]" />
+                <span>Wholesale & Bulk Enquiries</span>
+              </Link>
             </div>
           </div>
         </div>
       </header>
 
-      {/* ROW 4 — TRUST / CONTACT STRIP (COLLAPSIBLE ON SCROLL) */}
-      <div className="bg-[#f5f1e8] text-[#1b4332] border-b border-[#e8e2d5] py-1.5 sm:py-2 px-1.5 sm:px-4 lg:px-6 relative z-10 min-w-0">
-        <div className="max-w-7xl mx-auto flex items-center justify-center sm:justify-between text-[10.5px] xs:text-[11.5px] sm:text-xs font-bold tracking-tight whitespace-nowrap min-w-0">
-          <div className="flex items-center justify-center gap-1.5 xs:gap-2 sm:gap-4 md:gap-6 w-full sm:w-auto min-w-0">
-            {/* Trust Point 1: Pure Sojat Henna */}
-            <span className="inline-flex items-center gap-1 sm:gap-1.5 shrink-0 text-[#0f2d22] min-w-0">
-              <Leaf className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#1b4332] shrink-0" />
-              <span>Pure Sojat Henna</span>
-            </span>
-
-            <span className="text-[#c5a059]/60 font-normal select-none shrink-0">•</span>
-
-            {/* Trust Point 2: Fast All-India Dispatch */}
-            <span className="inline-flex items-center gap-1 sm:gap-1.5 shrink-0 text-[#0f2d22] min-w-0">
-              <Truck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#1b4332] shrink-0" />
-              <span><span className="hidden min-[360px]:inline">Fast </span>All-India Dispatch</span>
-            </span>
-
-            <span className="text-[#c5a059]/60 font-normal select-none shrink-0">•</span>
-
-            {/* Trust Point 3: Clickable Phone Contact (FULL NUMBER, NEVER CLIPPED) */}
-            <a
-              href={`tel:${displayPhone.replace(/[\s-]/g, '')}`}
-              className="inline-flex items-center gap-1 sm:gap-1.5 shrink-0 text-[#1b4332] hover:text-[#c5a059] transition-colors focus:outline-none focus:ring-1 focus:ring-[#1b4332] rounded-md px-0.5 sm:px-1 py-0.5 whitespace-nowrap"
-              aria-label="Call Musky Dose"
-            >
-              <Phone className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#c5a059] shrink-0" />
-              <span className="whitespace-nowrap font-bold">{displayPhone}</span>
-            </a>
-          </div>
-
-          {/* Desktop Right Secondary: Wholesale Quick Link */}
-          <div className="hidden lg:flex items-center gap-2 text-xs shrink-0">
-            <Link
-              href="/wholesale"
-              className="inline-flex items-center gap-1 text-[#1b4332] hover:text-[#c5a059] font-bold transition-colors"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-[#c5a059]" />
-              <span>Wholesale & Bulk Enquiries</span>
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* MOBILE SLIDE-OVER MENU DRAWER (PORTALED TO BODY TO GUARANTEE TRUE VIEWPORT POSITIONING) */}
-      {mounted && typeof document !== 'undefined'
-        ? createPortal(
-            <AnimatePresence>
-              {mobileMenuOpen && (
-                <div className="fixed inset-0 z-50 md:hidden flex justify-end">
-                  {/* Full-Screen Backdrop Overlay */}
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="fixed inset-0 bg-[#0f2d22]/60 backdrop-blur-xs"
-                    aria-hidden="true"
-                  />
-
-                  {/* Compact Drawer Container Panel (50-55vw responsive clamp) */}
-                  <motion.div
-                    initial={{ x: '100%' }}
-                    animate={{ x: 0 }}
-                    exit={{ x: '100%' }}
-                    transition={{ type: 'tween', duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                    className="relative z-10 w-[55vw] min-w-[250px] max-w-[320px] max-h-[100dvh] h-full bg-[#fcfbf7] border-l border-[#e8e2d5] shadow-2xl flex flex-col overflow-hidden"
-                  >
-                    {/* 1. Fixed / Sticky Drawer Header */}
-                    <div className="shrink-0 px-3 py-2.5 bg-[#0f2d22] text-white flex items-center justify-between border-b border-[#2d6a4f] sticky top-0 z-20">
-                      <Link
-                        href="/"
-                        onClick={() => setMobileMenuOpen(false)}
-                        aria-label="Musky Dose Homepage"
-                        className="inline-flex items-center"
-                      >
-                        <BrandLogo logoUrl={logoUrl} size="sm" className="bg-white/95 px-2 py-0.5 rounded-lg shadow-xs" />
-                      </Link>
-                      <button
-                        onClick={() => setMobileMenuOpen(false)}
-                        className="p-1.5 text-gray-300 hover:text-white rounded-lg bg-[#1b4332] active:scale-95 transition-transform cursor-pointer"
-                        aria-label="Close menu"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    {/* 2. Compact Scrollable Content Area (Natural Document Flow) */}
-                    <div
-                      className="flex-1 overflow-y-auto overscroll-contain flex flex-col p-3 space-y-3"
-                      style={{
-                        paddingBottom: 'max(16px, env(safe-area-inset-bottom, 16px))',
-                      }}
-                    >
-                      {/* Menu Items List */}
-                      <div className="space-y-0.5">
-                        {navItems.map((item) => {
-                          const isSelected = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
-                          const icon = getNavIcon(item.href, item.label);
-                          return (
-                            <Link
-                              key={item.id || item.href}
-                              href={item.href}
-                              onClick={() => setMobileMenuOpen(false)}
-                              className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-colors ${
-                                isSelected
-                                  ? 'bg-[#1b4332] text-[#c5a059] shadow-2xs'
-                                  : 'text-[#0f2d22] hover:bg-[#f5f1e8] active:bg-[#ede8dc]'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                {icon}
-                                <span className="truncate">{item.label}</span>
-                              </div>
-                              <ChevronRight className="w-3.5 h-3.5 opacity-40 shrink-0" />
-                            </Link>
-                          );
-                        })}
-                      </div>
-
-                      {/* Divider & Utilities in Natural Document Flow */}
-                      <div className="pt-2 border-t border-[#e8e2d5] space-y-2.5 shrink-0">
-                        <div className="flex items-center justify-between py-0.5 bg-white px-2 py-1.5 rounded-lg border border-[#e8e2d5]">
-                          <span className="text-[11px] font-bold text-[#0f2d22]">App:</span>
-                          <PwaInstallCTA />
-                        </div>
-                        <Link
-                          href="/products"
-                          onClick={() => setMobileMenuOpen(false)}
-                          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] font-extrabold text-xs rounded-lg shadow-xs active:scale-[0.99] transition-all"
-                        >
-                          <ShoppingBag className="w-3.5 h-3.5 text-[#c5a059]" />
-                          <span>EXPLORE PRODUCTS</span>
-                        </Link>
-                        <p className="text-[9.5px] text-center text-gray-500 font-medium leading-tight">
-                          Sojat, Rajasthan | +91 {whatsappNumber}
-                        </p>
-                      </div>
-                    </div>
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>,
-            document.body
-          )
-        : null}
+      {/* REUSABLE SIDE MENU DRAWER */}
+      <MenuDrawer
+        isOpen={isMobileMenuOpen}
+        onClose={closeMobileMenu}
+        logoUrl={logoUrl}
+        whatsappNumber={whatsappNumber}
+        navItems={navItems}
+      />
 
       {/* FIXED MOBILE BOTTOM NAVIGATION BAR */}
       <MobileBottomNav />

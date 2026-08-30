@@ -3,14 +3,11 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, ShoppingBag, Grid, Heart } from 'lucide-react';
+import { Home, ShoppingBag, Search, Heart, User } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
+import { useUI } from '@/context/UIContext';
 import { motion } from 'motion/react';
-
-interface MobileBottomNavProps {
-  onFocusSearch?: () => void;
-}
 
 interface NavItem {
   label: string;
@@ -21,10 +18,11 @@ interface NavItem {
   badge?: number;
 }
 
-export default function MobileBottomNav({}: MobileBottomNavProps) {
+export default function MobileBottomNav() {
   const pathname = usePathname();
   const { totalItems, openCart } = useCart();
   const { totalWishlistItems, openWishlist } = useWishlist();
+  const { openSearch, openAccount } = useUI();
 
   // Hide on product detail & checkout pages where specialized sticky CTAs exist
   if (
@@ -42,16 +40,20 @@ export default function MobileBottomNav({}: MobileBottomNavProps) {
       isActive: pathname === '/',
     },
     {
+      label: 'Search',
+      href: '#search',
+      icon: Search,
+      isActive: false,
+      onClick: (e: React.MouseEvent) => {
+        e.preventDefault();
+        openSearch();
+      },
+    },
+    {
       label: 'Shop',
       href: '/products',
       icon: ShoppingBag,
-      isActive: pathname === '/products',
-    },
-    {
-      label: 'Categories',
-      href: '/categories',
-      icon: Grid,
-      isActive: pathname.startsWith('/categories'),
+      isActive: pathname === '/products' || pathname.startsWith('/categories'),
     },
     {
       label: 'Wishlist',
@@ -78,7 +80,7 @@ export default function MobileBottomNav({}: MobileBottomNavProps) {
   ];
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#fcfbf7]/95 backdrop-blur-md border-t border-[#e8e2d5] shadow-2xl py-1 px-1">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#fcfbf7]/98 backdrop-blur-md border-t border-[#e8e2d5] shadow-2xl py-1 px-1">
       <div className="grid grid-cols-5 items-center justify-items-center max-w-md mx-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -148,5 +150,3 @@ export default function MobileBottomNav({}: MobileBottomNavProps) {
     </div>
   );
 }
-
-

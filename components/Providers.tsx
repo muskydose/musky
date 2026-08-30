@@ -3,17 +3,26 @@
 import React from 'react';
 import { CartProvider } from '@/context/CartContext';
 import { WishlistProvider } from '@/context/WishlistContext';
+import { UIProvider } from '@/context/UIContext';
 import CartDrawer from '@/components/CartDrawer';
 import WishlistDrawer from '@/components/WishlistDrawer';
+import SearchDrawer from '@/components/SearchDrawer';
+import AccountDrawer from '@/components/AccountDrawer';
+import NotificationsDrawer from '@/components/NotificationsDrawer';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <CartProvider>
-      <WishlistProvider>
-        {children}
-        <CartDrawer />
-        <WishlistDrawer />
-      </WishlistProvider>
-    </CartProvider>
+    <UIProvider>
+      <CartProvider>
+        <WishlistProvider>
+          {children}
+          <CartDrawer />
+          <WishlistDrawer />
+          <SearchDrawer />
+          <AccountDrawer />
+          <NotificationsDrawer />
+        </WishlistProvider>
+      </CartProvider>
+    </UIProvider>
   );
 }
