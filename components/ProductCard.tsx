@@ -3,7 +3,7 @@
 import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ShoppingBag, ShieldCheck, Heart, MessageCircle } from 'lucide-react';
+import { ShoppingBag, ShieldCheck, Heart, MessageCircle, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Product, SiteSettings } from '@/lib/types';
 import { getCmsText } from '@/lib/cms';
@@ -23,12 +23,13 @@ const BRANDED_FALLBACK_IMAGE = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w
 
 export default function ProductCard({ product, siteSettings, whatsappNumber, isFeaturedSpotlight = false }: ProductCardProps) {
   const cms = getCmsText(siteSettings);
-  const { addToCart } = useCart();
+  const { addToCart, openCart } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
   const isWishlisted = isInWishlist(product.id);
   const rawImage = product.images?.[0];
   const primaryImage = sanitizeImageUrl(rawImage, BRANDED_FALLBACK_IMAGE);
   const [imgSrc, setImgSrc] = React.useState(primaryImage);
+  const [isAddingToCart, setIsAddingToCart] = React.useState(false);
 
   React.useEffect(() => {
     setImgSrc(primaryImage);
@@ -37,6 +38,8 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
   const handleAddToCart = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    if (isAddingToCart) return;
+    setIsAddingToCart(true);
     addToCart(product, 1);
     trackAddToCart({
       id: product.id,
@@ -44,6 +47,8 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
       price: product.price,
       quantity: 1,
     });
+    openCart();
+    setTimeout(() => setIsAddingToCart(false), 700);
   };
 
   const handleWhatsAppOrder = (e: React.MouseEvent) => {
@@ -189,17 +194,29 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
               type="button"
               whileTap={{ scale: 0.95 }}
               onClick={handleAddToCart}
-              disabled={product.stockStatus === 'out_of_stock'}
-              className={`w-full min-h-[36px] sm:min-h-[38px] py-1.5 sm:py-2 inline-flex items-center justify-center gap-1.5 text-xs font-bold px-2 rounded-xl transition-all shadow-xs cursor-pointer touch-manipulation ${
+              disabled={product.stockStatus === 'out_of_stock' || isAddingToCart}
+              className={`w-full min-h-[36px] sm:min-h-[38px] py-1.5 sm:py-2 inline-flex items-center justify-center gap-1.5 text-xs font-bold px-2 rounded-xl transition-all shadow-xs cursor-pointer touch-manipulation active:scale-95 ${
                 product.stockStatus === 'out_of_stock'
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                  : isAddingToCart
+                  ? 'bg-[#0f2d22] text-[#c5a059] border border-[#0f2d22]'
                   : 'bg-[#1b4332] hover:bg-[#0f2d22] text-[#faf5e8] hover:text-[#c5a059] border border-[#1b4332]'
               }`}
               title={product.stockStatus === 'out_of_stock' ? cms.productCardOutOfStockBadge : 'Add to Cart'}
               aria-label="Add to Cart"
             >
-              <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#c5a059] shrink-0" />
-              <span>{product.stockStatus === 'out_of_stock' ? cms.productCardOutOfStockBadge : 'Cart'}</span>
+              {isAddingToCart ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#c5a059]" />
+              ) : (
+                <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#c5a059] shrink-0" />
+              )}
+              <span>
+                {product.stockStatus === 'out_of_stock'
+                  ? cms.productCardOutOfStockBadge
+                  : isAddingToCart
+                  ? 'Added'
+                  : 'Cart'}
+              </span>
             </motion.button>
 
             <motion.button

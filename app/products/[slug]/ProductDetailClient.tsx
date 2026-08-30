@@ -29,6 +29,8 @@ import {
   HelpCircle,
   ChevronDown,
   BookOpen,
+  Loader2,
+  MapPin,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -49,7 +51,7 @@ export default function ProductDetailClient({
   faqItems,
   relevantGuides = [],
 }: ProductDetailClientProps) {
-  const { addToCart } = useCart();
+  const { addToCart, openCart } = useCart();
   const [selectedImage, setSelectedImage] = useState<string>(
     product.images?.[0] || '/images/fallback.svg'
   );
@@ -57,6 +59,7 @@ export default function ProductDetailClient({
   const [copied, setCopied] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [bulkRules, setBulkRules] = useState<any[]>([]);
 
   React.useEffect(() => {
@@ -537,12 +540,13 @@ export default function ProductDetailClient({
               </button>
             </div>
           </div>
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
-                disabled={product.stockStatus === 'out_of_stock'}
+                disabled={product.stockStatus === 'out_of_stock' || isAddingToCart}
                 onClick={() => {
-                  if (product.stockStatus === 'out_of_stock') return;
+                  if (product.stockStatus === 'out_of_stock' || isAddingToCart) return;
+                  setIsAddingToCart(true);
                   addToCart(product, quantity);
                   trackAddToCart({
                     id: product.id,
@@ -550,15 +554,28 @@ export default function ProductDetailClient({
                     price: product.price,
                     quantity,
                   });
+                  openCart();
+                  setTimeout(() => setIsAddingToCart(false), 800);
                 }}
-                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-xs tracking-wider border transition-all shadow-xs cursor-pointer touch-manipulation ${
+                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-xs sm:text-sm tracking-wider border transition-all shadow-xs cursor-pointer touch-manipulation active:scale-[0.99] ${
                   product.stockStatus === 'out_of_stock'
                     ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                    : isAddingToCart
+                    ? 'bg-[#0f2d22] text-[#c5a059] border border-[#0f2d22]'
                     : 'bg-[#1b4332] hover:bg-[#0f2d22] text-[#faf5e8] hover:text-[#c5a059] border border-[#1b4332]'
                 }`}
               >
-                <ShoppingBag className="w-4 h-4 text-[#c5a059]" />
-                <span>{product.stockStatus === 'out_of_stock' ? 'Out of Stock' : 'Add to Cart'}</span>
+                {isAddingToCart ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-[#c5a059]" />
+                    <span>Added to Cart!</span>
+                  </>
+                ) : (
+                  <>
+                    <ShoppingBag className="w-4 h-4 text-[#c5a059]" />
+                    <span>{product.stockStatus === 'out_of_stock' ? 'Out of Stock' : 'Add to Cart'}</span>
+                  </>
+                )}
               </button>
 
               <Link
@@ -567,7 +584,7 @@ export default function ProductDetailClient({
                   if (product.stockStatus === 'out_of_stock') return;
                   addToCart(product, quantity);
                 }}
-                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-extrabold text-xs tracking-wider transition-all shadow-sm ${
+                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-extrabold text-xs sm:text-sm tracking-wider transition-all shadow-sm active:scale-[0.99] ${
                   product.stockStatus === 'out_of_stock'
                     ? 'bg-gray-200 text-gray-500 cursor-not-allowed pointer-events-none'
                     : 'bg-[#c5a059] hover:bg-[#b38e46] text-[#0f2d22]'
@@ -591,15 +608,23 @@ export default function ProductDetailClient({
             </p>
           </div>
 
-          {/* Trust Guarantees */}
-          <div className="grid grid-cols-2 gap-3 pt-4 border-t border-[#e8e2d5] text-xs text-[#626c66]">
-            <div className="flex items-center gap-2">
-              <Shield className="w-4 h-4 text-[#c5a059]" />
-              <span>100% Pure & Unadulterated</span>
+          {/* Authentic Sojat Trust Guarantees */}
+          <div className="grid grid-cols-2 gap-2.5 pt-4 border-t border-[#e8e2d5] text-xs text-[#626c66]">
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-[#fcfbf7] border border-[#e8e2d5]">
+              <Shield className="w-4 h-4 text-[#c5a059] shrink-0" />
+              <span className="font-medium text-[11px] text-[#0f2d22]">100% Pure & Unadulterated</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Truck className="w-4 h-4 text-[#1b4332]" />
-              <span>Pan-India Fast Dispatch</span>
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-[#fcfbf7] border border-[#e8e2d5]">
+              <MapPin className="w-4 h-4 text-[#1b4332] shrink-0" />
+              <span className="font-medium text-[11px] text-[#0f2d22]">Sojat, Rajasthan Origin</span>
+            </div>
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-[#fcfbf7] border border-[#e8e2d5]">
+              <Truck className="w-4 h-4 text-[#1b4332] shrink-0" />
+              <span className="font-medium text-[11px] text-[#0f2d22]">Pan-India Fast Dispatch</span>
+            </div>
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-[#fcfbf7] border border-[#e8e2d5]">
+              <MessageCircle className="w-4 h-4 text-[#25D366] shrink-0" />
+              <span className="font-medium text-[11px] text-[#0f2d22]">Direct WhatsApp Support</span>
             </div>
           </div>
         </div>
@@ -795,49 +820,66 @@ export default function ProductDetailClient({
         )}
       </AnimatePresence>
 
-      {/* Sticky Mobile WhatsApp Order CTA */}
-      <div className="fixed bottom-[52px] sm:bottom-[54px] left-0 right-0 z-30 bg-white/95 backdrop-blur-md p-3 border-t border-[#e8e2d5] shadow-lg lg:hidden flex items-center justify-between gap-3">
-        <div className="min-w-0">
+      {/* Sticky Mobile Purchase CTA */}
+      <div className="fixed bottom-[52px] sm:bottom-[54px] left-0 right-0 z-30 bg-white/95 backdrop-blur-md px-3.5 py-2.5 border-t border-[#e8e2d5] shadow-lg lg:hidden flex items-center justify-between gap-2.5">
+        <div className="min-w-0 flex-1">
           <div className="text-[10px] text-gray-500 uppercase tracking-wider font-bold truncate">
             {product.name}
           </div>
-          <div className="text-sm font-extrabold text-[#1b4332]">
-            ₹{product.price * quantity}{' '}
+          <div className="text-sm font-extrabold text-[#1b4332] flex items-baseline gap-1.5">
+            <span>₹{product.price * quantity}</span>
             <span className="text-[10px] font-normal text-gray-500">
               ({quantity} {quantity === 1 ? 'pack' : 'packs'})
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
-            disabled={product.stockStatus === 'out_of_stock'}
+            disabled={product.stockStatus === 'out_of_stock' || isAddingToCart}
             onClick={() => {
-              if (product.stockStatus === 'out_of_stock') return;
+              if (product.stockStatus === 'out_of_stock' || isAddingToCart) return;
+              setIsAddingToCart(true);
               addToCart(product, quantity);
+              trackAddToCart({
+                id: product.id,
+                name: product.name,
+                price: product.price,
+                quantity,
+              });
+              openCart();
+              setTimeout(() => setIsAddingToCart(false), 800);
             }}
-            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-2xs ${
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs active:scale-95 flex items-center gap-1 cursor-pointer touch-manipulation ${
               product.stockStatus === 'out_of_stock'
                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-[#f5f1e8] hover:bg-[#e8e2d5] text-[#0f2d22]'
+                : isAddingToCart
+                ? 'bg-[#0f2d22] text-[#c5a059]'
+                : 'bg-[#f5f1e8] hover:bg-[#e8e2d5] text-[#0f2d22] border border-[#e8e2d5]'
             }`}
           >
-            + Cart
+            {isAddingToCart ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#c5a059]" />
+            ) : (
+              <ShoppingBag className="w-3.5 h-3.5 text-[#c5a059]" />
+            )}
+            <span>{isAddingToCart ? 'Added' : '+ Cart'}</span>
           </button>
+
           <Link
             href="/checkout"
             onClick={() => {
               if (product.stockStatus === 'out_of_stock') return;
               addToCart(product, quantity);
             }}
-            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold shadow-md flex items-center gap-1.5 transition-transform active:scale-95 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold shadow-md flex items-center gap-1 transition-transform active:scale-95 touch-manipulation ${
               product.stockStatus === 'out_of_stock'
                 ? 'bg-gray-200 text-gray-500 cursor-not-allowed pointer-events-none'
                 : 'bg-[#1b4332] hover:bg-[#0f2d22] text-white'
             }`}
           >
-            <ShoppingBag className="w-4 h-4 text-white" />
-            <span>Checkout</span>
+            <span>Buy Now</span>
           </Link>
         </div>
       </div>

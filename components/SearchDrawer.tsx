@@ -2,19 +2,25 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useUI } from '@/context/UIContext';
 import SideDrawer from '@/components/ui/SideDrawer';
+import { Product } from '@/lib/types';
+import { sanitizeImageUrl } from '@/lib/utils';
 import {
   Search,
   X,
   TrendingUp,
   Sparkles,
   ArrowRight,
+  ChevronRight,
   History,
   Grid,
   Leaf,
   ShoppingBag,
+  Loader2,
+  CheckCircle,
 } from 'lucide-react';
 
 const TRENDING_SEARCHES = [
@@ -40,6 +46,8 @@ export default function SearchDrawer() {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [liveProducts, setLiveProducts] = useState<Product[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Focus input when opened & load recents from localStorage
@@ -57,6 +65,42 @@ export default function SearchDrawer() {
       } catch {}
     }
   }, [isSearchOpen]);
+
+  // Debounced live search
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      setLiveProducts([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    const timer = setTimeout(() => {
+      fetch('/api/products')
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.success && Array.isArray(data.products)) {
+            const lower = trimmed.toLowerCase();
+            const filtered = data.products
+              .filter((p: Product) => {
+                const titleMatch = p.name?.toLowerCase().includes(lower);
+                const catMatch = p.categoryName?.toLowerCase().includes(lower);
+                const descMatch = p.shortDescription?.toLowerCase().includes(lower);
+                const skuMatch = p.sku?.toLowerCase().includes(lower);
+                const keywordsMatch = Array.isArray(p.seoKeywords) && p.seoKeywords.some((k: string) => k.toLowerCase().includes(lower));
+                return titleMatch || catMatch || descMatch || skuMatch || keywordsMatch;
+              })
+              .slice(0, 6);
+            setLiveProducts(filtered);
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsSearching(false));
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [query]);
 
   const saveRecentSearch = (term: string) => {
     if (!term.trim()) return;
@@ -160,7 +204,88 @@ export default function SearchDrawer() {
         </div>
       </form>
 
-      <div className="space-y-5">
+      {/* Live Search Results (when query length >= 2) */}
+      {query.trim().length >= 2 ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-xs text-[#0f2d22] font-bold px-0.5">
+            <span className="flex items-center gap-1.5">
+              {isSearching ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#1b4332]" />
+              ) : (
+                <ShoppingBag className="w-3.5 h-3.5 text-[#c5a059]" />
+              )}
+              <span>{isSearching ? 'Searching...' : `Matching Products (${liveProducts.length})`}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => handleSearchSubmit()}
+              className="text-[11px] text-[#1b4332] hover:underline cursor-pointer font-bold"
+            >
+              See all results &rarr;
+            </button>
+          </div>
+
+          {liveProducts.length > 0 ? (
+            <div className="space-y-2">
+              {liveProducts.map((prod) => (
+                <Link
+                  key={prod.id}
+                  href={`/products/${prod.slug || prod.id}`}
+                  onClick={closeSearch}
+                  className="flex items-center justify-between p-2.5 bg-white hover:bg-[#e8f3ed] rounded-xl border border-[#e8e2d5] transition-all shadow-2xs group"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-[#e8e2d5] bg-[#f5f1e8] shrink-0">
+                      <Image
+                        src={sanitizeImageUrl(prod.images?.[0])}
+                        alt={prod.name}
+                        fill
+                        sizes="48px"
+                        className="object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-xs text-[#0f2d22] group-hover:text-[#1b4332] truncate">
+                        {prod.name}
+                      </div>
+                      <div className="text-[10px] text-gray-500 flex items-center gap-1.5 mt-0.5">
+                        <span className="font-bold text-[#1b4332]">₹{prod.price}</span>
+                        {prod.compareAtPrice && prod.compareAtPrice > prod.price && (
+                          <span className="line-through text-gray-400">₹{prod.compareAtPrice}</span>
+                        )}
+                        <span>• {prod.categoryName || 'Sojat Henna'}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-[#1b4332] shrink-0 transition-transform group-hover:translate-x-0.5" />
+                </Link>
+              ))}
+
+              <button
+                type="button"
+                onClick={() => handleSearchSubmit()}
+                className="w-full py-2.5 bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] font-bold text-xs rounded-xl shadow-2xs transition-all active:scale-[0.99] cursor-pointer"
+              >
+                View Full Results for &quot;{query}&quot;
+              </button>
+            </div>
+          ) : !isSearching ? (
+            <div className="text-center py-8 px-4 bg-white rounded-xl border border-[#e8e2d5]">
+              <p className="text-xs font-bold text-[#0f2d22]">No direct product title matches</p>
+              <p className="text-[11px] text-gray-500 mt-1">Press &apos;Go&apos; to search entire catalog & descriptions.</p>
+              <button
+                type="button"
+                onClick={() => handleSearchSubmit()}
+                className="mt-3 px-4 py-2 bg-[#1b4332] text-[#c5a059] text-xs font-bold rounded-lg shadow-xs"
+              >
+                Search Catalog &rarr;
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div className="space-y-5">
         {/* Recent Searches (if any) */}
         {recentSearches.length > 0 && (
           <div>
@@ -264,6 +389,7 @@ export default function SearchDrawer() {
           </Link>
         </div>
       </div>
+      )}
     </SideDrawer>
   );
 }
