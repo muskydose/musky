@@ -3,9 +3,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, ShoppingBag, Search, Heart, User } from 'lucide-react';
+import { Home, ShoppingBag, Grid, ShoppingCart, Menu } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
-import { useWishlist } from '@/context/WishlistContext';
 import { useUI } from '@/context/UIContext';
 import { motion } from 'motion/react';
 
@@ -20,67 +19,67 @@ interface NavItem {
 
 export default function MobileBottomNav() {
   const pathname = usePathname();
-  const { totalItems, openCart } = useCart();
-  const { totalWishlistItems, openWishlist } = useWishlist();
-  const { openSearch, openAccount } = useUI();
+  const { totalItems, isCartOpen, openCart } = useCart();
+  const { isMobileMenuOpen, openMobileMenu } = useUI();
 
-  // Hide on product detail & checkout pages where specialized sticky CTAs exist
-  if (
-    (pathname.startsWith('/products/') && pathname !== '/products') ||
-    pathname.startsWith('/checkout')
-  ) {
+  // Admin pages exclusion - never show on admin
+  if (pathname.startsWith('/admin')) {
     return null;
   }
+
+  const isHomeActive = pathname === '/';
+  const isShopActive = pathname === '/products' || (pathname.startsWith('/products/') && pathname !== '/products');
+  const isCategoryActive = pathname === '/categories' || pathname.startsWith('/categories/');
+  const isCartActive = isCartOpen || pathname === '/cart';
+  const isMenuActive = isMobileMenuOpen;
 
   const navItems: NavItem[] = [
     {
       label: 'Home',
       href: '/',
       icon: Home,
-      isActive: pathname === '/',
-    },
-    {
-      label: 'Search',
-      href: '#search',
-      icon: Search,
-      isActive: false,
-      onClick: (e: React.MouseEvent) => {
-        e.preventDefault();
-        openSearch();
-      },
+      isActive: isHomeActive,
     },
     {
       label: 'Shop',
       href: '/products',
       icon: ShoppingBag,
-      isActive: pathname === '/products' || pathname.startsWith('/categories'),
+      isActive: isShopActive,
     },
     {
-      label: 'Wishlist',
-      href: '#wishlist',
-      icon: Heart,
-      isActive: false,
-      onClick: (e: React.MouseEvent) => {
-        e.preventDefault();
-        openWishlist();
-      },
-      badge: totalWishlistItems,
+      label: 'Category',
+      href: '/categories',
+      icon: Grid,
+      isActive: isCategoryActive,
     },
     {
       label: 'Cart',
       href: '#cart',
-      icon: ShoppingBag,
-      isActive: false,
+      icon: ShoppingCart,
+      isActive: isCartActive,
       onClick: (e: React.MouseEvent) => {
         e.preventDefault();
         openCart();
       },
       badge: totalItems,
     },
+    {
+      label: 'Menu',
+      href: '#menu',
+      icon: Menu,
+      isActive: isMenuActive,
+      onClick: (e: React.MouseEvent) => {
+        e.preventDefault();
+        openMobileMenu();
+      },
+    },
   ];
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#fcfbf7]/98 backdrop-blur-md border-t border-[#e8e2d5] shadow-2xl py-1 px-1">
+    <nav
+      aria-label="Mobile Navigation"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#fcfbf7]/98 backdrop-blur-md border-t border-[#e8e2d5] shadow-2xl px-1 pt-1 pb-[calc(env(safe-area-inset-bottom,0px)+4px)]"
+    >
       <div className="grid grid-cols-5 items-center justify-items-center max-w-md mx-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -91,7 +90,7 @@ export default function MobileBottomNav() {
               <button
                 key={item.label}
                 onClick={item.onClick}
-                className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all min-h-[44px] w-full text-center cursor-pointer ${
+                className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all min-h-[46px] w-full text-center cursor-pointer active:scale-95 touch-manipulation ${
                   isCurrent ? 'bg-[#e8f3ed] text-[#1b4332]' : 'text-gray-600 hover:text-[#0f2d22]'
                 }`}
                 aria-label={item.label}
@@ -121,7 +120,7 @@ export default function MobileBottomNav() {
             <Link
               key={item.label}
               href={item.href}
-              className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all min-h-[44px] w-full text-center cursor-pointer ${
+              className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all min-h-[46px] w-full text-center cursor-pointer active:scale-95 touch-manipulation ${
                 isCurrent ? 'bg-[#e8f3ed] text-[#1b4332]' : 'text-gray-600 hover:text-[#0f2d22]'
               }`}
               aria-label={item.label}
@@ -147,6 +146,6 @@ export default function MobileBottomNav() {
           );
         })}
       </div>
-    </div>
+    </nav>
   );
 }

@@ -19,9 +19,15 @@ import {
   Phone,
   FileText,
   ShieldCheck,
+  Search,
+  Heart,
+  User,
+  Bell,
 } from 'lucide-react';
 import { NavItem } from '@/lib/types';
 import { DEFAULT_NAV_ITEMS } from '@/lib/data-store';
+import { useUI } from '@/context/UIContext';
+import { useWishlist } from '@/context/WishlistContext';
 
 interface MenuDrawerProps {
   isOpen: boolean;
@@ -39,6 +45,8 @@ export default function MenuDrawer({
   navItems = DEFAULT_NAV_ITEMS,
 }: MenuDrawerProps) {
   const pathname = usePathname();
+  const { openSearch, openAccount, openNotifications } = useUI();
+  const { totalWishlistItems, openWishlist } = useWishlist();
 
   const getNavIcon = (href: string, label: string) => {
     const h = href.toLowerCase();
@@ -91,6 +99,70 @@ export default function MenuDrawer({
         </div>
       }
     >
+      {/* Quick Utilities / Features Row */}
+      <div className="grid grid-cols-4 gap-1.5 p-1.5 bg-[#f5f1e8] rounded-xl border border-[#e8e2d5]">
+        <button
+          type="button"
+          onClick={() => {
+            onClose();
+            openSearch();
+          }}
+          className="flex flex-col items-center justify-center py-2 px-1 rounded-lg bg-white hover:bg-[#e8f3ed] text-[#0f2d22] border border-[#e8e2d5] text-[10px] font-bold shadow-2xs transition-all active:scale-95 cursor-pointer"
+          title="Search Products"
+          aria-label="Search Products"
+        >
+          <Search className="w-4 h-4 text-[#1b4332] mb-0.5" />
+          <span>Search</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            onClose();
+            openWishlist();
+          }}
+          className="relative flex flex-col items-center justify-center py-2 px-1 rounded-lg bg-white hover:bg-[#e8f3ed] text-[#0f2d22] border border-[#e8e2d5] text-[10px] font-bold shadow-2xs transition-all active:scale-95 cursor-pointer"
+          title="Saved Wishlist"
+          aria-label="Saved Wishlist"
+        >
+          <Heart className="w-4 h-4 text-rose-500 mb-0.5" />
+          <span>Wishlist</span>
+          {totalWishlistItems > 0 && (
+            <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[8px] font-extrabold w-3.5 h-3.5 rounded-full flex items-center justify-center shadow-2xs">
+              {totalWishlistItems}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            onClose();
+            openAccount();
+          }}
+          className="flex flex-col items-center justify-center py-2 px-1 rounded-lg bg-white hover:bg-[#e8f3ed] text-[#0f2d22] border border-[#e8e2d5] text-[10px] font-bold shadow-2xs transition-all active:scale-95 cursor-pointer"
+          title="My Profile & Orders"
+          aria-label="My Profile & Orders"
+        >
+          <User className="w-4 h-4 text-[#1b4332] mb-0.5" />
+          <span>Account</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            onClose();
+            openNotifications();
+          }}
+          className="flex flex-col items-center justify-center py-2 px-1 rounded-lg bg-white hover:bg-[#e8f3ed] text-[#0f2d22] border border-[#e8e2d5] text-[10px] font-bold shadow-2xs transition-all active:scale-95 cursor-pointer"
+          title="Notifications & Updates"
+          aria-label="Notifications & Updates"
+        >
+          <Bell className="w-4 h-4 text-[#c5a059] mb-0.5" />
+          <span>Alerts</span>
+        </button>
+      </div>
+
       {/* Menu Items List */}
       <div className="space-y-1">
         {navItems.map((item) => {

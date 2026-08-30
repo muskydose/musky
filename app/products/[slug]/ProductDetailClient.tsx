@@ -279,7 +279,7 @@ export default function ProductDetailClient({
   };
 
   return (
-    <div className="space-y-10 pb-24 lg:pb-0">
+    <div className="space-y-10 pb-36 lg:pb-0">
       {/* Breadcrumb Navigation */}
       <div className="flex items-center gap-2 text-xs text-[#626c66] font-medium">
         <Link href="/" className="hover:text-[#1b4332]">Home</Link>
@@ -796,7 +796,7 @@ export default function ProductDetailClient({
       </AnimatePresence>
 
       {/* Sticky Mobile WhatsApp Order CTA */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md p-3 border-t border-[#e8e2d5] shadow-lg lg:hidden flex items-center justify-between gap-3">
+      <div className="fixed bottom-[52px] sm:bottom-[54px] left-0 right-0 z-30 bg-white/95 backdrop-blur-md p-3 border-t border-[#e8e2d5] shadow-lg lg:hidden flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[10px] text-gray-500 uppercase tracking-wider font-bold truncate">
             {product.name}
