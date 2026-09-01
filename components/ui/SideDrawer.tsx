@@ -1,9 +1,10 @@
-'use client';
+﻿'use client';
 
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { X } from 'lucide-react';
+import { SPRINGS, DURATION, EASING } from '@/lib/motion';
 
 export interface SideDrawerProps {
   isOpen: boolean;
@@ -41,6 +42,7 @@ export default function SideDrawer({
   children,
 }: SideDrawerProps) {
   const [mounted, setMounted] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
     setMounted(true);
@@ -76,8 +78,25 @@ export default function SideDrawer({
   }
 
   const isLeft = side === 'left';
-  const slideInitial = isLeft ? { x: '-100%' } : { x: '100%' };
-  const slideExit = isLeft ? { x: '-100%' } : { x: '100%' };
+  const slideInitial = shouldReduceMotion
+    ? { opacity: 0 }
+    : isLeft
+    ? { x: '-100%' }
+    : { x: '100%' };
+
+  const slideAnimate = shouldReduceMotion
+    ? { opacity: 1 }
+    : { x: 0 };
+
+  const slideExit = shouldReduceMotion
+    ? { opacity: 0 }
+    : isLeft
+    ? { x: '-100%' }
+    : { x: '100%' };
+
+  const slideTransition = shouldReduceMotion
+    ? { duration: DURATION.micro }
+    : SPRINGS.drawer;
 
   return createPortal(
     <AnimatePresence>
@@ -87,28 +106,28 @@ export default function SideDrawer({
           role="dialog"
           aria-modal="true"
         >
-          {/* Backdrop Overlay */}
+          {/* Backdrop Overlay with smooth blur fade */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
+            transition={{ duration: DURATION.fast, ease: 'easeOut' }}
             onClick={onClose}
-            className="fixed inset-0 bg-[#0f2d22]/60 backdrop-blur-xs cursor-pointer"
+            className="fixed inset-0 bg-[#0f2d22]/60 backdrop-blur-xs cursor-pointer touch-none"
             aria-hidden="true"
           />
 
-          {/* Slide-in Panel */}
+          {/* Slide-in Spring Panel */}
           <motion.div
             initial={slideInitial}
-            animate={{ x: 0 }}
+            animate={slideAnimate}
             exit={slideExit}
-            transition={{ type: 'tween', duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            transition={slideTransition}
             className={`relative z-10 ${widthClassName} max-h-[100dvh] h-full bg-[#fcfbf7] ${
               isLeft ? 'border-r' : 'border-l'
-            } border-[#e8e2d5] shadow-2xl flex flex-col overflow-hidden`}
+            } border-[#e8e2d5] shadow-2xl flex flex-col overflow-hidden will-change-transform`}
           >
-            {/* Header (if title or custom header present) */}
+            {/* Header */}
             {(title || showCloseButton) && (
               <div
                 className={`shrink-0 px-4 py-3.5 bg-[#0f2d22] text-white flex items-center justify-between border-b border-[#2d6a4f] sticky top-0 z-20 ${
@@ -143,14 +162,15 @@ export default function SideDrawer({
                 <div className="flex items-center gap-1.5 shrink-0">
                   {headerAction}
                   {showCloseButton && (
-                    <button
+                    <motion.button
                       type="button"
+                      whileTap={{ scale: 0.92 }}
                       onClick={onClose}
-                      className="p-1.5 text-gray-300 hover:text-white rounded-lg bg-[#1b4332] hover:bg-[#2d6a4f] active:scale-95 transition-all cursor-pointer"
+                      className="p-1.5 text-gray-300 hover:text-white rounded-lg bg-[#1b4332] hover:bg-[#2d6a4f] transition-colors cursor-pointer touch-manipulation"
                       aria-label={closeAriaLabel}
                     >
                       <X className="w-4 h-4" />
-                    </button>
+                    </motion.button>
                   )}
                 </div>
               </div>
@@ -168,7 +188,7 @@ export default function SideDrawer({
               {children}
             </div>
 
-            {/* Sticky Footer (if provided) */}
+            {/* Sticky Footer */}
             {footer && (
               <div className="shrink-0 p-4 bg-white border-t border-[#e8e2d5] shadow-lg sticky bottom-0 z-20">
                 {footer}
@@ -181,4 +201,3 @@ export default function SideDrawer({
     document.body
   );
 }
-

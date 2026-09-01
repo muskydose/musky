@@ -1,16 +1,17 @@
-'use client';
+﻿'use client';
 
 import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ShoppingBag, ShieldCheck, Heart, MessageCircle, Loader2 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { Product, SiteSettings } from '@/lib/types';
 import { getCmsText } from '@/lib/cms';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
 import { trackAddToCart, trackWhatsAppClick } from '@/lib/analytics';
 import { sanitizeImageUrl } from '@/lib/utils';
+import { SPRINGS, DURATION, EASING } from '@/lib/motion';
 
 interface ProductCardProps {
   product: Product;
@@ -22,6 +23,7 @@ interface ProductCardProps {
 const BRANDED_FALLBACK_IMAGE = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800"><rect width="100%" height="100%" fill="%23f4f0e6"/><path d="M400 240 C300 340 300 490 400 540 C500 490 500 340 400 240 Z" fill="%231b4332" opacity="0.15"/><text x="50%" y="48%" font-family="serif" font-size="32" font-weight="bold" fill="%230f2d22" text-anchor="middle">MUSKY DOSE</text><text x="50%" y="54%" font-family="sans-serif" font-size="16" font-weight="bold" fill="%23c5a059" letter-spacing="2" text-anchor="middle">SOJAT BOTANICAL</text></svg>';
 
 export default function ProductCard({ product, siteSettings, whatsappNumber, isFeaturedSpotlight = false }: ProductCardProps) {
+  const shouldReduceMotion = useReducedMotion();
   const cms = getCmsText(siteSettings);
   const { addToCart, openCart } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
@@ -86,8 +88,8 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
 
   return (
     <motion.div
-      whileHover={{ y: -4 }}
-      transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+      whileHover={shouldReduceMotion ? undefined : { y: -4 }}
+      transition={SPRINGS.card}
       className={`group bg-[#faf8f5] rounded-xl sm:rounded-2xl overflow-hidden border border-[#e8e2d5] hover:border-[#c5a059] shadow-2xs hover:shadow-lg transition-all duration-300 flex flex-col h-full ${
         isFeaturedSpotlight ? 'ring-1 ring-[#c5a059]/40 bg-white' : ''
       }`}
@@ -100,13 +102,13 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
             alt={product.name}
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+            className="object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
             referrerPolicy="no-referrer"
             onError={() => setImgSrc(BRANDED_FALLBACK_IMAGE)}
           />
         </div>
         
-        {/* Badges: Max 2 meaningful badges */}
+        {/* Badges */}
         <div className="absolute top-1.5 sm:top-2.5 left-1.5 sm:left-2.5 flex items-center gap-1 z-10">
           {product.isFeatured ? (
             <span className="bg-[#1b4332] text-[#faf5e8] text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1 border border-[#c5a059]/30">
@@ -120,14 +122,15 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
         </div>
 
         {/* Wishlist Heart Button */}
-        <button
+        <motion.button
           type="button"
+          whileTap={shouldReduceMotion ? undefined : { scale: 0.85 }}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
             toggleWishlist(product);
           }}
-          className="absolute top-1.5 sm:top-2.5 right-1.5 sm:right-2.5 p-1 sm:p-1.5 bg-white/90 hover:bg-white backdrop-blur-xs rounded-full border border-[#e8e2d5] shadow-2xs z-10 transition-transform active:scale-90 w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center cursor-pointer touch-manipulation"
+          className="absolute top-1.5 sm:top-2.5 right-1.5 sm:right-2.5 p-1 sm:p-1.5 bg-white/90 hover:bg-white backdrop-blur-xs rounded-full border border-[#e8e2d5] shadow-2xs z-10 transition-colors w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center cursor-pointer touch-manipulation"
           aria-label={isWishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
           title={isWishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
         >
@@ -136,7 +139,7 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
               isWishlisted ? 'fill-rose-500 text-rose-500' : 'text-gray-400 hover:text-rose-500'
             }`}
           />
-        </button>
+        </motion.button>
 
         {product.quantityOrWeight && (
           <div className="absolute bottom-1.5 sm:bottom-2.5 right-1.5 sm:right-2.5 bg-white/95 backdrop-blur-xs text-[#0f2d22] text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full border border-[#e8e2d5] shadow-2xs max-w-[85%] truncate">
@@ -188,14 +191,14 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
             </span>
           </div>
 
-          {/* Action Buttons: [ 🛒 Cart (Primary) ] [ 🟢 Order (Secondary) ] */}
+          {/* Action Buttons: [ 🛒 Cart ] [ 🟢 Order ] */}
           <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
             <motion.button
               type="button"
-              whileTap={{ scale: 0.95 }}
+              whileTap={shouldReduceMotion ? undefined : { scale: 0.95 }}
               onClick={handleAddToCart}
               disabled={product.stockStatus === 'out_of_stock' || isAddingToCart}
-              className={`w-full min-h-[36px] sm:min-h-[38px] py-1.5 sm:py-2 inline-flex items-center justify-center gap-1.5 text-xs font-bold px-2 rounded-xl transition-all shadow-xs cursor-pointer touch-manipulation active:scale-95 ${
+              className={`w-full min-h-[36px] sm:min-h-[38px] py-1.5 sm:py-2 inline-flex items-center justify-center gap-1.5 text-xs font-bold px-2 rounded-xl transition-all shadow-xs cursor-pointer touch-manipulation ${
                 product.stockStatus === 'out_of_stock'
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
                   : isAddingToCart
@@ -221,7 +224,7 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
 
             <motion.button
               type="button"
-              whileTap={{ scale: 0.95 }}
+              whileTap={shouldReduceMotion ? undefined : { scale: 0.95 }}
               onClick={handleWhatsAppOrder}
               disabled={product.stockStatus === 'out_of_stock'}
               className={`w-full min-h-[36px] sm:min-h-[38px] py-1.5 sm:py-2 inline-flex items-center justify-center gap-1.5 text-xs font-bold px-2 rounded-xl transition-all shadow-2xs cursor-pointer touch-manipulation ${

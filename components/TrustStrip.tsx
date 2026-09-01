@@ -1,7 +1,11 @@
+﻿'use client';
+
 import React from 'react';
 import { SiteSettings, TrustStripItem } from '@/lib/types';
 import { DEFAULT_TRUST_STRIP_ITEMS } from '@/lib/data-store';
 import { Leaf, ShieldCheck, Sparkles, Truck, Award, CheckCircle, Droplets, Factory, Heart, Star } from 'lucide-react';
+import { motion, useReducedMotion } from 'motion/react';
+import { SPRINGS } from '@/lib/motion';
 
 interface TrustStripProps {
   siteSettings?: SiteSettings;
@@ -23,6 +27,7 @@ const iconMap: Record<string, React.ReactNode> = {
 };
 
 export default function TrustStrip({ siteSettings, heading, subheading }: TrustStripProps) {
+  const shouldReduceMotion = useReducedMotion();
   const items: TrustStripItem[] =
     siteSettings?.trustStripItems && siteSettings.trustStripItems.length > 0
       ? siteSettings.trustStripItems
@@ -52,9 +57,11 @@ export default function TrustStrip({ siteSettings, heading, subheading }: TrustS
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
           {activeItems.map((item) => (
-            <div
+            <motion.div
               key={item.id}
-              className="bg-[#FFFDF8] p-3.5 sm:p-5 rounded-2xl border border-[#e8e2d5] flex items-center gap-3 shadow-2xs hover:shadow-md transition-all"
+              whileHover={shouldReduceMotion ? undefined : { y: -3 }}
+              transition={SPRINGS.card}
+              className="bg-[#FFFDF8] p-3.5 sm:p-5 rounded-2xl border border-[#e8e2d5] flex items-center gap-3 shadow-2xs hover:shadow-md transition-shadow"
             >
               <div className="w-10 h-10 rounded-xl bg-[#F7F3E8] border border-[#e8e2d5] flex items-center justify-center shrink-0">
                 {item.icon && iconMap[item.icon] ? iconMap[item.icon] : <Leaf className="w-5 h-5 text-[#183F2B]" />}
@@ -67,7 +74,7 @@ export default function TrustStrip({ siteSettings, heading, subheading }: TrustS
                   {item.description}
                 </p>
               </div>
-            </div>
+            </motion.div>
           ))}
         </div>
       </div>

@@ -1,9 +1,13 @@
+﻿'use client';
+
 import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Category } from '@/lib/types';
 import { sanitizeImageUrl } from '@/lib/utils';
 import { ArrowUpRight, Leaf, Sparkles, Droplets, Heart, Flower2, Package } from 'lucide-react';
+import { motion, useReducedMotion } from 'motion/react';
+import { SPRINGS } from '@/lib/motion';
 
 interface CategoryCardProps {
   category: Category;
@@ -20,14 +24,19 @@ function getCategoryIcon(slugOrName: string) {
 }
 
 export default function CategoryCard({ category }: CategoryCardProps) {
+  const shouldReduceMotion = useReducedMotion();
   const rawImage = category.image || '';
   const isCustomImage = rawImage && !rawImage.endsWith('.svg') && !rawImage.includes('fallback.svg');
 
   return (
-    <div className="h-full hover:-translate-y-1 transition-transform duration-300">
+    <motion.div
+      whileHover={shouldReduceMotion ? undefined : { y: -4 }}
+      transition={SPRINGS.card}
+      className="h-full"
+    >
       <Link
         href={`/products?category=${category.slug}`}
-        className="group relative block rounded-2xl overflow-hidden aspect-[4/3] shadow-xs hover:shadow-xl border border-[#e8e2d5] hover:border-[#c5a059]/60 transition-all duration-300 h-full bg-[#0f2d22]"
+        className="group relative block rounded-2xl overflow-hidden aspect-[4/3] shadow-xs hover:shadow-xl border border-[#e8e2d5] hover:border-[#c5a059]/60 transition-colors duration-300 h-full bg-[#0f2d22]"
       >
         {isCustomImage ? (
           <Image
@@ -35,7 +44,7 @@ export default function CategoryCard({ category }: CategoryCardProps) {
             alt={category.name}
             fill
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
-            className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out brightness-[0.85] group-hover:brightness-75"
+            className="object-cover group-hover:scale-105 transition-transform duration-500 ease-out brightness-[0.85] group-hover:brightness-75"
             referrerPolicy="no-referrer"
           />
         ) : (
@@ -69,6 +78,6 @@ export default function CategoryCard({ category }: CategoryCardProps) {
           )}
         </div>
       </Link>
-    </div>
+    </motion.div>
   );
 }

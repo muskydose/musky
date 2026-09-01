@@ -341,3 +341,68 @@
 }
 
 
+/* ==========================================================================
+   GLOBAL PREMIUM MOTION SYSTEM UTILITIES & ACCESSIBILITY
+   ========================================================================== */
+
+/* Easing tokens */
+:root {
+  --ease-natural-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-crisp-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-smooth-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Button & interactive element transitions */
+button,
+a,
+input,
+select,
+textarea {
+  transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+  transition-timing-function: var(--ease-natural-out);
+  transition-duration: 200ms;
+}
+
+/* Micro tap feedback for touch elements */
+.btn-press-feedback {
+  touch-action: manipulation;
+  will-change: transform;
+}
+.btn-press-feedback:active {
+  transform: scale(0.97);
+}
+
+/* Form input focus rings with smooth expand */
+input:focus,
+textarea:focus,
+select:focus {
+  transition: border-color 150ms var(--ease-crisp-out), box-shadow 150ms var(--ease-crisp-out);
+}
+
+/* Image dissolve & skeleton pulse */
+.img-smooth-reveal {
+  opacity: 0;
+  transition: opacity 400ms var(--ease-natural-out);
+}
+.img-smooth-reveal.loaded {
+  opacity: 1;
+}
+
+/* Accessibility: Full Respect for prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-ticker-marquee,
+  .animate-ticker-marquee-slow,
+  .animate-ticker-marquee-fast {
+    animation: none !important;
+    transform: none !important;
+  }
+}

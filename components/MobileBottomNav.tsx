@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React from 'react';
 import Link from 'next/link';
@@ -6,7 +6,8 @@ import { usePathname } from 'next/navigation';
 import { Home, ShoppingBag, Grid, ShoppingCart, Menu } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { useUI } from '@/context/UIContext';
-import { motion } from 'motion/react';
+import { motion, useReducedMotion, AnimatePresence } from 'motion/react';
+import { SPRINGS } from '@/lib/motion';
 
 interface NavItem {
   label: string;
@@ -19,6 +20,7 @@ interface NavItem {
 
 export default function MobileBottomNav() {
   const pathname = usePathname();
+  const shouldReduceMotion = useReducedMotion();
   const { totalItems, isCartOpen, openCart } = useCart();
   const { isCategoryOpen, openCategory, isMobileMenuOpen, openMobileMenu } = useUI();
 
@@ -89,34 +91,59 @@ export default function MobileBottomNav() {
           const Icon = item.icon;
           const isCurrent = item.isActive;
 
+          const content = (
+            <>
+              <div className="relative">
+                <Icon
+                  className={`w-5 h-5 transition-transform duration-200 ${
+                    isCurrent ? 'text-[#1b4332] stroke-[2.5px] scale-105' : 'text-gray-600'
+                  }`}
+                />
+                {item.badge !== undefined && item.badge > 0 && (
+                  <AnimatePresence mode="popLayout">
+                    <motion.span
+                      key={item.badge}
+                      initial={shouldReduceMotion ? false : { scale: 0.6, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.6, opacity: 0 }}
+                      transition={SPRINGS.badgePulse}
+                      className="absolute -top-1.5 -right-2.5 bg-[#c5a059] text-[#0f2d22] text-[9px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border border-white shadow-2xs"
+                    >
+                      {item.badge}
+                    </motion.span>
+                  </AnimatePresence>
+                )}
+              </div>
+              <span
+                className={`text-[10px] mt-0.5 whitespace-nowrap tracking-tight transition-colors duration-150 ${
+                  isCurrent ? 'font-extrabold text-[#1b4332]' : 'font-medium text-gray-600'
+                }`}
+              >
+                {item.label}
+              </span>
+              {isCurrent && (
+                <motion.div
+                  layoutId="activeBottomTabIndicator"
+                  transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                  className="absolute bottom-0.5 w-6 h-0.5 bg-[#c5a059] rounded-full"
+                />
+              )}
+            </>
+          );
+
           if (item.onClick) {
             return (
-              <button
+              <motion.button
                 key={item.label}
+                whileTap={shouldReduceMotion ? undefined : { scale: 0.93 }}
                 onClick={item.onClick}
-                className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all min-h-[46px] w-full text-center cursor-pointer active:scale-95 touch-manipulation ${
-                  isCurrent ? 'bg-[#e8f3ed] text-[#1b4332]' : 'text-gray-600 hover:text-[#0f2d22]'
+                className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-colors min-h-[46px] w-full text-center cursor-pointer touch-manipulation ${
+                  isCurrent ? 'bg-[#e8f3ed]/80 text-[#1b4332]' : 'text-gray-600 hover:text-[#0f2d22]'
                 }`}
                 aria-label={item.label}
               >
-                <div className="relative">
-                  <Icon className={`w-5 h-5 transition-transform ${isCurrent ? 'text-[#1b4332] stroke-[2.5px] scale-105' : 'text-gray-600'}`} />
-                  {item.badge !== undefined && item.badge > 0 && (
-                    <span className="absolute -top-1.5 -right-2.5 bg-[#c5a059] text-[#0f2d22] text-[9px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border border-white shadow-2xs">
-                      {item.badge}
-                    </span>
-                  )}
-                </div>
-                <span className={`text-[10px] mt-0.5 whitespace-nowrap tracking-tight ${isCurrent ? 'font-extrabold text-[#1b4332]' : 'font-medium text-gray-600'}`}>
-                  {item.label}
-                </span>
-                {isCurrent && (
-                  <motion.div
-                    layoutId="mobileBottomTab"
-                    className="absolute bottom-0.5 w-6 h-0.5 bg-[#c5a059] rounded-full"
-                  />
-                )}
-              </button>
+                {content}
+              </motion.button>
             );
           }
 
@@ -124,28 +151,17 @@ export default function MobileBottomNav() {
             <Link
               key={item.label}
               href={item.href}
-              className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all min-h-[46px] w-full text-center cursor-pointer active:scale-95 touch-manipulation ${
-                isCurrent ? 'bg-[#e8f3ed] text-[#1b4332]' : 'text-gray-600 hover:text-[#0f2d22]'
+              className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-colors min-h-[46px] w-full text-center cursor-pointer touch-manipulation ${
+                isCurrent ? 'bg-[#e8f3ed]/80 text-[#1b4332]' : 'text-gray-600 hover:text-[#0f2d22]'
               }`}
               aria-label={item.label}
             >
-              <div className="relative">
-                <Icon className={`w-5 h-5 transition-transform ${isCurrent ? 'text-[#1b4332] stroke-[2.5px] scale-105' : 'text-gray-600'}`} />
-                {item.badge !== undefined && item.badge > 0 && (
-                  <span className="absolute -top-1.5 -right-2.5 bg-[#c5a059] text-[#0f2d22] text-[9px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border border-white shadow-2xs">
-                    {item.badge}
-                  </span>
-                )}
-              </div>
-              <span className={`text-[10px] mt-0.5 whitespace-nowrap tracking-tight ${isCurrent ? 'font-extrabold text-[#1b4332]' : 'font-medium text-gray-600'}`}>
-                {item.label}
-              </span>
-              {isCurrent && (
-                <motion.div
-                  layoutId="mobileBottomTab"
-                  className="absolute bottom-0.5 w-6 h-0.5 bg-[#c5a059] rounded-full"
-                />
-              )}
+              <motion.div
+                whileTap={shouldReduceMotion ? undefined : { scale: 0.93 }}
+                className="w-full flex flex-col items-center justify-center"
+              >
+                {content}
+              </motion.div>
             </Link>
           );
         })}
