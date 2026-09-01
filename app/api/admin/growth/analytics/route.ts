@@ -7,6 +7,12 @@ import {
   getCampaignAnalytics,
   getDataQualityAudit,
 } from '@/lib/growth/analytics';
+import {
+  getFunnelOverview,
+  getProductConversionFunnel,
+  getSearchInsights,
+  getWhatsAppFunnelStats,
+} from '@/lib/db/analytics-db';
 
 export async function GET(req: NextRequest) {
   try {
@@ -17,11 +23,23 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const view = searchParams.get('view') || 'all';
+    const days = Math.max(1, Math.min(365, parseInt(searchParams.get('days') || '30', 10)));
 
     let matrix = null;
     let products = null;
     let campaigns = null;
     let audit = null;
+    let funnel = null;
+    let productFunnel = null;
+    let searchInsights = null;
+    let whatsappStats = null;
+
+    if (view === 'funnel' || view === 'all') {
+      funnel = await getFunnelOverview(days);
+      productFunnel = await getProductConversionFunnel(days);
+      searchInsights = await getSearchInsights(days);
+      whatsappStats = await getWhatsAppFunnelStats(days);
+    }
 
     if (view === 'matrix' || view === 'all') {
       matrix = await getProductMarketMatrix();
@@ -38,6 +56,11 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      periodDays: days,
+      funnel,
+      productFunnel,
+      searchInsights,
+      whatsappStats,
       matrix,
       products,
       campaigns,

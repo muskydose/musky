@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -H 0.0.0.0 -p 3000 --turbo",
+    "dev": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",
-    "start": "next start",
+    "start": "node --env-file=.env.local .next/standalone/server.js",
+    "serve": "node --env-file=.env.local .next/standalone/server.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "verify:layout-controls": "node scripts/verify-layout-controls.js",

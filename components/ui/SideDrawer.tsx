@@ -1,10 +1,10 @@
 ﻿'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { X } from 'lucide-react';
-import { SPRINGS, DURATION, EASING } from '@/lib/motion';
+import { SPRINGS, DURATION } from '@/lib/motion';
 
 export interface SideDrawerProps {
   isOpen: boolean;
@@ -43,12 +43,14 @@ export default function SideDrawer({
 }: SideDrawerProps) {
   const [mounted, setMounted] = useState(false);
   const shouldReduceMotion = useReducedMotion();
+  const pushedHistoryRef = useRef(false);
+  const isClosingFromPopStateRef = useRef(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Lock body scroll & handle Escape key
+  // Lock body scroll & handle Escape key & handle Mobile/Browser Back Button
   useEffect(() => {
     if (!isOpen) return;
 
@@ -58,18 +60,43 @@ export default function SideDrawer({
     document.body.style.overflow = 'hidden';
     document.body.style.touchAction = 'none';
 
+    // Push history state to capture mobile/browser back button
+    if (typeof window !== 'undefined') {
+      pushedHistoryRef.current = true;
+      isClosingFromPopStateRef.current = false;
+      window.history.pushState({ mdDrawer: true }, '', window.location.href);
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
       }
     };
 
+    const handlePopState = () => {
+      // User pressed browser/hardware Back button -> close drawer
+      isClosingFromPopStateRef.current = true;
+      pushedHistoryRef.current = false;
+      onClose();
+    };
+
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('popstate', handlePopState);
 
     return () => {
       document.body.style.overflow = originalOverflow;
       document.body.style.touchAction = originalTouchAction;
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('popstate', handlePopState);
+
+      // If drawer was closed programmatically (e.g. X button / backdrop click / link click),
+      // cleanly revert the pushed history state so normal back navigation is preserved.
+      if (pushedHistoryRef.current && !isClosingFromPopStateRef.current && typeof window !== 'undefined') {
+        pushedHistoryRef.current = false;
+        if (window.history.state?.mdDrawer) {
+          window.history.back();
+        }
+      }
     };
   }, [isOpen, onClose]);
 

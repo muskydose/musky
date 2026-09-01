@@ -80,6 +80,9 @@ export default function ProductFormClient({
     seoTitle: initialProduct?.seoTitle || '',
     seoDescription: initialProduct?.seoDescription || '',
     seoKeywords: initialProduct?.seoKeywords || [],
+    robotsIndex: initialProduct?.robotsIndex ?? true,
+    robotsFollow: initialProduct?.robotsFollow ?? true,
+    ogImageUrl: initialProduct?.ogImageUrl || '',
   });
 
   const [keywordUniverse, setKeywordUniverse] = useState<any | null>(null);
@@ -1059,6 +1062,106 @@ export default function ProductFormClient({
                     </div>
                   )}
                 </div>
+
+                {/* Robots Indexing & Technical Directives */}
+                <div className="pt-4 border-t border-[#e8e2d5] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="font-bold text-[#0f2d22] block">Search Engine Robots Indexing</label>
+                      <p className="text-[11px] text-gray-500">
+                        Control whether Google and other crawlers should index this product page.
+                      </p>
+                    </div>
+                    <span
+                      className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                        formData.robotsIndex !== false
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : 'bg-rose-50 text-rose-800 border-rose-200'
+                      }`}
+                    >
+                      {formData.robotsIndex !== false ? 'INDEXABLE (index, follow)' : 'EXCLUDED (noindex)'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-3.5 rounded-xl border border-[#e8e2d5]">
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.robotsIndex !== false}
+                        onChange={(e) => updateForm('robotsIndex', e.target.checked)}
+                        className="mt-0.5 rounded text-[#1b4332] focus:ring-[#1b4332]"
+                      />
+                      <div>
+                        <span className="font-bold text-[#0f2d22] block">Allow Search Indexing (`index`)</span>
+                        <span className="text-[10.5px] text-gray-500">
+                          Uncheck for discontinued, seasonal, or duplicate products.
+                        </span>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.robotsFollow !== false}
+                        onChange={(e) => updateForm('robotsFollow', e.target.checked)}
+                        className="mt-0.5 rounded text-[#1b4332] focus:ring-[#1b4332]"
+                      />
+                      <div>
+                        <span className="font-bold text-[#0f2d22] block">Allow Link Following (`follow`)</span>
+                        <span className="text-[10.5px] text-gray-500">
+                          Allows search engines to follow outbound links from this page.
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Social Open Graph Share Image */}
+                <div className="pt-4 border-t border-[#e8e2d5] space-y-3">
+                  <div>
+                    <label className="font-bold text-[#0f2d22] block">Social Share / Open Graph Image (1200×630)</label>
+                    <p className="text-[11px] text-gray-500">
+                      Thumbnail displayed when this product link is shared on WhatsApp, Facebook, or Twitter.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      type="text"
+                      value={formData.ogImageUrl || ''}
+                      onChange={(e) => updateForm('ogImageUrl', e.target.value)}
+                      placeholder={formData.images?.[0] || 'Leave blank to use primary cover photo...'}
+                      className="flex-1 p-2.5 bg-white border border-[#e8e2d5] rounded-xl font-mono text-xs focus:outline-none focus:border-[#1b4332]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsMediaModalOpen(true)}
+                      className="px-3.5 py-2 bg-[#f5f1e8] hover:bg-[#e8e2d5] text-[#0f2d22] border border-[#e8e2d5] rounded-xl font-bold text-xs shrink-0"
+                    >
+                      Choose from Media Library
+                    </button>
+                  </div>
+
+                  <div className="p-3 bg-white rounded-xl border border-[#e8e2d5] flex items-center gap-3">
+                    <div className="relative w-20 h-12 bg-gray-100 rounded-lg overflow-hidden border border-[#e8e2d5] shrink-0">
+                      <Image
+                        src={formData.ogImageUrl || formData.images?.[0] || '/images/fallback.svg'}
+                        alt="Social Share Preview"
+                        fill
+                        className="object-cover"
+                        unoptimized
+                      />
+                    </div>
+                    <div className="text-[11px] text-gray-600 min-w-0">
+                      <p className="font-bold text-[#0f2d22] truncate">
+                        {formData.seoTitle || formData.name || 'Product Title'}
+                      </p>
+                      <p className="text-gray-400 text-[10px] truncate">
+                        {formData.ogImageUrl ? 'Using Custom Social Share Image' : 'Using Primary Product Cover Image'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1150,9 +1253,24 @@ export default function ProductFormClient({
                         </div>
                         <div className="text-[11px] text-gray-600 italic mt-0.5">&ldquo;{link.anchorText}&rdquo;</div>
                       </div>
-                      <div className="flex items-center justify-between pt-1 border-t border-stone-200/60 text-[10px] text-stone-500">
-                        <span className="font-mono">{link.targetUrl}</span>
-                        <span className="font-bold text-emerald-700">{link.relevanceScore}% Fit</span>
+                      <div className="flex items-center justify-between pt-2 border-t border-stone-200/60 text-[10px] text-stone-500">
+                        <span className="font-mono truncate max-w-[120px]">{link.targetUrl}</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (typeof navigator !== 'undefined') {
+                                navigator.clipboard.writeText(`[${link.anchorText}](${link.targetUrl})`);
+                                alert('Copied markdown link to clipboard!');
+                              }
+                            }}
+                            className="px-2 py-0.5 rounded bg-white border border-[#e8e2d5] font-bold text-[#1b4332] hover:bg-[#1b4332] hover:text-white transition-colors"
+                            title="Copy Markdown Link"
+                          >
+                            Copy Link
+                          </button>
+                          <span className="font-bold text-emerald-700">{link.relevanceScore}% Fit</span>
+                        </div>
                       </div>
                     </div>
                   ))}

@@ -25,18 +25,23 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     targetType: 'product',
     targetId: product.id,
     targetUrl: `/products/${product.slug}`,
-    defaultTitle: `${product.name} | Musky Dose — Pure Sojat Mehendi`,
+    defaultTitle: product.seoTitle || `${product.name} | Musky Dose — Pure Sojat Mehendi`,
     defaultDescription:
+      product.seoDescription ||
       product.shortDescription ||
       product.fullDescription?.slice(0, 160) ||
       'Pure organic henna and natural herbal products from Sojat, Rajasthan.',
-    defaultImage: product.images?.[0] || '/images/fallback.svg',
+    defaultImage: product.ogImageUrl || product.images?.[0] || '/images/fallback.svg',
     defaultKeywords: [
+      ...(product.seoKeywords || []),
       product.name,
       product.categoryName || 'Henna',
       'Sojat Henna',
       'Musky Dose',
     ],
+    robotsIndex: product.robotsIndex ?? true,
+    robotsFollow: product.robotsFollow ?? true,
+    ogImage: product.ogImageUrl || product.images?.[0],
   });
 }
 

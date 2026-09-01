@@ -378,6 +378,28 @@ export default function AboutFactoryTab({
                     placeholder="Fill out the details below and our trade team will respond within 24 hours."
                   />
                 </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block font-bold text-[#0f2d22] mb-1">Wholesale Calculator Pricing Disclaimer</label>
+                  <textarea
+                    rows={2}
+                    value={settings.wholesaleCalculatorDisclaimer || ''}
+                    onChange={(e) => updateField('wholesaleCalculatorDisclaimer', e.target.value)}
+                    className="w-full p-2.5 bg-white border border-[#e8e2d5] rounded-xl text-[#0f2d22]"
+                    placeholder="Estimated factory pricing based on active volume tiers. Final logistics/shipping rates and commercial GST tax invoicing are confirmed at quotation/order stage based on your delivery destination and packaging format."
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#0f2d22] mb-1">Calculator Button CTA Label</label>
+                  <input
+                    type="text"
+                    value={settings.wholesaleInquiryCtaText || ''}
+                    onChange={(e) => updateField('wholesaleInquiryCtaText', e.target.value)}
+                    className="w-full p-2.5 bg-white border border-[#e8e2d5] rounded-xl text-[#0f2d22]"
+                    placeholder="Get Wholesale Quote with this Estimate"
+                  />
+                </div>
               </div>
             </div>
           </div>

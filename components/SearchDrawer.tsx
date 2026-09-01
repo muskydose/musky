@@ -8,6 +8,7 @@ import { useUI } from '@/context/UIContext';
 import SideDrawer from '@/components/ui/SideDrawer';
 import { Product } from '@/lib/types';
 import { sanitizeImageUrl } from '@/lib/utils';
+import { trackSearchOpen, trackSearchSubmit } from '@/lib/analytics';
 import {
   Search,
   X,
@@ -53,6 +54,7 @@ export default function SearchDrawer() {
   // Focus input when opened & load recents from localStorage
   useEffect(() => {
     if (isSearchOpen) {
+      trackSearchOpen();
       setTimeout(() => {
         inputRef.current?.focus();
       }, 150);
@@ -93,6 +95,7 @@ export default function SearchDrawer() {
               })
               .slice(0, 6);
             setLiveProducts(filtered);
+            trackSearchSubmit(trimmed, filtered.length);
           }
         })
         .catch(() => {})

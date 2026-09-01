@@ -31,6 +31,7 @@ import {
   BookOpen,
   Loader2,
   MapPin,
+  RotateCcw,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -60,6 +61,7 @@ export default function ProductDetailClient({
   const [showLightbox, setShowLightbox] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [hasPurchasedBefore, setHasPurchasedBefore] = useState(false);
   const [bulkRules, setBulkRules] = useState<any[]>([]);
 
   React.useEffect(() => {
@@ -258,6 +260,19 @@ export default function ProductDetailClient({
       category: product.categoryName,
       price: product.price,
     });
+
+    try {
+      const saved = localStorage.getItem('musky_recent_orders');
+      if (saved) {
+        const orders = JSON.parse(saved);
+        if (Array.isArray(orders)) {
+          const bought = orders.some((o: any) =>
+            Array.isArray(o.items) && o.items.some((i: any) => i.productId === product.id)
+          );
+          setHasPurchasedBefore(bought);
+        }
+      }
+    } catch {}
   }, [product]);
 
   const discountPercent =
@@ -267,17 +282,29 @@ export default function ProductDetailClient({
         )
       : 0;
 
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: product.name,
-        text: product.shortDescription,
-        url: window.location.href,
-      }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  const handleShare = async () => {
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: product.name,
+          text: product.shortDescription || product.name,
+          url: window.location.href,
+        });
+        return;
+      } catch {
+        // User cancelled or dismissed native share dialog
+        return;
+      }
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      } catch (err) {
+        console.warn('Clipboard write failed:', err);
+      }
     }
   };
 
@@ -362,9 +389,17 @@ export default function ProductDetailClient({
         <div className="lg:col-span-6 space-y-6">
           <div>
             <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="bg-[#e8f3ed] text-[#1b4332] text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-                {product.categoryName || 'Sojat Henna'}
-              </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="bg-[#e8f3ed] text-[#1b4332] text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                  {product.categoryName || 'Sojat Henna'}
+                </span>
+                {hasPurchasedBefore && (
+                  <span className="inline-flex items-center gap-1 bg-[#faf5e8] text-[#c5a059] border border-[#c5a059]/40 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full shadow-2xs">
+                    <RotateCcw className="w-3 h-3 text-[#c5a059]" />
+                    <span>Bought Before</span>
+                  </span>
+                )}
+              </div>
               <button
                 onClick={handleShare}
                 className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-[#1b4332] p-1.5 rounded-md hover:bg-gray-100"
@@ -490,56 +525,6 @@ export default function ProductDetailClient({
             </div>
           </div>
 
-          {/* Bulk Quantity Enquiry Card */}
-          <div className="p-4 rounded-xl bg-gradient-to-br from-[#faf7f0] to-[#f4eee0] border border-[#e2d7c3] space-y-3 shadow-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-extrabold text-[#0f2d22] uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-[#c5a059]" /> Need Bulk Quantity or Custom Pack?
-              </span>
-              <span className="text-[10px] font-bold text-[#1b4332] bg-[#e8f3ed] px-2 py-0.5 rounded-full">
-                Sojat Wholesale
-              </span>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-1.5 text-xs">
-              <span className="text-gray-600 text-[11px]">Quick Packs:</span>
-              {(/oil|water|spray|liquid|serum|bottle|ml/i.test(`${product.name} ${product.categoryName || ''} ${product.quantityOrWeight || ''}`)
-                ? ['10 Packs', '25 Packs', '50 Packs', '100+ Packs', 'Bulk Liters']
-                : ['5 kg', '10 kg', '25 kg', '50 kg', '100+ kg']
-              ).map((qtyOption) => (
-                <button
-                  key={qtyOption}
-                  type="button"
-                  onClick={() => setCustomBulkQuantity(qtyOption)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                    customBulkQuantity === qtyOption
-                      ? 'bg-[#1b4332] text-white shadow-xs'
-                      : 'bg-white text-[#0f2d22] hover:bg-[#e8e2d5] border border-[#e8e2d5]'
-                  }`}
-                >
-                  {qtyOption}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={customBulkQuantity}
-                onChange={(e) => setCustomBulkQuantity(e.target.value)}
-                placeholder="Or type custom weight/quantity..."
-                className="flex-grow px-3 py-2 bg-white border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
-              />
-              <button
-                type="button"
-                onClick={handleOpenBulkModal}
-                className="inline-flex items-center gap-1.5 bg-[#1b4332] hover:bg-[#0f2d22] text-white text-xs font-extrabold px-4 py-2 rounded-xl transition-all shadow-xs shrink-0"
-              >
-                <MessageCircle className="w-3.5 h-3.5 text-[#c5a059]" />
-                <span>Ask Bulk Price</span>
-              </button>
-            </div>
-          </div>
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
@@ -606,6 +591,57 @@ export default function ProductDetailClient({
             <p className="text-[11px] text-center text-gray-500">
               Orders placed via Checkout are recorded securely in our database before opening WhatsApp.
             </p>
+          </div>
+
+          {/* Bulk Quantity Enquiry Card */}
+          <div className="p-4 rounded-xl bg-gradient-to-br from-[#faf7f0] to-[#f4eee0] border border-[#e2d7c3] space-y-3 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-extrabold text-[#0f2d22] uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-[#c5a059]" /> Need Bulk Quantity or Custom Pack?
+              </span>
+              <span className="text-[10px] font-bold text-[#1b4332] bg-[#e8f3ed] px-2 py-0.5 rounded-full">
+                Sojat Wholesale
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              <span className="text-gray-600 text-[11px]">Quick Packs:</span>
+              {(/oil|water|spray|liquid|serum|bottle|ml/i.test(`${product.name} ${product.categoryName || ''} ${product.quantityOrWeight || ''}`)
+                ? ['10 Packs', '25 Packs', '50 Packs', '100+ Packs', 'Bulk Liters']
+                : ['5 kg', '10 kg', '25 kg', '50 kg', '100+ kg']
+              ).map((qtyOption) => (
+                <button
+                  key={qtyOption}
+                  type="button"
+                  onClick={() => setCustomBulkQuantity(qtyOption)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                    customBulkQuantity === qtyOption
+                      ? 'bg-[#1b4332] text-white shadow-xs'
+                      : 'bg-white text-[#0f2d22] hover:bg-[#e8e2d5] border border-[#e8e2d5]'
+                  }`}
+                >
+                  {qtyOption}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={customBulkQuantity}
+                onChange={(e) => setCustomBulkQuantity(e.target.value)}
+                placeholder="Or type custom weight/quantity..."
+                className="flex-grow px-3 py-2 bg-white border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
+              />
+              <button
+                type="button"
+                onClick={handleOpenBulkModal}
+                className="inline-flex items-center gap-1.5 bg-[#1b4332] hover:bg-[#0f2d22] text-white text-xs font-extrabold px-4 py-2 rounded-xl transition-all shadow-xs shrink-0"
+              >
+                <MessageCircle className="w-3.5 h-3.5 text-[#c5a059]" />
+                <span>Ask Bulk Price</span>
+              </button>
+            </div>
           </div>
 
           {/* Authentic Sojat Trust Guarantees */}
@@ -1067,6 +1103,23 @@ export default function ProductDetailClient({
         </div>
       )}
 
+      {/* ACCESSIBLE FLOATING SHARE TOAST */}
+      <AnimatePresence>
+        {copied && (
+          <motion.div
+            initial={{ opacity: 0, y: 16, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-[#0f2d22] text-[#faf5e8] px-4 py-2.5 rounded-full border border-[#c5a059]/40 shadow-xl flex items-center gap-2 text-xs font-bold pointer-events-none"
+            role="status"
+            aria-live="polite"
+          >
+            <CheckCircle className="w-4 h-4 text-[#c5a059]" />
+            <span>Link copied to clipboard!</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

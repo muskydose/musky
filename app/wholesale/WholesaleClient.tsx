@@ -23,6 +23,8 @@ import { generateWholesaleWhatsAppMessage, getWhatsAppDirectUrl, getConfiguredWh
 import { SiteSettings } from '@/lib/types';
 import { DEFAULT_TRUST_STRIP_ITEMS } from '@/lib/data-store';
 import { getClientSiteSettings } from '@/lib/api-client';
+import WholesaleCalculator from '@/components/WholesaleCalculator';
+import { trackWholesaleInquiryStarted, trackWholesaleInquirySubmitted } from '@/lib/analytics';
 
 function WholesaleContent() {
   const searchParams = useSearchParams();
@@ -103,6 +105,10 @@ function WholesaleContent() {
       }
 
       setSubmittedEnquiry(data.enquiry);
+      trackWholesaleInquirySubmitted({
+        productsRequired: formData.productsRequired,
+        approxQuantity: formData.approxQuantity,
+      });
 
       // Generate verified WhatsApp redirect URL
       const msg = generateWholesaleWhatsAppMessage(
@@ -214,6 +220,30 @@ function WholesaleContent() {
     }
   };
 
+  const handleQuoteSelection = (data: {
+    productName: string;
+    quantityKg: number;
+    estimatedTotal: number;
+    effectivePricePerKg: number;
+    tierName: string;
+  }) => {
+    setFormData((prev) => ({
+      ...prev,
+      productsRequired: `${data.productName} (Wholesale Tier: ${data.tierName})`,
+      approxQuantity: `${data.quantityKg} kg`,
+      notes: prev.notes
+        ? prev.notes
+        : `Inquiry generated via Wholesale Calculator. Estimated tier rate: ₹${data.effectivePricePerKg}/kg (Est. Total: ~₹${data.estimatedTotal.toLocaleString('en-IN')})`,
+    }));
+
+    if (typeof document !== 'undefined') {
+      const target = document.getElementById('wholesale-inquiry-form');
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#1f2421] flex flex-col">
       <Navbar siteSettings={siteSettings || undefined} />
@@ -282,8 +312,15 @@ function WholesaleContent() {
           );
         })()}
 
+        {/* Interactive Wholesale Tier Calculator Section */}
+        <section className="py-10 px-4">
+          <div className="max-w-5xl mx-auto">
+            <WholesaleCalculator siteSettings={siteSettings || undefined} onSelectQuote={handleQuoteSelection} />
+          </div>
+        </section>
+
         {/* Main Content Area: Form & Contact Info */}
-        <section className="py-12 px-4">
+        <section id="wholesale-inquiry-form" className="pb-14 px-4 scroll-mt-20">
           <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             {/* Left Column: Form or Success State */}
             <div className="lg:col-span-7 bg-white p-6 md:p-8 rounded-2xl border border-[#e8e2d5] shadow-xs space-y-6">

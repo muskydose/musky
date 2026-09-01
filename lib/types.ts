@@ -50,6 +50,11 @@ export interface Product {
   seoTitle?: string;
   seoDescription?: string;
   seoKeywords?: string[];
+  robotsIndex?: boolean;
+  robotsFollow?: boolean;
+  ogImageUrl?: string;
+  relatedGuideIds?: string[];
+  relatedProductIds?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -548,6 +553,11 @@ export interface CmsTextConfig {
   wholesaleQuantityPlaceholder?: string;
   wholesaleNotesLabel?: string;
   wholesaleNotesPlaceholder?: string;
+  wholesaleCalculatorTitle?: string;
+  wholesaleCalculatorSubtitle?: string;
+  wholesaleCalculatorDisclaimer?: string;
+  wholesalePricingNotice?: string;
+  wholesaleInquiryCtaText?: string;
 
   // Offers
   offersHeroBadge?: string;
@@ -807,6 +817,8 @@ export interface SiteSettings {
   wholesaleHeroSubtitle?: string;
   wholesaleSectionHeading?: string;
   wholesaleSectionDescription?: string;
+  wholesaleCalculatorDisclaimer?: string;
+  wholesaleInquiryCtaText?: string;
 
   trustSectionHeading?: string;
   trustSectionDescription?: string;

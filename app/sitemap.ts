@@ -105,7 +105,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   const productRoutes: MetadataRoute.Sitemap = products
-    .filter((prod) => prod.isActive !== false)
+    .filter((prod) => prod.isActive !== false && prod.robotsIndex !== false)
     .map((prod) => ({
       url: `${baseUrl}/products/${prod.slug}`,
       ...(prod.updatedAt ? { lastModified: new Date(prod.updatedAt) } : {}),

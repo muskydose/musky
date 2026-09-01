@@ -152,6 +152,8 @@ export default function WishlistDrawer({ siteSettings: initialSettings }: Wishli
                     onClick={() => {
                       addToCart(product);
                       removeFromWishlist(product.id);
+                      closeWishlist();
+                      openCart();
                     }}
                     className="inline-flex items-center gap-1.5 bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] px-3 py-1 rounded-lg text-[11px] font-bold shadow-2xs active:scale-95 transition-all cursor-pointer"
                   >

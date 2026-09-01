@@ -206,6 +206,11 @@ export const DEFAULT_CMS_TEXT: Required<CmsTextConfig> = {
   wholesaleQuantityPlaceholder: 'e.g. 25 kg / 50 kg / 100 kg',
   wholesaleNotesLabel: 'Additional Notes / Custom Packaging Needs',
   wholesaleNotesPlaceholder: 'Mention any specific sifting grade, packaging preferences, or private label requirements...',
+  wholesaleCalculatorTitle: 'Wholesale Quantity & Tier Pricing Calculator',
+  wholesaleCalculatorSubtitle: 'Calculate approximate factory volume rates based on your requirement.',
+  wholesaleCalculatorDisclaimer: 'Estimated factory pricing based on active volume tiers. Final logistics/shipping rates and commercial GST tax invoicing are confirmed at quotation/order stage based on your delivery destination and packaging format.',
+  wholesalePricingNotice: 'Standard Base Rate / Quote Required',
+  wholesaleInquiryCtaText: 'Get Wholesale Quote with this Estimate',
 
   // Offers
   offersHeroBadge: 'Special Festival & Promotional Deals',

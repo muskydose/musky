@@ -163,7 +163,12 @@ export default async function GrowthOverviewPage() {
       </div>
 
       {/* Quick Navigation Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <Link href="/admin/growth/analytics" className="bg-[#e8f3ed] p-4 rounded-xl border border-[#1b4332]/40 shadow-xs hover:border-[#1b4332] transition-all text-center group">
+          <TrendingUp className="w-6 h-6 text-[#1b4332] mx-auto mb-2 group-hover:scale-110 transition-transform" />
+          <span className="font-bold text-xs text-[#0f2d22] block">Conversion Funnel</span>
+          <span className="text-[10px] text-emerald-800 font-semibold">Store Analytics</span>
+        </Link>
         <Link href="/admin/growth/markets" className="bg-white p-4 rounded-xl border border-[#e8e2d5] shadow-2xs hover:border-[#1b4332] hover:shadow-xs transition-all text-center group">
           <MapPin className="w-6 h-6 text-[#1b4332] mx-auto mb-2 group-hover:scale-110 transition-transform" />
           <span className="font-bold text-xs text-[#0f2d22] block">Market Master</span>

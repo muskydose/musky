@@ -301,6 +301,9 @@ export interface PageSeoResolutionInput {
   defaultDescription: string;
   defaultImage?: string;
   defaultKeywords?: string[];
+  robotsIndex?: boolean | 'index' | 'noindex';
+  robotsFollow?: boolean | 'follow' | 'nofollow';
+  ogImage?: string;
 }
 
 export async function getPageSeoConfigs(): Promise<PageSeoConfig[]> {
@@ -418,11 +421,13 @@ export async function resolvePageSeoMetadata(input: PageSeoResolutionInput) {
   const canonicalUrl = sanitizeCanonicalUrl(rawCanonical, input.targetUrl);
 
   const isPrivate = input.targetUrl.startsWith('/admin') || input.targetUrl.startsWith('/api');
-  const robots = resolveRobotsConfig(pageConfig?.robotsIndex, pageConfig?.robotsFollow, isPrivate);
+  const rawRobotsIndex = pageConfig?.robotsIndex ?? (typeof input.robotsIndex === 'boolean' ? (input.robotsIndex ? 'index' : 'noindex') : input.robotsIndex);
+  const rawRobotsFollow = pageConfig?.robotsFollow ?? (typeof input.robotsFollow === 'boolean' ? (input.robotsFollow ? 'follow' : 'nofollow') : input.robotsFollow);
+  const robots = resolveRobotsConfig(rawRobotsIndex, rawRobotsFollow, isPrivate);
 
   const ogTitle = pageConfig?.ogTitle?.trim() || title;
   const ogDescription = pageConfig?.ogDescription?.trim() || description;
-  const ogImage = pageConfig?.ogImage?.trim() || input.defaultImage || siteSettings.ogImageUrl || siteSettings.heroImageUrl || '/images/hero-bg.jpg';
+  const ogImage = input.ogImage?.trim() || pageConfig?.ogImage?.trim() || input.defaultImage || siteSettings.ogImageUrl || siteSettings.heroImageUrl || '/images/hero-bg.jpg';
 
   return {
     title,

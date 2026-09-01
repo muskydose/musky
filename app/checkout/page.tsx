@@ -11,6 +11,7 @@ import { getClientSiteSettings } from '@/lib/api-client';
 import { sanitizeImageUrl } from '@/lib/utils';
 import CouponInput from '@/components/CouponInput';
 import Navbar from '@/components/Navbar';
+import { trackCheckoutStarted, trackCheckoutValidationError, trackOrderCreated, trackWhatsAppClick } from '@/lib/analytics';
 import { ShoppingBag, ArrowLeft, CheckCircle2, ShieldCheck, AlertCircle, MessageSquare, Truck, ArrowRight, RefreshCw } from 'lucide-react';
 
 const INDIAN_STATES = [
@@ -51,7 +52,10 @@ export default function CheckoutPage() {
         setSiteSettings(data);
       }
     });
-  }, []);
+    if (cart.length > 0) {
+      trackCheckoutStarted(cart.length, totalAmount);
+    }
+  }, [cart.length, totalAmount]);
 
   const checkoutConfig: CheckoutFieldConfig = siteSettings?.checkoutFieldConfig || DEFAULT_CHECKOUT_FIELD_CONFIG;
 
@@ -221,7 +225,34 @@ export default function CheckoutPage() {
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return newErrors;
+  };
+
+  const scrollToFirstError = (fieldErrors: Record<string, string>) => {
+    const errorKeys = Object.keys(fieldErrors);
+    if (errorKeys.length === 0) return;
+
+    const firstKey = errorKeys[0];
+    const targetElement = document.querySelector<HTMLElement>(`[name="${firstKey}"]`);
+
+    if (targetElement) {
+      const prefersReducedMotion =
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      targetElement.scrollIntoView({
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'center',
+      });
+      setTimeout(
+        () => {
+          targetElement.focus({ preventScroll: true });
+        },
+        prefersReducedMotion ? 0 : 250
+      );
+    } else {
+      window.scrollTo({ top: 200, behavior: 'smooth' });
+    }
   };
 
   // Submit Order
@@ -234,8 +265,10 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (!validateForm()) {
-      window.scrollTo({ top: 200, behavior: 'smooth' });
+    const fieldErrors = validateForm();
+    if (Object.keys(fieldErrors).length > 0) {
+      trackCheckoutValidationError(Object.keys(fieldErrors)[0]);
+      scrollToFirstError(fieldErrors);
       return;
     }
 
@@ -288,7 +321,34 @@ export default function CheckoutPage() {
       // Successful order creation in Supabase!
       const savedOrder: Order = result.order;
       setCreatedOrder(savedOrder);
+      trackOrderCreated({
+        orderId: savedOrder.orderNumber || savedOrder.id,
+        itemCount: savedOrder.items?.length || cart.length,
+        totalAmount: savedOrder.totalAmount,
+      });
+      try {
+        const existingOrders = JSON.parse(localStorage.getItem('musky_recent_orders') || '[]');
+        const updatedOrders = [savedOrder, ...existingOrders.filter((o: any) => o.id !== savedOrder.id)].slice(0, 10);
+        localStorage.setItem('musky_recent_orders', JSON.stringify(updatedOrders));
+      } catch (storageErr) {
+        console.warn('Failed to save recent order to localStorage:', storageErr);
+      }
       clearCart();
+
+      // Automatically attempt to launch WhatsApp direct URL for instant user convenience
+      try {
+        const autoMsg = generateStructuredWhatsAppOrderMessage(
+          savedOrder,
+          siteSettings?.whatsappMessageTemplate
+        );
+        const autoDestNum = getConfiguredWhatsAppNumber(siteSettings);
+        const autoWhatsappUrl = getWhatsAppDirectUrl(autoDestNum, autoMsg);
+        if (typeof window !== 'undefined') {
+          window.open(autoWhatsappUrl, '_blank');
+        }
+      } catch (openErr) {
+        console.warn('Automatic WhatsApp launch attempt:', openErr);
+      }
     } catch (err: any) {
       console.error('Checkout error:', err);
       setServerError(err.message || 'An unexpected error occurred while placing your order. Please try again.');
@@ -361,6 +421,13 @@ export default function CheckoutPage() {
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => {
+                trackWhatsAppClick({
+                  source: 'Order Confirmation Screen',
+                  totalAmount: createdOrder.totalAmount,
+                  itemCount: createdOrder.items?.length || 1,
+                });
+              }}
               className="w-full flex items-center justify-center gap-3 px-8 py-4 bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
             >
               <MessageSquare className="w-6 h-6 fill-white" />
