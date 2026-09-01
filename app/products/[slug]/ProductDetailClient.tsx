@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Product } from '@/lib/types';
 import { INITIAL_FAQ_ITEMS } from '@/lib/data-store';
 import { getClientSiteSettings } from '@/lib/api-client';
@@ -52,7 +53,8 @@ export default function ProductDetailClient({
   faqItems,
   relevantGuides = [],
 }: ProductDetailClientProps) {
-  const { addToCart, openCart } = useCart();
+  const router = useRouter();
+  const { addToCart, openCart, closeCart } = useCart();
   const [selectedImage, setSelectedImage] = useState<string>(
     product.images?.[0] || '/images/fallback.svg'
   );
@@ -563,20 +565,23 @@ export default function ProductDetailClient({
                 )}
               </button>
 
-              <Link
-                href="/checkout"
-                onClick={() => {
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
                   if (product.stockStatus === 'out_of_stock') return;
                   addToCart(product, quantity);
+                  closeCart();
+                  router.push('/checkout');
                 }}
-                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-extrabold text-xs sm:text-sm tracking-wider transition-all shadow-sm active:scale-[0.99] ${
+                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-extrabold text-xs sm:text-sm tracking-wider transition-all shadow-sm active:scale-[0.99] cursor-pointer ${
                   product.stockStatus === 'out_of_stock'
                     ? 'bg-gray-200 text-gray-500 cursor-not-allowed pointer-events-none'
                     : 'bg-[#c5a059] hover:bg-[#b38e46] text-[#0f2d22]'
                 }`}
               >
                 <span>Buy Now (Checkout)</span>
-              </Link>
+              </button>
             </div>
 
             <button

@@ -41,7 +41,7 @@ const INDIAN_STATES = [
 ];
 
 export default function CheckoutPage() {
-  const { cart, removeFromCart, updateQuantity, clearCart, totalAmount } = useCart();
+  const { cart, isLoaded, removeFromCart, updateQuantity, clearCart, totalAmount } = useCart();
 
   // Site Settings state
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
@@ -458,7 +458,19 @@ export default function CheckoutPage() {
     );
   }
 
-  // EMPTY CART VIEW
+  // INITIAL CART STORAGE HYDRATION LOADING STATE
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-[#FAF8F5] py-16 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 border-4 border-emerald-800 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm font-medium text-gray-600">Loading your checkout details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // EMPTY CART VIEW (ONLY SHOWN AFTER ISLOADED IS TRUE AND CART IS GENUINELY EMPTY)
   if (cart.length === 0) {
     return (
       <div className="min-h-screen bg-[#FAF8F5] py-16 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
