@@ -294,8 +294,8 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1 sm:max-w-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-4">
+            <div className="relative w-full sm:w-56 sm:max-w-xs">
               <input
                 id="wholesale-quantity-input"
                 type="number"
@@ -306,16 +306,22 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
                   const val = parseInt(e.target.value, 10);
                   setQuantityKg(isNaN(val) ? 0 : Math.max(0, Math.min(10000, val)));
                 }}
-                className="w-full px-4 py-2.5 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-sm font-bold text-[#0f2d22] focus:outline-none focus:border-[#1b4332] focus:ring-2 focus:ring-[#1b4332]/20"
+                className="w-full pl-4 pr-14 py-2.5 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-base font-bold text-[#0f2d22] tabular-nums focus:outline-none focus:border-[#1b4332] focus:ring-2 focus:ring-[#1b4332]/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all"
               />
-              <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-500">
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 px-2 py-0.5 rounded-md bg-[#e8f3ed] text-[#1b4332] text-xs font-extrabold select-none pointer-events-none tracking-tight">
                 kg
               </span>
             </div>
 
-            <div className="text-xs text-gray-600">
-              ≈ <strong className="text-[#0f2d22]">{Math.floor(quantityKg * 10)}</strong> x 100g pouches or{' '}
-              <strong className="text-[#0f2d22]">{(quantityKg / 25).toFixed(1)}</strong> x 25kg bags
+            <div className="text-xs text-[#626c66] flex items-center gap-1.5 flex-wrap">
+              <span>≈</span>
+              <span className="font-semibold text-[#0f2d22] bg-[#f5f1e8] px-2 py-0.5 rounded-md border border-[#e8e2d5]/60">
+                {Math.floor(quantityKg * 10).toLocaleString('en-IN')} pouches (100g)
+              </span>
+              <span>or</span>
+              <span className="font-semibold text-[#0f2d22] bg-[#f5f1e8] px-2 py-0.5 rounded-md border border-[#e8e2d5]/60">
+                {(quantityKg / 25).toFixed(1)} bags (25kg)
+              </span>
             </div>
           </div>
 
