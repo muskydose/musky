@@ -174,15 +174,15 @@ function generateHennaMehndiGuide(
     ? `Detailed guide on applying fresh, natural bridal mehndi cones, achieving dark oxidation tones, and post-application care for maximum stain longevity.`
     : `The definitive guide to authentic Sojat Henna (Mehndi) powder, covering botanical characteristics, batch mixing ratios, resting time, and application techniques.`;
 
-  const overview = `Henna and Mehndi refer to the identical botanical entity, *Lawsonia Inermis*. Cultivated primarily in the arid, mineral-rich soils of Sojat (Pali District, Rajasthan), authentic henna leaves naturally produce lawsone pigment molecules that bond to keratin protein in hair and epidermal skin cells.`;
+  const overview = `Henna and Mehndi refer to the identical botanical entity, *Lawsonia Inermis*. Cultivated in the arid, mineral-rich region of Sojat (Pali District, Rajasthan), natural henna leaves produce plant pigments that coat the hair shaft and top layer of the skin with reddish-brown tones.`;
 
   const whatIsThis = `This product is 100% natural, unadulterated Lawsonia Inermis powder micro-pulverized and cloth-sifted in Sojat, Rajasthan. It contains zero synthetic dyes, PPD, metallic salts, or chemical preservatives.`;
 
   const keyBenefits = benefits.length > 0 ? benefits : [
-    '100% pure Lawsonia Inermis harvested from Sojat, Rajasthan',
-    'Ultra-fine micro-sifted texture ensuring clog-free mehndi cone flow',
-    'Naturally cooling on the scalp and skin',
-    'Safe, gentle botanical coloring for hair and intricate body art',
+    '100% pure Lawsonia Inermis harvested in Sojat, Rajasthan',
+    'Ultra-fine micro-sifted texture ensuring smooth, clog-free mehndi cone flow',
+    'Provides traditional cooling feel on the skin and scalp',
+    'Plant-based botanical coloring for hair application and traditional body art',
     'Zero chemical additives, artificial colors, or metallic salts',
   ];
 
@@ -190,20 +190,20 @@ function generateHennaMehndiGuide(
   const whoShouldAvoid = `Individuals with known plant allergies to Lawsonia Inermis or G6PD deficiency. Always conduct a 24-hour patch test before full application.`;
 
   const quantityPreparation = isCone
-    ? `Cones are ready to use. For mixing paste: Blend 100g sifted powder with warm water/lemon juice, add 30ml eucalyptus/tea tree essential oil, and let rest for 8–12 hours until dye release is visible.`
-    : `Mix 100g henna powder with warm water (or mild black tea) until smooth paste consistency (like Greek yogurt). Cover with plastic wrap and rest at room temperature (25°C–30°C) for 8–12 hours for dye release.`;
+    ? `Cones are ready to use. For mixing powder: Blend 100g sifted powder with warm water/lemon juice, add eucalyptus/tea tree essential oil as desired, and let rest for 8–12 hours at room temperature.`
+    : `Mix 100g henna powder with warm water (or mild black tea) until smooth paste consistency. Cover and rest at room temperature (25°C–30°C) for 8–12 hours for natural dye release.`;
 
   const howToUse = isCone
     ? `1. Wash and dry skin thoroughly (avoid oils or lotions).\n2. Snip the cone tip to desired thickness.\n3. Apply intricate designs.\n4. Allow paste to dry for 20–30 minutes, then apply lemon-sugar sealant.\n5. Keep on skin for 4–8 hours for deep stain.`
     : `1. Ensure hair or skin is clean and oil-free.\n2. Section hair evenly and apply thick paste from roots to tips using gloves.\n3. Cover with a shower cap to keep paste moist.\n4. Leave on for 2–4 hours (hair) or 4–8 hours (body art).\n5. Rinse thoroughly with plain water; avoid shampoo for 24–48 hours for oxidation.`;
 
   const storageInstructions = `Store in an airtight, moisture-proof container in a cool, dry place away from direct sunlight. Once mixed into paste, freeze excess paste for up to 3 months.`;
-  const importantNotes = `Natural henna stains oxidize gradually from bright orange to deep mahogany/auburn brown over 24–48 hours. Never apply hot water (>60°C) as excessive heat degrades lawsone dye molecules.`;
+  const importantNotes = `Natural henna stains oxidize gradually from bright orange to deep mahogany/auburn brown over 24–48 hours. Avoid boiling water (>60°C) when mixing to preserve natural botanical quality.`;
 
   const faqs: ProductGuideFAQ[] = [
     {
       question: 'Is there any difference between Henna and Mehndi?',
-      answer: 'No. "Henna" (English/Arabic) and "Mehndi" (Hindi/Sanskrit) refer to the exact same botanical plant, Lawsonia Inermis. Musky Dose uses these terms interchangeably for the same pure Sojat harvest.',
+      answer: 'No. "Henna" and "Mehndi" refer to the exact same botanical plant, Lawsonia Inermis. Musky Dose uses these terms interchangeably for the same pure Sojat harvest.',
     },
     {
       question: 'How long does natural henna dye release take?',
@@ -215,7 +215,7 @@ function generateHennaMehndiGuide(
     },
     {
       question: 'Can this henna powder be used for both hair and body art cones?',
-      answer: 'Yes. Our Body Art Quality (BAQ) henna is micro-sifted to 0.05mm, making it ideal for smooth cone flow without clogging, as well as conditioning hair packs.',
+      answer: 'Yes. Our Body Art Quality (BAQ) henna is cloth-sifted for a fine texture, making it suitable for smooth cone flow as well as hair packs.',
     },
   ];
 
@@ -314,39 +314,39 @@ function generateIndigoGuide(
 
   const shortIntro = `Master the traditional 2-step botanical method using pure Indigofera Tinctoria powder with Henna to achieve natural rich brown to jet black hair color without chemical dyes or PPD.`;
 
-  const overview = `*Indigofera Tinctoria* (True Indigo) is a leguminous botanical that produces indigotin dye molecules. Unlike synthetic black dyes that penetrate and damage hair cuticles, pure indigo works in synergy with henna to deposit natural pigments along the hair shaft.`;
+  const overview = `*Indigofera Tinctoria* (True Indigo) is a natural botanical plant. When used in combination with henna, pure indigo deposits botanical color on the outer layer of the hair shaft, providing deep brown to black tones without synthetic chemicals.`;
 
-  const whatIsThis = `100% pure, freshly harvested Indigo leaf powder with zero additives, peroxide, ammonia, or synthetic fillers.`;
+  const whatIsThis = `100% pure, unadulterated Indigo leaf powder with zero additives, peroxide, ammonia, or synthetic fillers.`;
 
   const keyBenefits = benefits.length > 0 ? benefits : [
     '100% pure Indigofera Tinctoria leaf powder',
-    'Provides natural brown to jet black color when used with henna',
-    'Strengthens hair strands and adds lustrous volume',
+    'Provides natural brown to black tones when used in combination with henna',
+    'Coats the hair cuticle for a smoother feel and natural look',
     'Completely free of PPD, ammonia, peroxide, and metallic salts',
   ];
 
-  const whoShouldUse = `Individuals looking for a completely natural, chemical-free alternative to synthetic black hair dyes, especially for covering greys with the 2-step henna-indigo process.`;
-  const whoShouldAvoid = `Indigo should never be applied alone directly on white/grey hair, as it will produce a greenish-blue hue. Always apply over henna-treated hair or in a henna-indigo blend. Patch test required.`;
+  const whoShouldUse = `Individuals seeking a natural plant-based alternative to synthetic hair dyes, particularly when used in the 2-step henna-and-indigo routine.`;
+  const whoShouldAvoid = `Indigo should not be applied alone on white or grey hair without a henna base, as it produces a greenish-blue tint. Always conduct a 24-hour patch test before full use.`;
 
-  const quantityPreparation = `Mix 100g indigo powder with lukewarm water (40°C–50°C) and a pinch of salt to assist dye uptake. Indigo requires NO resting time—apply within 15–20 minutes of mixing, as indigotin dye oxidizes quickly.`;
+  const quantityPreparation = `Mix 100g indigo powder with lukewarm water (40°C–50°C) into a smooth paste. Apply within 15–20 minutes of mixing, as indigo oxidizes quickly once hydrated.`;
 
-  const howToUse = `**The 2-Step Process for Jet Black Hair:**\n1. **Step 1 (Henna):** Apply pure henna paste, leave for 2–3 hours, then rinse with water. Hair will be copper-red.\n2. **Step 2 (Indigo):** Immediately apply freshly mixed indigo paste. Leave for 1–2 hours.\n3. Rinse with plain water. Color deepens over 48 hours.`;
+  const howToUse = `**The Traditional 2-Step Process:**\n1. **Step 1 (Henna):** Apply pure henna paste, leave for 2–3 hours, then rinse with water.\n2. **Step 2 (Indigo):** Immediately apply freshly mixed indigo paste. Leave for 1–2 hours.\n3. Rinse with plain water.`;
 
-  const storageInstructions = `Indigo is light- and oxygen-sensitive. Store in a double-sealed, airtight pouch away from moisture and heat. Do not freeze mixed indigo paste.`;
-  const importantNotes = `Do not shampoo for 48 hours after indigo application to allow the indigotin pigment to fully oxidize with atmospheric oxygen into rich black.`;
+  const storageInstructions = `Store in a tightly sealed, airtight pouch away from moisture and direct light.`;
+  const importantNotes = `Avoid shampooing for 24–48 hours after application to allow natural plant color oxidation.`;
 
   const faqs: ProductGuideFAQ[] = [
     {
       question: 'Can I apply Indigo powder directly on grey hair without Henna?',
-      answer: 'No. Indigo on untreated white/grey hair results in a light greenish-blue tint. Henna acts as the red base primer that binds with indigo to produce deep brown and black tones.',
+      answer: 'Indigo applied alone on white or grey hair produces a greenish-blue hue. Henna serves as the warm red base that combines with indigo to produce natural brown and black tones.',
     },
     {
-      question: 'How much time does Indigo take to release its dye?',
-      answer: 'Unlike henna, indigo releases its dye almost immediately (within 10–15 minutes). It must be applied quickly before the pigment oxidizes in the mixing bowl.',
+      question: 'How quickly should Indigo be applied after mixing?',
+      answer: 'Indigo should be applied within 15 to 20 minutes of mixing with water, before the mixture oxidizes in the bowl.',
     },
     {
-      question: 'How long does the 2-step color last?',
-      answer: 'Natural henna-indigo coloring typically lasts 4 to 6 weeks depending on hair washing frequency and growth cycle.',
+      question: 'How long does the botanical color typically remain visible?',
+      answer: 'Color longevity varies depending on individual hair texture, washing frequency, and hair care routine.',
     },
   ];
 
@@ -355,10 +355,10 @@ function generateIndigoGuide(
 ### Understanding Botanical Indigo
 ${overview}
 
-### The Science of 2-Step Natural Color
+### The 2-Step Natural Coloring Method
 ${whatIsThis}
 
-### Key Verified Benefits
+### Key Verified Characteristics
 ${keyBenefits.map((b) => `- **${b}**`).join('\n')}
 
 ### Preparation & Mixing
@@ -367,8 +367,8 @@ ${quantityPreparation}
 ### Step-by-Step Application
 ${howToUse}
 
-### Precautions & Suitability
-- **Ideal for:** ${whoShouldUse}
+### Precautionary Notes
+- **Suitable for:** ${whoShouldUse}
 - **Precaution:** ${whoShouldAvoid}
 
 ### Storage
@@ -424,39 +424,39 @@ function generateAmlaGuide(
   productId: string,
   relatedProductIds: string[]
 ): AutoGeneratedGuideDraft {
-  const title = `Pure Amla Powder Guide: Traditional Hair Strengthening & Scalp Care`;
+  const title = `Pure Amla Powder Guide: Traditional Hair Conditioning & Scalp Pack`;
   const slug = `${rawSlug}-guide`;
   const primaryKeyword = 'pure amla powder for hair';
-  const secondaryKeywords = ['phyllanthus emblica powder', 'ayurvedic amla hair mask', 'natural vitamin c hair tonic', 'amla reetha shikakai pack'];
+  const secondaryKeywords = ['phyllanthus emblica powder', 'ayurvedic amla hair mask', 'natural amla hair pack', 'amla reetha shikakai pack'];
   const longTailKeywords = ['how to mix amla powder for hair conditioning', 'amla with henna for cooler brown tone'];
 
-  const shortIntro = `A comprehensive guide to utilizing pure Indian Gooseberry (Phyllanthus Emblica) powder for nourishing scalp packs, hair conditioning, and toning henna mixes.`;
-  const overview = `*Phyllanthus Emblica* (Amla) is revered in Ayurvedic tradition for its naturally occurring antioxidants, tannins, and vitamin C. When applied topically to the scalp and hair, it helps clarify sebum, condition hair shafts, and tone henna pastes.`;
-  const whatIsThis = `100% stone-ground Indian Amla fruit pulp and pericarp dried hygienically without sulfur or bleaching agents.`;
+  const shortIntro = `A practical guide to using pure Indian Gooseberry (Phyllanthus Emblica) powder for nourishing scalp packs, natural hair conditioning, and toning henna mixes.`;
+  const overview = `*Phyllanthus Emblica* (Amla) is a traditional Indian botanical fruit used in herbal scalp packs. When used topically, it gently conditions the hair shaft and can help tone down warm tones in henna mixtures.`;
+  const whatIsThis = `100% stone-ground Indian Amla fruit pulp and pericarp dried hygienically without sulfur, additives, or chemical preservatives.`;
 
   const keyBenefits = benefits.length > 0 ? benefits : [
-    'Rich in natural botanical tannins and antioxidants',
-    'Conditions hair cuticle for smooth texture and natural shine',
-    'Tones down red/orange brassiness when mixed with henna',
-    'Gently clarifies scalp buildup and excess oil',
+    'Pure Phyllanthus Emblica fruit powder',
+    'Conditions hair strands for a manageable feel and natural look',
+    'Can be mixed with henna paste to achieve deeper, cooler tones',
+    'Traditional botanical scalp pack ingredient',
   ];
 
-  const whoShouldUse = `Anyone looking for botanical scalp nourishment, natural hair strengthening, or adjusting henna stain tones.`;
-  const whoShouldAvoid = `Individuals with sensitive scalps or citrus/tannin sensitivities. Perform patch test.`;
+  const whoShouldUse = `Individuals seeking pure herbal scalp packs, traditional hair conditioning, or adjusting henna paste tones.`;
+  const whoShouldAvoid = `Individuals with known sensitivities to Amla or citrus fruits. Conduct a standard patch test before use.`;
 
-  const quantityPreparation = `Mix 2–3 tablespoons of Amla powder with warm water, herbal tea, or yogurt to form a smooth mask. For henna toning, add 1 part Amla to 4 parts Henna.`;
-  const howToUse = `Apply mask to damp hair and scalp, massage gently, leave for 30–45 minutes, then rinse with lukewarm water.`;
+  const quantityPreparation = `Mix 2–3 tablespoons of Amla powder with warm water or yogurt into a smooth paste. For henna toning, combine 1 part Amla with 4 parts Henna.`;
+  const howToUse = `Apply mask to damp hair and scalp, leave for 30–45 minutes, then rinse thoroughly with plain lukewarm water.`;
   const storageInstructions = `Keep in an airtight jar in a cool, dry place. Reseal tightly after each use.`;
-  const importantNotes = `Amla is naturally acidic and may slightly tone down the fiery copper hues of henna into a deeper auburn.`;
+  const importantNotes = `Amla is naturally acidic and may slightly mute bright orange tones in henna towards deeper brown.`;
 
   const faqs: ProductGuideFAQ[] = [
     {
       question: 'Does Amla powder dye grey hair black on its own?',
-      answer: 'No. Pure Amla contains tannins but is not a permanent black dye. It conditions hair and enhances darkness when combined with henna and indigo.',
+      answer: 'No. Pure Amla is a conditioning botanical and not a black hair dye. It can be mixed with henna and indigo to adjust color tones.',
     },
     {
       question: 'How often can I use an Amla hair mask?',
-      answer: 'Using an Amla scalp mask once a week is ideal for healthy scalp maintenance and conditioning.',
+      answer: 'Using an Amla scalp mask once a week is a common traditional routine for conditioning.',
     },
   ];
 
@@ -508,38 +508,38 @@ function generateHibiscusGuide(
   productId: string,
   relatedProductIds: string[]
 ): AutoGeneratedGuideDraft {
-  const title = `Pure Hibiscus Flower Petal Powder Guide: Scalp Conditioning & Shine`;
+  const title = `Pure Hibiscus Flower Petal Powder Guide: Scalp Conditioning & Hair Pack`;
   const slug = `${rawSlug}-guide`;
   const primaryKeyword = 'pure hibiscus powder for hair';
-  const secondaryKeywords = ['hibiscus rosa-sinensis petal powder', 'natural mucilage hair mask', 'gudhul powder benefits'];
-  const longTailKeywords = ['how to make hibiscus hair mask at home', 'mixing hibiscus with henna for red shine'];
+  const secondaryKeywords = ['hibiscus rosa-sinensis petal powder', 'natural hibiscus hair mask', 'gudhul powder benefits'];
+  const longTailKeywords = ['how to make hibiscus hair mask at home', 'mixing hibiscus with henna for red tone'];
 
-  const shortIntro = `Discover the botanical benefits of shade-dried *Hibiscus Rosa-Sinensis* petal powder for hydrating scalp packs, natural slip, and radiant hair gloss.`;
-  const overview = `Hibiscus petals are naturally rich in botanical mucilage, amino acids, and flavonoids. When blended with water, the powder creates a soothing, slippery gel consistency that deeply conditions hair.`;
-  const whatIsThis = `100% pure shade-dried red hibiscus petals finely milled into micro-powder without artificial colors or preservatives.`;
+  const shortIntro = `Discover practical uses of shade-dried *Hibiscus Rosa-Sinensis* petal powder for botanical scalp packs, natural conditioning, and adding gloss to hair.`;
+  const overview = `*Hibiscus Rosa-Sinensis* flower petals contain natural plant mucilage that creates a smooth gel texture when mixed with water, traditionally used to condition dry hair strands.`;
+  const whatIsThis = `100% pure shade-dried red hibiscus petals finely milled into a smooth botanical powder without artificial colors or preservatives.`;
 
   const keyBenefits = benefits.length > 0 ? benefits : [
-    'Natural botanical mucilage provides excellent comb-through slip',
-    'Deeply conditions dry, brittle hair strands',
-    'Adds rich luster and enhances burgundy tones in henna mixes',
-    'Soothes dry, irritated scalps naturally',
+    'Natural plant mucilage provides smooth comb-through slip',
+    'Conditions hair strands for a soft and manageable feel',
+    'Enhances reddish-burgundy undertones when mixed with henna paste',
+    'Pure dried flower petal powder with zero chemical fillers',
   ];
 
-  const whoShouldUse = `Those with dry, frizzy hair, dry scalps, or anyone wanting natural slip in herbal hair wash recipes.`;
-  const whoShouldAvoid = `Individuals with known floral sensitivities. Standard 24h patch test recommended.`;
-  const quantityPreparation = `Mix 2 tablespoons of hibiscus powder with warm water, aloe vera juice, or yogurt to form a creamy, viscous paste.`;
-  const howToUse = `Apply from scalp to ends, leave on for 30 minutes under a shower cap, and rinse thoroughly with plain water.`;
-  const storageInstructions = `Store in a cool, dark place in an airtight container to preserve petal freshness.`;
-  const importantNotes = `Natural hibiscus produces a deep reddish-purple paste that does not permanently dye hair on its own but enhances red undertones.`;
+  const whoShouldUse = `Individuals seeking natural botanical conditioning or wanting to mix hibiscus into henna hair packs.`;
+  const whoShouldAvoid = `Individuals with known floral allergies. Conduct a standard 24h patch test before use.`;
+  const quantityPreparation = `Mix 2 tablespoons of hibiscus powder with warm water, aloe vera, or yogurt into a creamy paste.`;
+  const howToUse = `Apply from scalp to hair ends, leave on for 20–30 minutes under a shower cap, and rinse thoroughly with plain water.`;
+  const storageInstructions = `Store in a cool, dry place in an airtight container away from direct sunlight.`;
+  const importantNotes = `Natural hibiscus creates a deep reddish-purple paste that does not permanently dye hair on its own, but complements warm tones in henna.`;
 
   const faqs: ProductGuideFAQ[] = [
     {
       question: 'Can Hibiscus powder be added to Henna paste?',
-      answer: 'Yes! Adding 15–20% Hibiscus powder to henna paste enhances moisture, improves paste texture, and promotes rich reddish undertones.',
+      answer: 'Yes. Adding 15% to 20% Hibiscus powder to a henna paste mix adds moisture and complements warm reddish undertones.',
     },
   ];
 
-  const content = `## Complete Guide to ${name}\n\n### Botanical Overview\n${overview}\n\n### Key Benefits\n${keyBenefits.map((b) => `- ${b}`).join('\n')}\n\n### How to Use\n${howToUse}\n`;
+  const content = `## Complete Guide to ${name}\n\n### Botanical Overview\n${overview}\n\n### Verified Characteristics\n${keyBenefits.map((b) => `- ${b}`).join('\n')}\n\n### How to Use\n${howToUse}\n`;
 
   return {
     title,
@@ -589,31 +589,31 @@ function generateRoseGuide(
 ): AutoGeneratedGuideDraft {
   const isWater = name.toLowerCase().includes('water') || name.toLowerCase().includes('mist') || name.toLowerCase().includes('jal');
   const title = isWater
-    ? `Damask Rose Water Spray Guide: Pure Hydrosol Toning & Skin Refreshment`
-    : `Pure Damask Rose Petal Powder Guide: Natural Face Masks & Glow`;
+    ? `Damask Rose Water Spray Guide: Pure Hydrosol Toning & Facial Mist`
+    : `Pure Damask Rose Petal Powder Guide: Natural Face Masks & Skincare`;
 
   const slug = `${rawSlug}-guide`;
   const primaryKeyword = isWater ? 'pure damask rose water' : 'rose petal powder for face';
-  const secondaryKeywords = ['rosa damascena hydrosol', 'natural skin toner', 'sojat rose water', 'ayurvedic face mask'];
-  const longTailKeywords = ['how to use pure rose water toner', 'rose petal powder and sandalwood face pack'];
+  const secondaryKeywords = ['rosa damascena hydrosol', 'natural face mist', 'sojat rose water', 'ayurvedic face mask'];
+  const longTailKeywords = ['how to use pure rose water toner', 'rose petal powder face pack recipe'];
 
   const shortIntro = isWater
-    ? `A practical guide to incorporating 100% steam-distilled Damask Rose water into your daily skincare routine for balanced pH, hydration, and soothing relief.`
-    : `Step-by-step instructions for crafting revitalizing herbal face masks and body polishes using stone-milled Rajasthan Damask Rose petals.`;
+    ? `A practical guide on using 100% steam-distilled Damask Rose water as a daily botanical facial mist and gentle skin refresher.`
+    : `Step-by-step instructions for preparing natural face masks and herbal skin packs using stone-milled Rajasthan Damask Rose petals.`;
 
-  const overview = `*Rosa Damascena* (Damask Rose) is celebrated for its delicate natural aromatic volatiles, mild astringency, and cooling properties that help soothe and tone all skin types.`;
+  const overview = `*Rosa Damascena* (Damask Rose) is celebrated for its delicate natural botanical aroma and soothing feel on the skin.`;
   const whatIsThis = isWater
-    ? `Steam-distilled pure rose hydrosol collected during traditional copper deg distillation without artificial perfumes or alcohol.`
-    : `Finely milled, shade-dried Damask Rose flower petals with zero added fragrance or fillers.`;
+    ? `Steam-distilled pure rose hydrosol collected during traditional distillation without added synthetic perfumes, alcohol, or parabens.`
+    : `Finely milled, shade-dried Damask Rose flower petals with zero added fragrance, colorants, or fillers.`;
 
   const keyBenefits = benefits.length > 0 ? benefits : [
-    'Naturally balances skin pH and tightens pores gently',
-    'Provides soothing hydration for sensitive, sun-exposed skin',
+    'Provides soothing hydration and a refreshed feeling on the skin',
+    'Gentle botanical facial toner suitable for daily use',
     '100% pure botanical with zero alcohol, artificial aroma, or parabens',
   ];
 
-  const whoShouldUse = `Suitable for all skin types, including sensitive and dry skin, seeking natural hydration and tone.`;
-  const whoShouldAvoid = `Individuals with known floral allergies. Patch test recommended.`;
+  const whoShouldUse = `Individuals seeking natural, alcohol-free facial hydration or botanical mixers for dry face packs.`;
+  const whoShouldAvoid = `Individuals with known floral sensitivities. Conduct a patch test before first use.`;
   const quantityPreparation = isWater
     ? `Ready to use. Spritz directly onto cleansed skin morning and evening, or use to activate dry face packs.`
     : `Mix 1 tablespoon of rose petal powder with raw milk, yogurt, or rose water into a creamy paste.`;
@@ -622,17 +622,17 @@ function generateRoseGuide(
     ? `1. Cleanse face with mild water.\n2. Hold bottle 6 inches away and spritz 3–4 times.\n3. Gently pat into skin before applying moisturizer.`
     : `1. Apply paste evenly over face avoiding the eye area.\n2. Allow to rest for 10–15 minutes.\n3. Rinse with cool water and pat dry.`;
 
-  const storageInstructions = `Store in a cool place away from direct heat and sunlight. Refrigeration provides an extra cooling sensation.`;
-  const importantNotes = `Natural rose aroma is subtle and botanical, unlike synthetic perfumed rose products.`;
+  const storageInstructions = `Store in a cool place away from direct heat and sunlight.`;
+  const importantNotes = `Natural rose aroma is subtle and botanical, unlike synthetic perfumed products.`;
 
   const faqs: ProductGuideFAQ[] = [
     {
       question: 'Is this Rose Water steam-distilled?',
-      answer: 'Yes. Musky Dose Damask Rose Water is hydro-distilled to capture pure floral waters and essential oil micro-droplets without alcohol.',
+      answer: 'Yes. Musky Dose Damask Rose Water is hydro-distilled to capture pure floral waters without added alcohol or synthetic perfumes.',
     },
   ];
 
-  const content = `## Guide to ${name}\n\n### Overview\n${overview}\n\n### Benefits\n${keyBenefits.map((b) => `- ${b}`).join('\n')}\n\n### Instructions\n${howToUse}\n`;
+  const content = `## Guide to ${name}\n\n### Overview\n${overview}\n\n### Verified Benefits\n${keyBenefits.map((b) => `- ${b}`).join('\n')}\n\n### Instructions\n${howToUse}\n`;
 
   return {
     title,
@@ -680,27 +680,27 @@ function generateMoringaGuide(
   productId: string,
   relatedProductIds: string[]
 ): AutoGeneratedGuideDraft {
-  const title = `Pure Moringa Leaf Powder Guide: Nutritional & Topical Herbal Applications`;
+  const title = `Pure Moringa Leaf Powder Guide: Traditional Botanical Uses & Face Packs`;
   const slug = `${rawSlug}-guide`;
   const primaryKeyword = 'pure moringa leaf powder';
-  const secondaryKeywords = ['moringa oleifera powder', 'organic drumstick leaf powder', 'herbal moringa pack'];
+  const secondaryKeywords = ['moringa oleifera powder', 'moringa leaf powder', 'herbal moringa pack'];
   const longTailKeywords = ['how to use moringa powder for face pack', 'pure rajasthan moringa leaf powder'];
 
-  const shortIntro = `A complete guide on utilizing shade-dried *Moringa Oleifera* leaf powder for clarifying botanical skincare packs and herbal wellness routines.`;
-  const overview = `*Moringa Oleifera* is known as the "Miracle Tree" due to its rich concentration of chlorophyll, plant amino acids, and minerals.`;
+  const shortIntro = `A guide on using shade-dried *Moringa Oleifera* leaf powder for clarifying botanical skincare packs and herbal wellness routines.`;
+  const overview = `*Moringa Oleifera* is a traditional Indian botanical plant. Its dried leaves are ground into fine herbal powder for topical masks.`;
   const whatIsThis = `100% pure shade-dried, unbleached Moringa leaf powder ground to a smooth fine grade.`;
 
   const keyBenefits = benefits.length > 0 ? benefits : [
-    'Rich in natural chlorophyll and plant antioxidants',
-    'Helps clarify skin impurities in DIY face packs',
-    'Pure botanical leaf powder with zero fillers',
+    'Pure Moringa Oleifera leaf powder',
+    'Useful as a clarifying botanical ingredient in DIY face packs',
+    'Pure leaf powder with zero additives or preservatives',
   ];
 
   const whoShouldUse = `Enthusiasts of herbal botanical care looking for natural clarifying and nourishing packs.`;
   const whoShouldAvoid = `Conduct standard patch test before topical facial application.`;
   const quantityPreparation = `Mix 1 tablespoon with honey, yogurt, or rose water to form a smooth paste.`;
   const howToUse = `Apply evenly to skin, leave for 10–15 minutes, then rinse gently with warm water.`;
-  const storageInstructions = `Store in an airtight jar in a dark, cool cupboard to preserve natural green chlorophyll.`;
+  const storageInstructions = `Store in an airtight jar in a dark, cool place.`;
   const importantNotes = `Keep away from moisture to prevent clumping.`;
 
   const faqs: ProductGuideFAQ[] = [
