@@ -145,6 +145,10 @@ export default function ProductFormClient({
     });
   };
 
+  const [autoFilling, setAutoFilling] = useState(false);
+  const [hasManuallyEdited, setHasManuallyEdited] = useState(false);
+  const [autoFillChecklist, setAutoFillChecklist] = useState<any | null>(null);
+
   // Track unsaved changes warning
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -159,12 +163,14 @@ export default function ProductFormClient({
 
   const updateForm = (key: keyof Product, value: any) => {
     setIsDirty(true);
+    setHasManuallyEdited(true);
     setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleCategoryChange = (catId: string) => {
     const selected = categories.find((c) => c.id === catId);
     setIsDirty(true);
+    setHasManuallyEdited(true);
     setFormData((prev) => ({
       ...prev,
       categoryId: catId,
@@ -172,6 +178,77 @@ export default function ProductFormClient({
     }));
   };
 
+  const handleOneClickAutoFill = async () => {
+    const productName = formData.name?.trim();
+    if (!productName) {
+      setError('Please enter a Product Name before clicking Auto-Fill.');
+      return;
+    }
+
+    if (hasManuallyEdited) {
+      const confirmed = window.confirm(
+        'You have manually edited fields in this product. Auto-Fill will refresh botanical description, SEO, and usage details based on the product name. Do you want to continue?'
+      );
+      if (!confirmed) return;
+    }
+
+    setAutoFilling(true);
+    setError('');
+    try {
+      const res = await fetch('/api/admin/products/auto-fill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productName,
+          categoryId: formData.categoryId,
+          categoryName: formData.categoryName,
+          productType: formData.productType,
+          quantityOrWeight: formData.quantityOrWeight,
+          price: formData.price,
+          compareAtPrice: formData.compareAtPrice,
+          sku: formData.sku,
+          images: formData.images,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to auto-fill product details.');
+      }
+
+      const d = data.draft;
+      setFormData((prev) => ({
+        ...prev,
+        name: d.name || prev.name,
+        slug: !prev.slug || prev.slug === 'new-product' || !initialProduct ? d.slug : prev.slug,
+        categoryId: d.categoryId || prev.categoryId,
+        categoryName: d.categoryName || prev.categoryName,
+        productType: d.productType || prev.productType,
+        quantityOrWeight: d.quantityOrWeight || prev.quantityOrWeight,
+        shortDescription: d.shortDescription || prev.shortDescription,
+        fullDescription: d.fullDescription || prev.fullDescription,
+        ingredients: d.ingredients || prev.ingredients,
+        benefits: d.benefits || prev.benefits,
+        usageInstructions: d.usageInstructions || prev.usageInstructions,
+        seoTitle: d.seoTitle || prev.seoTitle,
+        seoDescription: d.seoDescription || prev.seoDescription,
+        seoKeywords: d.seoKeywords || prev.seoKeywords,
+        stockStatus: d.stockStatus || prev.stockStatus,
+        robotsIndex: d.robotsIndex ?? prev.robotsIndex,
+        robotsFollow: d.robotsFollow ?? prev.robotsFollow,
+      }));
+
+      setAutoFillChecklist(d.checklist);
+      setIsDirty(true);
+      setHasManuallyEdited(false);
+      setSuccessMsg('✨ Product successfully Auto-Filled! Please review fields, confirm price/SKU/images, and Save.');
+      setTimeout(() => setSuccessMsg(''), 6000);
+    } catch (err: any) {
+      setError(err.message || 'Auto-fill failed.');
+    } finally {
+      setAutoFilling(false);
+    }
+  };
 
   const handleApplyAutoFillDraft = (draft: ProductAutoFillDraft, strategy: 'empty_only' | 'overwrite_all') => {
     setIsDirty(true);
@@ -455,12 +532,72 @@ export default function ProductFormClient({
         </div>
       )}
 
-      {successMsg && (
-        <div className="bg-emerald-100 border border-emerald-400 text-emerald-800 text-xs p-4 rounded-xl font-bold flex items-center gap-2">
-          <CheckCircle className="w-4 h-4 text-emerald-600" />
-          <span>{successMsg}</span>
+      {/* Universal Product Auto-Fill Banner & Quick Actions */}
+      <div className="bg-[#183F2B] text-white p-5 rounded-2xl shadow-sm border border-[#183F2B]/20 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-[#C5A059]" />
+              <h2 className="text-sm font-extrabold tracking-wide uppercase text-white">
+                Universal Product Auto-Fill & Publish Engine
+              </h2>
+            </div>
+            <p className="text-xs text-[#FAF8F5]/80 max-w-xl">
+              Enter a product title and click Auto-Fill to automatically derive botanical descriptions, ingredients, usage, Auto-SEO, and search indexing.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleOneClickAutoFill}
+              disabled={autoFilling || !formData.name?.trim()}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#C5A059] text-[#183F2B] text-xs font-extrabold rounded-xl hover:bg-[#b59149] transition-all shadow-sm cursor-pointer disabled:opacity-50"
+            >
+              <Sparkles className={`w-4 h-4 ${autoFilling ? 'animate-spin' : ''}`} />
+              <span>{autoFilling ? 'Generating Product Draft...' : '✨ AUTO-FILL PRODUCT'}</span>
+            </button>
+          </div>
         </div>
-      )}
+
+        {/* Live Readiness Indicators */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 pt-3 border-t border-white/10 text-[11px] font-bold">
+          <div className="flex items-center gap-1.5 bg-white/10 px-2.5 py-1.5 rounded-lg text-emerald-300">
+            <CheckCircle className="w-3.5 h-3.5" />
+            <span>Product Data</span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-white/10 px-2.5 py-1.5 rounded-lg text-emerald-300">
+            <CheckCircle className="w-3.5 h-3.5" />
+            <span>Auto-SEO</span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-white/10 px-2.5 py-1.5 rounded-lg text-emerald-300">
+            <CheckCircle className="w-3.5 h-3.5" />
+            <span>Search Index</span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-white/10 px-2.5 py-1.5 rounded-lg text-emerald-300">
+            <CheckCircle className="w-3.5 h-3.5" />
+            <span>Schema.org</span>
+          </div>
+          <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${
+            formData.price && formData.price > 0 ? 'bg-white/10 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+          }`}>
+            {formData.price && formData.price > 0 ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+            <span>{formData.price && formData.price > 0 ? `Price: ₹${formData.price}` : 'Price Needed'}</span>
+          </div>
+          <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${
+            formData.sku && formData.sku !== 'MD-888' ? 'bg-white/10 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+          }`}>
+            {formData.sku && formData.sku !== 'MD-888' ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+            <span>{formData.sku && formData.sku !== 'MD-888' ? `SKU: ${formData.sku}` : 'SKU Needed'}</span>
+          </div>
+          <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${
+            formData.images && formData.images.length > 0 && !formData.images[0].includes('fallback') ? 'bg-white/10 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+          }`}>
+            {formData.images && formData.images.length > 0 && !formData.images[0].includes('fallback') ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+            <span>{formData.images && formData.images.length > 0 && !formData.images[0].includes('fallback') ? 'Image Added' : 'Image Needed'}</span>
+          </div>
+        </div>
+      </div>
 
       {/* Main Form Container */}
       <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-[#e8e2d5] shadow-xs overflow-hidden">
