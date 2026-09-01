@@ -419,25 +419,29 @@ export default function CheckoutPage() {
           <div className="pt-2 space-y-3">
             <a
               href={whatsappUrl}
-              onClick={(e) => {
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => {
                 trackWhatsAppClick({
                   source: 'Order Confirmation Screen',
                   totalAmount: createdOrder.totalAmount,
                   itemCount: createdOrder.items?.length || 1,
                 });
-                if (typeof window !== 'undefined') {
-                  window.location.href = whatsappUrl;
-                }
               }}
-              className="w-full flex items-center justify-center gap-3 px-8 py-4 bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 cursor-pointer"
+              className="w-full flex items-center justify-center gap-3 px-8 py-4 bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 cursor-pointer text-center"
             >
-              <MessageSquare className="w-6 h-6 fill-white" />
+              <MessageSquare className="w-6 h-6 fill-white shrink-0" />
               <span>CONTINUE TO WHATSAPP TO CONFIRM ORDER</span>
             </a>
 
-            <p className="text-xs text-gray-500">
-              Opens WhatsApp directly with your complete order details pre-filled.
-            </p>
+            <div className="flex items-center justify-center gap-3 text-xs text-gray-500 pt-1">
+              <a
+                href={whatsappUrl}
+                className="text-emerald-700 hover:text-emerald-900 font-semibold underline"
+              >
+                Tap here if WhatsApp did not open automatically
+              </a>
+            </div>
           </div>
 
           <div className="border-t border-gray-100 pt-6 flex items-center justify-center gap-4 text-xs text-gray-500">

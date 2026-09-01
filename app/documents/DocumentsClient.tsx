@@ -117,7 +117,7 @@ export default function DocumentsClient({ initialItems, siteSettings }: Document
       // ONLY AFTER database success, open WhatsApp and close modal
       const num = getConfiguredWhatsAppNumber(siteSettings);
       const text = encodeURIComponent(
-        `B2B COA / Testing Request:\nName: ${trimmedName}\nPhone: ${cleanPhone}\nRequired Test / COA: ${trimmedReq}\n\nSource: muskydose.in/documents`
+        `B2B COA / Testing Request:\nName: ${trimmedName}\nPhone: ${cleanPhone}\nRequired Test / COA: ${trimmedReq}\n\nSource: https://muskydose.in/documents`
       );
 
       setShowCoaModal(false);

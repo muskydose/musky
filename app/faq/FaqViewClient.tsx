@@ -77,7 +77,7 @@ export default function FaqViewClient({ settings, faqItems }: FaqViewClientProps
       }
 
       const text = encodeURIComponent(
-        `FAQ Inquiry:\nName: ${cleanName}\nMobile: ${cleanPhone}\nQuestion: ${cleanText}\n\nSource: muskydose.in/faq`
+        `FAQ Inquiry:\nName: ${cleanName}\nMobile: ${cleanPhone}\nQuestion: ${cleanText}\n\nSource: https://muskydose.in/faq`
       );
       setShowQuestionModal(false);
       const waUrl = `https://wa.me/${activeWhatsAppNumber}?text=${text}`;
