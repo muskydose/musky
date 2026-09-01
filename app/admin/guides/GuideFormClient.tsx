@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ProductGuide, ProductGuideFAQ, Product } from '@/lib/types';
+import { deriveProductGuide } from '@/lib/growth/guide-generator';
 import {
   ArrowLeft,
   Save,
@@ -15,7 +16,11 @@ import {
   Image as ImageIcon,
   CheckCircle,
   AlertCircle,
-  Tag,
+  Sparkles,
+  RefreshCw,
+  Eye,
+  Info,
+  Layers,
   Search,
 } from 'lucide-react';
 
@@ -26,37 +31,126 @@ interface GuideFormClientProps {
 
 export default function GuideFormClient({
   guide,
-  products,
+  products = [],
 }: GuideFormClientProps) {
   const router = useRouter();
   const isEditing = Boolean(guide?.id);
+
+  const [selectedProductId, setSelectedProductId] = useState<string>(
+    guide?.productId || guide?.associatedProductId || (products.length > 0 ? products[0].id : '')
+  );
 
   const [formData, setFormData] = useState<Partial<ProductGuide>>({
     id: guide?.id || '',
     title: guide?.title || '',
     slug: guide?.slug || '',
     shortIntro: guide?.shortIntro || '',
-    coverImage: guide?.coverImage || '/images/products/henna-leaf.jpg',
+    coverImage: guide?.coverImage || '/images/fallback.svg',
     category: guide?.category || 'Henna Application',
     readTime: guide?.readTime || '5 min read',
     content: guide?.content || '',
-    associatedProductId: guide?.associatedProductId || '',
-    faqs: guide?.faqs || [
-      { question: '', answer: '' },
-    ],
+    productId: guide?.productId || guide?.associatedProductId || '',
+    associatedProductId: guide?.associatedProductId || guide?.productId || '',
+    productIds: guide?.productIds || [],
+    relatedProductIds: guide?.relatedProductIds || [],
+    overview: guide?.overview || '',
+    whatIsThis: guide?.whatIsThis || '',
+    whoShouldUse: guide?.whoShouldUse || '',
+    whoShouldAvoid: guide?.whoShouldAvoid || '',
+    howToUse: guide?.howToUse || '',
+    quantityPreparation: guide?.quantityPreparation || '',
+    storageInstructions: guide?.storageInstructions || '',
+    importantNotes: guide?.importantNotes || '',
+    keyBenefits: guide?.keyBenefits || [],
+    ingredients: guide?.ingredients || [],
+    faqs: guide?.faqs || [{ question: '', answer: '' }],
     seoTitle: guide?.seoTitle || '',
     seoDescription: guide?.seoDescription || '',
     seoKeywords: guide?.seoKeywords || '',
-    isPublished: guide?.isPublished ?? true,
+    isPublished: guide?.isPublished ?? guide?.published ?? true,
+    published: guide?.published ?? guide?.isPublished ?? true,
     isFeatured: guide?.isFeatured ?? false,
   });
 
+  const [isAutoFilling, setIsAutoFilling] = useState(false);
+  const [hasManuallyEdited, setHasManuallyEdited] = useState(isEditing);
+  const [needsReviewWarning, setNeedsReviewWarning] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+
+  // Auto-fill Guide Draft from selected Product
+  const handleAutoFill = (overrideManual = false) => {
+    if (hasManuallyEdited && !overrideManual) {
+      const confirmOverwrite = window.confirm(
+        'You have existing edits in this guide. Auto-filling will regenerate all fields from the selected product. Continue?'
+      );
+      if (!confirmOverwrite) return;
+    }
+
+    const selectedProduct = products.find((p) => p.id === selectedProductId);
+    if (!selectedProduct) {
+      setNotification({ type: 'error', message: 'Please select a valid product first.' });
+      return;
+    }
+
+    setIsAutoFilling(true);
+    try {
+      const draft = deriveProductGuide(selectedProduct, products);
+
+      setFormData((prev) => ({
+        ...prev,
+        title: draft.title,
+        slug: draft.slug,
+        shortIntro: draft.shortIntro,
+        category: draft.category,
+        readTime: draft.readTime,
+        content: draft.content,
+        overview: draft.overview,
+        whatIsThis: draft.whatIsThis,
+        keyBenefits: draft.keyBenefits,
+        ingredients: draft.ingredients,
+        whoShouldUse: draft.whoShouldUse,
+        whoShouldAvoid: draft.whoShouldAvoid,
+        howToUse: draft.howToUse,
+        quantityPreparation: draft.quantityPreparation,
+        storageInstructions: draft.storageInstructions,
+        importantNotes: draft.importantNotes,
+        faqs: draft.faqs,
+        productId: selectedProduct.id,
+        associatedProductId: selectedProduct.id,
+        relatedProductIds: draft.relatedProductIds,
+        coverImage: draft.coverImage,
+        seoTitle: draft.seoTitle,
+        seoDescription: draft.seoDescription,
+        seoKeywords: draft.seoKeywords,
+      }));
+
+      if (draft.needsReview) {
+        setNeedsReviewWarning(draft.missingFields);
+        setNotification({
+          type: 'info',
+          message: `Guide auto-filled! [GUIDE NEEDS REVIEW] Please review missing fields: ${draft.missingFields.join(', ')}`,
+        });
+      } else {
+        setNeedsReviewWarning([]);
+        setNotification({
+          type: 'success',
+          message: `Complete professional guide draft generated from "${selectedProduct.name}"!`,
+        });
+      }
+
+      setHasManuallyEdited(true);
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'Auto-fill failed.' });
+    } finally {
+      setIsAutoFilling(false);
+    }
+  };
 
   // Auto slug generator
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const title = e.target.value;
+    setHasManuallyEdited(true);
     if (!isEditing || !formData.slug) {
       const generatedSlug = title
         .toLowerCase()
@@ -71,6 +165,7 @@ export default function GuideFormClient({
 
   // FAQ Handlers
   const handleAddFaq = () => {
+    setHasManuallyEdited(true);
     setFormData((prev) => ({
       ...prev,
       faqs: [...(prev.faqs || []), { question: '', answer: '' }],
@@ -78,6 +173,7 @@ export default function GuideFormClient({
   };
 
   const handleFaqChange = (index: number, field: 'question' | 'answer', value: string) => {
+    setHasManuallyEdited(true);
     setFormData((prev) => {
       const updatedFaqs = [...(prev.faqs || [])];
       updatedFaqs[index] = { ...updatedFaqs[index], [field]: value };
@@ -86,6 +182,7 @@ export default function GuideFormClient({
   };
 
   const handleRemoveFaq = (index: number) => {
+    setHasManuallyEdited(true);
     setFormData((prev) => ({
       ...prev,
       faqs: (prev.faqs || []).filter((_, i) => i !== index),
@@ -106,7 +203,10 @@ export default function GuideFormClient({
       const res = await fetch('/api/admin/guides', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          published: formData.isPublished ?? true,
+        }),
       });
 
       const data = await res.json();
@@ -134,12 +234,16 @@ export default function GuideFormClient({
           className={`p-4 rounded-xl border flex items-center justify-between text-sm font-medium shadow-md ${
             notification.type === 'success'
               ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+              : notification.type === 'info'
+              ? 'bg-amber-50 text-amber-900 border-amber-200'
               : 'bg-rose-50 text-rose-900 border-rose-200'
           }`}
         >
           <div className="flex items-center gap-2">
             {notification.type === 'success' ? (
               <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
+            ) : notification.type === 'info' ? (
+              <Info className="w-5 h-5 text-amber-600 shrink-0" />
             ) : (
               <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
             )}
@@ -184,12 +288,65 @@ export default function GuideFormClient({
           <button
             type="submit"
             disabled={isSaving}
-            className="inline-flex items-center gap-2 bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider shadow-sm transition-all border border-[#c5a059]/30 disabled:opacity-50"
+            className="inline-flex items-center gap-2 bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider shadow-sm transition-all border border-[#c5a059]/30 disabled:opacity-50 cursor-pointer"
           >
             <Save className="w-4 h-4" />
             <span>{isSaving ? 'Saving...' : 'Save Guide'}</span>
           </button>
         </div>
+      </div>
+
+      {/* Universal Auto-Guide Generator Banner */}
+      <div className="bg-gradient-to-r from-[#0f2d22] to-[#1b4332] text-white p-6 rounded-2xl shadow-md border border-[#c5a059]/40 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-[#c5a059]" />
+              <span className="font-serif-heading font-extrabold text-lg text-[#fcfbf7] tracking-wide">
+                Universal Auto-Guide Generator
+              </span>
+              <span className="bg-[#c5a059]/20 text-[#c5a059] border border-[#c5a059]/40 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                Taxonomy-Aware
+              </span>
+            </div>
+            <p className="text-xs text-[#e8e2d5] max-w-2xl leading-relaxed">
+              Select any botanical product to auto-derive a complete truth-grounded guide draft with botanical overview, preparation charts, FAQs, and Auto-SEO.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={selectedProductId}
+              onChange={(e) => setSelectedProductId(e.target.value)}
+              className="bg-[#0f2d22]/90 border border-[#c5a059]/40 text-white rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[#c5a059]"
+            >
+              {products.map((p) => (
+                <option key={p.id} value={p.id} className="text-[#0f2d22] bg-white">
+                  {p.name}
+                </option>
+              ))}
+            </select>
+
+            <button
+              type="button"
+              onClick={() => handleAutoFill(false)}
+              disabled={isAutoFilling || products.length === 0}
+              className="inline-flex items-center gap-2 bg-[#c5a059] hover:bg-[#b08d48] text-[#0f2d22] px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>{isAutoFilling ? 'Generating...' : 'Auto-Fill Guide'}</span>
+            </button>
+          </div>
+        </div>
+
+        {needsReviewWarning.length > 0 && (
+          <div className="bg-amber-500/20 border border-amber-400/40 rounded-xl p-3 text-xs text-amber-200 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-300 shrink-0" />
+            <span>
+              <strong>GUIDE NEEDS REVIEW:</strong> Missing verified data for: {needsReviewWarning.join(', ')}. Please verify or fill in manually.
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Main Grid: Form Inputs */}
@@ -211,7 +368,7 @@ export default function GuideFormClient({
                 required
                 value={formData.title}
                 onChange={handleTitleChange}
-                placeholder="e.g. How to Mix Lawsonia Inermis for Dark Stain"
+                placeholder="e.g. Complete Guide to BAQ Henna Powder"
                 className="w-full px-4 py-2.5 text-sm bg-[#faf8f5] border border-[#e8e2d5] rounded-xl focus:outline-none focus:border-[#1b4332] font-semibold"
               />
             </div>
@@ -226,7 +383,10 @@ export default function GuideFormClient({
                   type="text"
                   required
                   value={formData.slug}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, slug: e.target.value }))}
+                  onChange={(e) => {
+                    setHasManuallyEdited(true);
+                    setFormData((prev) => ({ ...prev, slug: e.target.value }));
+                  }}
                   className="w-full bg-transparent focus:outline-none text-[#0f2d22] font-bold"
                 />
               </div>
@@ -234,13 +394,16 @@ export default function GuideFormClient({
 
             <div>
               <label className="block text-xs font-bold text-[#0f2d22] uppercase tracking-wider mb-1">
-                Short Intro / Summary
+                Short Intro / Direct Summary
               </label>
               <textarea
                 rows={3}
                 value={formData.shortIntro}
-                onChange={(e) => setFormData((prev) => ({ ...prev, shortIntro: e.target.value }))}
-                placeholder="Brief 2-3 sentence overview shown on cards and preview banners..."
+                onChange={(e) => {
+                  setHasManuallyEdited(true);
+                  setFormData((prev) => ({ ...prev, shortIntro: e.target.value }));
+                }}
+                placeholder="Brief 2-3 sentence overview shown on preview cards and search snippets..."
                 className="w-full px-4 py-2.5 text-xs bg-[#faf8f5] border border-[#e8e2d5] rounded-xl focus:outline-none focus:border-[#1b4332] leading-relaxed"
               />
             </div>
@@ -250,15 +413,18 @@ export default function GuideFormClient({
           <div className="bg-white p-6 rounded-2xl border border-[#e8e2d5] shadow-2xs space-y-4">
             <div className="flex items-center justify-between border-b border-[#f0ebe0] pb-3">
               <h3 className="font-serif-heading font-bold text-lg text-[#0f2d22]">
-                Detailed Guide Content (Markdown / HTML)
+                Detailed Guide Content (Markdown / Structured Text)
               </h3>
-              <span className="text-[11px] text-gray-500">Supports HTML tags & headers</span>
+              <span className="text-[11px] text-gray-500">Supports headings, lists & alerts</span>
             </div>
 
             <textarea
               rows={16}
               value={formData.content}
-              onChange={(e) => setFormData((prev) => ({ ...prev, content: e.target.value }))}
+              onChange={(e) => {
+                setHasManuallyEdited(true);
+                setFormData((prev) => ({ ...prev, content: e.target.value }));
+              }}
               placeholder="Write the full step-by-step instructions, preparation ratios, dye release time charts..."
               className="w-full p-4 text-xs font-mono bg-[#faf8f5] border border-[#e8e2d5] rounded-xl focus:outline-none focus:border-[#1b4332] leading-relaxed"
             />
@@ -270,13 +436,13 @@ export default function GuideFormClient({
               <div className="flex items-center gap-2">
                 <HelpCircle className="w-5 h-5 text-[#c5a059]" />
                 <h3 className="font-serif-heading font-bold text-lg text-[#0f2d22]">
-                  Guide FAQs (Schema Ready)
+                  Guide FAQs (Schema.org Ready)
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={handleAddFaq}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-[#1b4332] bg-[#e8f3ed] rounded-xl hover:bg-[#d8e8de]"
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-[#1b4332] bg-[#e8f3ed] rounded-xl hover:bg-[#d8e8de] cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add FAQ</span>
@@ -293,7 +459,7 @@ export default function GuideFormClient({
                     <button
                       type="button"
                       onClick={() => handleRemoveFaq(index)}
-                      className="p-1 text-gray-400 hover:text-rose-600 rounded"
+                      className="p-1 text-gray-400 hover:text-rose-600 rounded cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -337,12 +503,19 @@ export default function GuideFormClient({
                 <input
                   type="checkbox"
                   checked={formData.isPublished}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, isPublished: e.target.checked }))}
+                  onChange={(e) => {
+                    setHasManuallyEdited(true);
+                    setFormData((prev) => ({
+                      ...prev,
+                      isPublished: e.target.checked,
+                      published: e.target.checked,
+                    }));
+                  }}
                   className="w-4 h-4 text-[#1b4332] rounded focus:ring-[#1b4332]"
                 />
                 <div>
                   <span className="text-xs font-bold text-[#0f2d22] block">Published Status</span>
-                  <span className="text-[11px] text-gray-500 block">Visible to website visitors</span>
+                  <span className="text-[11px] text-gray-500 block">Visible on storefront & sitemap</span>
                 </div>
               </label>
 
@@ -350,12 +523,15 @@ export default function GuideFormClient({
                 <input
                   type="checkbox"
                   checked={formData.isFeatured}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, isFeatured: e.target.checked }))}
+                  onChange={(e) => {
+                    setHasManuallyEdited(true);
+                    setFormData((prev) => ({ ...prev, isFeatured: e.target.checked }));
+                  }}
                   className="w-4 h-4 text-[#1b4332] rounded focus:ring-[#1b4332]"
                 />
                 <div>
-                  <span className="text-xs font-bold text-[#0f2d22] block">Featured on Homepage</span>
-                  <span className="text-[11px] text-gray-500 block">Displays in homepage guides grid</span>
+                  <span className="text-xs font-bold text-[#0f2d22] block">Featured Guide</span>
+                  <span className="text-[11px] text-gray-500 block">Promote on homepage guide strip</span>
                 </div>
               </label>
             </div>
@@ -364,7 +540,7 @@ export default function GuideFormClient({
           {/* Categorization & Link to Product Card */}
           <div className="bg-white p-6 rounded-2xl border border-[#e8e2d5] shadow-2xs space-y-4">
             <h3 className="font-serif-heading font-bold text-base text-[#0f2d22] border-b border-[#f0ebe0] pb-3">
-              Categorization & Product Link
+              Product & Category Link
             </h3>
 
             <div>
@@ -374,8 +550,11 @@ export default function GuideFormClient({
               <input
                 type="text"
                 value={formData.category}
-                onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
-                placeholder="e.g. Henna Application, Hair Care, Face Mask"
+                onChange={(e) => {
+                  setHasManuallyEdited(true);
+                  setFormData((prev) => ({ ...prev, category: e.target.value }));
+                }}
+                placeholder="e.g. Henna Application, Hair Care, Face Care"
                 className="w-full px-3 py-2 text-xs bg-[#faf8f5] border border-[#e8e2d5] rounded-xl focus:outline-none focus:border-[#1b4332]"
               />
             </div>
@@ -387,7 +566,10 @@ export default function GuideFormClient({
               <input
                 type="text"
                 value={formData.readTime}
-                onChange={(e) => setFormData((prev) => ({ ...prev, readTime: e.target.value }))}
+                onChange={(e) => {
+                  setHasManuallyEdited(true);
+                  setFormData((prev) => ({ ...prev, readTime: e.target.value }));
+                }}
                 placeholder="e.g. 5 min read"
                 className="w-full px-3 py-2 text-xs bg-[#faf8f5] border border-[#e8e2d5] rounded-xl focus:outline-none focus:border-[#1b4332]"
               />
@@ -395,11 +577,18 @@ export default function GuideFormClient({
 
             <div>
               <label className="block text-xs font-bold text-[#0f2d22] uppercase tracking-wider mb-1">
-                Link to Product
+                Primary Linked Product
               </label>
               <select
-                value={formData.associatedProductId || ''}
-                onChange={(e) => setFormData((prev) => ({ ...prev, associatedProductId: e.target.value }))}
+                value={formData.productId || formData.associatedProductId || ''}
+                onChange={(e) => {
+                  setHasManuallyEdited(true);
+                  setFormData((prev) => ({
+                    ...prev,
+                    productId: e.target.value,
+                    associatedProductId: e.target.value,
+                  }));
+                }}
                 className="w-full px-3 py-2 text-xs bg-[#faf8f5] border border-[#e8e2d5] rounded-xl focus:outline-none focus:border-[#1b4332] font-semibold text-[#0f2d22]"
               >
                 <option value="">-- No Specific Product Linked --</option>
@@ -409,9 +598,6 @@ export default function GuideFormClient({
                   </option>
                 ))}
               </select>
-              <p className="text-[11px] text-gray-500 mt-1">
-                Linking a product displays a &quot;Complete Product Guide&quot; banner on that product&apos;s detail page.
-              </p>
             </div>
           </div>
 
@@ -425,7 +611,10 @@ export default function GuideFormClient({
               <input
                 type="text"
                 value={formData.coverImage}
-                onChange={(e) => setFormData((prev) => ({ ...prev, coverImage: e.target.value }))}
+                onChange={(e) => {
+                  setHasManuallyEdited(true);
+                  setFormData((prev) => ({ ...prev, coverImage: e.target.value }));
+                }}
                 placeholder="e.g. /images/products/henna-leaf.jpg"
                 className="w-full px-3 py-2 text-xs bg-[#faf8f5] border border-[#e8e2d5] rounded-xl focus:outline-none focus:border-[#1b4332]"
               />
@@ -447,31 +636,53 @@ export default function GuideFormClient({
           {/* SEO Metadata Card */}
           <div className="bg-white p-6 rounded-2xl border border-[#e8e2d5] shadow-2xs space-y-4">
             <h3 className="font-serif-heading font-bold text-base text-[#0f2d22] border-b border-[#f0ebe0] pb-3">
-              SEO Settings
+              Auto-SEO & Meta Tags
             </h3>
 
             <div>
               <label className="block text-[11px] font-bold text-[#0f2d22] uppercase mb-1">
-                Meta Title
+                SEO Title (≤ 60 Chars)
               </label>
               <input
                 type="text"
                 value={formData.seoTitle}
-                onChange={(e) => setFormData((prev) => ({ ...prev, seoTitle: e.target.value }))}
-                placeholder="Meta Title for Google Search"
-                className="w-full px-3 py-2 text-xs bg-[#faf8f5] border border-[#e8e2d5] rounded-xl"
+                onChange={(e) => {
+                  setHasManuallyEdited(true);
+                  setFormData((prev) => ({ ...prev, seoTitle: e.target.value }));
+                }}
+                placeholder="Meta Title for Search Engines"
+                className="w-full px-3 py-2 text-xs bg-[#faf8f5] border border-[#e8e2d5] rounded-xl font-semibold"
               />
             </div>
 
             <div>
               <label className="block text-[11px] font-bold text-[#0f2d22] uppercase mb-1">
-                Meta Description
+                Meta Description (140-160 Chars)
               </label>
               <textarea
                 rows={3}
                 value={formData.seoDescription}
-                onChange={(e) => setFormData((prev) => ({ ...prev, seoDescription: e.target.value }))}
+                onChange={(e) => {
+                  setHasManuallyEdited(true);
+                  setFormData((prev) => ({ ...prev, seoDescription: e.target.value }));
+                }}
                 placeholder="Meta Description snippet for search results..."
+                className="w-full px-3 py-2 text-xs bg-[#faf8f5] border border-[#e8e2d5] rounded-xl leading-relaxed"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-[#0f2d22] uppercase mb-1">
+                Target Keywords
+              </label>
+              <input
+                type="text"
+                value={formData.seoKeywords}
+                onChange={(e) => {
+                  setHasManuallyEdited(true);
+                  setFormData((prev) => ({ ...prev, seoKeywords: e.target.value }));
+                }}
+                placeholder="Comma separated keywords"
                 className="w-full px-3 py-2 text-xs bg-[#faf8f5] border border-[#e8e2d5] rounded-xl"
               />
             </div>

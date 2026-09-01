@@ -166,3 +166,83 @@ export function unifiedSearchProducts(
   return scored.map((res) => res.product);
 }
 
+export interface ScoredGuideResult {
+  guide: any;
+  score: number;
+  matchedFields: string[];
+}
+
+/**
+ * Calculates a relevance score for a ProductGuide against a search query.
+ */
+export function scoreGuideForQuery(guide: any, rawQuery: string): ScoredGuideResult {
+  const query = normalizeSearchQuery(rawQuery);
+  const matchedFields: string[] = [];
+
+  if (!query || !guide || guide.published === false || guide.isPublished === false) {
+    return { guide, score: 0, matchedFields };
+  }
+
+  let score = 0;
+  const titleLower = (guide.title || '').toLowerCase();
+  const slugLower = (guide.slug || '').toLowerCase();
+  const introLower = (guide.shortIntro || '').toLowerCase();
+  const catLower = (guide.category || '').toLowerCase();
+  const keywordsLower = (guide.seoKeywords || '').toLowerCase();
+
+  const queryEntity = resolveEntityFromQuery(query);
+
+  if (titleLower === query || slugLower === query) {
+    score += 100;
+    matchedFields.push('title_exact');
+  } else if (titleLower.includes(query)) {
+    score += 75;
+    matchedFields.push('title_phrase');
+  }
+
+  if (queryEntity) {
+    const isHennaGuide =
+      titleLower.includes('henna') ||
+      titleLower.includes('mehndi') ||
+      titleLower.includes('mehendi') ||
+      titleLower.includes('mehandi') ||
+      catLower.includes('henna') ||
+      introLower.includes('henna') ||
+      introLower.includes('mehndi');
+
+    if (queryEntity.id === 'HENNA_MEHNDI' && isHennaGuide) {
+      score += 80;
+      matchedFields.push('entity_HENNA_MEHNDI');
+    } else if (titleLower.includes(queryEntity.canonicalName.toLowerCase())) {
+      score += 70;
+      matchedFields.push(`entity_${queryEntity.id}`);
+    }
+  }
+
+  if (keywordsLower.includes(query)) {
+    score += 40;
+    matchedFields.push('keywords');
+  }
+
+  if (introLower.includes(query)) {
+    score += 25;
+    matchedFields.push('intro');
+  }
+
+  return { guide, score, matchedFields };
+}
+
+export function unifiedSearchGuides(guides: any[], rawQuery: string, minThreshold = 20): any[] {
+  const query = normalizeSearchQuery(rawQuery);
+  if (!query) return guides.filter((g) => g && g.published !== false && g.isPublished !== false);
+
+  const scored = guides
+    .filter((g) => g && g.published !== false && g.isPublished !== false)
+    .map((g) => scoreGuideForQuery(g, query))
+    .filter((res) => res.score >= minThreshold);
+
+  scored.sort((a, b) => b.score - a.score);
+
+  return scored.map((res) => res.guide);
+}
+

@@ -191,30 +191,27 @@ export function resolveEntityFromQuery(rawQuery: string): SearchEntity | null {
 
 /**
  * Detects which canonical entity a product belongs to.
+ * Prioritizes product name and slug for primary classification.
  */
 export function detectProductEntity(product: Partial<Product>): SearchEntity | null {
-  const combined = [
-    product.name || '',
-    product.slug || '',
+  const nameSlug = [product.name || '', product.slug || '', product.productType || ''].join(' ').toLowerCase();
+
+  // 1. Check primary product name & slug first
+  for (const entity of Object.values(BOTANICAL_SEARCH_ENTITIES)) {
+    if (entity.aliases.some((a) => nameSlug.includes(a))) {
+      return entity;
+    }
+  }
+
+  // 2. If no name match, check category, ingredients, and descriptions
+  const secondary = [
     product.categoryName || '',
-    product.productType || '',
     ...(product.ingredients || []),
-    ...(product.benefits || []),
     product.shortDescription || '',
   ].join(' ').toLowerCase();
 
-  // Test HENNA_MEHNDI first to ensure BAQ/Henna/Mehndi products are unified
-  if (
-    BOTANICAL_SEARCH_ENTITIES.HENNA_MEHNDI.aliases.some((a) => combined.includes(a)) ||
-    combined.includes('baq') ||
-    combined.includes('sojat henna')
-  ) {
-    return BOTANICAL_SEARCH_ENTITIES.HENNA_MEHNDI;
-  }
-
   for (const entity of Object.values(BOTANICAL_SEARCH_ENTITIES)) {
-    if (entity.id === 'HENNA_MEHNDI') continue;
-    if (entity.aliases.some((a) => combined.includes(a))) {
+    if (entity.aliases.some((a) => secondary.includes(a))) {
       return entity;
     }
   }
