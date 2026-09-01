@@ -22,6 +22,18 @@ export interface TrustStripItem {
   sortOrder: number;
 }
 
+export interface ProductVariant {
+  id: string;
+  sku: string;
+  weight: string; // e.g., "100g", "250g", "500g", "1kg", "5kg", "25kg"
+  price: number;
+  compareAtPrice?: number;
+  stockQuantity?: number;
+  stockStatus: 'in_stock' | 'out_of_stock' | 'pre_order';
+  isWholesaleEligible?: boolean;
+  isActive?: boolean;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -35,10 +47,14 @@ export interface Product {
   quantityOrWeight: string; // e.g., "100g", "250g", "500g Pack"
   sku: string;
   images: string[];
+  variants?: ProductVariant[];
   ingredients: string[];
   benefits: string[];
   usageInstructions: string;
   stockStatus: 'in_stock' | 'out_of_stock' | 'pre_order';
+  stockQuantity?: number;
+  lowStockThreshold?: number;
+  reservedQuantity?: number;
   isFeatured: boolean;
   isBestSeller?: boolean;
   isNewArrival?: boolean;
@@ -77,6 +93,28 @@ export interface OrderItem {
   weight?: string;
 }
 
+export type OrderStatus =
+  | 'NEW'
+  | 'PENDING'
+  | 'CONFIRMED'
+  | 'PAYMENT_PENDING'
+  | 'PAID'
+  | 'PROCESSING'
+  | 'PACKED'
+  | 'SHIPPED'
+  | 'DELIVERED'
+  | 'CANCELLED'
+  | 'RETURN_REQUESTED'
+  | 'RETURNED'
+  | 'REFUNDED';
+
+export interface OrderStatusHistoryItem {
+  status: OrderStatus;
+  changedAt: string;
+  notes?: string;
+  updatedBy?: string;
+}
+
 export interface Order {
   id: string;
   orderNumber: string;
@@ -97,9 +135,13 @@ export interface Order {
   discountDetails?: string;
   shippingFee: number;
   totalAmount: number;
-  orderStatus: 'NEW' | 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+  orderStatus: OrderStatus;
+  statusHistory?: OrderStatusHistoryItem[];
   paymentStatus: 'UNPAID' | 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
-  paymentMethod: 'WhatsApp' | 'Cash on Delivery' | 'Online Payment';
+  paymentMethod: 'WhatsApp' | 'Cash on Delivery' | 'Online Payment' | 'UPI';
+  paymentTransactionId?: string;
+  shippingCarrier?: string;
+  trackingNumber?: string;
   notes?: string;
   campaignId?: string;
   campaignName?: string;
@@ -108,6 +150,46 @@ export interface Order {
   idempotencyKey?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface FeatureFlags {
+  onlinePaymentsEnabled?: boolean;
+  wholesaleEnabled?: boolean;
+  inventoryEnabled?: boolean;
+  customerAccountsEnabled?: boolean;
+  couponsEnabled?: boolean;
+  shippingIntegrationEnabled?: boolean;
+  invoiceEnabled?: boolean;
+  notificationsEnabled?: boolean;
+  recommendationsEnabled?: boolean;
+  analyticsEnabled?: boolean;
+  multilingualEnabled?: boolean;
+  exportModeEnabled?: boolean;
+}
+
+export interface PaymentConfig {
+  provider: 'razorpay' | 'manual';
+  enabled: boolean;
+  mode: 'test' | 'live';
+  keyId?: string;
+  merchantName?: string;
+}
+
+export interface ShippingConfig {
+  provider: 'shiprocket' | 'flat_rate' | 'manual';
+  enabled: boolean;
+  defaultCourier?: string;
+  freeShippingThreshold: number;
+  flatRateAmount: number;
+}
+
+export interface InvoiceConfig {
+  enabled: boolean;
+  gstin?: string;
+  pan?: string;
+  companyLegalName?: string;
+  registeredAddress?: string;
+  invoicePrefix?: string;
 }
 
 export interface Customer {
@@ -911,6 +993,12 @@ export interface SiteSettings {
 
   // Universal Business Content & Documents CMS
   businessContentItems?: BusinessContentItem[];
+
+  // Platform Feature Flags & Commerce Switches
+  featureFlags?: FeatureFlags;
+  paymentConfig?: PaymentConfig;
+  shippingConfig?: ShippingConfig;
+  invoiceConfig?: InvoiceConfig;
 }
 
 export interface PaymentSettings {

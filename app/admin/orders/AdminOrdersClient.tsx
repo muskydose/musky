@@ -440,10 +440,16 @@ export default function AdminOrdersClient({
                         <option value="NEW">NEW</option>
                         <option value="PENDING">PENDING</option>
                         <option value="CONFIRMED">CONFIRMED</option>
+                        <option value="PAYMENT_PENDING">PAYMENT_PENDING</option>
+                        <option value="PAID">PAID</option>
                         <option value="PROCESSING">PROCESSING</option>
+                        <option value="PACKED">PACKED</option>
                         <option value="SHIPPED">SHIPPED</option>
                         <option value="DELIVERED">DELIVERED</option>
                         <option value="CANCELLED">CANCELLED</option>
+                        <option value="RETURN_REQUESTED">RETURN_REQUESTED</option>
+                        <option value="RETURNED">RETURNED</option>
+                        <option value="REFUNDED">REFUNDED</option>
                       </select>
                     </div>
 
@@ -464,6 +470,15 @@ export default function AdminOrdersClient({
                         <option value="REFUNDED">REFUNDED</option>
                       </select>
                     </div>
+
+                    <a
+                      href={`/api/orders/${ord.id}/invoice`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 w-full py-2 bg-[#f5f1e8] hover:bg-[#e8e2d5] text-[#0f2d22] rounded-xl font-bold text-xs border border-[#e8e2d5] transition-colors"
+                    >
+                      <span>🖨️ Tax Invoice</span>
+                    </a>
                   </div>
                 </div>
               </div>

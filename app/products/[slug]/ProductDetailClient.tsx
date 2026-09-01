@@ -58,6 +58,14 @@ export default function ProductDetailClient({
   const [selectedImage, setSelectedImage] = useState<string>(
     product.images?.[0] || '/images/fallback.svg'
   );
+  const [selectedVariant, setSelectedVariant] = useState<any>(
+    product.variants && product.variants.length > 0 ? product.variants[0] : null
+  );
+  const activePrice = selectedVariant?.price ?? product.price;
+  const activeComparePrice = selectedVariant?.compareAtPrice ?? product.compareAtPrice;
+  const activeWeight = selectedVariant?.weight ?? product.quantityOrWeight;
+  const activeSku = selectedVariant?.sku ?? product.sku;
+
   const [quantity, setQuantity] = useState<number>(1);
   const [copied, setCopied] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
@@ -416,7 +424,7 @@ export default function ProductDetailClient({
             </h1>
 
             <p className="text-xs text-[#626c66] mt-1 font-mono">
-              SKU: {product.sku} | Pack: <strong className="text-[#0f2d22]">{product.quantityOrWeight}</strong>
+              SKU: {activeSku} | Pack: <strong className="text-[#0f2d22]">{activeWeight}</strong>
             </p>
           </div>
 
@@ -426,11 +434,11 @@ export default function ProductDetailClient({
               <div className="text-xs text-[#626c66] font-medium mb-1">Price per Pack</div>
               <div className="flex items-baseline gap-3">
                 <span className="text-3xl font-extrabold text-[#1b4332]">
-                  ₹{product.price}
+                  ₹{activePrice}
                 </span>
-                {product.compareAtPrice && product.compareAtPrice > product.price && (
+                {activeComparePrice && activeComparePrice > activePrice && (
                   <span className="text-base text-gray-400 line-through">
-                    ₹{product.compareAtPrice}
+                    ₹{activeComparePrice}
                   </span>
                 )}
               </div>
@@ -445,9 +453,41 @@ export default function ProductDetailClient({
                   <CheckCircle className="w-3.5 h-3.5" /> In Stock & Ready
                 </span>
               )}
+              {typeof product.stockQuantity === 'number' && product.stockQuantity <= (product.lowStockThreshold || 10) && product.stockQuantity > 0 && (
+                <div className="text-[10px] text-red-700 font-bold mt-1">Only {product.stockQuantity} packs left!</div>
+              )}
               <div className="text-[10px] text-gray-500 mt-1">Dispatches from Sojat, Rajasthan</div>
             </div>
           </div>
+
+          {/* Pack Size / Variant Selector */}
+          {product.variants && product.variants.length > 0 && (
+            <div className="space-y-2 p-3 bg-white rounded-xl border border-[#e8e2d5]">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-[#0f2d22] uppercase tracking-wider">Select Pack Size:</span>
+                <span className="font-bold text-[#1b4332]">{activeWeight}</span>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                {product.variants.map((v) => {
+                  const isSelected = selectedVariant?.id === v.id || activeWeight === v.weight;
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => setSelectedVariant(v)}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                        isSelected
+                          ? 'bg-[#1b4332] text-white border-[#1b4332] shadow-xs'
+                          : 'bg-[#fcfbf7] text-[#0f2d22] border-[#e8e2d5] hover:border-[#1b4332]'
+                      }`}
+                    >
+                      {v.weight} — ₹{v.price}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Bulk Tier Discounts Table */}
           {bulkRules.length > 0 && (
@@ -526,7 +566,7 @@ export default function ProductDetailClient({
               </div>
 
               <div className="text-xs text-[#626c66]">
-                Subtotal: <strong className="text-lg font-bold text-[#1b4332]">₹{product.price * quantity}</strong>
+                Subtotal: <strong className="text-lg font-bold text-[#1b4332]">₹{activePrice * quantity}</strong>
               </div>
             </div>
           </div>
@@ -538,11 +578,11 @@ export default function ProductDetailClient({
                 onClick={() => {
                   if (product.stockStatus === 'out_of_stock' || isAddingToCart) return;
                   setIsAddingToCart(true);
-                  addToCart(product, quantity);
+                  addToCart({ ...product, price: activePrice, quantityOrWeight: activeWeight, sku: activeSku }, quantity);
                   trackAddToCart({
                     id: product.id,
                     name: product.name,
-                    price: product.price,
+                    price: activePrice,
                     quantity,
                   });
                   openCart();
@@ -553,39 +593,31 @@ export default function ProductDetailClient({
                     ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
                     : isAddingToCart
                     ? 'bg-[#0f2d22] text-[#c5a059] border border-[#0f2d22]'
-                    : 'bg-[#1b4332] hover:bg-[#0f2d22] text-[#faf5e8] hover:text-[#c5a059] border border-[#1b4332]'
+                    : 'bg-[#1b4332] hover:bg-[#0f2d22] text-white border-transparent'
                 }`}
               >
                 {isAddingToCart ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin text-[#c5a059]" />
-                    <span>Added to Cart!</span>
-                  </>
+                  <Loader2 className="w-4 h-4 animate-spin text-[#c5a059]" />
                 ) : (
-                  <>
-                    <ShoppingBag className="w-4 h-4 text-[#c5a059]" />
-                    <span>{product.stockStatus === 'out_of_stock' ? 'Out of Stock' : 'Add to Cart'}</span>
-                  </>
+                  <ShoppingBag className="w-4 h-4 text-[#c5a059]" />
                 )}
+                <span>{isAddingToCart ? 'Added to Cart!' : 'Add to Order Cart'}</span>
               </button>
 
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
+              <Link
+                href="/checkout"
+                onClick={() => {
                   if (product.stockStatus === 'out_of_stock') return;
-                  addToCart(product, quantity);
-                  closeCart();
-                  router.push('/checkout');
+                  addToCart({ ...product, price: activePrice, quantityOrWeight: activeWeight, sku: activeSku }, quantity);
                 }}
-                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-extrabold text-xs sm:text-sm tracking-wider transition-all shadow-sm active:scale-[0.99] cursor-pointer touch-manipulation ${
+                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-xs sm:text-sm tracking-wider border transition-all shadow-xs touch-manipulation active:scale-[0.99] ${
                   product.stockStatus === 'out_of_stock'
-                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed pointer-events-none'
-                    : 'bg-[#c5a059] hover:bg-[#b38e46] text-[#0f2d22]'
+                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed pointer-events-none'
+                    : 'bg-[#f5f1e8] hover:bg-[#e8e2d5] text-[#0f2d22] border-[#e8e2d5]'
                 }`}
               >
-                <span>Buy Now (Checkout)</span>
-              </button>
+                <span>Buy Now Direct</span>
+              </Link>
             </div>
 
             <button

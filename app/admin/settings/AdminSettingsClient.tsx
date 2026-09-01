@@ -45,6 +45,7 @@ import DeliveryShippingTab from '@/components/admin/settings/tabs/DeliveryShippi
 import SeoMetaTab from '@/components/admin/settings/tabs/SeoMetaTab';
 import PaymentStatusTab from '@/components/admin/settings/tabs/PaymentStatusTab';
 import AboutFactoryTab from '@/components/admin/settings/tabs/AboutFactoryTab';
+import FeatureSwitchesTab from '@/components/admin/settings/tabs/FeatureSwitchesTab';
 
 import { Product, Category } from '@/lib/types';
 
@@ -61,6 +62,7 @@ export default function AdminSettingsClient({
 }: AdminSettingsClientProps) {
   const [settings, setSettings] = useState<SiteSettings>(initialSettings);
   const [activeTab, setActiveTab] = useState<
+    | 'features'
     | 'brand'
     | 'appearance'
     | 'layout_controls'
@@ -77,7 +79,7 @@ export default function AdminSettingsClient({
     | 'seo'
     | 'payment'
     | 'about_factory'
-  >('brand');
+  >('features');
 
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -258,6 +260,7 @@ export default function AdminSettingsClient({
   };
 
   const tabs = [
+    { id: 'features', label: 'Feature Switches', icon: Sparkles },
     { id: 'brand', label: 'Brand & Identity', icon: Building },
     { id: 'appearance', label: 'Brand Colors', icon: Sparkles },
     { id: 'layout_controls', label: 'Layout & Display Controls', icon: Layout },
@@ -351,6 +354,10 @@ export default function AdminSettingsClient({
 
       {/* Active Tab Content Area */}
       <div className="mt-6">
+        {activeTab === 'features' && (
+          <FeatureSwitchesTab settings={settings} updateField={updateField} />
+        )}
+
         {activeTab === 'brand' && (
           <BrandIdentityTab
             settings={settings}

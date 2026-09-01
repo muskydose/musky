@@ -55,6 +55,17 @@ export function mapRowToProduct(row: any): Product {
     row.stockStatus ||
     (row.in_stock === false ? 'out_of_stock' : 'in_stock');
 
+  let variantsArr: any[] = [];
+  if (Array.isArray(row.variants)) {
+    variantsArr = row.variants;
+  } else if (typeof row.variants === 'string' && row.variants) {
+    try {
+      variantsArr = JSON.parse(row.variants);
+    } catch {
+      variantsArr = [];
+    }
+  }
+
   return {
     id: row.id,
     name: row.name,
@@ -75,10 +86,14 @@ export function mapRowToProduct(row: any): Product {
     images: sanitizeImageUrls(
       imagesArr.length > 0 ? imagesArr : ['/images/fallback.svg']
     ),
+    variants: variantsArr.length > 0 ? variantsArr : undefined,
     ingredients: ingredientsArr,
     benefits: benefitsArr,
     usageInstructions: row.usage || row.usageInstructions || '',
     stockStatus: stockStatusVal,
+    stockQuantity: typeof row.stock_quantity === 'number' ? row.stock_quantity : typeof row.stockQuantity === 'number' ? row.stockQuantity : undefined,
+    lowStockThreshold: typeof row.low_stock_threshold === 'number' ? row.low_stock_threshold : typeof row.lowStockThreshold === 'number' ? row.lowStockThreshold : undefined,
+    reservedQuantity: typeof row.reserved_quantity === 'number' ? row.reserved_quantity : typeof row.reservedQuantity === 'number' ? row.reservedQuantity : undefined,
     isFeatured: row.is_featured ?? row.isFeatured ?? false,
     isActive: row.is_active ?? row.isActive ?? true,
     sortOrder: row.sort_order ?? row.sortOrder ?? 1,
@@ -105,11 +120,15 @@ export function mapProductToRow(p: Product) {
     quantity: p.quantityOrWeight,
     sku: p.sku,
     images: p.images || [],
+    variants: p.variants || [],
     ingredients: p.ingredients || [],
     benefits: p.benefits || [],
     usage: p.usageInstructions,
     in_stock: p.stockStatus === 'in_stock',
     stock_status: p.stockStatus,
+    stock_quantity: p.stockQuantity ?? null,
+    low_stock_threshold: p.lowStockThreshold ?? 10,
+    reserved_quantity: p.reservedQuantity ?? 0,
     is_featured: p.isFeatured ?? false,
     is_active: p.isActive ?? true,
     sort_order: p.sortOrder ?? 1,

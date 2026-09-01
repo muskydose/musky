@@ -291,6 +291,33 @@ export async function getOrders(): Promise<Order[]> {
   return data.map(mapRowToOrder);
 }
 
+export async function getOrderById(id: string): Promise<Order | null> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    const all = await getOrders();
+    return all.find((o) => o.id === id || o.orderNumber === id) || null;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .or(`id.eq.${id},order_number.eq.${id}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) {
+      const all = await getOrders();
+      return all.find((o) => o.id === id || o.orderNumber === id) || null;
+    }
+
+    return mapRowToOrder(data);
+  } catch (err: any) {
+    console.error('getOrderById error:', err?.message);
+    return null;
+  }
+}
+
 export async function getOrdersForAnalytics(days?: number): Promise<Order[]> {
   const supabase = getSupabaseAdmin();
   if (!supabase) return getOrders();

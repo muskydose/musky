@@ -1639,6 +1639,44 @@ export const INITIAL_SITE_SETTINGS: SiteSettings = {
 
   // SEO Keywords Initial Store
   seoKeywordsStore: INITIAL_SEO_KEYWORDS,
+
+  // Feature Flags & Commerce Switches
+  featureFlags: {
+    onlinePaymentsEnabled: false,
+    wholesaleEnabled: true,
+    inventoryEnabled: false,
+    customerAccountsEnabled: false,
+    couponsEnabled: true,
+    shippingIntegrationEnabled: false,
+    invoiceEnabled: true,
+    notificationsEnabled: false,
+    recommendationsEnabled: true,
+    analyticsEnabled: true,
+    multilingualEnabled: false,
+    exportModeEnabled: false,
+  },
+
+  paymentConfig: {
+    provider: 'razorpay',
+    enabled: false,
+    mode: 'test',
+    keyId: '',
+    merchantName: 'Musky Dose',
+  },
+
+  shippingConfig: {
+    provider: 'flat_rate',
+    enabled: true,
+    freeShippingThreshold: 999,
+    flatRateAmount: 0,
+  },
+
+  invoiceConfig: {
+    enabled: true,
+    companyLegalName: 'Musky Dose Enterprise',
+    registeredAddress: 'Musky Dose Complex, Station Road, Sojat City, Pali District, Rajasthan - 306104',
+    invoicePrefix: 'MD-INV-',
+  },
 };
 
 export const INITIAL_PAYMENT_SETTINGS: PaymentSettings = {
