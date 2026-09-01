@@ -392,10 +392,17 @@ export type GrowthOpportunityPriority = 'P1_NOW' | 'P2_NEXT' | 'P3_LATER';
 export type GrowthOpportunityType =
   | 'HIGH_DEMAND_UNTARGETED'
   | 'GSC_RANKING_STRIKE'
+  | 'GSC_LOW_CTR'
   | 'LONGTAIL_UNCOVERED'
   | 'QUESTION_CONTENT_GAP'
   | 'REGIONAL_MARKET_EXPANSION'
   | 'METADATA_INCOMPLETE'
+  | 'MISSING_GUIDE'
+  | 'MISSING_IMAGE'
+  | 'TRAFFIC_LEAK'
+  | 'ZERO_RESULT_SEARCH'
+  | 'CANNIBALIZATION_RISK'
+  | 'OUT_OF_STOCK_RISK'
   | 'SUPPORTING_CONTENT_GAP'
   | 'ADS_TARGETING_READY';
 
@@ -403,9 +410,15 @@ export type GrowthOpportunityAction =
   | 'OPTIMIZE_PRODUCT'
   | 'CREATE_GUIDE_DRAFT'
   | 'CREATE_FAQ_DRAFT'
+  | 'ADD_PRODUCT_IMAGE'
+  | 'REVIEW_CANNIBALIZATION'
+  | 'REVIEW_CONVERSION'
+  | 'RESTOCK_PRODUCT'
   | 'CREATE_LANDING_PAGE_DRAFT'
   | 'PREPARE_ADS_DRAFT'
   | 'ADD_INTERNAL_LINKS';
+
+export type OpportunityStatus = 'NEW' | 'REVIEWING' | 'APPROVED' | 'APPLIED' | 'DISMISSED';
 
 export interface GrowthOpportunity {
   id: string;
@@ -413,10 +426,21 @@ export interface GrowthOpportunity {
   description: string;
   type: GrowthOpportunityType;
   priority: GrowthOpportunityPriority;
+  status?: OpportunityStatus;
+  growthScore?: number; // 0 to 100 deterministic score
+  scoreBreakdown?: {
+    demand: number;
+    visibilityGap: number;
+    conversionPotential: number;
+    commercialValue: number;
+    contentReadiness: number;
+  };
   keyword: string;
   productId?: string;
   productName?: string;
   productSlug?: string;
+  guideSlug?: string;
+  guideTitle?: string;
   marketDemand?: {
     searchVolume?: number | null;
     cpc?: number | null;
@@ -439,6 +463,10 @@ export interface GrowthOpportunity {
     state?: string;
     city?: string;
   };
+  cannibalizationDetails?: {
+    conflictingPages: { title: string; url: string; intent: string }[];
+    resolutionSuggestion: string;
+  };
   suggestedAction: GrowthOpportunityAction;
   actionLabel: string;
   actionLink?: string;
@@ -446,6 +474,19 @@ export interface GrowthOpportunity {
   isDismissed?: boolean;
   freshnessStatus: FreshnessStatus;
   createdAt: string;
+}
+
+export interface GuideAttributionMetric {
+  guideSlug: string;
+  guideTitle: string;
+  category: string;
+  guideViews: number;
+  productClicks: number;
+  addToCartCount: number;
+  ordersCount: number;
+  attributedRevenue: number;
+  ctr: number;
+  conversionRate: number;
 }
 
 export interface InternalLinkSuggestion {

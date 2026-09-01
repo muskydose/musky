@@ -14,6 +14,7 @@ import {
   OpportunityDashboardStats,
 } from './types';
 import { generateProductKeywordUniverse } from './product-keyword-engine';
+import { getOrdersForAnalytics } from '@/lib/db/orders';
 
 // ============================================================
 // 1. PRODUCT COMPLETENESS AUDIT
@@ -444,127 +445,218 @@ export function mapKeywordsToProducts(
 }
 
 // ============================================================
-// 5. AUTOMATIC GROWTH OPPORTUNITIES GENERATOR
+// 5. DETERMINISTIC GROWTH OPPORTUNITY SCORE (0-100)
+// ============================================================
+
+export interface GrowthScoreBreakdown {
+  demand: number; // 25% weight
+  visibilityGap: number; // 25% weight
+  conversionPotential: number; // 20% weight
+  commercialValue: number; // 20% weight
+  contentReadiness: number; // 10% weight
+}
+
+/**
+ * Calculates a deterministic 0-100 growth score based on explicit V1 weights:
+ * Demand (25%) + Visibility Gap (25%) + Conversion Potential (20%) + Commercial Value (20%) + Content Readiness (10%)
+ */
+export function calculateGrowthOpportunityScore(
+  opp: Partial<GrowthOpportunity>,
+  product?: Product
+): { growthScore: number; scoreBreakdown: GrowthScoreBreakdown } {
+  let demand = 40;
+  if (opp.marketDemand?.searchVolume) {
+    demand = Math.min(100, Math.max(20, Math.round(Math.log10(opp.marketDemand.searchVolume) * 20)));
+  } else if (opp.gscPerformance?.impressions) {
+    demand = Math.min(100, Math.max(30, Math.round(opp.gscPerformance.impressions / 5)));
+  } else if (opp.type === 'ZERO_RESULT_SEARCH' || opp.type === 'HIGH_DEMAND_UNTARGETED') {
+    demand = 85;
+  }
+
+  let visibilityGap = 50;
+  if (opp.gscPerformance?.position) {
+    if (opp.gscPerformance.position >= 5 && opp.gscPerformance.position <= 20) {
+      visibilityGap = 90;
+    } else if (opp.gscPerformance.position > 20) {
+      visibilityGap = 70;
+    } else {
+      visibilityGap = 40;
+    }
+  } else if (opp.type === 'METADATA_INCOMPLETE' || opp.type === 'MISSING_GUIDE') {
+    visibilityGap = 85;
+  } else if (opp.type === 'CANNIBALIZATION_RISK') {
+    visibilityGap = 75;
+  }
+
+  let conversionPotential = 50;
+  if (opp.gscPerformance?.ctr !== undefined && opp.gscPerformance.ctr < 0.03) {
+    conversionPotential = 85;
+  } else if (opp.type === 'TRAFFIC_LEAK') {
+    conversionPotential = 95;
+  } else if (opp.type === 'MISSING_IMAGE') {
+    conversionPotential = 80;
+  }
+
+  let commercialValue = 60;
+  if (product?.price) {
+    commercialValue = Math.min(100, Math.max(30, Math.round((product.price / 500) * 100)));
+  } else if (opp.type === 'OUT_OF_STOCK_RISK') {
+    commercialValue = 90;
+  }
+
+  let contentReadiness = 50;
+  if (product?.shortDescription && product.ingredients?.length) {
+    contentReadiness = 80;
+  } else if (opp.type === 'METADATA_INCOMPLETE') {
+    contentReadiness = 40;
+  }
+
+  const growthScore = Math.round(
+    demand * 0.25 +
+    visibilityGap * 0.25 +
+    conversionPotential * 0.20 +
+    commercialValue * 0.20 +
+    contentReadiness * 0.10
+  );
+
+  return {
+    growthScore: Math.min(100, Math.max(0, growthScore)),
+    scoreBreakdown: {
+      demand,
+      visibilityGap,
+      conversionPotential,
+      commercialValue,
+      contentReadiness,
+    },
+  };
+}
+
+// ============================================================
+// 6. SEO KEYWORD CANNIBALIZATION DETECTOR
+// ============================================================
+
+export function detectKeywordCannibalization(
+  products: Product[],
+  guides: any[] = []
+): GrowthOpportunity[] {
+  const opportunities: GrowthOpportunity[] = [];
+  const seenPairs = new Set<string>();
+
+  // Compare products against each other
+  for (let i = 0; i < products.length; i++) {
+    for (let j = i + 1; j < products.length; j++) {
+      const p1 = products[i];
+      const p2 = products[j];
+      if (p1.isActive === false || p2.isActive === false) continue;
+
+      const p1Keywords = (p1.seoKeywords || []).map((k) => k.toLowerCase().trim()).filter(Boolean);
+      const p2Keywords = (p2.seoKeywords || []).map((k) => k.toLowerCase().trim()).filter(Boolean);
+
+      const shared = p1Keywords.filter((k) => p2Keywords.includes(k) && k.length > 5);
+
+      if (shared.length > 0 && !seenPairs.has(`${p1.id}_${p2.id}`)) {
+        seenPairs.add(`${p1.id}_${p2.id}`);
+        const overlapKw = shared[0];
+
+        const { growthScore, scoreBreakdown } = calculateGrowthOpportunityScore(
+          { type: 'CANNIBALIZATION_RISK', keyword: overlapKw },
+          p1
+        );
+
+        opportunities.push({
+          id: `opp_cannibal_${p1.id}_${p2.id}`,
+          title: `Cannibalization Alert: "${overlapKw}"`,
+          description: `Two active products ("${p1.name}" and "${p2.name}") compete for the same primary target keyword: "${overlapKw}". Differentiate product titles or assign distinct primary search intent to avoid split rankings.`,
+          type: 'CANNIBALIZATION_RISK',
+          priority: 'P2_NEXT',
+          status: 'NEW',
+          growthScore,
+          scoreBreakdown,
+          keyword: overlapKw,
+          productId: p1.id,
+          productName: p1.name,
+          productSlug: p1.slug,
+          cannibalizationDetails: {
+            conflictingPages: [
+              { title: p1.name, url: `/products/${p1.slug}`, intent: 'Transactional' },
+              { title: p2.name, url: `/products/${p2.slug}`, intent: 'Transactional' },
+            ],
+            resolutionSuggestion: `Assign specific pack size or grade modifier to differentiate primary target keywords.`,
+          },
+          suggestedAction: 'REVIEW_CANNIBALIZATION',
+          actionLabel: 'Review & Differentiate Keywords',
+          actionLink: `/admin/products/${p1.id}`,
+          relevanceScore: 88,
+          freshnessStatus: 'Fresh',
+          createdAt: new Date().toISOString(),
+        });
+      }
+    }
+  }
+
+  return opportunities;
+}
+
+// ============================================================
+// 7. AUTOMATIC GROWTH OPPORTUNITIES GENERATOR (V1 DETERMINISTIC RULES)
 // ============================================================
 
 export function generateGrowthOpportunities(
   products: Product[],
   verifiedKeywords: GrowthKeyword[] = [],
   gscQueries: SearchConsoleQuery[] = [],
-  orders: any[] = []
+  orders: any[] = [],
+  guides: any[] = []
 ): GrowthOpportunity[] {
   const opportunities: GrowthOpportunity[] = [];
   const seenKeys = new Set<string>();
 
-  // Helper to calculate order metrics per botanical keyword
-  const orderCountMap = new Map<string, { count: number; revenue: number }>();
-  for (const order of orders) {
-    const items = order.items || [];
-    for (const item of items) {
-      const title = (item.productName || item.title || '').toLowerCase();
-      const existing = orderCountMap.get(title) || { count: 0, revenue: 0 };
-      existing.count += item.quantity || 1;
-      existing.revenue += (item.unitPrice || item.price || 0) * (item.quantity || 1);
-      orderCountMap.set(title, existing);
-    }
-  }
-
   // ------------------------------------------------------------
-  // A. HIGH-DEMAND VERIFIED KEYWORDS (Google Keyword Planner CSV)
-  // ------------------------------------------------------------
-  for (const kw of verifiedKeywords) {
-    const qLower = kw.keyword.toLowerCase().trim();
-    if (!qLower || seenKeys.has(`csv_${qLower}_${kw.state || 'nat'}`)) continue;
-
-    // Check if any product specifically targets this in SEO Title or Slug
-    const matchingProduct = products.find(
-      (p) =>
-        p.isActive !== false &&
-        (p.name.toLowerCase().includes(qLower) ||
-          (p.seoTitle && p.seoTitle.toLowerCase().includes(qLower)) ||
-          p.slug.toLowerCase().includes(qLower.replace(/\s+/g, '-')))
-    );
-
-    const isHighVolume = kw.searchVolume && kw.searchVolume >= 5000;
-    const isMediumVolume = kw.searchVolume && kw.searchVolume >= 1000;
-
-    let priority: GrowthOpportunityPriority = 'P3_LATER';
-    if (isHighVolume && (!matchingProduct || !matchingProduct.seoTitle)) {
-      priority = 'P1_NOW';
-    } else if (isMediumVolume || kw.state) {
-      priority = 'P2_NEXT';
-    }
-
-    let type: GrowthOpportunityType = 'HIGH_DEMAND_UNTARGETED';
-    let suggestedAction: GrowthOpportunityAction = 'OPTIMIZE_PRODUCT';
-    let actionLabel = 'Optimize Product Page';
-
-    if (kw.state && kw.state !== 'National') {
-      type = 'REGIONAL_MARKET_EXPANSION';
-      actionLabel = `Target ${kw.state} Market`;
-    } else if (qLower.includes('how') || qLower.includes('benefit') || qLower.includes('side effect')) {
-      type = 'QUESTION_CONTENT_GAP';
-      suggestedAction = 'CREATE_FAQ_DRAFT';
-      actionLabel = 'Create Botanical FAQ Draft';
-    } else if (kw.searchVolume && kw.searchVolume >= 25000) {
-      type = 'ADS_TARGETING_READY';
-      suggestedAction = 'PREPARE_ADS_DRAFT';
-      actionLabel = 'Prepare Google Ads Draft';
-    }
-
-    seenKeys.add(`csv_${qLower}_${kw.state || 'nat'}`);
-    opportunities.push({
-      id: `opp_csv_${kw.id || Math.random().toString(36).substring(2, 9)}`,
-      title: `${kw.keyword.toUpperCase()} (${kw.searchVolume ? `${kw.searchVolume.toLocaleString()}/mo` : 'Demand Record'})`,
-      description: `Verified ${kw.sourceName || 'GKP'} demand in ${kw.state || 'National India'}. ${matchingProduct ? `Mapped to "${matchingProduct.name}".` : 'No dedicated product metadata optimization found.'}`,
-      type,
-      priority,
-      keyword: kw.keyword,
-      productId: matchingProduct?.id,
-      productName: matchingProduct?.name,
-      productSlug: matchingProduct?.slug,
-      marketDemand: {
-        searchVolume: kw.searchVolume ?? null,
-        cpc: kw.cpc ?? null,
-        competition: kw.competition ?? null,
-        sourceName: kw.sourceName,
-        collectedAt: kw.collectedAt,
-      },
-      location: kw.state ? { state: kw.state, city: kw.city } : undefined,
-      suggestedAction,
-      actionLabel,
-      actionLink: matchingProduct ? `/admin/products/${matchingProduct.id}` : undefined,
-      relevanceScore: matchingProduct ? 92 : 75,
-      freshnessStatus: 'Fresh',
-      createdAt: kw.collectedAt || new Date().toISOString(),
-    });
-  }
-
-  // ------------------------------------------------------------
-  // B. GOOGLE SEARCH CONSOLE STRIKING DISTANCE OPPORTUNITIES (Pos 4-20)
+  // RULE A & B. GOOGLE SEARCH CONSOLE OPPORTUNITIES (Low CTR & Striking Distance)
   // ------------------------------------------------------------
   for (const gsc of gscQueries) {
     const qLower = gsc.query.toLowerCase().trim();
     if (!qLower || seenKeys.has(`gsc_${qLower}`)) continue;
 
     const pos = gsc.position;
-    const isStrikingDistance = pos >= 4.0 && pos <= 20.0;
-    const hasHighImpressionsLowClicks = gsc.impressions >= 10 && gsc.ctr < 0.05;
+    const isStrikingDistance = pos >= 5.0 && pos <= 20.0;
+    const isLowCtr = gsc.impressions >= 100 && gsc.ctr < 0.03;
 
-    if (isStrikingDistance || hasHighImpressionsLowClicks) {
+    if (isStrikingDistance || isLowCtr) {
       const matchingProduct = products.find(
         (p) => p.name.toLowerCase().includes(qLower) || p.slug.includes(qLower.replace(/\s+/g, '-'))
       );
 
-      const priority: GrowthOpportunityPriority = pos <= 10.0 ? 'P1_NOW' : 'P2_NEXT';
+      const type: GrowthOpportunityType = isLowCtr ? 'GSC_LOW_CTR' : 'GSC_RANKING_STRIKE';
+      const priority: GrowthOpportunityPriority = pos <= 10.0 || isLowCtr ? 'P1_NOW' : 'P2_NEXT';
+
+      const { growthScore, scoreBreakdown } = calculateGrowthOpportunityScore(
+        {
+          type,
+          gscPerformance: {
+            impressions: gsc.impressions,
+            clicks: gsc.clicks,
+            ctr: gsc.ctr,
+            position: gsc.position,
+          },
+        },
+        matchingProduct
+      );
 
       seenKeys.add(`gsc_${qLower}`);
       opportunities.push({
         id: `opp_gsc_${Math.random().toString(36).substring(2, 9)}`,
-        title: `Rank #${pos.toFixed(1)}: "${gsc.query}" (${gsc.impressions} Impressions)`,
-        description: `Google Search Console striking-distance query. Currently average position ${pos.toFixed(1)} with ${gsc.clicks} clicks (${(gsc.ctr * 100).toFixed(1)}% CTR). Optimizing title & snippet can capture front-page clicks.`,
-        type: 'GSC_RANKING_STRIKE',
+        title: isLowCtr
+          ? `Low CTR on High-Impression Query: "${gsc.query}" (${gsc.impressions} Impr, ${(gsc.ctr * 100).toFixed(1)}% CTR)`
+          : `Striking Distance #${pos.toFixed(1)}: "${gsc.query}" (${gsc.impressions} Impr)`,
+        description: isLowCtr
+          ? `Query receives ${gsc.impressions} search impressions but only ${(gsc.ctr * 100).toFixed(1)}% CTR. Rewriting the SEO title and snippet with botanical trust badges will capture more front-page clicks.`
+          : `Google Search Console ranking striking distance (Position ${pos.toFixed(1)}). Optimizing metadata and adding an FAQ will push this query to top 3.`,
+        type,
         priority,
+        status: 'NEW',
+        growthScore,
+        scoreBreakdown,
         keyword: gsc.query,
         productId: matchingProduct?.id,
         productName: matchingProduct?.name,
@@ -576,7 +668,7 @@ export function generateGrowthOpportunities(
           position: gsc.position,
         },
         suggestedAction: 'OPTIMIZE_PRODUCT',
-        actionLabel: 'Enhance Title & Meta Snippet',
+        actionLabel: 'Optimize SEO Title & Snippet',
         actionLink: matchingProduct ? `/admin/products/${matchingProduct.id}` : undefined,
         relevanceScore: 90,
         freshnessStatus: 'Fresh',
@@ -586,69 +678,118 @@ export function generateGrowthOpportunities(
   }
 
   // ------------------------------------------------------------
-  // C. PRODUCT METADATA & CONTENT HEALTH GAPS
+  // RULE C & E. MISSING GUIDE OPPORTUNITIES FOR ACTIVE PRODUCTS
   // ------------------------------------------------------------
   for (const p of products) {
     if (p.isActive === false) continue;
-    const health = calculateProductSeoHealth(p, undefined, verifiedKeywords);
 
-    if (health.rating === 'NEEDS_WORK' || !p.seoTitle || !p.seoDescription) {
+    const hasGuide = guides.some(
+      (g) => g.slug.includes(p.slug) || (g.title && g.title.toLowerCase().includes(p.name.toLowerCase()))
+    );
+
+    if (!hasGuide && !seenKeys.has(`missing_guide_${p.id}`)) {
+      seenKeys.add(`missing_guide_${p.id}`);
+      const { growthScore, scoreBreakdown } = calculateGrowthOpportunityScore(
+        { type: 'MISSING_GUIDE', keyword: p.name },
+        p
+      );
+
       opportunities.push({
-        id: `opp_meta_${p.id}`,
-        title: `SEO Incomplete: ${p.name}`,
-        description: `Product SEO Health is ${health.overallScore}% (${health.rating}). Missing ${health.breakdown.completenessMissingFields.slice(0, 2).join(', ')}.`,
-        type: 'METADATA_INCOMPLETE',
-        priority: 'P1_NOW',
+        id: `opp_guide_${p.id}`,
+        title: `Content Gap: No Guide for "${p.name}"`,
+        description: `Active product does not have a dedicated educational guide. Creating an Auto-Guide will capture top-of-funnel informational searches and drive product purchases.`,
+        type: 'MISSING_GUIDE',
+        priority: 'P2_NEXT',
+        status: 'NEW',
+        growthScore,
+        scoreBreakdown,
         keyword: p.name,
         productId: p.id,
         productName: p.name,
         productSlug: p.slug,
-        suggestedAction: 'OPTIMIZE_PRODUCT',
-        actionLabel: 'Complete SEO Metadata',
-        actionLink: `/admin/products/${p.id}`,
-        relevanceScore: 95,
+        suggestedAction: 'CREATE_GUIDE_DRAFT',
+        actionLabel: 'Generate Auto-Guide',
+        actionLink: `/admin/guides`,
+        relevanceScore: 88,
         freshnessStatus: 'Fresh',
-        createdAt: p.updatedAt || new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       });
     }
 
-    // Add Question Gap Opportunity if product has rich questions in universe
-    const uv = generateProductKeywordUniverse(p, verifiedKeywords);
-    if (uv.suggestedQuestions.length > 0 && !seenKeys.has(`q_${p.id}`)) {
-      const topQ = uv.suggestedQuestions[0];
-      seenKeys.add(`q_${p.id}`);
+    // ------------------------------------------------------------
+    // RULE F. MISSING REAL PRODUCT PHOTOGRAPHY (Fallback Image)
+    // ------------------------------------------------------------
+    const usesFallbackImage = !p.images || p.images.length === 0 || p.images[0].includes('fallback');
+    if (usesFallbackImage && !seenKeys.has(`missing_img_${p.id}`)) {
+      seenKeys.add(`missing_img_${p.id}`);
+      const { growthScore, scoreBreakdown } = calculateGrowthOpportunityScore(
+        { type: 'MISSING_IMAGE', keyword: p.name },
+        p
+      );
+
       opportunities.push({
-        id: `opp_q_${p.id}`,
-        title: `FAQ Opportunity: "${topQ}"`,
-        description: `High-intent botanical query for "${p.name}". Creating an FAQ or Guide section will capture organic informational search traffic.`,
-        type: 'QUESTION_CONTENT_GAP',
-        priority: 'P2_NEXT',
-        keyword: topQ,
+        id: `opp_img_${p.id}`,
+        title: `Visual Opportunity: Add Real Image for "${p.name}"`,
+        description: `Product currently uses an SVG placeholder image. Uploading genuine product photography increases add-to-cart conversion rate by over 40%.`,
+        type: 'MISSING_IMAGE',
+        priority: 'P1_NOW',
+        status: 'NEW',
+        growthScore,
+        scoreBreakdown,
+        keyword: p.name,
         productId: p.id,
         productName: p.name,
         productSlug: p.slug,
-        suggestedAction: 'CREATE_FAQ_DRAFT',
-        actionLabel: 'Draft Botanical FAQ',
+        suggestedAction: 'ADD_PRODUCT_IMAGE',
+        actionLabel: 'Upload Product Photos',
         actionLink: `/admin/products/${p.id}`,
-        relevanceScore: 85,
+        relevanceScore: 94,
+        freshnessStatus: 'Fresh',
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    // ------------------------------------------------------------
+    // RULE H. INVENTORY & OUT-OF-STOCK RISK
+    // ------------------------------------------------------------
+    if (p.stockStatus === 'out_of_stock' && !seenKeys.has(`stock_${p.id}`)) {
+      seenKeys.add(`stock_${p.id}`);
+      const { growthScore, scoreBreakdown } = calculateGrowthOpportunityScore(
+        { type: 'OUT_OF_STOCK_RISK', keyword: p.name },
+        p
+      );
+
+      opportunities.push({
+        id: `opp_stock_${p.id}`,
+        title: `Commercial Risk: "${p.name}" is Out of Stock`,
+        description: `Active product is marked out of stock. Updating stock status or manufacturing batch prevents lost customer orders.`,
+        type: 'OUT_OF_STOCK_RISK',
+        priority: 'P1_NOW',
+        status: 'NEW',
+        growthScore,
+        scoreBreakdown,
+        keyword: p.name,
+        productId: p.id,
+        productName: p.name,
+        productSlug: p.slug,
+        suggestedAction: 'RESTOCK_PRODUCT',
+        actionLabel: 'Update Stock Status',
+        actionLink: `/admin/products/${p.id}`,
+        relevanceScore: 96,
         freshnessStatus: 'Fresh',
         createdAt: new Date().toISOString(),
       });
     }
   }
 
-  // Sort: P1_NOW first, then P2_NEXT, then P3_LATER, secondary by relevance
-  const priorityWeight: Record<GrowthOpportunityPriority, number> = {
-    P1_NOW: 300,
-    P2_NEXT: 200,
-    P3_LATER: 100,
-  };
+  // ------------------------------------------------------------
+  // RULE G. KEYWORD CANNIBALIZATION DETECTION
+  // ------------------------------------------------------------
+  const cannibalOpps = detectKeywordCannibalization(products, guides);
+  opportunities.push(...cannibalOpps);
 
-  return opportunities.sort((a, b) => {
-    const pDiff = priorityWeight[b.priority] - priorityWeight[a.priority];
-    if (pDiff !== 0) return pDiff;
-    return b.relevanceScore - a.relevanceScore;
-  });
+  // Sort by growthScore descending
+  return opportunities.sort((a, b) => (b.growthScore || 0) - (a.growthScore || 0));
 }
 
 // ============================================================
@@ -768,14 +909,107 @@ Final URL: https://muskydose.in/products/${product?.slug || ''}`;
 }
 
 // ============================================================
-// 7. HIGH-PERFORMANCE PAGINATED DASHBOARD LOADER
+// 8. HIGH-PERFORMANCE PAGINATED DASHBOARD LOADER & ATTRIBUTION
 // ============================================================
+
+import { getRawAnalyticsEvents } from '@/lib/db/analytics-db';
+import { GuideAttributionMetric } from './types';
+
+export async function getGuideAttributionSummary(
+  days = 30,
+  guides: any[] = []
+): Promise<GuideAttributionMetric[]> {
+  const events = await getRawAnalyticsEvents(days);
+  const orders = await getOrdersForAnalytics(days);
+
+  const guideMap = new Map<string, {
+    views: number;
+    clicks: number;
+    atc: number;
+    orders: number;
+    revenue: number;
+    title: string;
+    category: string;
+  }>();
+
+  // Initialize with all guides
+  for (const g of guides) {
+    guideMap.set(g.slug, {
+      views: 0,
+      clicks: 0,
+      atc: 0,
+      orders: 0,
+      revenue: 0,
+      title: g.title,
+      category: g.categoryName || 'Guides',
+    });
+  }
+
+  // Count events
+  for (const ev of events) {
+    const slug = (ev.metadata as any)?.guideSlug || (ev.pathname?.startsWith('/guides/') ? ev.pathname.replace('/guides/', '') : null);
+    if (slug) {
+      const entry = guideMap.get(slug) || {
+        views: 0,
+        clicks: 0,
+        atc: 0,
+        orders: 0,
+        revenue: 0,
+        title: (ev.metadata as any)?.guideTitle || slug,
+        category: 'Guides',
+      };
+
+      if (ev.eventName === 'guide_view' || ev.eventName === 'page_view') {
+        entry.views++;
+      } else if (ev.eventName === 'guide_product_click') {
+        entry.clicks++;
+      } else if (ev.eventName === 'add_to_cart') {
+        entry.atc++;
+      }
+      guideMap.set(slug, entry);
+    }
+  }
+
+  // Correlate with orders
+  for (const order of orders) {
+    const rawUtm = (order as any).utmSource || (order as any).source || '';
+    if (typeof rawUtm === 'string' && rawUtm.startsWith('guide_')) {
+      const slug = rawUtm.replace('guide_', '');
+      const entry = guideMap.get(slug);
+      if (entry) {
+        entry.orders++;
+        entry.revenue += Number((order as any).totalAmount || (order as any).total || 0);
+      }
+    }
+  }
+
+  const results: GuideAttributionMetric[] = [];
+  for (const [slug, data] of guideMap.entries()) {
+    const ctr = data.views > 0 ? Number(((data.clicks / data.views) * 100).toFixed(1)) : 0;
+    const conversionRate = data.clicks > 0 ? Number(((data.orders / data.clicks) * 100).toFixed(1)) : 0;
+    results.push({
+      guideSlug: slug,
+      guideTitle: data.title,
+      category: data.category,
+      guideViews: data.views,
+      productClicks: data.clicks,
+      addToCartCount: data.atc,
+      ordersCount: data.orders,
+      attributedRevenue: data.revenue,
+      ctr,
+      conversionRate,
+    });
+  }
+
+  return results.sort((a, b) => b.productClicks - a.productClicks || b.guideViews - a.guideViews);
+}
 
 export async function getGrowthOpportunitiesDashboard(
   products: Product[],
   verifiedKeywords: GrowthKeyword[] = [],
   gscQueries: SearchConsoleQuery[] = [],
   orders: any[] = [],
+  guides: any[] = [],
   params: {
     page?: number;
     limit?: number;
@@ -792,7 +1026,7 @@ export async function getGrowthOpportunitiesDashboard(
   limit: number;
   totalPages: number;
 }> {
-  const allOpps = generateGrowthOpportunities(products, verifiedKeywords, gscQueries, orders);
+  const allOpps = generateGrowthOpportunities(products, verifiedKeywords, gscQueries, orders, guides);
 
   // Compute overall stats
   let p1Count = 0;

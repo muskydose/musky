@@ -185,6 +185,43 @@ export function trackCategoryView(category: { id: string; name: string }) {
   }
 }
 
+export function trackGuideView(guide: { slug: string; title: string; category?: string }) {
+  if (!guide?.slug) return;
+  if (isDuplicateEvent(`gview:${guide.slug}`, 5000)) return;
+
+  sendFirstPartyEvent('guide_view', {
+    pathname: `/guides/${guide.slug}`,
+    category: guide.category || 'Guides',
+    metadata: {
+      guideSlug: guide.slug,
+      guideTitle: guide.title,
+    },
+  });
+}
+
+export function trackGuideProductClick(params: {
+  guideSlug: string;
+  productId: string;
+  productSlug?: string;
+  productName?: string;
+  price?: number;
+}) {
+  if (!params?.guideSlug || !params?.productId) return;
+  if (isDuplicateEvent(`g_p_click:${params.guideSlug}:${params.productId}`, 3000)) return;
+
+  sendFirstPartyEvent('guide_product_click', {
+    pathname: `/guides/${params.guideSlug}`,
+    productId: params.productId,
+    productName: params.productName,
+    value: Number(params.price || 0),
+    source: `guide_${params.guideSlug}`,
+    metadata: {
+      guideSlug: params.guideSlug,
+      productSlug: params.productSlug,
+    },
+  });
+}
+
 export function trackAddToCart(item: {
   id: string;
   name: string;

@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limit';
 import { saveAnalyticsEvent } from '@/lib/db/analytics-db';
 
@@ -25,6 +25,8 @@ const ALLOWED_EVENTS = new Set([
   'wholesale_inquiry_submitted',
   'wishlist_add',
   'wishlist_remove',
+  'guide_view',
+  'guide_product_click',
 ]);
 
 export async function POST(req: NextRequest) {

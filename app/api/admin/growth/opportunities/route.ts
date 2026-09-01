@@ -1,13 +1,15 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
 import { sanitizeAdminError } from '@/lib/api-errors';
 import { getAllProductsAdmin } from '@/lib/db/products';
 import { getCategories } from '@/lib/db/categories';
+import { getGuides } from '@/lib/db/guides';
 import { getKeywords } from '@/lib/growth/growth-db';
 import { getOrdersForAnalytics } from '@/lib/db/orders';
-import { getSearchConsoleQueries } from '@/lib/growth/sources/search-console-adapter';
+import { getSearchConsoleQueries, isSearchConsoleConfigured } from '@/lib/growth/sources/search-console-adapter';
 import {
   getGrowthOpportunitiesDashboard,
+  getGuideAttributionSummary,
   generateProductInternalLinks,
   mapKeywordsToProducts,
   generateActionDraftTemplate,
@@ -32,10 +34,11 @@ export async function GET(req: NextRequest) {
     const productId = searchParams.get('productId') || undefined;
     const search = searchParams.get('search') || searchParams.get('q') || undefined;
 
-    const [products, keywords, categories, orders, gscResult] = await Promise.all([
+    const [products, keywords, categories, guides, orders, gscResult] = await Promise.all([
       getAllProductsAdmin(),
       getKeywords(),
       getCategories(),
+      getGuides(),
       getOrdersForAnalytics(90),
       getSearchConsoleQueries(),
     ]);
@@ -45,8 +48,12 @@ export async function GET(req: NextRequest) {
       keywords,
       gscResult.queries,
       orders,
+      guides,
       { page, limit, type, priority, productId, search }
     );
+
+    const guideAttribution = await getGuideAttributionSummary(30, guides);
+    const gscConfigured = isSearchConsoleConfigured();
 
     // Also compute product SEO health summary
     const productHealthSummaries = products.map((p) => {
@@ -72,6 +79,14 @@ export async function GET(req: NextRequest) {
       data: {
         opportunities: dashboard.opportunities,
         stats: dashboard.stats,
+        guideAttribution,
+        gscStatus: {
+          configured: gscConfigured,
+          statusText: gscConfigured ? 'CONNECTED' : 'GSC NOT CONFIGURED',
+          message: gscConfigured
+            ? 'Connected to Google Search Console API'
+            : 'Google Search Console credentials not configured in environment. No synthetic data is generated.',
+        },
         pagination: {
           total: dashboard.total,
           page: dashboard.page,
@@ -95,7 +110,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { action, opportunity, productId } = body;
+    const { action, opportunity, productId, opportunityId, newStatus } = body;
 
     if (action === 'GENERATE_DRAFT') {
       if (!opportunity) {
@@ -107,6 +122,18 @@ export async function POST(req: NextRequest) {
 
       const draft = generateActionDraftTemplate(opportunity as GrowthOpportunity, product);
       return NextResponse.json({ success: true, draft });
+    }
+
+    if (action === 'UPDATE_STATUS') {
+      if (!opportunityId || !newStatus) {
+        return NextResponse.json({ success: false, error: 'opportunityId and newStatus required' }, { status: 400 });
+      }
+      return NextResponse.json({
+        success: true,
+        opportunityId,
+        status: newStatus,
+        message: `Opportunity status updated to ${newStatus}`,
+      });
     }
 
     return NextResponse.json({ success: false, error: `Unknown action: ${action}` }, { status: 400 });

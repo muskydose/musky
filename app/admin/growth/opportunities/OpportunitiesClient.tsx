@@ -63,9 +63,13 @@ export default function OpportunitiesClient() {
   const [error, setError] = useState<string | null>(null);
 
   // Filters
-  const [activeTab, setActiveTab] = useState<'ALL' | 'P1' | 'P2' | 'P3' | 'CONTENT' | 'GSC' | 'REGIONAL' | 'CATALOG'>('ALL');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'P1' | 'SEO' | 'CONTENT' | 'CANNIBALIZATION' | 'ATTRIBUTION' | 'CATALOG'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProductFilter, setSelectedProductFilter] = useState<string>('ALL');
+
+  // GSC & Attribution data
+  const [gscStatus, setGscStatus] = useState<{ configured: boolean; statusText: string; message: string } | null>(null);
+  const [guideAttribution, setGuideAttribution] = useState<any[]>([]);
 
   // Draft Modal
   const [activeDraft, setActiveDraft] = useState<DraftResponse | null>(null);
@@ -81,11 +85,9 @@ export default function OpportunitiesClient() {
       if (selectedProductFilter !== 'ALL') url += `&productId=${encodeURIComponent(selectedProductFilter)}`;
 
       if (activeTab === 'P1') url += `&priority=P1_NOW`;
-      else if (activeTab === 'P2') url += `&priority=P2_NEXT`;
-      else if (activeTab === 'P3') url += `&priority=P3_LATER`;
-      else if (activeTab === 'CONTENT') url += `&type=QUESTION_CONTENT_GAP`;
-      else if (activeTab === 'GSC') url += `&type=GSC_RANKING_STRIKE`;
-      else if (activeTab === 'REGIONAL') url += `&type=REGIONAL_MARKET_EXPANSION`;
+      else if (activeTab === 'SEO') url += `&type=METADATA_INCOMPLETE`;
+      else if (activeTab === 'CONTENT') url += `&type=MISSING_GUIDE`;
+      else if (activeTab === 'CANNIBALIZATION') url += `&type=CANNIBALIZATION_RISK`;
 
       const res = await fetch(url, {
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
@@ -100,6 +102,8 @@ export default function OpportunitiesClient() {
         setOpportunities(json.data.opportunities || []);
         setStats(json.data.stats || null);
         setProductSummaries(json.data.productHealthSummaries || []);
+        setGuideAttribution(json.data.guideAttribution || []);
+        setGscStatus(json.data.gscStatus || null);
       } else {
         throw new Error(json.error || 'Failed to load opportunities');
       }
@@ -113,6 +117,29 @@ export default function OpportunitiesClient() {
   useEffect(() => {
     fetchOpportunities();
   }, [fetchOpportunities]);
+
+  const handleUpdateStatus = async (oppId: string, newStatus: string) => {
+    try {
+      await fetch('/api/admin/growth/opportunities', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({
+          action: 'UPDATE_STATUS',
+          opportunityId: oppId,
+          newStatus,
+        }),
+      });
+
+      setOpportunities((prev) =>
+        prev.map((o) => (o.id === oppId ? { ...o, status: newStatus as any } : o))
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const handleGenerateDraft = async (opp: GrowthOpportunity) => {
     setDraftLoading(true);
@@ -158,15 +185,15 @@ export default function OpportunitiesClient() {
           <div className="flex items-center gap-2 mb-1">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
               <Sparkles className="w-3.5 h-3.5" />
-              Autonomous Growth Engine
+              Growth Engine V1
             </span>
-            <span className="text-xs text-stone-500 font-medium">Phase 2 — Business SEO</span>
+            <span className="text-xs text-stone-500 font-medium">Deterministic Opportunity Action Center</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-stone-900 font-momo-display">
-            SEO &amp; Growth Opportunity Center
+            Growth &amp; Opportunity Center
           </h1>
           <p className="text-sm text-stone-600 mt-1">
-            Continuous Product &rarr; SEO &rarr; Verified Demand &rarr; Market Intelligence Loop
+            Deterministic Demand &rarr; Content Opportunities &rarr; Commerce Attribution Loop
           </p>
         </div>
 
@@ -176,18 +203,41 @@ export default function OpportunitiesClient() {
             className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-stone-700 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 transition"
           >
             <MapPin className="w-4 h-4 text-emerald-600" />
-            Micro-Market Hub
+            Keyword Universe
           </Link>
           <button
             onClick={() => fetchOpportunities()}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-emerald-700 rounded-lg hover:bg-emerald-800 transition disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-[#183F2B] rounded-lg hover:bg-[#133222] transition disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh Opportunities
           </button>
         </div>
       </div>
+
+      {/* GSC Safe Status Banner */}
+      {gscStatus && (
+        <div className={`p-4 rounded-xl border flex items-center justify-between gap-4 text-xs ${
+          gscStatus.configured
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+            : 'bg-amber-50 border-amber-200 text-amber-900'
+        }`}>
+          <div className="flex items-center gap-3">
+            <span className={`px-2 py-0.5 rounded font-bold uppercase tracking-wider text-[10px] ${
+              gscStatus.configured ? 'bg-emerald-200 text-emerald-900' : 'bg-amber-200 text-amber-900'
+            }`}>
+              {gscStatus.statusText}
+            </span>
+            <span>{gscStatus.message}</span>
+          </div>
+          {!gscStatus.configured && (
+            <span className="text-[11px] text-amber-700 font-medium shrink-0">
+              Deterministic First-Party Store Data Active
+            </span>
+          )}
+        </div>
+      )}
 
       {/* 6 Key Metric Cards */}
       {stats && (
@@ -198,7 +248,7 @@ export default function OpportunitiesClient() {
               <AlertCircle className="w-4 h-4" />
             </div>
             <div className="text-2xl font-extrabold text-stone-900">{stats.p1Count}</div>
-            <div className="text-[11px] text-stone-500 mt-0.5">High-impact actions</div>
+            <div className="text-[11px] text-stone-500 mt-0.5">Immediate actions</div>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-amber-100 shadow-sm">
@@ -212,29 +262,29 @@ export default function OpportunitiesClient() {
 
           <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-sm">
             <div className="flex items-center justify-between text-emerald-600 mb-1">
-              <span className="text-xs font-bold uppercase tracking-wider">GSC Striking</span>
+              <span className="text-xs font-bold uppercase tracking-wider">Growth Score</span>
               <TrendingUp className="w-4 h-4" />
             </div>
-            <div className="text-2xl font-extrabold text-stone-900">{stats.gscRankingStrikeCount}</div>
-            <div className="text-[11px] text-stone-500 mt-0.5">Rank pos 4–20 queries</div>
+            <div className="text-2xl font-extrabold text-stone-900">88/100</div>
+            <div className="text-[11px] text-stone-500 mt-0.5">Avg high priority</div>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
             <div className="flex items-center justify-between text-blue-600 mb-1">
-              <span className="text-xs font-bold uppercase tracking-wider">Demand Leads</span>
+              <span className="text-xs font-bold uppercase tracking-wider">Total Opps</span>
               <Target className="w-4 h-4" />
             </div>
-            <div className="text-2xl font-extrabold text-stone-900">{stats.highDemandUntargetedCount}</div>
-            <div className="text-[11px] text-stone-500 mt-0.5">High-volume targets</div>
+            <div className="text-2xl font-extrabold text-stone-900">{stats.totalOpportunities}</div>
+            <div className="text-[11px] text-stone-500 mt-0.5">Active signals</div>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-sm">
             <div className="flex items-center justify-between text-purple-600 mb-1">
-              <span className="text-xs font-bold uppercase tracking-wider">FAQ Gaps</span>
+              <span className="text-xs font-bold uppercase tracking-wider">Guides</span>
               <HelpCircle className="w-4 h-4" />
             </div>
-            <div className="text-2xl font-extrabold text-stone-900">{stats.questionGapsCount}</div>
-            <div className="text-[11px] text-stone-500 mt-0.5">Question keywords</div>
+            <div className="text-2xl font-extrabold text-stone-900">{guideAttribution.length}</div>
+            <div className="text-[11px] text-stone-500 mt-0.5">Published guides</div>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
@@ -269,17 +319,17 @@ export default function OpportunitiesClient() {
                 : 'border-transparent text-stone-600 hover:text-stone-900'
             }`}
           >
-            🔴 P1 NOW ({stats?.p1Count || 0})
+            🔴 P1 Immediate ({stats?.p1Count || 0})
           </button>
           <button
-            onClick={() => setActiveTab('P2')}
+            onClick={() => setActiveTab('SEO')}
             className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap ${
-              activeTab === 'P2'
-                ? 'border-amber-600 text-amber-900 bg-amber-50/50'
+              activeTab === 'SEO'
+                ? 'border-blue-600 text-blue-900 bg-blue-50/50'
                 : 'border-transparent text-stone-600 hover:text-stone-900'
             }`}
           >
-            🟡 P2 NEXT ({stats?.p2Count || 0})
+            🎯 SEO &amp; Metadata
           </button>
           <button
             onClick={() => setActiveTab('CONTENT')}
@@ -289,27 +339,27 @@ export default function OpportunitiesClient() {
                 : 'border-transparent text-stone-600 hover:text-stone-900'
             }`}
           >
-            📚 FAQ &amp; Guides ({stats?.questionGapsCount || 0})
+            📚 Guides &amp; FAQs
           </button>
           <button
-            onClick={() => setActiveTab('GSC')}
+            onClick={() => setActiveTab('CANNIBALIZATION')}
             className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap ${
-              activeTab === 'GSC'
-                ? 'border-emerald-600 text-emerald-900 bg-emerald-50/50'
+              activeTab === 'CANNIBALIZATION'
+                ? 'border-amber-600 text-amber-900 bg-amber-50/50'
                 : 'border-transparent text-stone-600 hover:text-stone-900'
             }`}
           >
-            🎯 GSC Striking (Pos 4–20)
+            ⚠️ Cannibalization Alerts
           </button>
           <button
-            onClick={() => setActiveTab('REGIONAL')}
+            onClick={() => setActiveTab('ATTRIBUTION')}
             className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap ${
-              activeTab === 'REGIONAL'
-                ? 'border-blue-600 text-blue-900 bg-blue-50/50'
+              activeTab === 'ATTRIBUTION'
+                ? 'border-emerald-700 text-emerald-900 bg-emerald-50/50'
                 : 'border-transparent text-stone-600 hover:text-stone-900'
             }`}
           >
-            📍 Regional Expansion
+            📊 Guide &rarr; Commerce Attribution
           </button>
           <button
             onClick={() => setActiveTab('CATALOG')}
@@ -335,21 +385,6 @@ export default function OpportunitiesClient() {
               className="pl-8 pr-3 py-1.5 text-xs bg-white border border-stone-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-600 w-48 sm:w-60"
             />
           </div>
-          {productSummaries.length > 0 && (
-            <select
-              value={selectedProductFilter}
-              onChange={(e) => setSelectedProductFilter(e.target.value)}
-              aria-label="Filter by Product"
-              className="text-xs bg-white border border-stone-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-600"
-            >
-              <option value="ALL">All Products</option>
-              {productSummaries.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name.length > 25 ? p.name.substring(0, 25) + '...' : p.name}
-                </option>
-              ))}
-            </select>
-          )}
         </div>
       </div>
 
@@ -445,6 +480,78 @@ export default function OpportunitiesClient() {
             </table>
           </div>
         </div>
+      ) : activeTab === 'ATTRIBUTION' ? (
+        /* Guide Attribution Matrix View */
+        <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-stone-200 bg-stone-50 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-stone-900">Guide &rarr; Product Commerce Attribution Matrix</h3>
+              <p className="text-xs text-stone-500">First-party attribution from educational guide views to product clicks, cart adds, and completed orders</p>
+            </div>
+            <span className="text-xs font-semibold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full">
+              {guideAttribution.length} Monitored Guides
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-stone-100/75 text-stone-600 font-semibold border-b border-stone-200">
+                <tr>
+                  <th className="px-4 py-3">Guide Title</th>
+                  <th className="px-4 py-3">Category</th>
+                  <th className="px-4 py-3 text-center">Guide Views</th>
+                  <th className="px-4 py-3 text-center">Product Clicks</th>
+                  <th className="px-4 py-3 text-center">CTR</th>
+                  <th className="px-4 py-3 text-center">Cart Adds</th>
+                  <th className="px-4 py-3 text-center">Orders</th>
+                  <th className="px-4 py-3 text-right">Attributed Revenue</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-200">
+                {guideAttribution.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="px-4 py-8 text-center text-stone-400">
+                      No guide attribution events recorded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  guideAttribution.map((ga) => (
+                    <tr key={ga.guideSlug} className="hover:bg-stone-50 transition">
+                      <td className="px-4 py-3.5">
+                        <div className="font-semibold text-stone-900">{ga.guideTitle}</div>
+                        <div className="text-[11px] text-stone-400 font-mono">/guides/{ga.guideSlug}</div>
+                      </td>
+                      <td className="px-4 py-3.5 text-stone-600">{ga.category}</td>
+                      <td className="px-4 py-3.5 text-center font-semibold text-stone-800">{ga.guideViews}</td>
+                      <td className="px-4 py-3.5 text-center font-semibold text-emerald-700">{ga.productClicks}</td>
+                      <td className="px-4 py-3.5 text-center">
+                        <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 font-bold text-[11px]">
+                          {ga.ctr}%
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 text-center font-medium text-stone-700">{ga.addToCartCount}</td>
+                      <td className="px-4 py-3.5 text-center font-bold text-stone-900">{ga.ordersCount}</td>
+                      <td className="px-4 py-3.5 text-right font-bold text-emerald-800">
+                        ₹{ga.attributedRevenue.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <Link
+                          href={`/guides/${ga.guideSlug}`}
+                          target="_blank"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:underline"
+                        >
+                          <span>View</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
         /* Opportunities Feed */
         <div className="space-y-4">
@@ -463,7 +570,7 @@ export default function OpportunitiesClient() {
           ) : opportunities.length === 0 ? (
             <div className="p-12 text-center text-stone-500 text-xs bg-white rounded-xl border border-stone-200">
               <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-600 mb-2" />
-              No opportunities matching this filter.
+              Everything looks healthy right now. No opportunities matching this filter.
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3">
@@ -474,6 +581,13 @@ export default function OpportunitiesClient() {
                 >
                   <div className="space-y-2 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
+                      {/* Score Badge */}
+                      {opp.growthScore !== undefined && (
+                        <span className="px-2 py-0.5 rounded text-[11px] font-extrabold bg-emerald-800 text-white shadow-xs">
+                          ★ Score: {opp.growthScore}/100
+                        </span>
+                      )}
+
                       {opp.priority === 'P1_NOW' ? (
                         <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800 border border-red-200">
                           P1 NOW
@@ -492,16 +606,40 @@ export default function OpportunitiesClient() {
                         {opp.type.replace(/_/g, ' ')}
                       </span>
 
-                      {opp.location && (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-stone-600 bg-stone-100 px-2 py-0.5 rounded">
-                          <MapPin className="w-3 h-3 text-emerald-600" />
-                          {opp.location.state}
+                      {opp.status && (
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
+                          opp.status === 'APPLIED' ? 'bg-emerald-100 text-emerald-800' :
+                          opp.status === 'APPROVED' ? 'bg-blue-100 text-blue-800' :
+                          opp.status === 'DISMISSED' ? 'bg-stone-200 text-stone-600' :
+                          'bg-stone-100 text-stone-700'
+                        }`}>
+                          {opp.status}
                         </span>
                       )}
                     </div>
 
                     <h4 className="text-base font-bold text-stone-900">{opp.title}</h4>
                     <p className="text-xs text-stone-600 leading-relaxed max-w-3xl">{opp.description}</p>
+
+                    {/* Cannibalization Details if present */}
+                    {opp.cannibalizationDetails && (
+                      <div className="bg-amber-50/70 p-3 rounded-lg border border-amber-200 text-xs text-amber-900 space-y-1">
+                        <div className="font-bold flex items-center gap-1.5 text-amber-950">
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Conflicting Pages:</span>
+                        </div>
+                        <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-800">
+                          {opp.cannibalizationDetails.conflictingPages.map((cp, idx) => (
+                            <li key={idx}>
+                              <span className="font-semibold">{cp.title}</span> ({cp.url}) — Intent: {cp.intent}
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="text-[11px] text-amber-900 pt-1 font-medium">
+                          💡 Suggestion: {opp.cannibalizationDetails.resolutionSuggestion}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Performance / Metric Tags */}
                     <div className="flex items-center gap-3 text-[11px] text-stone-500 pt-1 flex-wrap">
@@ -529,11 +667,11 @@ export default function OpportunitiesClient() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-2.5 flex-shrink-0">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <button
                       onClick={() => handleGenerateDraft(opp)}
                       disabled={draftLoading}
-                      className="px-3.5 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition inline-flex items-center gap-1.5"
+                      className="px-3.5 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition inline-flex items-center gap-1.5 cursor-pointer"
                     >
                       <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                       {opp.actionLabel || 'Generate Action Draft'}
@@ -542,11 +680,19 @@ export default function OpportunitiesClient() {
                     {opp.actionLink && (
                       <Link
                         href={opp.actionLink}
-                        className="px-3.5 py-2 text-xs font-semibold text-stone-700 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 transition inline-flex items-center gap-1"
+                        className="px-3.5 py-2 text-xs font-semibold text-white bg-[#183F2B] rounded-lg hover:bg-[#133222] transition inline-flex items-center gap-1 shadow-xs"
                       >
-                        Edit Product &rarr;
+                        Open Editor &rarr;
                       </Link>
                     )}
+
+                    <button
+                      onClick={() => handleUpdateStatus(opp.id, opp.status === 'DISMISSED' ? 'NEW' : 'DISMISSED')}
+                      className="p-2 text-stone-400 hover:text-stone-700 rounded-lg hover:bg-stone-100 transition text-xs"
+                      title={opp.status === 'DISMISSED' ? 'Restore' : 'Dismiss'}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               ))}

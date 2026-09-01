@@ -27,6 +27,7 @@ import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
+import GuideTracker, { GuideProductClickTracker } from '@/components/GuideTracker';
 import { formatPrice, safeJsonLd } from '@/lib/utils';
 
 export const revalidate = 60; // Revalidate every 60s
@@ -196,6 +197,8 @@ export default async function ProductGuideDetailPage({
             </p>
           </div>
         </section>
+
+        <GuideTracker guide={guide} />
 
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6 relative z-20 pb-16">
           {/* COVER IMAGE */}
@@ -487,12 +490,20 @@ export default async function ProductGuideDetailPage({
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
                 {displayProducts.map((prod) => (
-                  <ProductCard
+                  <GuideProductClickTracker
                     key={prod.id}
-                    product={prod}
-                    whatsappNumber={whatsappPhone}
-                    siteSettings={siteSettings}
-                  />
+                    guideSlug={guide.slug}
+                    productId={prod.id}
+                    productSlug={prod.slug}
+                    productName={prod.name}
+                    price={prod.price}
+                  >
+                    <ProductCard
+                      product={prod}
+                      whatsappNumber={whatsappPhone}
+                      siteSettings={siteSettings}
+                    />
+                  </GuideProductClickTracker>
                 ))}
               </div>
             </section>
