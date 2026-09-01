@@ -335,7 +335,7 @@ export default function CheckoutPage() {
       }
       clearCart();
 
-      // Automatically attempt to launch WhatsApp direct URL for instant user convenience
+      // Direct WhatsApp dispatch: immediately redirect to WhatsApp URL
       try {
         const autoMsg = generateStructuredWhatsAppOrderMessage(
           savedOrder,
@@ -344,7 +344,7 @@ export default function CheckoutPage() {
         const autoDestNum = getConfiguredWhatsAppNumber(siteSettings);
         const autoWhatsappUrl = getWhatsAppDirectUrl(autoDestNum, autoMsg);
         if (typeof window !== 'undefined') {
-          window.open(autoWhatsappUrl, '_blank');
+          window.location.href = autoWhatsappUrl;
         }
       } catch (openErr) {
         console.warn('Automatic WhatsApp launch attempt:', openErr);
@@ -419,16 +419,17 @@ export default function CheckoutPage() {
           <div className="pt-2 space-y-3">
             <a
               href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => {
+              onClick={(e) => {
                 trackWhatsAppClick({
                   source: 'Order Confirmation Screen',
                   totalAmount: createdOrder.totalAmount,
                   itemCount: createdOrder.items?.length || 1,
                 });
+                if (typeof window !== 'undefined') {
+                  window.location.href = whatsappUrl;
+                }
               }}
-              className="w-full flex items-center justify-center gap-3 px-8 py-4 bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
+              className="w-full flex items-center justify-center gap-3 px-8 py-4 bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 cursor-pointer"
             >
               <MessageSquare className="w-6 h-6 fill-white" />
               <span>CONTINUE TO WHATSAPP TO CONFIRM ORDER</span>
