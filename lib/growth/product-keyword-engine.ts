@@ -14,7 +14,10 @@ import { getKeywords } from './growth-db';
  * Botanical synonym and entity knowledge base
  * Allows dynamic keyword derivation for Indian botanical products
  */
+export type BotanicalScope = 'HAIR' | 'SKIN' | 'BODY_ART' | 'HERBAL' | 'WHOLESALE';
+
 interface BotanicalEntity {
+  key: string;
   rootNames: string[];
   scientificName: string[];
   ayurvedicNames: string[];
@@ -24,54 +27,134 @@ interface BotanicalEntity {
   primaryBenefits: string[];
   primaryUseCases: string[];
   semanticThemes: string[];
+  primaryScope: BotanicalScope;
+  suggestedCategorySlug: string;
+  suggestedGuideSlugs: string[];
 }
 
 const BOTANICAL_KNOWLEDGE: Record<string, BotanicalEntity> = {
   henna: {
-    rootNames: ['henna', 'mehndi', 'mehandi', 'hina'],
+    key: 'henna',
+    rootNames: ['henna', 'mehndi', 'mehandi', 'mehendi', 'hina', 'heena'],
     scientificName: ['lawsonia inermis'],
     ayurvedicNames: ['madayantika', 'mehendi'],
-    englishNames: ['henna powder', 'herbal hair color', 'natural dye'],
+    englishNames: ['henna powder', 'herbal hair color', 'natural dye', 'body art henna'],
     originRegions: ['Sojat', 'Pali', 'Rajasthan', 'Marwar'],
     standardForms: ['powder', 'leaves', 'paste', 'cone', 'oil'],
-    primaryBenefits: ['hair conditioning', 'natural hair color', 'grey hair coverage', 'scalp cooling', 'anti dandruff'],
-    primaryUseCases: ['hair pack', 'hair dye', 'bridal mehndi', 'scalp pack', 'hair wash'],
-    semanticThemes: ['natural hair coloring', 'ayurvedic hair care', 'chemical free dye', 'plant based color'],
+    primaryBenefits: ['hair conditioning', 'natural hair color', 'grey hair coverage', 'scalp cooling', 'anti dandruff', 'deep mahogany stain'],
+    primaryUseCases: ['hair pack', 'hair dye', 'bridal mehndi', 'cone making', 'body art'],
+    semanticThemes: ['natural hair coloring', 'ayurvedic hair care', 'chemical free dye', 'plant based color', 'bridal body art'],
+    primaryScope: 'HAIR',
+    suggestedCategorySlug: 'henna',
+    suggestedGuideSlugs: ['sojat-henna-powder-complete-guide', 'which-henna-powder-is-right-for-you'],
+  },
+  baq_henna: {
+    key: 'baq_henna',
+    rootNames: ['baq henna', 'body art quality henna', 'baq mehndi', 'bridal henna powder'],
+    scientificName: ['lawsonia inermis'],
+    ayurvedicNames: ['madayantika'],
+    englishNames: ['body art quality henna powder', 'professional henna powder', 'henna powder for cones'],
+    originRegions: ['Sojat', 'Pali', 'Rajasthan'],
+    standardForms: ['powder', 'cone', 'paste'],
+    primaryBenefits: ['ultra fine stringy paste', 'deep dark stain', 'clog free cone application', 'pure lawsone density'],
+    primaryUseCases: ['bridal mehndi', 'professional mehndi cones', 'body art henna tattoo'],
+    semanticThemes: ['body art quality', 'professional mehndi artist', 'stringy cone paste'],
+    primaryScope: 'BODY_ART',
+    suggestedCategorySlug: 'henna',
+    suggestedGuideSlugs: ['sojat-henna-powder-complete-guide'],
+  },
+  indigo: {
+    key: 'indigo',
+    rootNames: ['indigo', 'neel', 'nili', 'avuri', 'neelam'],
+    scientificName: ['indigofera tinctoria'],
+    ayurvedicNames: ['nili', 'nilini'],
+    englishNames: ['indigo powder', 'black hair dye', 'organic indigo powder'],
+    originRegions: ['Rajasthan', 'Tamil Nadu', 'Karnataka', 'Andhra Pradesh'],
+    standardForms: ['powder', 'leaves'],
+    primaryBenefits: ['black hair stain', 'natural hair color', 'chemical free black dye', 'hair conditioning'],
+    primaryUseCases: ['2 step henna indigo process', 'black hair pack', 'hair coloring'],
+    semanticThemes: ['natural black hair dye', 'ayurvedic hair color', 'organic indigo hair care'],
+    primaryScope: 'HAIR',
+    suggestedCategorySlug: 'hair-care',
+    suggestedGuideSlugs: ['how-to-use-natural-indigo-powder-for-black-hair'],
   },
   amla: {
+    key: 'amla',
     rootNames: ['amla', 'amalaki', 'indian gooseberry', 'usirikaya', 'nellikai'],
     scientificName: ['phyllanthus emblica', 'emblica officinalis'],
     ayurvedicNames: ['amalaki', 'dhatri'],
     englishNames: ['amla fruit powder', 'indian gooseberry powder'],
     originRegions: ['Rajasthan', 'Uttar Pradesh', 'Madhya Pradesh', 'Pratapgarh'],
     standardForms: ['powder', 'dry pieces', 'juice', 'oil'],
-    primaryBenefits: ['hair fall control', 'hair growth', 'premature greying', 'vitamin c boost', 'hair shine'],
-    primaryUseCases: ['hair pack', 'face pack', 'hair oil infusion', 'ayurvedic hair cleanser'],
+    primaryBenefits: ['hair fall control', 'hair root strengthening', 'premature greying', 'vitamin c boost', 'hair shine'],
+    primaryUseCases: ['hair pack', 'hair oil infusion', 'ayurvedic hair cleanser', 'diy hair mask'],
     semanticThemes: ['herbal hair care', 'ayurvedic rasayana', 'natural vitamin c', 'hair strengthening'],
+    primaryScope: 'HAIR',
+    suggestedCategorySlug: 'hair-care',
+    suggestedGuideSlugs: ['which-henna-powder-is-right-for-you'],
   },
-  indigo: {
-    rootNames: ['indigo', 'neel', 'nili', 'avuri'],
-    scientificName: ['indigofera tinctoria'],
-    ayurvedicNames: ['nili', 'nilini'],
-    englishNames: ['indigo powder', 'black hair dye', 'blue dye'],
-    originRegions: ['Rajasthan', 'Tamil Nadu', 'Karnataka', 'Andhra Pradesh'],
-    standardForms: ['powder', 'leaves'],
-    primaryBenefits: ['black hair stain', 'natural hair color', 'chemical free black dye', 'hair conditioning'],
-    primaryUseCases: ['2 step henna indigo process', 'black hair pack', 'hair coloring'],
-    semanticThemes: ['natural black hair dye', 'ayurvedic hair color', 'organic indigo hair care'],
+  hibiscus: {
+    key: 'hibiscus',
+    rootNames: ['hibiscus', 'gudhal', 'jaswand', 'chembarathi', 'javakusuma'],
+    scientificName: ['hibiscus rosa-sinensis'],
+    ayurvedicNames: ['japa', 'javakusuma'],
+    englishNames: ['hibiscus flower powder', 'hibiscus petal powder', 'hibiscus hair mask'],
+    originRegions: ['Rajasthan', 'Kerala', 'Maharashtra'],
+    standardForms: ['powder', 'dried flowers'],
+    primaryBenefits: ['deep hair conditioning', 'hair follicle stimulation', 'natural moisture retention', 'frizz control'],
+    primaryUseCases: ['hair mask', 'hair conditioning pack', 'diy hair oil'],
+    semanticThemes: ['natural hair conditioner', 'ayurvedic scalp health', 'botanical hair softening'],
+    primaryScope: 'HAIR',
+    suggestedCategorySlug: 'hair-care',
+    suggestedGuideSlugs: ['which-henna-powder-is-right-for-you'],
   },
   rose: {
-    rootNames: ['rose water', 'gulab jal', 'damask rose', 'rose'],
+    key: 'rose',
+    rootNames: ['rose water', 'gulab jal', 'damask rose', 'rose petal', 'rose powder'],
     scientificName: ['rosa damascena'],
-    ayurvedicNames: ['shatapatri', 'gulab'],
-    englishNames: ['pure damask rose water', 'rose hydrosol', 'steam distilled rose water'],
+    ayurvedicNames: ['shatapatri', 'gulab', 'taruni'],
+    englishNames: ['pure damask rose water', 'rose hydrosol', 'rose petal powder'],
     originRegions: ['Pushkar', 'Haldighati', 'Ajmer', 'Rajasthan', 'Kannauj'],
-    standardForms: ['mist spray', 'distillate', 'hydrosol', 'petals powder'],
+    standardForms: ['mist spray', 'distillate', 'hydrosol', 'powder'],
     primaryBenefits: ['skin toner', 'face mist', 'skin hydration', 'pore tightening', 'soothing redness'],
     primaryUseCases: ['face toner', 'diy face pack mixer', 'cooling eye splash', 'daily skin refresh'],
     semanticThemes: ['pure botanical skincare', 'steam distilled hydrosol', 'chemical free toner'],
+    primaryScope: 'SKIN',
+    suggestedCategorySlug: 'face-care',
+    suggestedGuideSlugs: [],
+  },
+  moringa: {
+    key: 'moringa',
+    rootNames: ['moringa', 'sahjan', 'drumstick leaves', 'munagaku', 'murungai'],
+    scientificName: ['moringa oleifera'],
+    ayurvedicNames: ['shigru', 'sobhanjana'],
+    englishNames: ['moringa leaf powder', 'organic moringa powder'],
+    originRegions: ['Rajasthan', 'Tamil Nadu', 'Andhra Pradesh'],
+    standardForms: ['powder', 'dried leaves'],
+    primaryBenefits: ['rich botanical nutrients', 'amino acid nourishment', 'skin and scalp vitality'],
+    primaryUseCases: ['herbal wellness pack', 'botanical hair pack', 'diy herbal infusion'],
+    semanticThemes: ['ayurvedic superfood botanical', 'pure leaf powder', 'natural nutrient dense herb'],
+    primaryScope: 'HERBAL',
+    suggestedCategorySlug: 'herbal-products',
+    suggestedGuideSlugs: [],
+  },
+  beetroot: {
+    key: 'beetroot',
+    rootNames: ['beetroot', 'chukandar', 'beet root powder'],
+    scientificName: ['beta vulgaris'],
+    ayurvedicNames: ['raktagandika', 'palanki'],
+    englishNames: ['beetroot powder', 'natural beetroot herbal powder'],
+    originRegions: ['Rajasthan', 'Maharashtra', 'Karnataka'],
+    standardForms: ['powder', 'dehydrated flakes'],
+    primaryBenefits: ['natural pink botanical tint', 'skin radiance', 'scalp cleansing'],
+    primaryUseCases: ['face glow pack', 'botanical tint pack', 'diy hair & skin recipe'],
+    semanticThemes: ['natural colorant', 'glow face mask', 'botanical skincare herb'],
+    primaryScope: 'SKIN',
+    suggestedCategorySlug: 'face-care',
+    suggestedGuideSlugs: [],
   },
   reetha: {
+    key: 'reetha',
     rootNames: ['reetha', 'soapnut', 'aritha', 'kunkudukaya', 'boondi kottai'],
     scientificName: ['sapindus mukorossi', 'sapindus trifoliatus'],
     ayurvedicNames: ['arishta', 'phenila'],
@@ -81,8 +164,12 @@ const BOTANICAL_KNOWLEDGE: Record<string, BotanicalEntity> = {
     primaryBenefits: ['natural foaming cleanser', 'anti dandruff', 'gentle scalp cleaning', 'oil control'],
     primaryUseCases: ['hair wash', 'natural shampoo', 'diy hair cleanser'],
     semanticThemes: ['natural saponin shampoo', 'chemical free hair wash', 'ayurvedic scalp cleanser'],
+    primaryScope: 'HAIR',
+    suggestedCategorySlug: 'hair-care',
+    suggestedGuideSlugs: ['which-henna-powder-is-right-for-you'],
   },
   shikakai: {
+    key: 'shikakai',
     rootNames: ['shikakai', 'seeyakkai', 'chikakai', 'soap pod'],
     scientificName: ['senegalia rugata', 'acacia concinna'],
     ayurvedicNames: ['saptala', 'shikha'],
@@ -92,17 +179,84 @@ const BOTANICAL_KNOWLEDGE: Record<string, BotanicalEntity> = {
     primaryBenefits: ['low ph hair cleanser', 'hair detangler', 'hair softness', 'dandruff prevention'],
     primaryUseCases: ['hair wash', 'hair pack', 'herbal shampoo'],
     semanticThemes: ['low ph botanical cleanser', 'traditional hair cleanser', 'natural conditioning'],
+    primaryScope: 'HAIR',
+    suggestedCategorySlug: 'hair-care',
+    suggestedGuideSlugs: ['which-henna-powder-is-right-for-you'],
   },
   neem: {
+    key: 'neem',
     rootNames: ['neem', 'margosa', 'veppilai', 'nimba'],
     scientificName: ['azadirachta indica'],
     ayurvedicNames: ['nimba', 'arista'],
     englishNames: ['neem leaf powder', 'organic neem powder'],
     originRegions: ['Rajasthan', 'Marwar', 'Gujarat', 'Uttar Pradesh'],
     standardForms: ['powder', 'leaves', 'oil'],
-    primaryBenefits: ['anti bacterial', 'anti fungal', 'acne control', 'dandruff treatment', 'blood purifying'],
+    primaryBenefits: ['anti bacterial', 'anti fungal', 'acne control', 'dandruff treatment', 'scalp clarifying'],
     primaryUseCases: ['face pack for acne', 'scalp pack for dandruff', 'skin soothing'],
     semanticThemes: ['ayurvedic antibacterial care', 'clarifying botanical face pack', 'scalp detox'],
+    primaryScope: 'SKIN',
+    suggestedCategorySlug: 'herbal-products',
+    suggestedGuideSlugs: [],
+  },
+  brahmi: {
+    key: 'brahmi',
+    rootNames: ['brahmi', 'bacopa', 'jalaneem', 'nirbrahmi'],
+    scientificName: ['bacopa monnieri'],
+    ayurvedicNames: ['brahmi', 'saraswati'],
+    englishNames: ['brahmi powder', 'ayurvedic brahmi leaf powder'],
+    originRegions: ['Rajasthan', 'Kerala', 'Bengal'],
+    standardForms: ['powder', 'leaves', 'oil'],
+    primaryBenefits: ['scalp cooling', 'hair root strengthening', 'stress relief'],
+    primaryUseCases: ['hair pack', 'hair oil formulation', 'herbal scalp massage'],
+    semanticThemes: ['traditional ayurvedic herb', 'cooling scalp care', 'hair root rejuvenation'],
+    primaryScope: 'HAIR',
+    suggestedCategorySlug: 'hair-care',
+    suggestedGuideSlugs: [],
+  },
+  bhringraj: {
+    key: 'bhringraj',
+    rootNames: ['bhringraj', 'bringha', 'keshraj', 'karisalankanni', 'false daisy'],
+    scientificName: ['eclipta prostrata', 'eclipta alba'],
+    ayurvedicNames: ['bhringaraja', 'kesharaja'],
+    englishNames: ['bhringraj powder', 'king of hair herb'],
+    originRegions: ['Rajasthan', 'Southern India', 'Uttar Pradesh'],
+    standardForms: ['powder', 'leaves', 'oil'],
+    primaryBenefits: ['hair follicle activation', 'hair shine enhancement', 'natural dark hair maintenance'],
+    primaryUseCases: ['hair pack', 'ayurvedic hair oil infusion', 'herbal hair wash'],
+    semanticThemes: ['ayurvedic king of hair', 'natural dark hair vitality', 'hair root booster'],
+    primaryScope: 'HAIR',
+    suggestedCategorySlug: 'hair-care',
+    suggestedGuideSlugs: [],
+  },
+  multani_mitti: {
+    key: 'multani_mitti',
+    rootNames: ['multani mitti', 'fullers earth', 'bentonite clay', 'indian healing clay'],
+    scientificName: ['solum fullonum'],
+    ayurvedicNames: ['gopi chandan', 'mitti'],
+    englishNames: ['fullers earth powder', 'healing clay pack'],
+    originRegions: ['Rajasthan', 'Barmer', 'Bikaner'],
+    standardForms: ['powder', 'clay chunks'],
+    primaryBenefits: ['excess oil absorption', 'deep pore detox', 'skin cooling and soothing'],
+    primaryUseCases: ['oil control face pack', 'scalp clarifying pack', 'cooling body mud'],
+    semanticThemes: ['mineral clay skincare', 'deep pore cleanser', 'traditional indian face pack'],
+    primaryScope: 'SKIN',
+    suggestedCategorySlug: 'face-care',
+    suggestedGuideSlugs: [],
+  },
+  methi: {
+    key: 'methi',
+    rootNames: ['methi', 'fenugreek', 'methi dana', 'menthulu', 'vendhayam'],
+    scientificName: ['trigonella foenum-graecum'],
+    ayurvedicNames: ['methika'],
+    englishNames: ['fenugreek seed powder', 'methi hair pack'],
+    originRegions: ['Rajasthan', 'Nagaur', 'Gujarat'],
+    standardForms: ['powder', 'whole seeds'],
+    primaryBenefits: ['mucilage hair slip', 'hair detangling', 'dandruff reduction', 'scalp hydration'],
+    primaryUseCases: ['hair conditioning pack', 'diy hair gel mask', 'scalp soak'],
+    semanticThemes: ['natural mucilage conditioner', 'ayurvedic hair slip', 'frizz reducer'],
+    primaryScope: 'HAIR',
+    suggestedCategorySlug: 'hair-care',
+    suggestedGuideSlugs: [],
   },
 };
 
@@ -521,17 +675,215 @@ export async function onProductDeletedLifecycle(productId: string): Promise<void
 /**
  * Handles product status change (Active <-> Inactive)
  */
-export async function onProductStatusChanged(productId: string, isActive: boolean): Promise<void> {
-  const cached = universeCache.get(productId);
-  if (cached) {
-    cached.keywords.forEach((k) => (k.isActive = isActive));
+/**
+ * Master Universal Auto-SEO Engine
+ * Deterministically derives complete SEO metadata, keywords, titles, descriptions, and schemas
+ * for ANY current or future botanical/cosmetic product without hallucinating or making external API calls.
+ */
+import { AutoSeoResult, SeoCompletenessStatus } from './types';
+
+export function deriveProductAutoSeo(product: Partial<Product>): AutoSeoResult {
+  const name = (product.name || '').trim();
+  const slug = (product.slug || '').trim() || normalizeKeywordTerm(name).replace(/\s+/g, '-');
+  const cleanSlug = slug || 'product';
+  const categoryName = (product.categoryName || '').trim();
+  const rawDesc = (product.shortDescription || product.fullDescription || '').trim();
+  const ingredients = product.ingredients || [];
+  const benefits = product.benefits || [];
+  const productType = product.productType || '';
+
+  // 1. Detect botanical profile or fallback entity
+  const botanical = detectBotanicalProfile(product);
+  const cleanBaseName = name.replace(/^(musky dose|pure|organic|natural|authentic|sojat|premium)\s+/i, '').trim() || name;
+
+  // 2. Detect Scope & Intent
+  let detectedScope: BotanicalScope = botanical?.primaryScope || 'HERBAL';
+  const combinedText = `${name} ${categoryName} ${rawDesc} ${ingredients.join(' ')}`.toLowerCase();
+
+  if (combinedText.includes('body art') || combinedText.includes('cone') || combinedText.includes('mehndi artist') || combinedText.includes('bridal')) {
+    detectedScope = 'BODY_ART';
+  } else if (combinedText.includes('face') || combinedText.includes('skin') || combinedText.includes('toner') || combinedText.includes('glow')) {
+    detectedScope = 'SKIN';
+  } else if (combinedText.includes('hair') || combinedText.includes('scalp') || combinedText.includes('shampoo') || combinedText.includes('indigo') || combinedText.includes('amla')) {
+    detectedScope = 'HAIR';
+  } else if (combinedText.includes('wholesale') || combinedText.includes('bulk') || combinedText.includes('kg')) {
+    detectedScope = 'WHOLESALE';
   }
-  const supabase = getSupabaseAdmin();
-  if (supabase) {
-    try {
-      await supabase.from('seo_keywords').update({ active: isActive }).eq('target_type', 'product').eq('target_id', productId);
-    } catch (err) {
-      console.warn(`[onProductStatusChanged] Status update warning for ${productId}:`, err);
+
+  let searchIntent: SearchIntentType = 'COMMERCIAL';
+  if (detectedScope === 'WHOLESALE') searchIntent = 'COMMERCIAL';
+  else if (detectedScope === 'BODY_ART') searchIntent = 'TRANSACTIONAL';
+  else searchIntent = 'COMMERCIAL';
+
+  // 3. Primary Keyword Selection (Strict, Non-Cannibalizing)
+  let primaryKeyword = '';
+  if (product.seoKeywords && product.seoKeywords.length > 0 && product.seoKeywords[0].trim()) {
+    primaryKeyword = normalizeKeywordTerm(product.seoKeywords[0]);
+  } else if (botanical) {
+    if (botanical.key === 'baq_henna' || combinedText.includes('baq')) {
+      primaryKeyword = 'BAQ henna powder';
+    } else if (botanical.key === 'indigo') {
+      primaryKeyword = 'natural indigo powder for hair';
+    } else if (botanical.key === 'henna' && combinedText.includes('triple')) {
+      primaryKeyword = 'Sojat pure triple-shifted henna powder';
+    } else if (botanical.key === 'rose') {
+      primaryKeyword = 'pure damask rose petal powder';
+    } else if (botanical.key === 'amla') {
+      primaryKeyword = 'pure amla powder for hair';
+    } else if (botanical.key === 'hibiscus') {
+      primaryKeyword = 'hibiscus flower powder for hair';
+    } else if (botanical.key === 'moringa') {
+      primaryKeyword = 'moringa leaf powder';
+    } else if (botanical.key === 'beetroot') {
+      primaryKeyword = 'natural beetroot powder';
+    } else if (detectedScope === 'HAIR') {
+      primaryKeyword = `${botanical.rootNames[0]} powder for hair`;
+    } else if (detectedScope === 'SKIN') {
+      primaryKeyword = `${botanical.rootNames[0]} powder for face`;
+    } else {
+      primaryKeyword = `pure ${botanical.rootNames[0]} powder`;
+    }
+  } else {
+    // Universal unknown botanical derivation
+    primaryKeyword = `${cleanBaseName.toLowerCase()}`;
+  }
+
+  // 4. Secondary Keywords Generation
+  const secondarySet = new Set<string>();
+  if (botanical) {
+    botanical.englishNames.forEach((en) => secondarySet.add(en.toLowerCase()));
+    if (botanical.rootNames.length > 1) {
+      secondarySet.add(`${botanical.rootNames[1]} powder`);
+    }
+    if (detectedScope === 'HAIR') {
+      secondarySet.add(`herbal ${botanical.rootNames[0]} hair pack`);
+      secondarySet.add(`natural ${botanical.rootNames[0]} for hair`);
+    } else if (detectedScope === 'SKIN') {
+      secondarySet.add(`natural ${botanical.rootNames[0]} face pack`);
+      secondarySet.add(`botanical ${botanical.rootNames[0]} skincare`);
+    } else if (detectedScope === 'BODY_ART') {
+      secondarySet.add('henna powder for mehndi cones');
+      secondarySet.add('body art quality henna powder');
+    }
+    secondarySet.add(`pure organic ${botanical.rootNames[0]} powder`);
+  } else {
+    secondarySet.add(`natural ${cleanBaseName.toLowerCase()}`);
+    secondarySet.add(`pure ${cleanBaseName.toLowerCase()}`);
+    secondarySet.add(`herbal ${cleanBaseName.toLowerCase()}`);
+    if (detectedScope === 'HAIR') secondarySet.add(`${cleanBaseName.toLowerCase()} for hair`);
+    if (detectedScope === 'SKIN') secondarySet.add(`${cleanBaseName.toLowerCase()} for skin`);
+  }
+
+  const secondaryKeywords = Array.from(secondarySet)
+    .filter((k) => k !== primaryKeyword && k.length > 3)
+    .slice(0, 5);
+
+  // 5. Long-Tail Buyer Candidates
+  const longTailSet = new Set<string>();
+  if (botanical) {
+    if (detectedScope === 'HAIR') {
+      longTailSet.add(`chemical free ${botanical.rootNames[0]} hair color in india`);
+      longTailSet.add(`pure shade dried ${botanical.rootNames[0]} powder for hair conditioning`);
+      longTailSet.add(`ayurvedic ${botanical.rootNames[0]} hair pack with zero additives`);
+    } else if (detectedScope === 'SKIN') {
+      longTailSet.add(`100 pure ${botanical.rootNames[0]} powder for glowing face pack`);
+      longTailSet.add(`chemical free ${botanical.rootNames[0]} powder for pore tightening`);
+      longTailSet.add(`shade dried botanical ${botanical.rootNames[0]} facial treatment`);
+    } else if (detectedScope === 'BODY_ART') {
+      longTailSet.add(`cloth sifted BAQ henna powder for bridal mehndi artists`);
+      longTailSet.add(`stringy paste henna powder for smooth clog free cones`);
+      longTailSet.add(`high lawsone pure Sojat henna powder for dark stain`);
+    }
+    longTailSet.add(`authentic ${botanical.rootNames[0]} powder direct from sojat rajasthan`);
+  } else {
+    longTailSet.add(`100 pure natural ${cleanBaseName.toLowerCase()} from rajasthan`);
+    longTailSet.add(`chemical free single ingredient ${cleanBaseName.toLowerCase()}`);
+  }
+  const longTailKeywords = Array.from(longTailSet).slice(0, 4);
+
+  // 6. Semantic Terms
+  const semanticTerms = botanical
+    ? [...botanical.semanticThemes, ...botanical.scientificName, ...botanical.originRegions]
+    : ['pure botanical', 'single origin rajasthan', 'chemical free herbal care'];
+
+  // 7. Deterministic SEO Title Generation (<= 60 chars, no duplicate brand suffix)
+  let seoTitle = product.seoTitle?.trim() || '';
+  if (seoTitle) {
+    seoTitle = seoTitle.replace(/\s*\|\s*Musky\s*Dose.*$/i, '').trim();
+  } else if (name) {
+    if (detectedScope === 'HAIR' && !name.toLowerCase().includes('hair')) {
+      seoTitle = `${name} — Natural Hair Care & Conditioning`;
+    } else if (detectedScope === 'SKIN' && !name.toLowerCase().includes('face') && !name.toLowerCase().includes('skin')) {
+      seoTitle = `${name} — Natural Skincare & Face Pack`;
+    } else if (detectedScope === 'BODY_ART') {
+      seoTitle = `${name} — Body Art Quality Bridal Mehndi`;
+    } else {
+      seoTitle = `${name} — Pure Botanical Care from Sojat`;
+    }
+    // Truncate to 60 chars cleanly if needed
+    if (seoTitle.length > 60) {
+      seoTitle = seoTitle.slice(0, 57).replace(/\s+[^\s]*$/, '') + '...';
+    }
+  } else {
+    seoTitle = 'Botanical Care Product from Sojat';
+  }
+
+  // 8. Deterministic Meta Description Generation (140-155 chars)
+  let metaDescription = product.seoDescription?.trim() || '';
+  if (!metaDescription) {
+    if (rawDesc && rawDesc.length >= 60) {
+      metaDescription = rawDesc.slice(0, 155).trim();
+      if (metaDescription.length < rawDesc.length) {
+        metaDescription = metaDescription.replace(/\s+[^\s]*$/, '') + '.';
+      }
+    } else if (botanical) {
+      const origin = botanical.originRegions[0] || 'Sojat, Rajasthan';
+      const benefit = botanical.primaryBenefits.slice(0, 2).join(' and ');
+      if (detectedScope === 'HAIR') {
+        metaDescription = `100% pure ${botanical.rootNames[0]} powder from ${origin}. Natural botanical formulation for ${benefit} with zero synthetic dyes or additives.`;
+      } else if (detectedScope === 'SKIN') {
+        metaDescription = `100% pure shade-dried ${botanical.rootNames[0]} from ${origin}. Gentle botanical formulation for ${benefit} without artificial fragrance or chemicals.`;
+      } else if (detectedScope === 'BODY_ART') {
+        metaDescription = `100% Body Art Quality (BAQ) pure ${botanical.rootNames[0]} powder from ${origin}. Micro-cloth sifted for smooth cone paste and rich dark mahogany stain.`;
+      } else {
+        metaDescription = `100% pure botanical ${botanical.rootNames[0]} harvested in ${origin}. Chemical-free natural herbal powder for traditional Ayurvedic care.`;
+      }
+    } else {
+      metaDescription = `100% natural ${name || 'botanical powder'} harvested in Sojat, Rajasthan. Pure, unadulterated herbal formulation with zero synthetic additives.`;
     }
   }
+
+  // 9. Completeness Status Calculation
+  let status: SeoCompletenessStatus = 'SEO_READY';
+  let statusMessage = 'SEO fully optimized with high-relevance botanical keywords.';
+
+  if (!name) {
+    status = 'SEO_NEEDS_REVIEW';
+    statusMessage = 'Product name is missing.';
+  } else if (!rawDesc || rawDesc.length < 20) {
+    status = 'SEO_NEEDS_DESCRIPTION';
+    statusMessage = 'Add a detailed product description for optimal search indexing.';
+  } else if (!categoryName && !product.categoryId) {
+    status = 'SEO_NEEDS_CATEGORY';
+    statusMessage = 'Assign a product category to ensure proper internal linking.';
+  }
+
+  return {
+    primaryKeyword,
+    secondaryKeywords,
+    longTailKeywords,
+    searchIntent,
+    seoTitle,
+    metaDescription,
+    h1: name || 'Botanical Product',
+    semanticTerms,
+    canonicalUrl: `https://muskydose.in/products/${cleanSlug}`,
+    robotsIndex: product.robotsIndex !== false,
+    robotsFollow: product.robotsFollow !== false,
+    status,
+    statusMessage,
+    suggestedCategory: botanical?.suggestedCategorySlug,
+    suggestedRelatedGuides: botanical?.suggestedGuideSlugs,
+    isAutoGenerated: !product.seoTitle && !product.seoDescription,
+  };
 }

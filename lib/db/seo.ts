@@ -372,8 +372,11 @@ export async function resolvePageSeoMetadata(input: PageSeoResolutionInput) {
 
   let title = pageConfig?.seoTitle?.trim() || input.defaultTitle;
   if (!title) {
-    title = siteSettings.seoTitle || 'Musky Dose | Premium Henna & Herbal Products from Sojat';
+    title = siteSettings.seoTitle || 'Musky Dose — Premium Natural Henna & Herbal Products from Sojat';
   }
+
+  // Deduplicate brand name suffix to prevent duplicate "| Musky Dose | Musky Dose" when layout template applies
+  const cleanTitle = title.replace(/\s*\|\s*Musky\s*Dose.*$/i, '').trim() || title;
 
   let description = pageConfig?.metaDescription?.trim() || input.defaultDescription;
   if (!description) {
@@ -425,12 +428,12 @@ export async function resolvePageSeoMetadata(input: PageSeoResolutionInput) {
   const rawRobotsFollow = pageConfig?.robotsFollow ?? (typeof input.robotsFollow === 'boolean' ? (input.robotsFollow ? 'follow' : 'nofollow') : input.robotsFollow);
   const robots = resolveRobotsConfig(rawRobotsIndex, rawRobotsFollow, isPrivate);
 
-  const ogTitle = pageConfig?.ogTitle?.trim() || title;
+  const ogTitle = pageConfig?.ogTitle?.trim() || cleanTitle;
   const ogDescription = pageConfig?.ogDescription?.trim() || description;
   const ogImage = input.ogImage?.trim() || pageConfig?.ogImage?.trim() || input.defaultImage || siteSettings.ogImageUrl || siteSettings.heroImageUrl || '/images/hero-bg.jpg';
 
   return {
-    title,
+    title: cleanTitle,
     description,
     keywords: mergedKeywords,
     alternates: {

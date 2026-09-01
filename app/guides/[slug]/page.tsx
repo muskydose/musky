@@ -47,7 +47,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     targetType: 'guide',
     targetId: guide.id,
     targetUrl: `/guides/${guide.slug}`,
-    defaultTitle: guide.seoTitle || `${guide.title} | ${siteName}`,
+    defaultTitle: guide.seoTitle ? guide.seoTitle.replace(/\s*\|\s*Musky\s*Dose.*$/i, '').trim() : guide.title,
     defaultDescription: guide.seoDescription || guide.shortIntro || `Read complete guide about ${guide.title} from Musky Dose.`,
     defaultImage: guide.coverImage || settings.ogImageUrl || '/images/fallback.svg',
     defaultKeywords: [guide.title, 'Henna Guide', 'Sojat Henna Care', 'Musky Dose'],

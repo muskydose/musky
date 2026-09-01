@@ -9,6 +9,7 @@ import MediaSelectModal from '@/components/MediaSelectModal';
 import ProductAutoFillModal from '@/components/admin/products/ProductAutoFillModal';
 import { ProductAutoFillDraft } from '@/lib/ai/product-autofill';
 import { uploadMediaFile } from '@/lib/media-upload';
+import { deriveProductAutoSeo } from '@/lib/growth/product-keyword-engine';
 import {
   Save,
   ArrowLeft,
@@ -91,6 +92,18 @@ export default function ProductFormClient({
   const [loadingUniverse, setLoadingUniverse] = useState(false);
   const [seoKeywordInput, setSeoKeywordInput] = useState('');
   const [activeUniverseCategory, setActiveUniverseCategory] = useState<string>('ALL');
+
+  const autoSeo = deriveProductAutoSeo(formData);
+
+  const applyAutoSeoDefaults = () => {
+    setIsDirty(true);
+    setFormData((prev) => ({
+      ...prev,
+      seoTitle: autoSeo.seoTitle,
+      seoDescription: autoSeo.metaDescription,
+      seoKeywords: Array.from(new Set([...(prev.seoKeywords || []), autoSeo.primaryKeyword, ...autoSeo.secondaryKeywords])),
+    }));
+  };
 
   const [imageInput, setImageInput] = useState('');
   const [ingredientInput, setIngredientInput] = useState('');
@@ -972,50 +985,140 @@ export default function ProductFormClient({
         {/* Tab 5: SEO & Autonomous Keyword Intelligence */}
         {activeTab === 'seo' && (
           <div className="p-8 space-y-8 text-xs">
-            {/* Top SEO Metadata Fields */}
-            <div className="bg-[#fcfbf7] p-6 rounded-2xl border border-[#e8e2d5] space-y-5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Key className="w-4 h-4 text-[#c5a059]" />
-                  <h3 className="font-bold text-sm text-[#0f2d22]">Product SEO Metadata</h3>
+              {/* Universal Auto-SEO Engine Intelligence Card */}
+              <div className="bg-white p-6 rounded-2xl border-2 border-[#1b4332]/20 shadow-xs space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e8e2d5] pb-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-[#c5a059]" />
+                    <h3 className="font-momo-display text-base font-normal text-[#0f2d22]">Universal Auto-SEO Intelligence</h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`px-3 py-1 rounded-full font-extrabold text-[11px] border ${
+                        autoSeo.status === 'SEO_READY'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                          : 'bg-amber-50 text-amber-800 border-amber-300'
+                      }`}
+                    >
+                      {autoSeo.status === 'SEO_READY' ? '✓ SEO READY' : `⚠ ${autoSeo.status.replace(/_/g, ' ')}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={applyAutoSeoDefaults}
+                      className="px-3 py-1 bg-[#1b4332] text-white hover:bg-[#0f2d22] rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Fill With Auto-SEO</span>
+                    </button>
+                  </div>
                 </div>
-                <span className="text-[11px] text-gray-500 font-medium">Controls Search Engine Snippets</span>
+
+                <p className="text-xs text-[#556059] leading-relaxed">
+                  {autoSeo.statusMessage} This system deterministically generates metadata, keywords, and Google snippets for any current or future botanical product.
+                </p>
+
+                {/* Primary Keyword & Search Intent Bar */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+                  <div className="bg-[#fcfbf7] p-3 rounded-xl border border-[#e8e2d5]">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Primary Target Keyword</span>
+                    <span className="font-extrabold text-xs text-[#1b4332]">{autoSeo.primaryKeyword || 'Derived from product name'}</span>
+                  </div>
+                  <div className="bg-[#fcfbf7] p-3 rounded-xl border border-[#e8e2d5]">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Search Intent</span>
+                    <span className="font-extrabold text-xs text-[#c5a059]">{autoSeo.searchIntent}</span>
+                  </div>
+                  <div className="bg-[#fcfbf7] p-3 rounded-xl border border-[#e8e2d5]">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Canonical Route</span>
+                    <span className="font-mono text-[11px] text-gray-700 truncate block">{autoSeo.canonicalUrl}</span>
+                  </div>
+                </div>
+
+                {/* Live Google Search Snippet Simulation */}
+                <div className="mt-4 bg-[#f8f9fa] p-4 rounded-xl border border-gray-200 space-y-1">
+                  <div className="flex items-center gap-1.5 text-[11px] text-gray-600 font-sans">
+                    <span className="text-emerald-800 font-bold">https://muskydose.in</span>
+                    <span>› products › {formData.slug || 'product'}</span>
+                  </div>
+                  <div className="text-base text-[#1a0dab] font-medium hover:underline cursor-pointer font-sans truncate">
+                    {formData.seoTitle ? `${formData.seoTitle} | Musky Dose` : `${autoSeo.seoTitle} | Musky Dose`}
+                  </div>
+                  <div className="text-xs text-[#4d5156] font-sans line-clamp-2 leading-relaxed">
+                    {formData.seoDescription || autoSeo.metaDescription}
+                  </div>
+                </div>
+
+                {/* Suggested Secondary Keywords */}
+                {autoSeo.secondaryKeywords.length > 0 && (
+                  <div className="pt-2">
+                    <span className="text-[11px] font-bold text-[#0f2d22] block mb-1.5">Suggested Secondary Keywords (Click to add):</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {autoSeo.secondaryKeywords.map((kw, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => {
+                            if (!formData.seoKeywords?.includes(kw)) {
+                              setIsDirty(true);
+                              setFormData((prev) => ({
+                                ...prev,
+                                seoKeywords: [...(prev.seoKeywords || []), kw],
+                              }));
+                            }
+                          }}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-[#f5f1e8] hover:bg-[#e8f3ed] text-[#1b4332] border border-[#e8e2d5] transition-colors cursor-pointer"
+                        >
+                          + {kw}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-[#0f2d22]">Custom SEO Title</label>
-                    <span className="text-[10px] text-gray-500 font-semibold">
-                      {(formData.seoTitle || '').length}/60 chars
-                    </span>
+              {/* Top SEO Metadata Fields */}
+              <div className="bg-[#fcfbf7] p-6 rounded-2xl border border-[#e8e2d5] space-y-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Key className="w-4 h-4 text-[#c5a059]" />
+                    <h3 className="font-bold text-sm text-[#0f2d22]">Product SEO Custom Overrides (Optional)</h3>
                   </div>
-                  <input
-                    type="text"
-                    value={formData.seoTitle || ''}
-                    onChange={(e) => updateForm('seoTitle', e.target.value)}
-                    placeholder={formData.name ? `${formData.name} | Musky Dose Natural Botanicals` : 'Enter custom SEO title...'}
-                    className="w-full p-3 bg-white border border-[#e8e2d5] rounded-xl font-medium text-xs focus:outline-none focus:border-[#1b4332]"
-                  />
-                  <p className="text-[11px] text-gray-500 mt-1">If blank, defaults to product name + brand.</p>
+                  <span className="text-[11px] text-gray-500 font-medium">Manual Values Override Auto-SEO</span>
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-[#0f2d22]">Meta Description</label>
-                    <span className="text-[10px] text-gray-500 font-semibold">
-                      {(formData.seoDescription || '').length}/160 chars
-                    </span>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="font-bold text-[#0f2d22]">Custom SEO Title</label>
+                      <span className="text-[10px] text-gray-500 font-semibold">
+                        {(formData.seoTitle || autoSeo.seoTitle).length}/60 chars
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      value={formData.seoTitle || ''}
+                      onChange={(e) => updateForm('seoTitle', e.target.value)}
+                      placeholder={autoSeo.seoTitle}
+                      className="w-full p-3 bg-white border border-[#e8e2d5] rounded-xl font-medium text-xs focus:outline-none focus:border-[#1b4332]"
+                    />
+                    <p className="text-[11px] text-gray-500 mt-1">Leave blank to use the auto-generated botanical title.</p>
                   </div>
-                  <textarea
-                    rows={3}
-                    value={formData.seoDescription || ''}
-                    onChange={(e) => updateForm('seoDescription', e.target.value)}
-                    placeholder={formData.shortDescription || 'Enter compelling snippet for Google search results...'}
-                    className="w-full p-3 bg-white border border-[#e8e2d5] rounded-xl font-medium text-xs focus:outline-none focus:border-[#1b4332]"
-                  />
-                  <p className="text-[11px] text-gray-500 mt-1">Summary displayed beneath the link in Google search results.</p>
-                </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="font-bold text-[#0f2d22]">Meta Description</label>
+                      <span className="text-[10px] text-gray-500 font-semibold">
+                        {(formData.seoDescription || autoSeo.metaDescription).length}/160 chars
+                      </span>
+                    </div>
+                    <textarea
+                      rows={3}
+                      value={formData.seoDescription || ''}
+                      onChange={(e) => updateForm('seoDescription', e.target.value)}
+                      placeholder={autoSeo.metaDescription}
+                      className="w-full p-3 bg-white border border-[#e8e2d5] rounded-xl font-medium text-xs focus:outline-none focus:border-[#1b4332]"
+                    />
+                    <p className="text-[11px] text-gray-500 mt-1">Leave blank to use the auto-generated botanical description.</p>
+                  </div>
 
                 <div>
                   <label className="block font-bold text-[#0f2d22] mb-1">Target SEO Keywords / Tags</label>

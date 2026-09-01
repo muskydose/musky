@@ -12,7 +12,7 @@ export async function generateMetadata() {
   return await resolvePageSeoMetadata({
     targetType: 'other',
     targetUrl: '/faq',
-    defaultTitle: 'Frequently Asked Questions (FAQ) — Musky Dose Sojat Henna',
+    defaultTitle: 'Frequently Asked Questions (FAQ)',
     defaultDescription: 'Common questions about Musky Dose Sojat Henna, Lawsonia Inermis purity, shipping times, and WhatsApp ordering.',
     defaultKeywords: ['Sojat Henna FAQ', 'Musky Dose Questions', 'Henna Powder Help'],
   });

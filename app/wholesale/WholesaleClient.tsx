@@ -266,7 +266,7 @@ function WholesaleContent() {
             <h1 className="font-momo-display text-3xl md:text-5xl font-normal tracking-tight text-white max-w-3xl mx-auto">
               {isBulkMode
                 ? 'Bulk Henna & Botanical Powder Direct From Sojat Factory'
-                : siteSettings?.wholesaleHeroTitle || 'Bulk Henna & Herbal Supply Direct From Sojat, Rajasthan'}
+                : siteSettings?.wholesaleHeroTitle || 'Wholesale & Bulk Sojat Henna Supply Direct From Factory'}
             </h1>
             <p className="text-sm md:text-base text-[#b2c8be] max-w-2xl mx-auto leading-relaxed">
               {isBulkMode

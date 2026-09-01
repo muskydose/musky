@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -50,22 +50,12 @@ export default function SideDrawer({
     setMounted(true);
   }, []);
 
-  // Lock body scroll & handle Escape key & handle Mobile/Browser Back Button
+  // Lock body scroll & handle Escape key
   useEffect(() => {
     if (!isOpen) return;
 
     const originalOverflow = document.body.style.overflow;
-    const originalTouchAction = document.body.style.touchAction;
-
     document.body.style.overflow = 'hidden';
-    document.body.style.touchAction = 'none';
-
-    // Push history state to capture mobile/browser back button
-    if (typeof window !== 'undefined') {
-      pushedHistoryRef.current = true;
-      isClosingFromPopStateRef.current = false;
-      window.history.pushState({ mdDrawer: true }, '', window.location.href);
-    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -73,30 +63,11 @@ export default function SideDrawer({
       }
     };
 
-    const handlePopState = () => {
-      // User pressed browser/hardware Back button -> close drawer
-      isClosingFromPopStateRef.current = true;
-      pushedHistoryRef.current = false;
-      onClose();
-    };
-
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('popstate', handlePopState);
 
     return () => {
       document.body.style.overflow = originalOverflow;
-      document.body.style.touchAction = originalTouchAction;
       window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('popstate', handlePopState);
-
-      // If drawer was closed programmatically (e.g. X button / backdrop click / link click),
-      // cleanly revert the pushed history state so normal back navigation is preserved.
-      if (pushedHistoryRef.current && !isClosingFromPopStateRef.current && typeof window !== 'undefined') {
-        pushedHistoryRef.current = false;
-        if (window.history.state?.mdDrawer) {
-          window.history.back();
-        }
-      }
     };
   }, [isOpen, onClose]);
 
@@ -129,7 +100,7 @@ export default function SideDrawer({
     <AnimatePresence>
       {isOpen && (
         <div
-          className={`fixed inset-0 z-50 flex ${isLeft ? 'justify-start' : 'justify-end'}`}
+          className={`fixed inset-0 z-50 flex ${isLeft ? 'justify-start' : 'justify-end'} pointer-events-auto`}
           role="dialog"
           aria-modal="true"
         >
@@ -140,7 +111,7 @@ export default function SideDrawer({
             exit={{ opacity: 0 }}
             transition={{ duration: DURATION.fast, ease: 'easeOut' }}
             onClick={onClose}
-            className="fixed inset-0 bg-[#0f2d22]/60 backdrop-blur-xs cursor-pointer touch-none"
+            className="absolute inset-0 z-0 bg-[#0f2d22]/60 backdrop-blur-xs cursor-pointer pointer-events-auto"
             aria-hidden="true"
           />
 
@@ -150,7 +121,7 @@ export default function SideDrawer({
             animate={slideAnimate}
             exit={slideExit}
             transition={slideTransition}
-            className={`relative z-10 ${widthClassName} max-h-[100dvh] h-full bg-[#fcfbf7] ${
+            className={`relative z-10 pointer-events-auto touch-manipulation ${widthClassName} max-h-[100dvh] h-full bg-[#fcfbf7] ${
               isLeft ? 'border-r' : 'border-l'
             } border-[#e8e2d5] shadow-2xl flex flex-col overflow-hidden will-change-transform`}
           >
@@ -205,7 +176,7 @@ export default function SideDrawer({
 
             {/* Scrollable Content Body */}
             <div
-              className={`flex-1 overflow-y-auto overscroll-contain flex flex-col ${
+              className={`flex-1 overflow-y-auto overscroll-contain touch-pan-y pointer-events-auto flex flex-col ${
                 bodyClassName || 'p-4'
               }`}
               style={{

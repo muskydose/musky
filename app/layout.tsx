@@ -102,7 +102,11 @@ function buildJsonLd(siteSettings: any) {
   };
 
   if (siteSettings.logoUrl) {
-    org.logo = siteSettings.logoUrl;
+    org.logo = siteSettings.logoUrl.startsWith('http')
+      ? siteSettings.logoUrl
+      : `${baseUrl}${siteSettings.logoUrl.startsWith('/') ? '' : '/'}${siteSettings.logoUrl}`;
+  } else {
+    org.logo = `${baseUrl}/logo.png`;
   }
   if (siteSettings.seoDescription) {
     org.description = siteSettings.seoDescription;

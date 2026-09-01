@@ -13,7 +13,7 @@ export async function generateMetadata() {
   return await resolvePageSeoMetadata({
     targetType: 'factory',
     targetUrl: '/factory',
-    defaultTitle: 'Our Sojat Factory | Musky Dose — Manufacturing & Quality Lab',
+    defaultTitle: 'Our Sojat Factory — Manufacturing & Quality Lab',
     defaultDescription: 'Explore our processing facility in Sojat City, Rajasthan. Learn about our ultra-fine cloth-sifting and lab testing standards.',
     defaultKeywords: ['Sojat Factory', 'Mehendi Processing', 'Ultra-Fine Sifted Henna Lab'],
   });

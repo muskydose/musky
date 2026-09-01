@@ -133,7 +133,7 @@ export default function CategoryDrawer() {
         <Link
           href="/products"
           onClick={closeCategory}
-          className={`flex items-center justify-between p-3.5 rounded-xl border transition-all shadow-2xs group ${
+          className={`flex items-center justify-between p-3.5 rounded-xl border transition-all shadow-2xs group min-h-[48px] touch-manipulation cursor-pointer active:scale-[0.98] ${
             pathname === '/products'
               ? 'bg-[#1b4332] text-white border-[#1b4332]'
               : 'bg-white hover:bg-[#e8f3ed] border-[#e8e2d5] text-[#0f2d22]'
@@ -171,7 +171,7 @@ export default function CategoryDrawer() {
               key={cat.id || cat.slug}
               href={targetUrl}
               onClick={closeCategory}
-              className={`flex items-center justify-between p-3.5 rounded-xl border transition-all shadow-2xs group ${
+              className={`flex items-center justify-between p-3.5 rounded-xl border transition-all shadow-2xs group min-h-[48px] touch-manipulation cursor-pointer active:scale-[0.98] ${
                 isSelected
                   ? 'bg-[#1b4332] text-white border-[#1b4332]'
                   : 'bg-white hover:bg-[#e8f3ed] border-[#e8e2d5] text-[#0f2d22]'

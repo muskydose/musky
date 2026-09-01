@@ -13,7 +13,7 @@ export async function generateMetadata() {
   return await resolvePageSeoMetadata({
     targetType: 'about',
     targetUrl: '/about',
-    defaultTitle: 'About Us | Musky Dose — Sojat Henna Heritage',
+    defaultTitle: 'About Us — Sojat Henna Heritage',
     defaultDescription: 'Learn about Musky Dose, our family farms in Sojat, Rajasthan, and our commitment to pure, natural, plant-based henna.',
     defaultKeywords: ['About Musky Dose', 'Sojat Henna Heritage', 'Natural Mehendi Farms'],
   });

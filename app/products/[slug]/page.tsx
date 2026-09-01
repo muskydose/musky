@@ -13,31 +13,29 @@ import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
 import { safeJsonLd } from '@/lib/utils';
 import ProductDetailClient from './ProductDetailClient';
 
+import { deriveProductAutoSeo } from '@/lib/growth/product-keyword-engine';
+
 export const dynamic = 'force-dynamic';
 export const dynamicParams = true;
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const product = await getProductByIdOrSlug(slug);
-  if (!product || product.isActive === false) return { title: 'Product Not Found | Musky Dose' };
+  if (!product || product.isActive === false) return { title: 'Product Not Found' };
+
+  const autoSeo = deriveProductAutoSeo(product);
 
   return await resolvePageSeoMetadata({
     targetType: 'product',
     targetId: product.id,
     targetUrl: `/products/${product.slug}`,
-    defaultTitle: product.seoTitle || `${product.name} | Musky Dose — Pure Sojat Mehendi`,
-    defaultDescription:
-      product.seoDescription ||
-      product.shortDescription ||
-      product.fullDescription?.slice(0, 160) ||
-      'Pure organic henna and natural herbal products from Sojat, Rajasthan.',
+    defaultTitle: product.seoTitle ? product.seoTitle.replace(/\s*\|\s*Musky\s*Dose.*$/i, '').trim() : autoSeo.seoTitle,
+    defaultDescription: product.seoDescription || autoSeo.metaDescription,
     defaultImage: product.ogImageUrl || product.images?.[0] || '/images/fallback.svg',
     defaultKeywords: [
       ...(product.seoKeywords || []),
-      product.name,
-      product.categoryName || 'Henna',
-      'Sojat Henna',
-      'Musky Dose',
+      autoSeo.primaryKeyword,
+      ...autoSeo.secondaryKeywords,
     ],
     robotsIndex: product.robotsIndex ?? true,
     robotsFollow: product.robotsFollow ?? true,

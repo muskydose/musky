@@ -173,10 +173,10 @@ export default function MenuDrawer({
               key={item.id || item.href}
               href={item.href}
               onClick={onClose}
-              className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all min-h-[44px] touch-manipulation cursor-pointer ${
                 isSelected
                   ? 'bg-[#1b4332] text-[#c5a059] shadow-2xs border border-[#1b4332]'
-                  : 'text-[#0f2d22] hover:bg-[#f5f1e8] active:bg-[#ede8dc]'
+                  : 'text-[#0f2d22] hover:bg-[#f5f1e8] active:bg-[#ede8dc] active:scale-[0.98]'
               }`}
             >
               <div className="flex items-center gap-2.5 min-w-0">
@@ -198,7 +198,7 @@ export default function MenuDrawer({
           <Link
             href="/offers"
             onClick={onClose}
-            className="flex items-center gap-1.5 px-2.5 py-2 bg-white hover:bg-[#f5f1e8] rounded-lg border border-[#e8e2d5] text-[11px] font-bold text-[#0f2d22] transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-2.5 bg-white hover:bg-[#f5f1e8] active:bg-[#ede8dc] active:scale-[0.97] rounded-lg border border-[#e8e2d5] text-[11px] font-bold text-[#0f2d22] transition-all min-h-[42px] touch-manipulation cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5 text-[#c5a059]" />
             <span>Active Offers</span>
@@ -206,7 +206,7 @@ export default function MenuDrawer({
           <Link
             href="/guides"
             onClick={onClose}
-            className="flex items-center gap-1.5 px-2.5 py-2 bg-white hover:bg-[#f5f1e8] rounded-lg border border-[#e8e2d5] text-[11px] font-bold text-[#0f2d22] transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-2.5 bg-white hover:bg-[#f5f1e8] active:bg-[#ede8dc] active:scale-[0.97] rounded-lg border border-[#e8e2d5] text-[11px] font-bold text-[#0f2d22] transition-all min-h-[42px] touch-manipulation cursor-pointer"
           >
             <BookOpen className="w-3.5 h-3.5 text-[#1b4332]" />
             <span>Herbal Guides</span>
@@ -214,7 +214,7 @@ export default function MenuDrawer({
           <Link
             href="/faq"
             onClick={onClose}
-            className="flex items-center gap-1.5 px-2.5 py-2 bg-white hover:bg-[#f5f1e8] rounded-lg border border-[#e8e2d5] text-[11px] font-bold text-[#0f2d22] transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-2.5 bg-white hover:bg-[#f5f1e8] active:bg-[#ede8dc] active:scale-[0.97] rounded-lg border border-[#e8e2d5] text-[11px] font-bold text-[#0f2d22] transition-all min-h-[42px] touch-manipulation cursor-pointer"
           >
             <HelpCircle className="w-3.5 h-3.5 text-[#1b4332]" />
             <span>Help & FAQ</span>
@@ -222,7 +222,7 @@ export default function MenuDrawer({
           <Link
             href="/contact"
             onClick={onClose}
-            className="flex items-center gap-1.5 px-2.5 py-2 bg-white hover:bg-[#f5f1e8] rounded-lg border border-[#e8e2d5] text-[11px] font-bold text-[#0f2d22] transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-2.5 bg-white hover:bg-[#f5f1e8] active:bg-[#ede8dc] active:scale-[0.97] rounded-lg border border-[#e8e2d5] text-[11px] font-bold text-[#0f2d22] transition-all min-h-[42px] touch-manipulation cursor-pointer"
           >
             <Phone className="w-3.5 h-3.5 text-[#1b4332]" />
             <span>Support</span>
@@ -232,16 +232,16 @@ export default function MenuDrawer({
 
       {/* Policies & Legal Links */}
       <div className="pt-2 border-t border-[#e8e2d5] px-2 flex flex-wrap items-center justify-between text-[10px] text-gray-400 gap-x-3 gap-y-1">
-        <Link href="/privacy-policy" onClick={onClose} className="hover:text-[#1b4332]">
+        <Link href="/privacy-policy" onClick={onClose} className="hover:text-[#1b4332] py-1 touch-manipulation cursor-pointer">
           Privacy
         </Link>
-        <Link href="/terms" onClick={onClose} className="hover:text-[#1b4332]">
+        <Link href="/terms" onClick={onClose} className="hover:text-[#1b4332] py-1 touch-manipulation cursor-pointer">
           Terms
         </Link>
-        <Link href="/shipping-policy" onClick={onClose} className="hover:text-[#1b4332]">
+        <Link href="/shipping-policy" onClick={onClose} className="hover:text-[#1b4332] py-1 touch-manipulation cursor-pointer">
           Shipping
         </Link>
-        <Link href="/return-policy" onClick={onClose} className="hover:text-[#1b4332]">
+        <Link href="/return-policy" onClick={onClose} className="hover:text-[#1b4332] py-1 touch-manipulation cursor-pointer">
           Returns
         </Link>
       </div>

@@ -10,7 +10,7 @@ export async function generateMetadata() {
   return await resolvePageSeoMetadata({
     targetType: 'other',
     targetUrl: '/documents',
-    defaultTitle: `Business Certificates, GST, FSSAI & Lab Reports | ${settings.brandName || 'Musky Dose'}`,
+    defaultTitle: 'Business Certificates, GST, FSSAI & Lab Reports',
     defaultDescription:
       'Verified GST registration, FSSAI license, ISO 9001:2015 quality certificate, and NABL lab analysis COA reports for Musky Dose pure Sojat Henna.',
     defaultKeywords: ['GST Certificate', 'FSSAI License', 'ISO Certificate', 'NABL COA Report', 'Sojat Henna Documents'],

@@ -15,7 +15,7 @@ export async function generateMetadata() {
   return await resolvePageSeoMetadata({
     targetType: 'contact',
     targetUrl: '/contact',
-    defaultTitle: 'Contact Us | Musky Dose — Sojat Henna',
+    defaultTitle: 'Contact Us — Sojat Henna',
     defaultDescription: 'Contact Musky Dose for retail orders, bulk wholesale enquiries, or factory visits in Sojat, Rajasthan.',
     defaultKeywords: ['Contact Musky Dose', 'Sojat Henna Enquiry', 'Bulk Henna Order Contact'],
   });

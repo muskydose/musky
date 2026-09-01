@@ -53,6 +53,29 @@ const CATEGORY_BOTANICAL_INSIGHTS: Record<string, { title: string; points: strin
   },
 };
 
+const CATEGORY_EDITORIAL_INTRODUCTIONS: Record<string, { lead: string; body: string }> = {
+  henna: {
+    lead: 'Authentic Sojat Lawsonia Inermis — Renowned Globally for Pure Lawsone Dye Density',
+    body: 'Grown and cultivated in the sun-drenched, semi-arid soil of Sojat City, Rajasthan, our henna leaves develop exceptionally high natural pigment content. Every harvest is solar shade-dried and micro-cloth filtered up to three times to yield an ultra-fine, silky powder that mixes smoothly without lumps. Whether used for intricate bridal mehndi art or deep conditioning natural hair care, our pure henna delivers a rich, long-lasting mahogany stain with zero synthetic dyes, PPD, or metallic salts.',
+  },
+  'hair-care': {
+    lead: '100% Plant-Based Hair Conditioning, Strengthening & Chemical-Free Coloring',
+    body: 'Our botanical hair care range brings together traditional Ayurvedic herbs harvested across Rajasthan. Featuring pure micro-milled Indigofera Tinctoria (Indigo) for permanent 2-step natural black and brown shades, alongside nutrient-rich blends of Amla, Reetha, Shikakai, and Hibiscus, these formulations nourish hair follicles, balance scalp pH, and restore natural luster without harsh chemicals or artificial additives.',
+  },
+  'face-care': {
+    lead: 'Hydro-Distilled Floral Hydrosols & Natural Mineral Clay Formulations',
+    body: 'Experience the gentle, restorative power of pure botanicals with our facial care collection. Steam-distilled from freshly plucked Rajasthani Damask Rose petals and mineral-rich clay extracts, these gentle mists and packs deeply hydrate, tighten pores, and soothe delicate skin. Free from synthetic perfumes, alcohol, parabens, and chemical preservatives.',
+  },
+  'herbal-products': {
+    lead: 'Whole Solar-Dried Herbs & Raw Botanicals Direct From Rajasthan Farms',
+    body: 'Explore our collection of raw, unadulterated whole leaves, dried pods, and pure herbal ingredients sourced directly from trusted growers in Sojat and surrounding agricultural belts. Ideal for traditional DIY hair oil infusions, herbal decoctions, and custom beauty formulations, our whole botanicals preserve their natural active compounds for maximum potency.',
+  },
+  'beauty-category': {
+    lead: 'Holistic Botanical Beauty Formulations for Conscious Personal Care',
+    body: 'Discover our complete catalog of natural beauty essentials, ranging from artisanal ready-to-use mehendi cones to herbal hair cleansing powders and pure floral waters. Each product is crafted with authentic natural ingredients direct from Sojat, ensuring uncompromised purity and gentle care.',
+  },
+};
+
 export async function generateMetadata({
   params,
 }: {
@@ -64,17 +87,20 @@ export async function generateMetadata({
 
   if (!category || category.isActive === false) {
     return {
-      title: 'Category Not Found | Musky Dose',
+      title: 'Category Not Found',
       description: 'The requested product category could not be found.',
     };
   }
+
+  const editorial = CATEGORY_EDITORIAL_INTRODUCTIONS[category.slug];
+  const customDesc = editorial ? `${editorial.lead}. ${editorial.body.slice(0, 100)}...` : category.description;
 
   return await resolvePageSeoMetadata({
     targetType: 'category',
     targetId: category.id,
     targetUrl: `/categories/${category.slug}`,
-    defaultTitle: `${category.name} | Musky Dose — Pure Sojat Mehendi & Herbal Care`,
-    defaultDescription: category.description || `Explore ${category.name} handcrafted directly in Sojat, Rajasthan. 100% natural, chemical-free botanicals.`,
+    defaultTitle: `${category.name} — Pure Sojat Botanical Care`,
+    defaultDescription: customDesc || `Explore ${category.name} handcrafted directly in Sojat, Rajasthan. 100% natural, chemical-free botanicals.`,
     defaultImage: category.image || '/images/hero-bg.jpg',
   });
 }
@@ -187,6 +213,21 @@ export default async function CategoryPage({
 
       {/* Category Products Catalog */}
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-1">
+        {/* Editorial Category Introduction (SEO & Search Intent) */}
+        {CATEGORY_EDITORIAL_INTRODUCTIONS[category.slug] && (
+          <div className="mb-10 bg-white rounded-2xl border border-[#e8e2d5] p-6 sm:p-8 shadow-xs space-y-3">
+            <div className="flex items-center gap-2 text-[#1b4332]">
+              <Leaf className="w-5 h-5 text-[#c5a059]" />
+              <h2 className="font-momo-display text-lg sm:text-xl font-normal text-[#0f2d22]">
+                {CATEGORY_EDITORIAL_INTRODUCTIONS[category.slug].lead}
+              </h2>
+            </div>
+            <p className="text-xs sm:text-sm text-[#556059] leading-relaxed font-sans">
+              {CATEGORY_EDITORIAL_INTRODUCTIONS[category.slug].body}
+            </p>
+          </div>
+        )}
+
         <div className="flex items-center justify-between mb-8 pb-4 border-b border-[#e8e2d5]">
           <div>
             <span className="text-xs font-semibold text-[#c5a059] uppercase tracking-wider">Catalog</span>
