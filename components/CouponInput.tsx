@@ -84,8 +84,9 @@ export default function CouponInput({
 
         <button
           onClick={handleRemoveCoupon}
-          className="p-1 hover:bg-emerald-100 rounded-lg text-emerald-700 font-semibold text-xs"
+          className="p-1 hover:bg-emerald-100 active:scale-90 rounded-lg text-emerald-700 font-semibold text-xs transition-all cursor-pointer touch-manipulation"
           title="Remove Coupon"
+          aria-label="Remove Coupon"
         >
           <X className="w-4 h-4" />
         </button>
@@ -113,7 +114,7 @@ export default function CouponInput({
         <button
           type="submit"
           disabled={loading || !couponCode.trim()}
-          className="px-4 py-2 bg-[#1b4332] text-white text-xs font-semibold rounded-xl hover:bg-[#0f2d22] transition-all disabled:opacity-50 shrink-0 flex items-center gap-1.5"
+          className="px-4 py-2 bg-[#1b4332] text-white text-xs font-semibold rounded-xl hover:bg-[#0f2d22] active:scale-95 transition-all disabled:opacity-50 shrink-0 flex items-center gap-1.5 cursor-pointer touch-manipulation"
         >
           {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Apply'}
         </button>

@@ -503,19 +503,23 @@ export default function ProductDetailClient({
               Select Quantity:
             </label>
             <div className="flex items-center gap-4">
-              <div className="inline-flex items-center border border-[#e8e2d5] rounded-xl bg-white shadow-xs">
+              <div className="flex items-center border border-[#e8e2d5] rounded-xl bg-[#fcfbf7]">
                 <button
+                  type="button"
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="p-3 text-[#0f2d22] hover:bg-[#f5f1e8] rounded-l-xl transition-colors"
+                  className="p-3 text-[#0f2d22] hover:bg-[#f5f1e8] active:scale-90 rounded-l-xl transition-all cursor-pointer touch-manipulation"
+                  aria-label="Decrease quantity"
                 >
                   <Minus className="w-4 h-4" />
                 </button>
-                <span className="w-12 text-center font-bold text-base text-[#0f2d22]">
+                <span className="w-12 text-center font-bold text-base text-[#0f2d22] select-none">
                   {quantity}
                 </span>
                 <button
+                  type="button"
                   onClick={() => setQuantity(quantity + 1)}
-                  className="p-3 text-[#0f2d22] hover:bg-[#f5f1e8] rounded-r-xl transition-colors"
+                  className="p-3 text-[#0f2d22] hover:bg-[#f5f1e8] active:scale-90 rounded-r-xl transition-all cursor-pointer touch-manipulation"
+                  aria-label="Increase quantity"
                 >
                   <Plus className="w-4 h-4" />
                 </button>
@@ -574,7 +578,7 @@ export default function ProductDetailClient({
                   closeCart();
                   router.push('/checkout');
                 }}
-                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-extrabold text-xs sm:text-sm tracking-wider transition-all shadow-sm active:scale-[0.99] cursor-pointer ${
+                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-extrabold text-xs sm:text-sm tracking-wider transition-all shadow-sm active:scale-[0.99] cursor-pointer touch-manipulation ${
                   product.stockStatus === 'out_of_stock'
                     ? 'bg-gray-200 text-gray-500 cursor-not-allowed pointer-events-none'
                     : 'bg-[#c5a059] hover:bg-[#b38e46] text-[#0f2d22]'
@@ -587,7 +591,7 @@ export default function ProductDetailClient({
             <button
               type="button"
               onClick={handleOpenQuestionModal}
-              className="w-full flex items-center justify-center gap-2 bg-[#f2fcf5] hover:bg-[#e2f7e7] text-[#1b4332] border border-[#25D366]/40 py-2.5 rounded-xl font-bold text-xs tracking-wider transition-all cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 bg-[#f2fcf5] hover:bg-[#e2f7e7] text-[#1b4332] border border-[#25D366]/40 py-2.5 rounded-xl font-bold text-xs tracking-wider transition-all active:scale-[0.99] cursor-pointer touch-manipulation"
             >
               <MessageCircle className="w-4 h-4 fill-[#25D366] text-[#25D366]" />
               <span>Ask Question on WhatsApp</span>

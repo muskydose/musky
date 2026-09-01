@@ -164,7 +164,7 @@ export default function WishlistDrawer({ siteSettings: initialSettings }: Wishli
                   <button
                     type="button"
                     onClick={() => removeFromWishlist(product.id)}
-                    className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                    className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 rounded-lg transition-all cursor-pointer touch-manipulation"
                     aria-label={`Remove ${product.name} from wishlist`}
                   >
                     <Trash2 className="w-3.5 h-3.5" />

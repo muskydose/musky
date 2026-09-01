@@ -239,18 +239,18 @@ export default function CartDrawer({ siteSettings: initialSettings }: CartDrawer
                       <button
                         type="button"
                         onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                        className="p-1 hover:bg-[#f5f1e8] rounded-l-lg text-[#0f2d22] cursor-pointer"
+                        className="p-1.5 hover:bg-[#f5f1e8] active:scale-90 active:bg-[#e8f3ed] rounded-l-lg text-[#0f2d22] transition-all cursor-pointer touch-manipulation"
                         aria-label="Decrease quantity"
                       >
                         <Minus className="w-3 h-3" />
                       </button>
-                      <span className="w-6 text-center font-bold text-xs text-[#0f2d22]">
+                      <span className="w-7 text-center font-bold text-xs text-[#0f2d22] select-none">
                         {item.quantity}
                       </span>
                       <button
                         type="button"
                         onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-                        className="p-1 hover:bg-[#f5f1e8] rounded-r-lg text-[#0f2d22] cursor-pointer"
+                        className="p-1.5 hover:bg-[#f5f1e8] active:scale-90 active:bg-[#e8f3ed] rounded-r-lg text-[#0f2d22] transition-all cursor-pointer touch-manipulation"
                         aria-label="Increase quantity"
                       >
                         <Plus className="w-3 h-3" />
@@ -273,7 +273,7 @@ export default function CartDrawer({ siteSettings: initialSettings }: CartDrawer
                     });
                     removeFromCart(item.product.id);
                   }}
-                  className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors shrink-0 cursor-pointer"
+                  className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 rounded-lg transition-all shrink-0 cursor-pointer touch-manipulation"
                   aria-label={`Remove ${item.product.name} from cart`}
                 >
                   <Trash2 className="w-4 h-4" />
