@@ -679,11 +679,31 @@ export default function ProductDetailClient({
       <div className="mt-12 bg-white rounded-2xl border border-[#e8e2d5] p-6 sm:p-8 space-y-8 shadow-xs">
         <div>
           <h3 className="font-momo-display text-2xl font-normal text-[#0f2d22] border-b border-[#e8e2d5] pb-3 mb-4">
-            Full Product Description
+            Product Details & Description
           </h3>
-          <p className="text-sm text-[#2b302c] leading-relaxed whitespace-pre-line">
-            {product.fullDescription}
-          </p>
+          <div className="text-sm text-[#2b302c] leading-relaxed space-y-4">
+            {product.fullDescription && product.fullDescription.length > 50 ? (
+              <p className="whitespace-pre-line">{product.fullDescription}</p>
+            ) : (
+              <>
+                <p>
+                  <strong>{product.name}</strong> is natural henna leaf powder (<em>Lawsonia Inermis</em>) sourced from Sojat, Rajasthan. It is finely sifted for smooth paste preparation, making it suitable for traditional mehndi body art, bridal henna designs, and natural hair conditioning.
+                </p>
+                <p>
+                  When mixed with water and allowed to rest for dye release, the powder forms a smooth paste suitable for filling into applicator cones or direct hair application.
+                </p>
+                <div className="bg-[#fcfbf7] p-4 rounded-xl border border-[#e8e2d5] text-xs space-y-2 mt-3">
+                  <div className="font-bold text-[#0f2d22] uppercase tracking-wider text-[11px]">Intended Uses & Product Information:</div>
+                  <ul className="list-disc list-inside space-y-1 text-[#556059]">
+                    <li><strong>Mehndi & Body Art:</strong> Finely sifted for smooth cone paste preparation.</li>
+                    <li><strong>Hair Care & Conditioning:</strong> Natural botanical powder for hair application.</li>
+                    <li><strong>Origin:</strong> Sojat, Rajasthan, India.</li>
+                    <li><strong>Packaging:</strong> 250g pack.</li>
+                  </ul>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Ingredients & Benefits */}

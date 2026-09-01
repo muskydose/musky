@@ -9,6 +9,8 @@ import SideDrawer from '@/components/ui/SideDrawer';
 import { Product } from '@/lib/types';
 import { sanitizeImageUrl } from '@/lib/utils';
 import { trackSearchOpen, trackSearchSubmit } from '@/lib/analytics';
+import { unifiedSearchProducts } from '@/lib/search/unified-search';
+import { resolveEntityFromQuery } from '@/lib/growth/entities';
 import {
   Search,
   X,
@@ -22,6 +24,7 @@ import {
   ShoppingBag,
   Loader2,
   CheckCircle,
+  BookOpen,
 } from 'lucide-react';
 
 const TRENDING_SEARCHES = [
@@ -35,10 +38,10 @@ const TRENDING_SEARCHES = [
 ];
 
 const POPULAR_CATEGORIES = [
-  { name: 'Henna & Mehndi', href: '/categories/henna-mehndi', icon: '🌿' },
-  { name: 'Herbal Powders', href: '/categories/herbal-powders', icon: '✨' },
+  { name: 'Henna & Mehndi', href: '/categories/henna', icon: '🌿' },
+  { name: 'Herbal Powders', href: '/categories/herbal-products', icon: '✨' },
   { name: 'Hair Care Packs', href: '/categories/hair-care', icon: '💇‍♀️' },
-  { name: 'Face Packs & Clay', href: '/categories/face-packs', icon: '🌸' },
+  { name: 'Face Packs & Clay', href: '/categories/face-care', icon: '🌸' },
   { name: 'Wholesale & B2B', href: '/wholesale', icon: '📦' },
 ];
 
@@ -68,7 +71,7 @@ export default function SearchDrawer() {
     }
   }, [isSearchOpen]);
 
-  // Debounced live search
+  // Debounced live search with Unified Search Engine
   useEffect(() => {
     const trimmed = query.trim();
     if (trimmed.length < 2) {
@@ -83,24 +86,14 @@ export default function SearchDrawer() {
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (data?.success && Array.isArray(data.products)) {
-            const lower = trimmed.toLowerCase();
-            const filtered = data.products
-              .filter((p: Product) => {
-                const titleMatch = p.name?.toLowerCase().includes(lower);
-                const catMatch = p.categoryName?.toLowerCase().includes(lower);
-                const descMatch = p.shortDescription?.toLowerCase().includes(lower);
-                const skuMatch = p.sku?.toLowerCase().includes(lower);
-                const keywordsMatch = Array.isArray(p.seoKeywords) && p.seoKeywords.some((k: string) => k.toLowerCase().includes(lower));
-                return titleMatch || catMatch || descMatch || skuMatch || keywordsMatch;
-              })
-              .slice(0, 6);
-            setLiveProducts(filtered);
-            trackSearchSubmit(trimmed, filtered.length);
+            const ranked = unifiedSearchProducts(data.products, trimmed, 15).slice(0, 6);
+            setLiveProducts(ranked);
+            trackSearchSubmit(trimmed, ranked.length);
           }
         })
         .catch(() => {})
         .finally(() => setIsSearching(false));
-    }, 200);
+    }, 180);
 
     return () => clearTimeout(timer);
   }, [query]);
@@ -227,6 +220,27 @@ export default function SearchDrawer() {
               See all results &rarr;
             </button>
           </div>
+
+          {/* Entity Shortcut Pill */}
+          {(() => {
+            const matchedEntity = resolveEntityFromQuery(query);
+            if (!matchedEntity) return null;
+            return (
+              <div className="flex items-center justify-between p-2.5 bg-[#e8f3ed] border border-[#c2ded0] rounded-xl text-xs text-[#1b4332]">
+                <span className="font-bold flex items-center gap-1.5 truncate">
+                  <Leaf className="w-3.5 h-3.5 text-[#1b4332] shrink-0" />
+                  <span>{matchedEntity.canonicalName} / Mehndi Collection</span>
+                </span>
+                <Link
+                  href={`/categories/${matchedEntity.categorySlug}`}
+                  onClick={closeSearch}
+                  className="font-extrabold text-[11px] bg-[#1b4332] text-white px-2.5 py-1 rounded-lg hover:bg-[#0f2d22] transition-colors shrink-0"
+                >
+                  Category &rarr;
+                </Link>
+              </div>
+            );
+          })()}
 
           {liveProducts.length > 0 ? (
             <div className="space-y-2">

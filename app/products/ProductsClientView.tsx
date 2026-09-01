@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import ProductCard from '@/components/ProductCard';
 import { Product, Category, SiteSettings } from '@/lib/types';
 import { getCmsText } from '@/lib/cms';
+import { unifiedSearchProducts } from '@/lib/search/unified-search';
 import { Search, SlidersHorizontal, PackageX, Sparkles, X, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -282,15 +283,7 @@ export default function ProductsClientView({
     let result = [...initialProducts];
 
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (p) =>
-          (p.name || '').toLowerCase().includes(q) ||
-          (p.shortDescription || '').toLowerCase().includes(q) ||
-          (p.sku || '').toLowerCase().includes(q) ||
-          (p.categoryName || '').toLowerCase().includes(q) ||
-          (p.ingredients && p.ingredients.some((i) => i.toLowerCase().includes(q)))
-      );
+      result = unifiedSearchProducts(result, searchQuery.trim(), 20);
     }
 
     if (selectedCategory !== 'all') {

@@ -171,14 +171,21 @@ export function resolveSmartKeywordRoute(params: {
       };
     }
 
-    // Broad Category Synonym Matches
+    // Broad Category Synonym Matches via Unified Entity Taxonomy
     if (
       (cName.includes('henna') &&
         (q === 'mehndi' ||
           q === 'mehendi' ||
+          q === 'mehandi' ||
+          q === 'heena' ||
           q === 'henna powder' ||
+          q === 'mehndi powder' ||
+          q === 'mehendi powder' ||
+          q === 'mehandi powder' ||
           q === 'sojat henna' ||
-          q === 'natural henna')) ||
+          q === 'sojat mehndi' ||
+          q === 'natural henna' ||
+          q === 'natural mehndi')) ||
       (cName.includes('hair') &&
         (q === 'hair care' || q === 'herbal hair care' || q === 'hair products')) ||
       (cName.includes('face') &&

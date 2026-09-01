@@ -33,6 +33,21 @@ interface BotanicalEntity {
 }
 
 const BOTANICAL_KNOWLEDGE: Record<string, BotanicalEntity> = {
+  baq_henna: {
+    key: 'baq_henna',
+    rootNames: ['baq henna', 'body art quality henna', 'baq mehndi', 'bridal henna powder', 'baq'],
+    scientificName: ['lawsonia inermis'],
+    ayurvedicNames: ['madayantika'],
+    englishNames: ['body art quality henna', 'henna powder for cones', 'sojat henna powder', 'natural henna powder', 'henna powder for mehndi'],
+    originRegions: ['Sojat', 'Pali', 'Rajasthan'],
+    standardForms: ['powder', 'cone', 'paste'],
+    primaryBenefits: ['finely sifted powder', 'smooth paste texture', 'natural botanical color'],
+    primaryUseCases: ['mehndi cone preparation', 'bridal mehndi', 'body art', 'hair application'],
+    semanticThemes: ['body art quality henna', 'mehndi cone preparation', 'sojat henna'],
+    primaryScope: 'BODY_ART',
+    suggestedCategorySlug: 'henna',
+    suggestedGuideSlugs: ['sojat-henna-powder-complete-guide'],
+  },
   henna: {
     key: 'henna',
     rootNames: ['henna', 'mehndi', 'mehandi', 'mehendi', 'hina', 'heena'],
@@ -47,21 +62,6 @@ const BOTANICAL_KNOWLEDGE: Record<string, BotanicalEntity> = {
     primaryScope: 'HAIR',
     suggestedCategorySlug: 'henna',
     suggestedGuideSlugs: ['sojat-henna-powder-complete-guide', 'which-henna-powder-is-right-for-you'],
-  },
-  baq_henna: {
-    key: 'baq_henna',
-    rootNames: ['baq henna', 'body art quality henna', 'baq mehndi', 'bridal henna powder'],
-    scientificName: ['lawsonia inermis'],
-    ayurvedicNames: ['madayantika'],
-    englishNames: ['body art quality henna powder', 'professional henna powder', 'henna powder for cones'],
-    originRegions: ['Sojat', 'Pali', 'Rajasthan'],
-    standardForms: ['powder', 'cone', 'paste'],
-    primaryBenefits: ['ultra fine stringy paste', 'deep dark stain', 'clog free cone application', 'pure lawsone density'],
-    primaryUseCases: ['bridal mehndi', 'professional mehndi cones', 'body art henna tattoo'],
-    semanticThemes: ['body art quality', 'professional mehndi artist', 'stringy cone paste'],
-    primaryScope: 'BODY_ART',
-    suggestedCategorySlug: 'henna',
-    suggestedGuideSlugs: ['sojat-henna-powder-complete-guide'],
   },
   indigo: {
     key: 'indigo',
@@ -763,9 +763,11 @@ export function deriveProductAutoSeo(product: Partial<Product>): AutoSeoResult {
       secondarySet.add(`botanical ${botanical.rootNames[0]} skincare`);
     } else if (detectedScope === 'BODY_ART') {
       secondarySet.add('henna powder for mehndi cones');
-      secondarySet.add('body art quality henna powder');
+      secondarySet.add('body art quality henna');
+      secondarySet.add('sojat henna powder');
+      secondarySet.add('natural henna powder');
     }
-    secondarySet.add(`pure organic ${botanical.rootNames[0]} powder`);
+    secondarySet.add(`natural ${botanical.rootNames[0]} powder`);
   } else {
     secondarySet.add(`natural ${cleanBaseName.toLowerCase()}`);
     secondarySet.add(`pure ${cleanBaseName.toLowerCase()}`);
@@ -790,9 +792,10 @@ export function deriveProductAutoSeo(product: Partial<Product>): AutoSeoResult {
       longTailSet.add(`chemical free ${botanical.rootNames[0]} powder for pore tightening`);
       longTailSet.add(`shade dried botanical ${botanical.rootNames[0]} facial treatment`);
     } else if (detectedScope === 'BODY_ART') {
-      longTailSet.add(`cloth sifted BAQ henna powder for bridal mehndi artists`);
-      longTailSet.add(`stringy paste henna powder for smooth clog free cones`);
-      longTailSet.add(`high lawsone pure Sojat henna powder for dark stain`);
+      longTailSet.add('baq henna powder for mehndi cones');
+      longTailSet.add('sojat henna powder for body art');
+      longTailSet.add('finely sifted henna powder for cones');
+      longTailSet.add('natural henna powder from sojat');
     }
     longTailSet.add(`authentic ${botanical.rootNames[0]} powder direct from sojat rajasthan`);
   } else {
@@ -816,7 +819,7 @@ export function deriveProductAutoSeo(product: Partial<Product>): AutoSeoResult {
     } else if (detectedScope === 'SKIN' && !name.toLowerCase().includes('face') && !name.toLowerCase().includes('skin')) {
       seoTitle = `${name} — Natural Skincare & Face Pack`;
     } else if (detectedScope === 'BODY_ART') {
-      seoTitle = `${name} — Body Art Quality Bridal Mehndi`;
+      seoTitle = `${name} — Mehndi & Body Art Use`;
     } else {
       seoTitle = `${name} — Pure Botanical Care from Sojat`;
     }
@@ -844,7 +847,7 @@ export function deriveProductAutoSeo(product: Partial<Product>): AutoSeoResult {
       } else if (detectedScope === 'SKIN') {
         metaDescription = `100% pure shade-dried ${botanical.rootNames[0]} from ${origin}. Gentle botanical formulation for ${benefit} without artificial fragrance or chemicals.`;
       } else if (detectedScope === 'BODY_ART') {
-        metaDescription = `100% Body Art Quality (BAQ) pure ${botanical.rootNames[0]} powder from ${origin}. Micro-cloth sifted for smooth cone paste and rich dark mahogany stain.`;
+        metaDescription = `Natural BAQ henna powder from ${origin}. Finely sifted for smooth mehndi cone preparation and natural hair application. 250g pack.`;
       } else {
         metaDescription = `100% pure botanical ${botanical.rootNames[0]} harvested in ${origin}. Chemical-free natural herbal powder for traditional Ayurvedic care.`;
       }

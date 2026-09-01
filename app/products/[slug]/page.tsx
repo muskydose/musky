@@ -120,6 +120,8 @@ export default async function ProductDetailPage({
     });
   }
 
+  const autoSeo = deriveProductAutoSeo(product);
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -128,7 +130,7 @@ export default async function ProductDetailPage({
         '@id': `${baseUrl}/products/${product.slug}#product`,
         name: product.name,
         image: product.images?.[0] ? (product.images[0].startsWith('http') ? product.images[0] : `${baseUrl}${product.images[0]}`) : undefined,
-        description: product.fullDescription || product.shortDescription,
+        description: product.fullDescription && product.fullDescription.length > 50 ? product.fullDescription : autoSeo.metaDescription,
         sku: product.sku || product.id,
         brand: {
           '@type': 'Brand',
