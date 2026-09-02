@@ -31,6 +31,9 @@ interface WholesaleCalculatorProps {
     effectivePricePerUnit: number;
     pricingUnit: string;
     tierName: string;
+    savingsAmount?: number;
+    savingsPercent?: number;
+    retailEquivalent?: string;
   }) => void;
 }
 
@@ -191,6 +194,9 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
       effectivePricePerUnit: calculation.effectivePrice,
       pricingUnit: units.wholesaleUnit,
       tierName: calculation.tierName,
+      savingsAmount: calculation.totalSavings,
+      savingsPercent: calculation.discountPercent,
+      retailEquivalent: units.rates.wholesaleRate.formattedRate,
     });
   };
 
@@ -416,6 +422,34 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
               <span className="text-[10px] text-[#0f2d22] uppercase font-bold block">Estimated Total</span>
               <span className="text-base sm:text-lg font-extrabold text-[#1b4332]">
                 ₹{calculation.estimatedTotal.toLocaleString('en-IN')}
+              </span>
+            </div>
+          </div>
+
+          {/* Canonical Retail vs. Wholesale Value Comparison Card */}
+          <div className="rounded-xl border border-[#c5a059]/40 bg-[#FAF8F5] p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-2xs">
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wide text-[#0f2d22]">
+                <Sparkles className="w-4 h-4 text-[#c5a059]" />
+                <span>Wholesale Value vs. Normal Retail Value</span>
+              </div>
+              <div className="text-xs text-gray-700">
+                Retail Equivalent: <span className="font-bold text-gray-800 line-through font-mono">{units.rates.wholesaleRate.formattedRate}</span> • Wholesale Sourcing: <span className="font-extrabold text-[#1b4332] font-mono">₹{calculation.effectivePrice} / {units.wholesaleUnit}</span>
+              </div>
+              {calculation.totalSavings > 0 ? (
+                <p className="text-xs font-extrabold text-emerald-800">
+                  🎉 Buying {quantity} {units.wholesaleUnit} saves you ₹{calculation.totalSavings.toLocaleString('en-IN')} ({calculation.discountPercent}% benefit over retail)
+                </p>
+              ) : (
+                <p className="text-xs text-gray-500 font-medium">
+                  Direct Factory Wholesale pricing with GST billing and batch certification.
+                </p>
+              )}
+            </div>
+            <div className="text-left md:text-right shrink-0">
+              <span className="text-[10px] text-gray-500 block uppercase font-bold">Wholesale Sourcing Benefit</span>
+              <span className="text-base sm:text-lg font-black text-emerald-700 font-mono">
+                {calculation.totalSavings > 0 ? `Save ₹${calculation.totalSavings.toLocaleString('en-IN')}` : 'Direct Factory Rate'}
               </span>
             </div>
           </div>

@@ -382,6 +382,34 @@ export default function AdminBulkPricingPage() {
                   </div>
                 </div>
 
+                {/* Quick 5% - 50% Template Presets */}
+                <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200/60 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-[#0f2d22]">
+                    <span>Suggested Wholesale Benefit Templates (Up to 50%):</span>
+                    <span className="text-[10px] text-emerald-800">1-Click Auto-Fill</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[5, 10, 15, 20, 25, 30, 35, 40, 50].map((pct) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => {
+                          setDiscountType('percentage');
+                          setDiscountValue(pct);
+                          if (minQuantity === '' || minQuantity <= 1) setMinQuantity(pct >= 25 ? 25 : 5);
+                        }}
+                        className={`px-2 py-1 rounded text-[11px] font-bold transition-all border ${
+                          discountType === 'percentage' && discountValue === pct
+                            ? 'bg-[#1b4332] text-[#c5a059] border-[#1b4332]'
+                            : 'bg-white text-gray-700 border-gray-200 hover:bg-[#e8f3ed]'
+                        }`}
+                      >
+                        {pct}% Tier
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Discount Type & Value */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>

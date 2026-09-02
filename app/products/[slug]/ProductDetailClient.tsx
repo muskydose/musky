@@ -36,6 +36,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import WholesaleSavingsCard from '@/components/WholesaleSavingsCard';
 
 interface ProductDetailClientProps {
   product: Product;
@@ -637,56 +638,15 @@ export default function ProductDetailClient({
             </p>
           </div>
 
-          {/* Bulk Quantity Enquiry Card */}
-          <div className="p-4 rounded-xl bg-gradient-to-br from-[#faf7f0] to-[#f4eee0] border border-[#e2d7c3] space-y-3 shadow-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-extrabold text-[#0f2d22] uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-[#c5a059]" /> Need Bulk Quantity or Custom Pack?
-              </span>
-              <span className="text-[10px] font-bold text-[#1b4332] bg-[#e8f3ed] px-2 py-0.5 rounded-full">
-                Sojat Wholesale
-              </span>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-1.5 text-xs">
-              <span className="text-gray-600 text-[11px]">Quick Packs:</span>
-              {(/oil|water|spray|liquid|serum|bottle|ml/i.test(`${product.name} ${product.categoryName || ''} ${product.quantityOrWeight || ''}`)
-                ? ['10 Packs', '25 Packs', '50 Packs', '100+ Packs', 'Bulk Liters']
-                : ['5 kg', '10 kg', '25 kg', '50 kg', '100+ kg']
-              ).map((qtyOption) => (
-                <button
-                  key={qtyOption}
-                  type="button"
-                  onClick={() => setCustomBulkQuantity(qtyOption)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                    customBulkQuantity === qtyOption
-                      ? 'bg-[#1b4332] text-white shadow-xs'
-                      : 'bg-white text-[#0f2d22] hover:bg-[#e8e2d5] border border-[#e8e2d5]'
-                  }`}
-                >
-                  {qtyOption}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={customBulkQuantity}
-                onChange={(e) => setCustomBulkQuantity(e.target.value)}
-                placeholder="Or type custom weight/quantity..."
-                className="flex-grow px-3 py-2 bg-white border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
-              />
-              <button
-                type="button"
-                onClick={handleOpenBulkModal}
-                className="inline-flex items-center gap-1.5 bg-[#1b4332] hover:bg-[#0f2d22] text-white text-xs font-extrabold px-4 py-2 rounded-xl transition-all shadow-xs shrink-0"
-              >
-                <MessageCircle className="w-3.5 h-3.5 text-[#c5a059]" />
-                <span>Ask Bulk Price</span>
-              </button>
-            </div>
-          </div>
+          {/* Wholesale Value & Savings Benefit Card */}
+          <WholesaleSavingsCard
+            product={product}
+            bulkRules={bulkRules}
+            onSelectQuote={(s) => {
+              setCustomBulkQuantity(`${s.quantity} ${s.unit}`);
+              setShowBulkModal(true);
+            }}
+          />
 
           {/* Authentic Sojat Trust Guarantees */}
           <div className="grid grid-cols-2 gap-2.5 pt-4 border-t border-[#e8e2d5] text-xs text-[#626c66]">

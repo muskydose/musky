@@ -228,16 +228,24 @@ function WholesaleContent() {
     effectivePricePerUnit: number;
     pricingUnit: string;
     tierName: string;
+    savingsAmount?: number;
+    savingsPercent?: number;
+    retailEquivalent?: string;
   }) => {
     const qUnit = data.quantityUnit || 'Unit';
     const pUnit = data.pricingUnit || qUnit;
+    const savingsText =
+      data.savingsAmount && data.savingsAmount > 0
+        ? ` • Retail Equivalent: ${data.retailEquivalent || ''} • Estimated Savings: ₹${data.savingsAmount.toLocaleString('en-IN')} (${data.savingsPercent}% benefit)`
+        : '';
+
     setFormData((prev) => ({
       ...prev,
       productsRequired: `${data.productName} (Wholesale Tier: ${data.tierName})`,
       approxQuantity: `${data.quantity} ${qUnit}`,
       notes: prev.notes
         ? prev.notes
-        : `Inquiry generated via Wholesale Calculator. Estimated tier rate: ₹${data.effectivePricePerUnit}/${pUnit} (Est. Total: ~₹${data.estimatedTotal.toLocaleString('en-IN')})`,
+        : `Inquiry generated via Wholesale Calculator. Estimated tier rate: ₹${data.effectivePricePerUnit}/${pUnit} (Est. Total: ~₹${data.estimatedTotal.toLocaleString('en-IN')}${savingsText})`,
     }));
 
     if (typeof document !== 'undefined') {
