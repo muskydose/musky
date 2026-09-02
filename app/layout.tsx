@@ -29,6 +29,8 @@ const momoTrustDisplay = localFont({
   display: 'swap',
 });
 
+export const revalidate = 60;
+
 export async function generateMetadata(): Promise<Metadata> {
   const siteSettings = await getSiteSettings();
   const baseUrl = siteSettings.websiteUrl || 'https://muskydose.in';

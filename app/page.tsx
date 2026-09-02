@@ -34,6 +34,8 @@ import {
   Quote,
 } from 'lucide-react';
 
+export const revalidate = 60;
+
 export async function generateMetadata() {
   return await resolvePageSeoMetadata({
     targetType: 'homepage',

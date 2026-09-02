@@ -11,6 +11,8 @@ import { getCmsText } from '@/lib/cms';
 import { FadeIn } from '@/components/Motion';
 import { safeJsonLd } from '@/lib/utils';
 
+export const revalidate = 60;
+
 export async function generateMetadata() {
   return await resolvePageSeoMetadata({
     targetType: 'contact',

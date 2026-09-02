@@ -9,6 +9,8 @@ import { resolvePageSeoMetadata } from '@/lib/db/seo';
 import { safeJsonLd } from '@/lib/utils';
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/Motion';
 
+export const revalidate = 60;
+
 export async function generateMetadata() {
   return await resolvePageSeoMetadata({
     targetType: 'factory',
