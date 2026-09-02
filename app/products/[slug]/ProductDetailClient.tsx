@@ -11,6 +11,7 @@ import { useCart } from '@/context/CartContext';
 import {
   trackProductView,
   trackAddToCart,
+  trackWhatsAppClick,
 } from '@/lib/analytics';
 import {
   MessageCircle,
@@ -165,6 +166,7 @@ export default function ProductDetailClient({
       const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
       const msg = `Customer Question:\nName: ${cleanName}\nMobile: ${cleanPhone}\nProduct: ${product.name}\nQuestion: ${cleanText}\n\nProduct URL: ${currentUrl}`;
       const url = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(msg)}`;
+      trackWhatsAppClick({ source: 'Product Detail Question Modal', productId: product.id });
       setShowQuestionModal(false);
       if (typeof window !== 'undefined') {
         window.location.href = url;
@@ -234,6 +236,7 @@ export default function ProductDetailClient({
       const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
       const msg = `Bulk Inquiry:\nCustomer Name: ${cleanName}\nPhone / WhatsApp: ${cleanPhone}\nProduct: ${product.name} (SKU: ${product.sku || 'N/A'})\nRequested Quantity: ${cleanQty}\nRequirement / Message: ${cleanReq}\nProduct Link: ${currentUrl}`;
       const url = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(msg)}`;
+      trackWhatsAppClick({ source: 'Product Detail Bulk Modal', productId: product.id });
       setShowBulkModal(false);
       if (typeof window !== 'undefined') {
         window.location.href = url;

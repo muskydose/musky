@@ -25,7 +25,11 @@ import {
   Loader2,
   CheckCircle,
   BookOpen,
+  MessageCircle,
 } from 'lucide-react';
+import { getClientSiteSettings } from '@/lib/api-client';
+import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
+import { trackWhatsAppClick } from '@/lib/analytics';
 
 const TRENDING_SEARCHES = [
   { label: 'Sojat Henna Powder', query: 'sojat henna powder', tag: 'Best Seller' },
@@ -48,6 +52,7 @@ const POPULAR_CATEGORIES = [
 export default function SearchDrawer() {
   const { isSearchOpen, closeSearch } = useUI();
   const router = useRouter();
+  const [siteSettings, setSiteSettings] = useState<any>(null);
   const [query, setQuery] = useState('');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [liveProducts, setLiveProducts] = useState<Product[]>([]);
@@ -58,6 +63,9 @@ export default function SearchDrawer() {
   useEffect(() => {
     if (isSearchOpen) {
       trackSearchOpen();
+      getClientSiteSettings().then((s) => {
+        if (s) setSiteSettings(s);
+      });
       setTimeout(() => {
         inputRef.current?.focus();
       }, 150);
@@ -288,16 +296,30 @@ export default function SearchDrawer() {
               </button>
             </div>
           ) : !isSearching ? (
-            <div className="text-center py-8 px-4 bg-white rounded-xl border border-[#e8e2d5]">
-              <p className="text-xs font-bold text-[#0f2d22]">No direct product title matches</p>
-              <p className="text-[11px] text-gray-500 mt-1">Press &apos;Go&apos; to search entire catalog & descriptions.</p>
-              <button
-                type="button"
-                onClick={() => handleSearchSubmit()}
-                className="mt-3 px-4 py-2 bg-[#1b4332] text-[#c5a059] text-xs font-bold rounded-lg shadow-xs"
-              >
-                Search Catalog &rarr;
-              </button>
+            <div className="text-center py-6 px-4 bg-white rounded-xl border border-[#e8e2d5] space-y-3">
+              <p className="text-xs font-bold text-[#0f2d22]">No direct product matches for &quot;{query}&quot;</p>
+              <p className="text-[11px] text-gray-500">Search the full catalog or chat directly with our Sojat product team.</p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleSearchSubmit()}
+                  className="w-full sm:w-auto px-4 py-2.5 bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] text-xs font-bold rounded-lg shadow-xs cursor-pointer"
+                >
+                  Search Full Catalog &rarr;
+                </button>
+                <a
+                  href={`https://wa.me/${getConfiguredWhatsAppNumber(siteSettings)}?text=${encodeURIComponent(
+                    `Hi Musky Dose, I am looking for "${query.trim()}" on your website. Please share product availability & prices.`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => trackWhatsAppClick({ source: 'Search Drawer Zero Result Lead' })}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#25D366] hover:bg-[#20bd5a] text-white text-xs font-bold rounded-lg shadow-xs"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>Ask on WhatsApp</span>
+                </a>
+              </div>
             </div>
           ) : null}
         </div>

@@ -461,15 +461,27 @@ export default async function ProductGuideDetailPage({
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link
                 href={primaryProduct ? `/products/${primaryProduct.slug}` : '/products'}
-                className="w-full sm:w-auto min-h-[46px] inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white px-7 py-3 rounded-xl font-extrabold text-xs sm:text-sm tracking-wider uppercase shadow-md transition-all"
+                className="w-full sm:w-auto min-h-[46px] inline-flex items-center justify-center gap-2 bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] border border-[#c5a059]/40 px-6 py-3 rounded-xl font-extrabold text-xs sm:text-sm tracking-wider uppercase shadow-md transition-all"
               >
-                <ShoppingBag className="w-4 h-4 text-white" />
+                <ShoppingBag className="w-4 h-4 text-[#c5a059]" />
                 <span>Select Product & Order</span>
               </Link>
 
+              <a
+                href={`https://wa.me/${whatsappPhone}?text=${encodeURIComponent(
+                  `Hi Musky Dose, I read your guide "${guide.title}" and would like expert advice on application & bulk ordering.`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:w-auto min-h-[46px] inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white px-6 py-3 rounded-xl font-extrabold text-xs sm:text-sm tracking-wider uppercase shadow-md transition-all"
+              >
+                <MessageCircle className="w-4 h-4 text-white" />
+                <span>Ask Expert on WhatsApp</span>
+              </a>
+
               <Link
                 href="/products"
-                className="w-full sm:w-auto min-h-[46px] inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white border border-[#c5a059]/40 px-6 py-3 rounded-xl font-bold text-xs sm:text-sm tracking-wider uppercase transition-colors"
+                className="w-full sm:w-auto min-h-[46px] inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white border border-[#c5a059]/40 px-5 py-3 rounded-xl font-bold text-xs sm:text-sm tracking-wider uppercase transition-colors"
               >
                 <span>Browse Catalog</span>
               </Link>
