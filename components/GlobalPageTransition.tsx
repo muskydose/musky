@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 
 type TransitionState = 'idle' | 'loading' | 'finishing';
 
@@ -19,18 +19,15 @@ function isNavigableAnchor(anchor: HTMLAnchorElement) {
 
   const url = new URL(anchor.href, window.location.href);
   if (url.origin !== window.location.origin) return false;
-  if (url.href === window.location.href) return false;
-  if (url.hash && url.pathname === window.location.pathname && url.search === window.location.search) return false;
+  if (url.pathname === window.location.pathname) return false;
   return true;
 }
 
 export default function GlobalPageTransition() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const currentUrlKey = `${pathname}?${searchParams.toString()}`;
   const [state, setState] = useState<TransitionState>('idle');
   const [showBrandSignal, setShowBrandSignal] = useState(false);
-  const previousUrlRef = useRef(currentUrlKey);
+  const previousPathRef = useRef(pathname);
   const activeRef = useRef(false);
   const finishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const slowSignalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -78,13 +75,13 @@ export default function GlobalPageTransition() {
     }, FINISH_MS);
   }, [clearTimers]);
 
-  // The App Router URL is the authoritative completion signal, including query changes.
+  // The App Router pathname is the authoritative completion signal for real route changes.
   useEffect(() => {
-    if (previousUrlRef.current !== currentUrlKey) {
-      previousUrlRef.current = currentUrlKey;
+    if (previousPathRef.current !== pathname) {
+      previousPathRef.current = pathname;
       finishTransition();
     }
-  }, [currentUrlKey, finishTransition]);
+  }, [pathname, finishTransition]);
 
   useEffect(() => {
     const handleDocumentClick = (event: MouseEvent) => {
@@ -105,7 +102,7 @@ export default function GlobalPageTransition() {
       const nextUrl = args[2];
       if (nextUrl) {
         const next = new URL(String(nextUrl), window.location.href);
-        if (next.origin === window.location.origin && next.href !== window.location.href) {
+        if (next.origin === window.location.origin && next.pathname !== window.location.pathname) {
           startTransition();
         }
       }
@@ -116,14 +113,17 @@ export default function GlobalPageTransition() {
       const nextUrl = args[2];
       if (nextUrl) {
         const next = new URL(String(nextUrl), window.location.href);
-        if (next.origin === window.location.origin && next.href !== window.location.href) {
+        if (next.origin === window.location.origin && next.pathname !== window.location.pathname) {
           startTransition();
         }
       }
       return originalReplaceState.apply(this, args);
     };
 
-    const handlePopState = () => startTransition();
+    const handlePopState = () => {
+      const nextPath = window.location.pathname;
+      if (nextPath !== previousPathRef.current) startTransition();
+    };
 
     document.addEventListener('click', handleDocumentClick, true);
     window.addEventListener('popstate', handlePopState);
