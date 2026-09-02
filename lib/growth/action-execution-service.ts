@@ -95,6 +95,29 @@ export function routeOpportunityToActionType(opportunity: GrowthOpportunity): Gr
     case 'HIGH_SEARCH_LOW_CONVERSION':
       return 'CREATE_CONVERSION_REVIEW';
 
+    case 'SEARCH_COVERAGE_GAP':
+    case 'COMMERCIAL_CONTENT_GAP':
+      return 'CREATE_CONTENT_COVERAGE_DRAFT';
+
+    case 'PRODUCT_FEED_GAP':
+      return 'CREATE_PRODUCT_FEED_FIX';
+
+    case 'MERCHANT_FEED_ERROR':
+      return 'CREATE_FEED_REPAIR_TASK';
+
+    case 'HIGH_INTENT_LOW_LEAD':
+    case 'LOCAL_INTENT_OPPORTUNITY':
+      return 'CREATE_CTA_OPTIMIZATION_DRAFT';
+
+    case 'LANDING_PAGE_LEAD_GAP':
+      return 'CREATE_LEAD_CAPTURE_RECOMMENDATION';
+
+    case 'WHOLESALE_ACQUISITION_GAP':
+      return 'CREATE_WHOLESALE_CTA_DRAFT';
+
+    case 'PRODUCT_INDEXING_GAP':
+      return 'CREATE_SEARCH_COVERAGE_TASK';
+
     case 'CANNIBALIZATION':
     case 'CANNIBALIZATION_RISK':
     case 'SEO_CANNIBALIZATION':
@@ -414,6 +437,62 @@ export function generateActionRecord(
         suggestedFollowUp: 'Priority WhatsApp / Call follow-up within 1 hour.',
       };
       markdownContent = `### High-Intent Lead Follow-Up SLA\n\n- **Priority**: P1_NOW\n- **Action**: Immediate personalized WhatsApp outreach with custom Sojat bulk rate card.`;
+      draftText = markdownContent;
+      copyableText = markdownContent;
+      break;
+    }
+
+    case 'CREATE_CONTENT_COVERAGE_DRAFT': {
+      entityType = 'PRODUCT';
+      summary = `Commercial Search Coverage Optimization for "${product?.name || opportunity.productName || 'Product'}"`;
+      targetUrl = `/admin/products/${product?.id || opportunity.productId}`;
+      payload = {
+        productId: product?.id || opportunity.productId,
+        focusQueries: [product?.name, `${product?.name} wholesale`, `${product?.name} price`],
+      };
+      markdownContent = `### Commercial Search Content Optimization\n\n- **Product**: ${product?.name || 'Product'}\n- **Action**: Optimize title & meta description with commercial buying intents (price, wholesale, artist use).`;
+      draftText = markdownContent;
+      copyableText = markdownContent;
+      break;
+    }
+
+    case 'CREATE_PRODUCT_FEED_FIX': {
+      entityType = 'PRODUCT';
+      summary = `Google Merchant Center Feed Repair for "${product?.name || opportunity.productName || 'Product'}"`;
+      targetUrl = `/admin/products/${product?.id || opportunity.productId}`;
+      payload = {
+        productId: product?.id || opportunity.productId,
+        requiredFields: ['high-res product image', 'minimum 20 char description', 'valid price'],
+      };
+      markdownContent = `### Google Merchant Center Free Listings Diagnostic\n\n- **Entity**: ${product?.name || 'Product'}\n- **Action**: Fulfill Google Free Listings requirement (image, description, price) to enable automatic feed readiness.`;
+      draftText = markdownContent;
+      copyableText = markdownContent;
+      break;
+    }
+
+    case 'CREATE_FEED_REPAIR_TASK': {
+      entityType = 'PRODUCT';
+      summary = `Merchant Center Feed Repair Task: "${opportunity.title}"`;
+      targetUrl = `/admin/growth/acquisition`;
+      payload = {
+        opportunityId: opportunity.id,
+        action: 'Validate product catalog attributes for Google Merchant compliance.',
+      };
+      markdownContent = `### Merchant Center Feed Repair\n\n- **Diagnosis**: Feed attributes missing or invalid.\n- **Action**: Verify currency (INR), stock status, and valid product canonical link.`;
+      draftText = markdownContent;
+      copyableText = markdownContent;
+      break;
+    }
+
+    case 'CREATE_WHOLESALE_CTA_DRAFT': {
+      entityType = 'WHOLESALE';
+      summary = `Wholesale Acquisition Bridge: "${opportunity.title}"`;
+      targetUrl = `/admin/wholesale`;
+      payload = {
+        opportunityId: opportunity.id,
+        recommendedTier: '50kg Sojat Mandi Rate Card',
+      };
+      markdownContent = `### B2B Wholesale Lead Acquisition Protocol\n\n- **Action**: Provide 1-click WhatsApp quote builder for salon & bulk buyers.\n- **Lead SLA**: 15-minute response with authenticated Sojat harvest specifications.`;
       draftText = markdownContent;
       copyableText = markdownContent;
       break;

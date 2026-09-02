@@ -16,6 +16,7 @@ import {
 import { generateProductKeywordUniverse } from './product-keyword-engine';
 import { getOrdersForAnalytics } from '@/lib/db/orders';
 import { getAllLeads, evaluateLeadOpportunities } from './lead-engine';
+import { evaluateProductAcquisitionReadiness, evaluateAcquisitionOpportunities } from './acquisition-engine';
 
 // ============================================================
 // 1. PRODUCT COMPLETENESS AUDIT
@@ -1218,6 +1219,27 @@ export function generateGrowthOpportunities(
       }
     } catch (leadErr: any) {
       console.warn('[getGrowthOpportunitiesDashboard] Lead opps notice:', leadErr?.message);
+    }
+
+    // ------------------------------------------------------------
+    // RULE 16. ACQUISITION & MERCHANT FEED OPPORTUNITIES
+    // ------------------------------------------------------------
+    try {
+      const activeLeads = getAllLeads();
+      const readinessList = products
+        .filter((p) => p.isActive !== false)
+        .map((p) => {
+          const hasGuide = guides.some(
+            (g) => g.productId === p.id || (g.title && g.title.toLowerCase().includes(p.name.toLowerCase()))
+          );
+          return evaluateProductAcquisitionReadiness(p, 'https://muskydose.in', hasGuide);
+        });
+      const acqOpps = evaluateAcquisitionOpportunities(products, readinessList, activeLeads);
+      for (const aOpp of acqOpps) {
+        addOpportunity(aOpp);
+      }
+    } catch (acqErr: any) {
+      console.warn('[getGrowthOpportunitiesDashboard] Acquisition opps notice:', acqErr?.message);
     }
 
     // Sort by growthScore descending

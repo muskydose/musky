@@ -413,6 +413,15 @@ export type GrowthOpportunityType =
   | 'PRODUCT_LEAD_OPPORTUNITY'
   | 'SEARCH_TO_LEAD_OPPORTUNITY'
   | 'REPEAT_PURCHASE_LEAD_OPPORTUNITY'
+  | 'SEARCH_COVERAGE_GAP'
+  | 'PRODUCT_FEED_GAP'
+  | 'MERCHANT_FEED_ERROR'
+  | 'HIGH_INTENT_LOW_LEAD'
+  | 'LANDING_PAGE_LEAD_GAP'
+  | 'WHOLESALE_ACQUISITION_GAP'
+  | 'LOCAL_INTENT_OPPORTUNITY'
+  | 'PRODUCT_INDEXING_GAP'
+  | 'COMMERCIAL_CONTENT_GAP'
   | 'CANNIBALIZATION'
   | 'CANNIBALIZATION_RISK'
   | 'SEO_CANNIBALIZATION'
@@ -434,6 +443,7 @@ export type GrowthOpportunityCategory =
   | 'INVENTORY'
   | 'WHOLESALE'
   | 'LEAD'
+  | 'ACQUISITION'
   | 'CONTENT';
 
 export type GrowthOpportunityAction =
@@ -642,7 +652,11 @@ export type GrowthActionType =
   | 'CREATE_LEAD_CAPTURE_RECOMMENDATION'
   | 'CREATE_CTA_OPTIMIZATION_DRAFT'
   | 'CREATE_PRODUCT_ENQUIRY_DRAFT'
-  | 'CREATE_INTENT_CAPTURE_RECOMMENDATION';
+  | 'CREATE_INTENT_CAPTURE_RECOMMENDATION'
+  | 'CREATE_CONTENT_COVERAGE_DRAFT'
+  | 'CREATE_PRODUCT_FEED_FIX'
+  | 'CREATE_FEED_REPAIR_TASK'
+  | 'CREATE_WHOLESALE_CTA_DRAFT';
 
 export type GrowthActionLifecycleStatus =
   | 'OPEN'
@@ -848,5 +862,86 @@ export interface LeadSummaryMetrics {
   highestLeadSource: string;
   topProductByLeads: string;
 }
+
+// ============================================================
+// PHASE 3 & 4 — LEAD ACQUISITION & MERCHANT FEED TYPES
+// ============================================================
+
+export type MerchantFeedProductStatus = 'FEED_READY' | 'FEED_NEEDS_REVIEW';
+
+export interface GoogleMerchantFeedItem {
+  id: string;
+  title: string;
+  description: string;
+  link: string;
+  imageLink: string;
+  additionalImageLinks?: string[];
+  availability: 'in_stock' | 'out_of_stock' | 'preorder';
+  price: string; // e.g., "499.00 INR"
+  salePrice?: string;
+  brand: string;
+  condition: 'new' | 'refurbished' | 'used';
+  productType: string;
+  googleProductCategory?: string;
+  identifierExists: 'no' | 'yes';
+  shippingWeight?: string;
+  shipping?: {
+    country: string;
+    service: string;
+    price: string;
+  };
+  feedStatus: MerchantFeedProductStatus;
+  validationErrors: string[];
+}
+
+export interface MerchantFeedHealthSummary {
+  totalProducts: number;
+  feedReadyCount: number;
+  needsReviewCount: number;
+  missingImageCount: number;
+  missingPriceCount: number;
+  missingAvailabilityCount: number;
+  invalidUrlCount: number;
+  lastGeneratedAt: string;
+  feedXmlUrl: string;
+  feedJsonUrl: string;
+}
+
+export interface ProductAcquisitionReadiness {
+  productId: string;
+  productName: string;
+  productSlug: string;
+  readinessScore: number; // 0 to 100
+  leadPotentialScore: number; // 0 to 100
+  feedStatus: MerchantFeedProductStatus;
+  missingItems: string[];
+  strengths: string[];
+  commercialIntentCoverage: string[];
+  localIntentCoverage: string[];
+  recommendedCta: string;
+  canonicalUrl: string;
+  isIndexable: boolean;
+  hasGuide: boolean;
+  hasMerchantFeedItem: boolean;
+}
+
+export interface AcquisitionDashboardMetrics {
+  totalLeads: number;
+  leadsToday: number;
+  qualifiedLeads: number;
+  highIntentLeads: number;
+  leadRate: number;
+  organicLeads: number;
+  whatsappLeads: number;
+  wholesaleLeads: number;
+  topProductByLeads: string;
+  topLandingPageByLeads: string;
+  feedReadyCount: number;
+  needsReviewCount: number;
+  acquisitionOpportunitiesCount: number;
+  gscStatus: 'CONNECTED' | 'NOT_CONFIGURED';
+  lastGscSync?: string;
+}
+
 
 
