@@ -13,6 +13,7 @@ import { useWishlist } from '@/context/WishlistContext';
 import { trackAddToCart, trackWhatsAppClick } from '@/lib/analytics';
 import { sanitizeImageUrl } from '@/lib/utils';
 import { SPRINGS, DURATION, EASING } from '@/lib/motion';
+import { startPageTransition } from '@/lib/navigation';
 
 interface ProductCardProps {
   product: Product;
@@ -66,6 +67,7 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
       quantity: 1,
       totalAmount: product.price,
     });
+    startPageTransition();
     router.push('/checkout');
   };
 

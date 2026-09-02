@@ -28,6 +28,7 @@ import {
   MessageCircle,
 } from 'lucide-react';
 import { getClientSiteSettings } from '@/lib/api-client';
+import { startPageTransition } from '@/lib/navigation';
 import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
 import { trackWhatsAppClick } from '@/lib/analytics';
 
@@ -130,6 +131,7 @@ export default function SearchDrawer() {
 
     saveRecentSearch(term);
     closeSearch();
+    startPageTransition();
 
     // Check smart route API first or navigate to products with search query
     fetch(`/api/search/smart-route?q=${encodeURIComponent(term)}`)

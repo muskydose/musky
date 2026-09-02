@@ -10,12 +10,14 @@ import SearchDrawer from '@/components/SearchDrawer';
 import CategoryDrawer from '@/components/CategoryDrawer';
 import AccountDrawer from '@/components/AccountDrawer';
 import NotificationsDrawer from '@/components/NotificationsDrawer';
+import PageTransitionIndicator from '@/components/PageTransitionIndicator';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <UIProvider>
       <CartProvider>
         <WishlistProvider>
+          <PageTransitionIndicator />
           {children}
           <CartDrawer />
           <WishlistDrawer />
