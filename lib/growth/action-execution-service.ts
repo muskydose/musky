@@ -118,6 +118,25 @@ export function routeOpportunityToActionType(opportunity: GrowthOpportunity): Gr
     case 'PRODUCT_INDEXING_GAP':
       return 'CREATE_SEARCH_COVERAGE_TASK';
 
+    case 'CHANNEL_OPPORTUNITY':
+    case 'CAMPAIGN_OPPORTUNITY':
+      return 'CREATE_CHANNEL_ACTION_DRAFT';
+
+    case 'CONTENT_TO_LEAD_OPPORTUNITY':
+      return 'CREATE_CONTENT_TO_LEAD_DRAFT';
+
+    case 'PRODUCT_CHANNEL_GAP':
+      return 'CREATE_PRODUCT_CHANNEL_TASK';
+
+    case 'SOCIAL_TO_LEAD_GAP':
+      return 'CREATE_SOCIAL_CTA_DRAFT';
+
+    case 'GOOGLE_TO_LEAD_GAP':
+      return 'CREATE_GOOGLE_LEAD_OPTIMIZATION_DRAFT';
+
+    case 'WHOLESALE_CHANNEL_GAP':
+      return 'CREATE_WHOLESALE_CTA_DRAFT';
+
     case 'CANNIBALIZATION':
     case 'CANNIBALIZATION_RISK':
     case 'SEO_CANNIBALIZATION':
@@ -493,6 +512,77 @@ export function generateActionRecord(
         recommendedTier: '50kg Sojat Mandi Rate Card',
       };
       markdownContent = `### B2B Wholesale Lead Acquisition Protocol\n\n- **Action**: Provide 1-click WhatsApp quote builder for salon & bulk buyers.\n- **Lead SLA**: 15-minute response with authenticated Sojat harvest specifications.`;
+      draftText = markdownContent;
+      copyableText = markdownContent;
+      break;
+    }
+
+    case 'CREATE_CHANNEL_ACTION_DRAFT': {
+      entityType = 'CAMPAIGN';
+      summary = `Omnichannel Expansion Strategy: "${opportunity.title}"`;
+      targetUrl = `/admin/growth/omnichannel`;
+      payload = {
+        opportunityId: opportunity.id,
+        channel: 'INSTAGRAM',
+        suggestedFormat: 'Reel + Bio Link + Direct WhatsApp CTA',
+      };
+      markdownContent = `### Omnichannel Channel Strategy\n\n- **Target**: Deploy verified Sojat botanical content across YouTube Shorts & Instagram Reels.\n- **Attribution**: Auto-tag links with standard UTM parameters.`;
+      draftText = markdownContent;
+      copyableText = markdownContent;
+      break;
+    }
+
+    case 'CREATE_CONTENT_TO_LEAD_DRAFT': {
+      entityType = 'GUIDE';
+      summary = `Content → Lead Conversion Bridge for "${opportunity.title}"`;
+      targetUrl = `/admin/growth/omnichannel`;
+      payload = {
+        opportunityId: opportunity.id,
+        format: 'YouTube Short / Reel Script',
+      };
+      markdownContent = `### Content-to-Lead Repurposing Plan\n\n- **Format**: 30-second vertical video demonstration.\n- **Key Element**: Purity comparison vs synthetic adulterated henna.\n- **Conversion Hook**: "WhatsApp link in bio/description for direct Sojat batch dispatch."`;
+      draftText = markdownContent;
+      copyableText = markdownContent;
+      break;
+    }
+
+    case 'CREATE_PRODUCT_CHANNEL_TASK': {
+      entityType = 'PRODUCT';
+      summary = `Omnichannel Launch Package Review for "${product?.name || opportunity.productName || 'Product'}"`;
+      targetUrl = `/admin/products/${product?.id || opportunity.productId}`;
+      payload = {
+        productId: product?.id || opportunity.productId,
+        channels: ['Instagram', 'YouTube', 'Facebook', 'WhatsApp', 'Google Merchant'],
+      };
+      markdownContent = `### Multi-Channel Product Launch Package\n\n1. Review auto-generated Instagram post & Reel concept.\n2. Review YouTube Short video script.\n3. Validate Google Merchant Free Listings payload.\n4. Deploy WhatsApp broadcast rate card.`;
+      draftText = markdownContent;
+      copyableText = markdownContent;
+      break;
+    }
+
+    case 'CREATE_SOCIAL_CTA_DRAFT': {
+      entityType = 'PRODUCT';
+      summary = `Social Media Lead CTA Bridge: "${opportunity.title}"`;
+      targetUrl = `/admin/growth/omnichannel`;
+      payload = {
+        opportunityId: opportunity.id,
+        targetCta: 'Connect on WhatsApp (Direct Sojat Unit)',
+      };
+      markdownContent = `### Social Media CTA Optimization\n\n- **Platform**: Instagram Bio & YouTube Descriptions\n- **Action**: Bind direct WhatsApp lead capture link with prefilled product inquiry parameters.`;
+      draftText = markdownContent;
+      copyableText = markdownContent;
+      break;
+    }
+
+    case 'CREATE_GOOGLE_LEAD_OPTIMIZATION_DRAFT': {
+      entityType = 'PRODUCT';
+      summary = `Google Surface Lead Optimization: "${opportunity.title}"`;
+      targetUrl = `/admin/growth/acquisition`;
+      payload = {
+        opportunityId: opportunity.id,
+        surfaces: ['Google Search', 'Merchant Free Listings', 'Google Images'],
+      };
+      markdownContent = `### Google Free Listings & Search Lead Optimization\n\n- **Entity**: ${product?.name || 'Product'}\n- **Action**: Optimize structured data (Product, FAQ, Breadcrumbs) and verify Free Listings eligibility.`;
       draftText = markdownContent;
       copyableText = markdownContent;
       break;

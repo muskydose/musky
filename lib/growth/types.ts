@@ -422,6 +422,13 @@ export type GrowthOpportunityType =
   | 'LOCAL_INTENT_OPPORTUNITY'
   | 'PRODUCT_INDEXING_GAP'
   | 'COMMERCIAL_CONTENT_GAP'
+  | 'CHANNEL_OPPORTUNITY'
+  | 'CONTENT_TO_LEAD_OPPORTUNITY'
+  | 'PRODUCT_CHANNEL_GAP'
+  | 'SOCIAL_TO_LEAD_GAP'
+  | 'GOOGLE_TO_LEAD_GAP'
+  | 'WHOLESALE_CHANNEL_GAP'
+  | 'CAMPAIGN_OPPORTUNITY'
   | 'CANNIBALIZATION'
   | 'CANNIBALIZATION_RISK'
   | 'SEO_CANNIBALIZATION'
@@ -444,6 +451,7 @@ export type GrowthOpportunityCategory =
   | 'WHOLESALE'
   | 'LEAD'
   | 'ACQUISITION'
+  | 'OMNICHANNEL'
   | 'CONTENT';
 
 export type GrowthOpportunityAction =
@@ -656,7 +664,12 @@ export type GrowthActionType =
   | 'CREATE_CONTENT_COVERAGE_DRAFT'
   | 'CREATE_PRODUCT_FEED_FIX'
   | 'CREATE_FEED_REPAIR_TASK'
-  | 'CREATE_WHOLESALE_CTA_DRAFT';
+  | 'CREATE_WHOLESALE_CTA_DRAFT'
+  | 'CREATE_CHANNEL_ACTION_DRAFT'
+  | 'CREATE_CONTENT_TO_LEAD_DRAFT'
+  | 'CREATE_PRODUCT_CHANNEL_TASK'
+  | 'CREATE_SOCIAL_CTA_DRAFT'
+  | 'CREATE_GOOGLE_LEAD_OPTIMIZATION_DRAFT';
 
 export type GrowthActionLifecycleStatus =
   | 'OPEN'
@@ -942,6 +955,145 @@ export interface AcquisitionDashboardMetrics {
   gscStatus: 'CONNECTED' | 'NOT_CONFIGURED';
   lastGscSync?: string;
 }
+
+// ============================================================
+// PHASE 5 — OMNICHANNEL CUSTOMER ENGINE TYPES
+// ============================================================
+
+export type OmnichannelChannel =
+  | 'GOOGLE_ORGANIC'
+  | 'GOOGLE_MERCHANT'
+  | 'INSTAGRAM'
+  | 'FACEBOOK'
+  | 'YOUTUBE'
+  | 'GOOGLE_BUSINESS'
+  | 'WHATSAPP'
+  | 'DIRECT'
+  | 'REFERRAL'
+  | 'CAMPAIGN'
+  | 'UNKNOWN';
+
+export type SocialContentType =
+  | 'REEL_CONCEPT'
+  | 'FEED_POST'
+  | 'YOUTUBE_SHORT'
+  | 'COMMUNITY_POST'
+  | 'GBUSINESS_POST'
+  | 'WHATSAPP_BROADCAST';
+
+export type SocialContentStatus =
+  | 'DRAFT'
+  | 'READY_TO_REVIEW'
+  | 'APPROVED'
+  | 'PUBLISHED'
+  | 'FAILED';
+
+export interface SocialContentQueueItem {
+  id: string;
+  channel: OmnichannelChannel;
+  productId: string;
+  productName: string;
+  contentType: SocialContentType;
+  title?: string;
+  hook?: string;
+  copy: string;
+  caption?: string;
+  script?: string;
+  cta: string;
+  targetUrl: string;
+  utmParameters: {
+    utm_source: string;
+    utm_medium: string;
+    utm_campaign: string;
+  };
+  assetRequirements: string[];
+  status: SocialContentStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChannelPerformanceSummary {
+  channel: OmnichannelChannel;
+  label: string;
+  visitors: number;
+  leads: number;
+  qualified: number;
+  orders: number;
+  leadRate: number; // percentage
+  conversionRate: number; // percentage
+  attributedRevenue: number;
+}
+
+export interface ProductOmnichannelLaunchPackage {
+  productId: string;
+  productName: string;
+  productSlug: string;
+  category: string;
+  price: number;
+  generatedAt: string;
+  website: {
+    pageUrl: string;
+    seoTitle: string;
+    metaDescription: string;
+    schemaTypes: string[];
+    recommendedCta: string;
+  };
+  google: {
+    feedStatus: MerchantFeedProductStatus;
+    freeListingsEligible: boolean;
+    targetQueries: string[];
+  };
+  instagram: {
+    captionDraft: string;
+    reelConcept: string;
+    suggestedHashtags: string[];
+    targetUrl: string;
+    cta: string;
+  };
+  facebook: {
+    postDraft: string;
+    targetUrl: string;
+    cta: string;
+  };
+  youtube: {
+    shortScriptDraft: string;
+    videoTitle: string;
+    description: string;
+    targetUrl: string;
+    cta: string;
+    tags: string[];
+  };
+  whatsapp: {
+    promotionalDraft: string;
+    wholesaleDraft: string;
+    artistDraft: string;
+  };
+  googleBusiness: {
+    postDraft: string;
+    targetUrl: string;
+    callToAction: string;
+  };
+}
+
+export interface OmnichannelDashboardMetrics {
+  totalLeads: number;
+  leadsToday: number;
+  qualifiedLeads: number;
+  highIntentLeads: number;
+  whatsappLeads: number;
+  instagramLeads: number;
+  facebookLeads: number;
+  youtubeLeads: number;
+  googleLeads: number;
+  wholesaleLeads: number;
+  ordersFromLeads: number;
+  attributedRevenue: number;
+  topLeadChannel: string;
+  topLeadProduct: string;
+  channelPerformance: ChannelPerformanceSummary[];
+  contentQueue: SocialContentQueueItem[];
+}
+
 
 
 

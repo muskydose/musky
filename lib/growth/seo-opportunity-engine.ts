@@ -17,6 +17,7 @@ import { generateProductKeywordUniverse } from './product-keyword-engine';
 import { getOrdersForAnalytics } from '@/lib/db/orders';
 import { getAllLeads, evaluateLeadOpportunities } from './lead-engine';
 import { evaluateProductAcquisitionReadiness, evaluateAcquisitionOpportunities } from './acquisition-engine';
+import { evaluateOmnichannelOpportunities } from './omnichannel-engine';
 
 // ============================================================
 // 1. PRODUCT COMPLETENESS AUDIT
@@ -1240,6 +1241,19 @@ export function generateGrowthOpportunities(
       }
     } catch (acqErr: any) {
       console.warn('[getGrowthOpportunitiesDashboard] Acquisition opps notice:', acqErr?.message);
+    }
+
+    // ------------------------------------------------------------
+    // RULE 17. OMNICHANNEL & SOCIAL ACQUISITION OPPORTUNITIES
+    // ------------------------------------------------------------
+    try {
+      const activeLeads = getAllLeads();
+      const omniOpps = evaluateOmnichannelOpportunities(products, activeLeads);
+      for (const oOpp of omniOpps) {
+        addOpportunity(oOpp);
+      }
+    } catch (omniErr: any) {
+      console.warn('[getGrowthOpportunitiesDashboard] Omnichannel opps notice:', omniErr?.message);
     }
 
     // Sort by growthScore descending

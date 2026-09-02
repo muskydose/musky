@@ -257,6 +257,9 @@ export async function saveLead(
     events.push({ eventType: 'ENQUIRY_SUBMITTED' });
   } else {
     events.push({ eventType: 'WHATSAPP_CLICK', quantity });
+    if (leadType === 'MEHNDI_ARTIST' || leadType === 'SALON' || leadType === 'RESELLER') {
+      events.push({ eventType: 'ENQUIRY_SUBMITTED' });
+    }
   }
   if (productId) events.push({ eventType: 'PRODUCT_VIEW', productId });
   if (sourceQuery) events.push({ eventType: 'SEARCH_CLICK', query: sourceQuery });
