@@ -4,6 +4,7 @@ import { getSupabase, getSupabaseAdmin } from '@/lib/supabase';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { sanitizeImageUrl, sanitizeImageUrls } from '@/lib/utils';
 import { getCategories } from './categories';
+import { INITIAL_PRODUCTS } from '@/lib/data-store';
 import { syncProductKeywordUniverse, onProductDeletedLifecycle } from '@/lib/growth/product-keyword-engine';
 
 function requireSupabaseAdmin(): SupabaseClient {
@@ -141,19 +142,13 @@ export function mapProductToRow(p: Product) {
 export async function getAllProductsAdmin(): Promise<Product[]> {
   const supabase = getSupabaseAdmin() || getSupabase();
   if (!supabase) {
-    console.error('[getAllProductsAdmin] Supabase client is unavailable.');
-    return [];
+    return INITIAL_PRODUCTS;
   }
 
   const { data, error } = await supabase.from('products').select('*');
 
-  if (error) {
-    console.error(`[getAllProductsAdmin] Database query error: ${error.message}`);
-    return [];
-  }
-
-  if (!data || data.length === 0) {
-    return [];
+  if (error || !data || data.length === 0) {
+    return INITIAL_PRODUCTS;
   }
 
   return data.map(mapRowToProduct).sort((a, b) => a.sortOrder - b.sortOrder);
@@ -162,8 +157,7 @@ export async function getAllProductsAdmin(): Promise<Product[]> {
 export const getActiveProductsForStore = cache(async (): Promise<Product[]> => {
   const supabase = getSupabaseAdmin() || getSupabase();
   if (!supabase) {
-    console.error('[getActiveProductsForStore] Supabase client is unavailable.');
-    return [];
+    return INITIAL_PRODUCTS.filter((p) => p.isActive !== false);
   }
 
   const { data, error } = await supabase
@@ -172,13 +166,8 @@ export const getActiveProductsForStore = cache(async (): Promise<Product[]> => {
     .eq('is_active', true)
     .order('sort_order', { ascending: true });
 
-  if (error) {
-    console.error(`[getActiveProductsForStore] Database query error: ${error.message}`);
-    return [];
-  }
-
-  if (!data || data.length === 0) {
-    return [];
+  if (error || !data || data.length === 0) {
+    return INITIAL_PRODUCTS.filter((p) => p.isActive !== false);
   }
 
   return data.map(mapRowToProduct);
