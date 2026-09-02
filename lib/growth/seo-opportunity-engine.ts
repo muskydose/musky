@@ -15,6 +15,7 @@ import {
 } from './types';
 import { generateProductKeywordUniverse } from './product-keyword-engine';
 import { getOrdersForAnalytics } from '@/lib/db/orders';
+import { getAllLeads, evaluateLeadOpportunities } from './lead-engine';
 
 // ============================================================
 // 1. PRODUCT COMPLETENESS AUDIT
@@ -1206,9 +1207,22 @@ export function generateGrowthOpportunities(
     });
   }
 
-  // Sort by growthScore descending
-  return opportunities.sort((a, b) => (b.growthScore || 0) - (a.growthScore || 0));
-}
+    // ------------------------------------------------------------
+    // RULE 15. LEAD-FIRST GROWTH OPPORTUNITIES
+    // ------------------------------------------------------------
+    try {
+      const activeLeads = getAllLeads();
+      const leadOpps = evaluateLeadOpportunities(activeLeads, products);
+      for (const lOpp of leadOpps) {
+        addOpportunity(lOpp);
+      }
+    } catch (leadErr: any) {
+      console.warn('[getGrowthOpportunitiesDashboard] Lead opps notice:', leadErr?.message);
+    }
+
+    // Sort by growthScore descending
+    return opportunities.sort((a, b) => (b.growthScore || 0) - (a.growthScore || 0));
+  }
 
 // ============================================================
 // 6. ACTION DRAFT TEMPLATE GENERATOR

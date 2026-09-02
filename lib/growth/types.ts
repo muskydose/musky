@@ -407,6 +407,12 @@ export type GrowthOpportunityType =
   | 'OUT_OF_STOCK_RISK'
   | 'REPEAT_PURCHASE_OPPORTUNITY'
   | 'WHOLESALE_LEAD_OPPORTUNITY'
+  | 'LEAD_CAPTURE_GAP'
+  | 'LEAD_CONVERSION_GAP'
+  | 'HIGH_INTENT_UNCAPTURED'
+  | 'PRODUCT_LEAD_OPPORTUNITY'
+  | 'SEARCH_TO_LEAD_OPPORTUNITY'
+  | 'REPEAT_PURCHASE_LEAD_OPPORTUNITY'
   | 'CANNIBALIZATION'
   | 'CANNIBALIZATION_RISK'
   | 'SEO_CANNIBALIZATION'
@@ -427,6 +433,7 @@ export type GrowthOpportunityCategory =
   | 'PRODUCT'
   | 'INVENTORY'
   | 'WHOLESALE'
+  | 'LEAD'
   | 'CONTENT';
 
 export type GrowthOpportunityAction =
@@ -631,7 +638,11 @@ export type GrowthActionType =
   | 'CREATE_REPEAT_PURCHASE_DRAFT'
   | 'CREATE_CONVERSION_REVIEW'
   | 'CREATE_CANNIBALIZATION_REVIEW'
-  | 'CREATE_INTERNAL_LINKING_DRAFT';
+  | 'CREATE_INTERNAL_LINKING_DRAFT'
+  | 'CREATE_LEAD_CAPTURE_RECOMMENDATION'
+  | 'CREATE_CTA_OPTIMIZATION_DRAFT'
+  | 'CREATE_PRODUCT_ENQUIRY_DRAFT'
+  | 'CREATE_INTENT_CAPTURE_RECOMMENDATION';
 
 export type GrowthActionLifecycleStatus =
   | 'OPEN'
@@ -678,7 +689,7 @@ export interface GrowthActionRecord {
   actionId: string;
   opportunityId: string;
   actionType: GrowthActionType;
-  entityType: 'PRODUCT' | 'GUIDE' | 'SEARCH' | 'INVENTORY' | 'WHOLESALE' | 'CAMPAIGN' | 'GLOBAL';
+  entityType: 'PRODUCT' | 'GUIDE' | 'SEARCH' | 'INVENTORY' | 'WHOLESALE' | 'CAMPAIGN' | 'GLOBAL' | 'LEAD';
   entityId: string;
   title: string;
   description: string;
@@ -721,4 +732,121 @@ export interface GrowthActionExecutionSummary {
   executableCount: number;
   draftOnlyCount: number;
 }
+
+// ============================================================
+// PHASE 2 — CENTRAL LEAD ENGINE MODEL
+// ============================================================
+
+export type CentralLeadType =
+  | 'RETAIL'
+  | 'MEHNDI_ARTIST'
+  | 'SALON'
+  | 'RESELLER'
+  | 'WHOLESALE'
+  | 'MANUFACTURER'
+  | 'OTHER';
+
+export type CentralLeadStatus =
+  | 'NEW'
+  | 'CONTACTED'
+  | 'QUALIFIED'
+  | 'QUOTE_SENT'
+  | 'NEGOTIATION'
+  | 'WON'
+  | 'LOST';
+
+export type LeadCaptureSource =
+  | 'WHATSAPP_CTA'
+  | 'PRODUCT_ENQUIRY'
+  | 'BULK_ENQUIRY'
+  | 'WHOLESALE_ENQUIRY'
+  | 'CONTACT_FORM'
+  | 'CUSTOM_REQUIREMENT'
+  | 'QUOTE_REQUEST'
+  | 'SAMPLE_REQUEST'
+  | 'CAMPAIGN_LANDING'
+  | 'SEARCH_INTENT'
+  | 'MANUAL_ENTRY';
+
+export type LeadIntentLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
+
+export interface LeadAttribution {
+  channel: string;
+  landingPage?: string;
+  sourceQuery?: string;
+  searchAttributionType: 'EXACT_INTERNAL_SEARCH' | 'GSC_SIGNAL' | 'DIRECT' | 'UNKNOWN';
+  touchpointsCount: number;
+  firstTouch?: string;
+  lastTouch?: string;
+}
+
+export interface LeadRecord {
+  leadId: string;
+  name: string;
+  mobile: string;
+  whatsapp?: string;
+  email?: string;
+  leadType: CentralLeadType;
+  source: LeadCaptureSource;
+  sourceQuery?: string;
+  landingPage?: string;
+  productId?: string;
+  productName?: string;
+  categoryId?: string;
+  guideId?: string;
+  requirement?: string;
+  quantity?: string | number;
+  intentLevel: LeadIntentLevel;
+  intentScore: number; // 0 to 100
+  commercialScore: number; // 0 to 100
+  engagementScore: number; // 0 to 100
+  leadScore: number; // 0 to 100 (40% intent + 30% commercial + 30% engagement)
+  scoreReasons: string[];
+  status: CentralLeadStatus;
+  attribution: LeadAttribution;
+  firstSeenAt: string;
+  lastActivityAt: string;
+  assignedTo?: string;
+  notes?: string;
+  convertedOrderId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LeadFollowUpRecommendation {
+  action: string;
+  urgency: 'NOW' | 'TODAY' | 'SCHEDULED';
+  suggestedMessage: string;
+  channel: 'WHATSAPP' | 'CALL' | 'EMAIL';
+  reason: string;
+}
+
+export interface LeadFunnelAnalytics {
+  visitors: number;
+  highIntentVisitors: number;
+  leads: number;
+  leadRate: number;
+  qualifiedLeads: number;
+  qualificationRate: number;
+  quotes: number;
+  orders: number;
+  leadToOrderRate: number;
+  revenueFromLeads: number;
+}
+
+export interface LeadSummaryMetrics {
+  totalLeads: number;
+  newLeads: number;
+  highIntentLeads: number;
+  veryHighIntentLeads: number;
+  wholesaleLeads: number;
+  whatsappLeads: number;
+  qualifiedLeads: number;
+  convertedLeads: number;
+  conversionRate: number;
+  leadsToday: number;
+  highestLeadSource: string;
+  topProductByLeads: string;
+}
+
 

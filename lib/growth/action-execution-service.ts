@@ -70,11 +70,25 @@ export function routeOpportunityToActionType(opportunity: GrowthOpportunity): Gr
     case 'OUT_OF_STOCK_RISK':
       return 'CREATE_INVENTORY_TASK';
 
+    case 'REPEAT_PURCHASE_LEAD_OPPORTUNITY':
     case 'REPEAT_PURCHASE_OPPORTUNITY':
       return 'CREATE_REPEAT_PURCHASE_DRAFT';
 
     case 'WHOLESALE_LEAD_OPPORTUNITY':
       return 'CREATE_WHOLESALE_FOLLOWUP';
+
+    case 'LEAD_CAPTURE_GAP':
+    case 'LEAD_CONVERSION_GAP':
+      return 'CREATE_LEAD_CAPTURE_RECOMMENDATION';
+
+    case 'SEARCH_TO_LEAD_OPPORTUNITY':
+      return 'CREATE_CTA_OPTIMIZATION_DRAFT';
+
+    case 'PRODUCT_LEAD_OPPORTUNITY':
+      return 'CREATE_PRODUCT_ENQUIRY_DRAFT';
+
+    case 'HIGH_INTENT_UNCAPTURED':
+      return 'CREATE_INTENT_CAPTURE_RECOMMENDATION';
 
     case 'HIGH_TRAFFIC_LOW_ATC':
     case 'HIGH_ATC_LOW_PURCHASE':
@@ -342,7 +356,64 @@ export function generateActionRecord(
         productId: product?.id || opportunity.productId,
         anchorTexts: [product?.name, 'pure sojat henna', 'natural organic mehndi'].filter(Boolean),
       };
-      markdownContent = `### Internal Linking Action\n\nInsert contextual contextual links from top informational guides pointing to \`/products/${product?.slug}\` with high-relevance anchor text.`;
+      markdownContent = `### Internal Linking Action\n\nInsert contextual links from top informational guides pointing to \`/products/${product?.slug}\` with high-relevance anchor text.`;
+      draftText = markdownContent;
+      copyableText = markdownContent;
+      break;
+    }
+
+    case 'CREATE_LEAD_CAPTURE_RECOMMENDATION': {
+      entityType = 'LEAD';
+      summary = `Lead Capture Protocol: "${opportunity.title}"`;
+      targetUrl = `/admin/leads`;
+      payload = {
+        opportunityId: opportunity.id,
+        targetKeyword: opportunity.keyword,
+        suggestedCta: 'Connect on WhatsApp (Direct Sojat Unit)',
+      };
+      markdownContent = `### Lead Capture Optimization Protocol\n\n- **Objective**: Maximize qualified buyer conversions\n- **Target Entity**: ${opportunity.productName || 'Catalog Core'}\n- **Recommended Action**: Enable high-intent WhatsApp enquiry bridge with prefilled quotation parameters.`;
+      draftText = markdownContent;
+      copyableText = markdownContent;
+      break;
+    }
+
+    case 'CREATE_CTA_OPTIMIZATION_DRAFT': {
+      entityType = 'SEARCH';
+      summary = `Search Intent → Lead Conversion Bridge: "${opportunity.keyword}"`;
+      targetUrl = `/admin/growth/keywords`;
+      payload = {
+        keyword: opportunity.keyword,
+        recommendedIntent: 'WHOLESALE_OR_ARTIST',
+      };
+      markdownContent = `### Search Query Lead Routing\n\n- **Commercial Query**: \`${opportunity.keyword}\`\n- **Action**: Bind direct 1-click WhatsApp quote modal for instant response.`;
+      draftText = markdownContent;
+      copyableText = markdownContent;
+      break;
+    }
+
+    case 'CREATE_PRODUCT_ENQUIRY_DRAFT': {
+      entityType = 'PRODUCT';
+      summary = `Product Lead Capture Optimization for "${product?.name || opportunity.productName || 'Product'}"`;
+      targetUrl = `/admin/products/${product?.id || opportunity.productId}`;
+      payload = {
+        productId: product?.id || opportunity.productId,
+        ctas: ['Ask About This Product', 'Get Artist Price (Sojat Direct)', 'Get Bulk Price'],
+      };
+      markdownContent = `### Product Lead Capture Triggers\n\n1. "Ask About This Product" WhatsApp pre-fill.\n2. "Get Artist Price" 5-sieve stain guarantee modal.\n3. "Get Bulk Price (25kg+)" instant catalog handoff.`;
+      draftText = markdownContent;
+      copyableText = markdownContent;
+      break;
+    }
+
+    case 'CREATE_INTENT_CAPTURE_RECOMMENDATION': {
+      entityType = 'LEAD';
+      summary = `High-Intent Uncontacted Lead Protocol: "${opportunity.title}"`;
+      targetUrl = `/admin/leads`;
+      payload = {
+        leadId: opportunity.entityId,
+        suggestedFollowUp: 'Priority WhatsApp / Call follow-up within 1 hour.',
+      };
+      markdownContent = `### High-Intent Lead Follow-Up SLA\n\n- **Priority**: P1_NOW\n- **Action**: Immediate personalized WhatsApp outreach with custom Sojat bulk rate card.`;
       draftText = markdownContent;
       copyableText = markdownContent;
       break;
