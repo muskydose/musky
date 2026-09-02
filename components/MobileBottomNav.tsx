@@ -1,9 +1,9 @@
-﻿'use client';
+'use client';
 
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, ShoppingBag, Grid, ShoppingCart, Menu } from 'lucide-react';
+import { Home, ShoppingBag, Building2, ShoppingCart, Menu } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { useUI } from '@/context/UIContext';
 import { motion, useReducedMotion, AnimatePresence } from 'motion/react';
@@ -22,7 +22,7 @@ export default function MobileBottomNav() {
   const pathname = usePathname();
   const shouldReduceMotion = useReducedMotion();
   const { totalItems, isCartOpen, openCart } = useCart();
-  const { isCategoryOpen, openCategory, isMobileMenuOpen, openMobileMenu } = useUI();
+  const { isMobileMenuOpen, openMobileMenu } = useUI();
 
   // Admin pages exclusion - never show on admin
   if (pathname.startsWith('/admin')) {
@@ -31,7 +31,7 @@ export default function MobileBottomNav() {
 
   const isHomeActive = pathname === '/';
   const isShopActive = pathname === '/products' || (pathname.startsWith('/products/') && pathname !== '/products');
-  const isCategoryActive = isCategoryOpen || pathname === '/categories' || pathname.startsWith('/categories/');
+  const isWholesaleActive = pathname === '/wholesale';
   const isCartActive = isCartOpen || pathname === '/cart';
   const isMenuActive = isMobileMenuOpen;
 
@@ -49,14 +49,10 @@ export default function MobileBottomNav() {
       isActive: isShopActive,
     },
     {
-      label: 'Category',
-      href: '#category',
-      icon: Grid,
-      isActive: isCategoryActive,
-      onClick: (e: React.MouseEvent) => {
-        e.preventDefault();
-        openCategory();
-      },
+      label: 'Wholesale',
+      href: '/wholesale',
+      icon: Building2,
+      isActive: isWholesaleActive,
     },
     {
       label: 'Cart',
