@@ -1,9 +1,10 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
 import { sanitizeAdminError } from '@/lib/api-errors';
 import { getDataSources } from '@/lib/growth/growth-db';
 import { FirstPartyDataSourceAdapter } from '@/lib/growth/sources/first-party-adapter';
 import { GoogleAdsDataSourceAdapter, isGoogleAdsEnabled } from '@/lib/growth/sources/google-adapter';
+import { SearchConsoleDataSourceAdapter } from '@/lib/growth/sources/search-console-adapter';
 
 export async function GET(req: NextRequest) {
   try {
@@ -33,6 +34,23 @@ export async function POST(req: NextRequest) {
       const adapter = new FirstPartyDataSourceAdapter();
       const result = await adapter.sync();
       return NextResponse.json({ success: true, syncResult: result });
+    } else if (providerKey === 'google_search_console') {
+      const adapter = new SearchConsoleDataSourceAdapter();
+      const check = await adapter.checkConnection();
+      if (!check.connected) {
+        return NextResponse.json({
+          success: false,
+          status: check.status,
+          error: check.message,
+        }, { status: 400 });
+      }
+      const result = await adapter.sync();
+      return NextResponse.json({
+        success: true,
+        status: check.status,
+        message: check.message,
+        syncResult: result,
+      });
     } else if (providerKey === 'google_ads_keywords') {
       if (!isGoogleAdsEnabled()) {
         return NextResponse.json({ success: false, error: 'Google Ads integration is currently disabled or not configured.' }, { status: 400 });

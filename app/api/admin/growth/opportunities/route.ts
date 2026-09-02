@@ -82,10 +82,9 @@ export async function GET(req: NextRequest) {
         guideAttribution,
         gscStatus: {
           configured: gscConfigured,
-          statusText: gscConfigured ? 'CONNECTED' : 'GSC NOT CONFIGURED',
-          message: gscConfigured
-            ? 'Connected to Google Search Console API'
-            : 'Google Search Console credentials not configured in environment. No synthetic data is generated.',
+          statusText: gscResult.status,
+          message: gscResult.message,
+          recordsCount: gscResult.queries.length,
         },
         pagination: {
           total: dashboard.total,
