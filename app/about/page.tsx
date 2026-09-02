@@ -35,7 +35,7 @@ export default async function AboutPage() {
     priceRange: '₹₹',
     address: {
       '@type': 'PostalAddress',
-      streetAddress: 'Musky Dose Herbal Complex, Station Road',
+      streetAddress: 'Village: Dholiwadi Ka Bas, Post: Sojat City',
       addressLocality: 'Sojat City',
       addressRegion: 'Rajasthan',
       postalCode: '306104',

@@ -1453,7 +1453,7 @@ export const INITIAL_SITE_SETTINGS: SiteSettings = {
   whatsappGreeting: 'Namaste! Welcome to Musky Dose Sojat. How can we assist you today?',
   businessEmail: 'info@muskydose.in',
   websiteUrl: 'https://muskydose.in',
-  address: 'Musky Dose Herbal Complex, Station Road, Sojat City, Pali District, Rajasthan - 306104, India',
+  address: 'Musky Dose Products, Village: Dholiwadi Ka Bas, Post: Sojat City, District: Pali, Rajasthan – 306104, India',
   city: 'Sojat City',
   state: 'Rajasthan',
   pincode: '306104',
@@ -1674,7 +1674,7 @@ export const INITIAL_SITE_SETTINGS: SiteSettings = {
   invoiceConfig: {
     enabled: true,
     companyLegalName: 'Musky Dose Enterprise',
-    registeredAddress: 'Musky Dose Complex, Station Road, Sojat City, Pali District, Rajasthan - 306104',
+    registeredAddress: 'Musky Dose Products, Village: Dholiwadi Ka Bas, Post: Sojat City, District: Pali, Rajasthan – 306104, India',
     invoicePrefix: 'MD-INV-',
   },
 };

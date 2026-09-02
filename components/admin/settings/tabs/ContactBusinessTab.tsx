@@ -88,7 +88,7 @@ export default function ContactBusinessTab({
                   value={settings.address || ''}
                   onChange={(e) => updateField('address', e.target.value)}
                   className="w-full p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-[#0f2d22]"
-                  placeholder="Musky Dose Herbal Complex, Station Road, Sojat City, Pali District, Rajasthan - 306104, India"
+                  placeholder="Musky Dose Products, Village: Dholiwadi Ka Bas, Post: Sojat City, District: Pali, Rajasthan – 306104, India"
                 />
               </div>
 

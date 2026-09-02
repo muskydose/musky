@@ -20,7 +20,7 @@ export default function Footer({ siteSettings: initialSettings }: FooterProps) {
   const tagline = settings?.tagline || 'Sojat, Rajasthan';
   const footerDescription = settings?.footerDescription || cms.footerBrandDescription;
   const address =
-    settings?.address || 'Musky Dose Herbal Complex, Station Road, Sojat City, Pali District, Rajasthan - 306104, India';
+    settings?.address || 'Musky Dose Products, Village: Dholiwadi Ka Bas, Post: Sojat City, District: Pali, Rajasthan – 306104, India';
   const whatsappNumber = getConfiguredWhatsAppNumber(settings);
   const displayPhone = settings?.displayPhone || '+91 82337 03080';
   const businessEmail = settings?.businessEmail || 'info@muskydose.in';

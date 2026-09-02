@@ -52,7 +52,7 @@ export default function FeatureSwitchesTab({ settings, updateField }: FeatureSwi
   const invoiceCfg: InvoiceConfig = settings.invoiceConfig || {
     enabled: true,
     companyLegalName: 'Musky Dose Enterprise',
-    registeredAddress: 'Musky Dose Complex, Station Road, Sojat City, Pali District, Rajasthan - 306104',
+    registeredAddress: 'Musky Dose Products, Village: Dholiwadi Ka Bas, Post: Sojat City, District: Pali, Rajasthan – 306104, India',
     invoicePrefix: 'MD-INV-',
   };
 

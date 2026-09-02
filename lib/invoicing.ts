@@ -13,7 +13,7 @@ export interface InvoiceData {
 
 export function generateInvoiceHtml({ invoiceNumber, invoiceDate, order, settings }: InvoiceData): string {
   const companyName = settings?.invoiceConfig?.companyLegalName || 'Musky Dose Enterprise';
-  const companyAddress = settings?.invoiceConfig?.registeredAddress || 'Musky Dose Complex, Station Road, Sojat City, Pali District, Rajasthan - 306104';
+  const companyAddress = settings?.invoiceConfig?.registeredAddress || 'Musky Dose Products, Village: Dholiwadi Ka Bas, Post: Sojat City, District: Pali, Rajasthan – 306104, India';
   const companyGstin = settings?.invoiceConfig?.gstin || '08XXXXX0000X1Z0 (Registered Sojat MSME)';
   const companyPhone = settings?.displayPhone || '+91 82337 03080';
   const companyEmail = settings?.businessEmail || 'info@muskydose.in';
