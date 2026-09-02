@@ -10,6 +10,10 @@ import {
 } from '@/lib/growth/acquisition-engine';
 import { getMerchantFeedHealthSummary } from '@/lib/growth/merchant-feed-engine';
 
+import { getCategories } from '@/lib/db/categories';
+import { getSearchConsoleQueries, isSearchConsoleConfigured } from '@/lib/growth/sources/search-console-adapter';
+import { detectDemandOpportunities } from '@/lib/growth/seo-demand-engine';
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
@@ -20,7 +24,12 @@ export async function GET(req: NextRequest) {
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
-    const [products, guides] = await Promise.all([getProducts(), getPublishedGuides()]);
+    const [products, guides, categories, gscResult] = await Promise.all([
+      getProducts(),
+      getPublishedGuides(),
+      getCategories(),
+      getSearchConsoleQueries(),
+    ]);
     const leads = getAllLeads();
 
     const readinessList = products
@@ -35,6 +44,12 @@ export async function GET(req: NextRequest) {
     const feedSummary = getMerchantFeedHealthSummary(products, baseUrl);
     const metrics = getAcquisitionDashboardMetrics(products, readinessList, leads);
     const opportunities = evaluateAcquisitionOpportunities(products, readinessList, leads);
+    const seoDemandOpportunities = detectDemandOpportunities({
+      gscQueries: gscResult.queries,
+      products,
+      categories,
+      guides,
+    });
 
     return NextResponse.json({
       success: true,
@@ -42,6 +57,10 @@ export async function GET(req: NextRequest) {
       readinessList,
       feedSummary,
       opportunities,
+      seoDemandOpportunities,
+      gscStatus: gscResult.status,
+      gscMessage: gscResult.message,
+      gscConfigured: isSearchConsoleConfigured(),
     });
   } catch (error: any) {
     console.error('[GET /api/admin/growth/acquisition] Error:', error);

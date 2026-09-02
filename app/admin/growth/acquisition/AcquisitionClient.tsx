@@ -7,6 +7,7 @@ import {
   MerchantFeedHealthSummary,
   GrowthOpportunity,
 } from '@/lib/growth/types';
+import { SeoDemandOpportunity } from '@/lib/growth/seo-demand-engine';
 import {
   Users,
   Sparkles,
@@ -32,6 +33,9 @@ export default function AcquisitionClient() {
   const [readinessList, setReadinessList] = useState<ProductAcquisitionReadiness[]>([]);
   const [feedSummary, setFeedSummary] = useState<MerchantFeedHealthSummary | null>(null);
   const [opportunities, setOpportunities] = useState<GrowthOpportunity[]>([]);
+  const [seoDemandOpportunities, setSeoDemandOpportunities] = useState<SeoDemandOpportunity[]>([]);
+  const [gscStatus, setGscStatus] = useState<string>('NOT_CONFIGURED');
+  const [gscMessage, setGscMessage] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [copiedFeed, setCopiedFeed] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
@@ -48,6 +52,9 @@ export default function AcquisitionClient() {
           setReadinessList(data.readinessList || []);
           setFeedSummary(data.feedSummary || null);
           setOpportunities(data.opportunities || []);
+          setSeoDemandOpportunities(data.seoDemandOpportunities || []);
+          setGscStatus(data.gscStatus || 'NOT_CONFIGURED');
+          setGscMessage(data.gscMessage || '');
         }
       }
     } catch (err) {
@@ -214,6 +221,96 @@ export default function AcquisitionClient() {
           </div>
         </div>
       )}
+
+      {/* Real GSC Demand Opportunities & Query Clusters */}
+      <div className="bg-white p-6 rounded-2xl border border-[#e8e2d5] shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#e8e2d5] pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-[#1b4332]" />
+              <h3 className="font-serif-heading font-bold text-base text-[#0f2d22]">
+                Google Search Console Demand Mining ({seoDemandOpportunities.length})
+              </h3>
+              <span
+                className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                  gscStatus === 'CONNECTED'
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                }`}
+              >
+                {gscStatus === 'CONNECTED' ? 'GSC LIVE SYNC' : 'GSC NOT CONFIGURED (ZERO FAKE DATA)'}
+              </span>
+            </div>
+            <p className="text-xs text-[#626c66] mt-1">
+              Real query-level impressions, CTR, striking distance, and commercial intent mapping without fabricated metrics.
+            </p>
+          </div>
+
+          <Link
+            href="/admin/growth/opportunities"
+            className="text-xs font-bold text-[#1b4332] hover:underline inline-flex items-center gap-1 self-start sm:self-auto"
+          >
+            <span>Open Growth Action Center</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+        {seoDemandOpportunities.length === 0 ? (
+          <div className="p-8 text-center bg-[#fcfbf9] rounded-xl border border-[#e8e2d5] space-y-2">
+            <Search className="w-8 h-8 text-gray-400 mx-auto" />
+            <div className="font-bold text-sm text-[#0f2d22]">Zero Fabricated Metrics Active</div>
+            <p className="text-xs text-[#626c66] max-w-md mx-auto leading-relaxed">
+              {gscMessage ||
+                'Google Search Console credentials are not configured or returned 0 queries for the selected 28-day window. Once live search queries sync, query clusters, striking-distance opportunities, and cannibalization audits will populate automatically.'}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {seoDemandOpportunities.map((opp) => (
+              <div
+                key={opp.id}
+                className="bg-[#fcfbf9] p-4 rounded-xl border border-[#e8e2d5] space-y-3 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-xs text-[#0f2d22]">{opp.title}</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-200">
+                      Score: {opp.growthScore}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#626c66] mt-1 leading-relaxed">{opp.description}</p>
+                </div>
+
+                <div className="pt-2 border-t border-[#e8e2d5] space-y-2 text-[11px]">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-[10px] font-mono">
+                      Query: {opp.query}
+                    </span>
+                    <span className="bg-amber-50 text-amber-800 px-2 py-0.5 rounded text-[10px] font-bold">
+                      Intent: {opp.cluster.intent}
+                    </span>
+                    <span className="bg-blue-50 text-blue-800 px-2 py-0.5 rounded text-[10px] font-bold">
+                      Destination: {opp.cluster.recommendedDestination}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[#626c66] text-[10px]">
+                      Action: {opp.recommendation.recommendedAction.replace(/_/g, ' ')}
+                    </span>
+                    <Link
+                      href="/admin/growth/opportunities"
+                      className="text-[#1b4332] font-bold hover:underline"
+                    >
+                      Review in Action Center →
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Acquisition Opportunities Stream */}
       {opportunities.length > 0 && (

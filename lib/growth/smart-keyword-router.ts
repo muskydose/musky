@@ -1,7 +1,7 @@
 import { Product, Category } from '@/lib/types';
 import { normalizeKeywordTerm } from './product-keyword-engine';
 
-export type SmartRouteType = 'PRODUCT' | 'CATEGORY' | 'SEARCH' | 'WHOLESALE';
+export type SmartRouteType = 'PRODUCT' | 'CATEGORY' | 'SEARCH' | 'WHOLESALE' | 'SOJAT_HENNA';
 export type MatchConfidence = 'HIGH' | 'MEDIUM' | 'LOW';
 
 export interface SmartRouteResult {
@@ -185,6 +185,30 @@ export function resolveSmartKeywordRoute(params: {
   }
 
   // -------------------------------------------------------------
+  // 1D. SOJAT HENNA PILLAR & LOCAL ORIGIN ROUTING (SCORE: 965)
+  // -------------------------------------------------------------
+  if (
+    !hasRetailPackIndicator &&
+    (q === 'sojat henna' ||
+      q === 'sojat mehndi' ||
+      q === 'pure sojat henna' ||
+      q === 'pure sojat mehndi' ||
+      q === 'sojat henna origin' ||
+      q === 'sojat henna rajasthan' ||
+      q === 'authentic sojat henna')
+  ) {
+    return {
+      query: rawQuery,
+      normalizedQuery: q,
+      destinationUrl: '/sojat-henna',
+      routeType: 'SOJAT_HENNA',
+      confidence: 'HIGH',
+      confidenceScore: 965,
+      reason: `Sojat Henna pillar authority hub match ("${rawQuery}")`,
+    };
+  }
+
+  // -------------------------------------------------------------
   // 2. EXACT CATEGORY / BROAD CATEGORY SYNONYM MATCH (SCORE: 950)
   // -------------------------------------------------------------
   for (const c of activeCategories) {
@@ -221,8 +245,6 @@ export function resolveSmartKeywordRoute(params: {
           q === 'mehndi powder' ||
           q === 'mehendi powder' ||
           q === 'mehandi powder' ||
-          q === 'sojat henna' ||
-          q === 'sojat mehndi' ||
           q === 'natural henna' ||
           q === 'natural mehndi')) ||
       (cName.includes('hair') &&

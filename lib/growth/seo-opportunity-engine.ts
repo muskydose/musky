@@ -18,6 +18,7 @@ import { getOrdersForAnalytics } from '@/lib/db/orders';
 import { getAllLeads, evaluateLeadOpportunities } from './lead-engine';
 import { evaluateProductAcquisitionReadiness, evaluateAcquisitionOpportunities } from './acquisition-engine';
 import { evaluateOmnichannelOpportunities } from './omnichannel-engine';
+import { detectDemandOpportunities } from './seo-demand-engine';
 
 // ============================================================
 // 1. PRODUCT COMPLETENESS AUDIT
@@ -652,73 +653,42 @@ export function generateGrowthOpportunities(
   };
 
   // ------------------------------------------------------------
-  // RULE 1 & 2. GOOGLE SEARCH CONSOLE OPPORTUNITIES (Low CTR & Striking Distance)
+  // RULE 1 & 2. GOOGLE SEARCH CONSOLE DEMAND MINING & OPPORTUNITY DETECTION
   // ------------------------------------------------------------
-  for (const gsc of gscQueries) {
-    const qLower = gsc.query.toLowerCase().trim();
-    if (!qLower) continue;
+  if (gscQueries && gscQueries.length > 0) {
+    const demandOpps = detectDemandOpportunities({
+      gscQueries,
+      products,
+      guides,
+    });
 
-    const pos = gsc.position;
-    const isStrikingDistance = pos >= 5.0 && pos <= 20.0;
-    const isLowCtr = gsc.impressions >= 100 && gsc.ctr < 0.03;
-
-    if (isStrikingDistance || isLowCtr) {
-      const matchingProduct = products.find(
-        (p) => p.name.toLowerCase().includes(qLower) || p.slug.includes(qLower.replace(/\s+/g, '-'))
-      );
-
-      const type: GrowthOpportunityType = isLowCtr ? 'GSC_LOW_CTR' : 'GSC_RANKING_STRIKE';
-      const priority: GrowthOpportunityPriority = pos <= 10.0 || isLowCtr ? 'P1_NOW' : 'P2_NEXT';
-
-      const { growthScore, scoreBreakdown } = calculateGrowthOpportunityScore(
-        {
-          type,
-          gscPerformance: {
-            impressions: gsc.impressions,
-            clicks: gsc.clicks,
-            ctr: gsc.ctr,
-            position: gsc.position,
-          },
-        },
-        matchingProduct
-      );
-
+    for (const dOpp of demandOpps) {
       addOpportunity({
-        id: `opp_gsc_${qLower.replace(/[^a-z0-9]/g, '_')}_${isLowCtr ? 'ctr' : 'strike'}`,
-        title: isLowCtr
-          ? `Low CTR on High-Impression Query: "${gsc.query}" (${gsc.impressions} Impr, ${(gsc.ctr * 100).toFixed(1)}% CTR)`
-          : `Striking Distance #${pos.toFixed(1)}: "${gsc.query}" (${gsc.impressions} Impr)`,
-        description: isLowCtr
-          ? `Query receives ${gsc.impressions} search impressions but only ${(gsc.ctr * 100).toFixed(1)}% CTR. Rewriting the SEO title and snippet with botanical trust badges will capture more front-page clicks.`
-          : `Google Search Console ranking striking distance (Position ${pos.toFixed(1)}). Optimizing metadata and adding an FAQ will push this query to top 3.`,
-        type,
-        priority,
+        id: dOpp.id,
+        title: dOpp.title,
+        description: dOpp.description,
+        type: dOpp.type as GrowthOpportunityType,
+        priority: dOpp.priority,
         status: 'NEW',
-        growthScore,
-        scoreBreakdown,
-        keyword: gsc.query,
-        productId: matchingProduct?.id,
-        productName: matchingProduct?.name,
-        productSlug: matchingProduct?.slug,
+        growthScore: dOpp.growthScore,
+        scoreBreakdown: dOpp.scoreBreakdown,
+        keyword: dOpp.query,
+        productId: dOpp.cluster.matchedEntityId,
+        productName: dOpp.cluster.matchedEntityName,
         source: 'GOOGLE SEARCH CONSOLE',
         entityType: 'SEARCH_QUERY',
-        entityId: gsc.query,
+        entityId: dOpp.query,
         categoryFilter: 'SEO',
         confidence: 'HIGH',
-        evidence: `Google Search Console: ${gsc.impressions} impressions, ${gsc.clicks} clicks, ${(gsc.ctr * 100).toFixed(1)}% CTR, Position #${pos.toFixed(1)}.`,
-        expectedBusinessImpact: '+25-40% organic clicks from front-page search impressions.',
-        gscPerformance: {
-          impressions: gsc.impressions,
-          clicks: gsc.clicks,
-          ctr: gsc.ctr,
-          position: gsc.position,
-        },
-        suggestedAction: 'OPTIMIZE_PRODUCT',
-        actionLabel: 'Optimize SEO Title & Snippet',
-        actionLink: matchingProduct ? `/admin/products/${matchingProduct.id}` : undefined,
-        relevanceScore: 90,
+        evidence: dOpp.recommendation.reason,
+        expectedBusinessImpact: dOpp.recommendation.expectedOutcome,
+        gscPerformance: dOpp.gscMetrics,
+        suggestedAction: dOpp.recommendation.recommendedAction === 'ROUTE_TO_WHOLESALE' ? 'PRIORITIZE_WHOLESALE_LEAD' : 'OPTIMIZE_PRODUCT',
+        actionLabel: dOpp.recommendation.recommendedAction.replace(/_/g, ' '),
+        actionLink: dOpp.recommendation.targetUrl,
+        relevanceScore: dOpp.growthScore,
         freshnessStatus: 'Fresh',
-        createdAt: new Date().toISOString(),
+        createdAt: dOpp.createdAt,
       });
     }
   }

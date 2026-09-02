@@ -143,6 +143,12 @@ export function routeOpportunityToActionType(opportunity: GrowthOpportunity): Gr
     case 'KEYWORD_CANNIBALIZATION':
       return 'CREATE_CANNIBALIZATION_REVIEW';
 
+    case 'QUERY_DESTINATION_MISMATCH':
+      return 'CREATE_WHOLESALE_CTA_DRAFT';
+
+    case 'STRIKING_DISTANCE':
+      return 'GENERATE_SEO_DRAFT';
+
     default:
       return 'GENERATE_CONTENT_DRAFT';
   }

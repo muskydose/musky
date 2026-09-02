@@ -440,6 +440,8 @@ export type GrowthOpportunityType =
   | 'QUESTION_CONTENT_GAP'
   | 'REGIONAL_MARKET_EXPANSION'
   | 'TRAFFIC_LEAK'
+  | 'QUERY_DESTINATION_MISMATCH'
+  | 'STRIKING_DISTANCE'
   | 'ADS_TARGETING_READY';
 
 export type GrowthOpportunityCategory =
