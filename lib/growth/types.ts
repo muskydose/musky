@@ -819,10 +819,16 @@ export interface LeadRecord {
   landingPage?: string;
   productId?: string;
   productName?: string;
+  variantId?: string;
   categoryId?: string;
   guideId?: string;
   requirement?: string;
   quantity?: string | number;
+  quantityUnit?: string;
+  packQuantity?: number;
+  packUnit?: string;
+  pricingUnit?: string;
+  wholesaleUnit?: string;
   intentLevel: LeadIntentLevel;
   intentScore: number; // 0 to 100
   commercialScore: number; // 0 to 100

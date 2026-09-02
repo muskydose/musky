@@ -22,16 +22,48 @@ export interface TrustStripItem {
   sortOrder: number;
 }
 
+export type FieldConfidence = 'VERIFIED' | 'ADMIN_DEFINED' | 'DERIVED' | 'NEEDS_REVIEW';
+
+export type ProductLifecycleStatus = 'DRAFT' | 'AUTO_FILLED' | 'ADMIN_REVIEW' | 'SAVED' | 'ACTIVATED';
+
+export interface ProductFieldMetadata {
+  value: any;
+  source: 'SYSTEM' | 'ADMIN_DEFINED' | 'VERIFIED' | 'AI_SUGGESTION';
+  confidence: FieldConfidence;
+  lockedFromAutoOverwrite?: boolean;
+  updatedAt?: string;
+}
+
+export interface ProductUnitConfig {
+  sellingUnit: string; // e.g. 'Bottle', 'Cone', 'Pouch', 'Jar', 'Box', 'Bag', 'Piece'
+  packQuantity: number; // e.g. 500, 1, 10, 25, 100
+  packUnit: string; // e.g. 'ml', 'Litre', 'Piece', 'g', 'kg', 'Box'
+  pricingUnit: string; // e.g. 'ml', 'Litre', 'Piece', 'kg', 'Box'
+  wholesaleUnit: string; // e.g. 'Litre', 'Box', 'kg', 'Piece'
+  minWholesaleQuantity?: number;
+  maxWholesaleQuantity?: number;
+  conversionRule?: string; // e.g. '12 Pieces = 1 Box', '1000 ml = 1 Litre'
+  confidence?: FieldConfidence;
+  source?: 'ADMIN_DEFINED' | 'DERIVED' | 'VERIFIED' | 'NEEDS_REVIEW';
+  lockedFromAutoOverwrite?: boolean;
+}
+
 export interface ProductVariant {
   id: string;
   sku: string;
-  weight: string; // e.g., "100g", "250g", "500g", "1kg", "5kg", "25kg"
+  weight: string; // e.g., "100g", "250g", "500g", "1kg", "5kg", "25kg", "500ml", "1 Litre", "12 Cones"
   price: number;
   compareAtPrice?: number;
   stockQuantity?: number;
   stockStatus: 'in_stock' | 'out_of_stock' | 'pre_order';
   isWholesaleEligible?: boolean;
   isActive?: boolean;
+  packQuantity?: number;
+  packUnit?: string;
+  pricingUnit?: string;
+  sellingUnit?: string;
+  wholesaleUnit?: string;
+  conversionRule?: string;
 }
 
 export interface Product {
@@ -44,7 +76,7 @@ export interface Product {
   fullDescription: string;
   price: number;
   compareAtPrice?: number;
-  quantityOrWeight: string; // e.g., "100g", "250g", "500g Pack"
+  quantityOrWeight: string; // e.g., "100g", "250g", "500g Pack", "500ml", "1 Litre", "Pack of 12 Cones"
   sku: string;
   images: string[];
   variants?: ProductVariant[];
@@ -63,6 +95,18 @@ export interface Product {
   isActive: boolean;
   sortOrder: number;
   productType?: 'POWDER' | 'RAW' | 'FINISHED' | string;
+  lifecycleStatus?: ProductLifecycleStatus;
+  sellingUnit?: string;
+  packQuantity?: number;
+  packUnit?: string;
+  pricingUnit?: string;
+  wholesaleUnit?: string;
+  minWholesaleQuantity?: number;
+  maxWholesaleQuantity?: number;
+  conversionRule?: string;
+  unitConfig?: ProductUnitConfig;
+  fieldMetadata?: Record<string, ProductFieldMetadata>;
+  lockedFields?: string[];
   seoTitle?: string;
   seoDescription?: string;
   seoKeywords?: string[];
