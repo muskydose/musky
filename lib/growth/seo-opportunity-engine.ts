@@ -471,6 +471,14 @@ export function calculateGrowthOpportunityScore(
     demand = Math.min(100, Math.max(30, Math.round(opp.gscPerformance.impressions / 5)));
   } else if (opp.type === 'ZERO_RESULT_SEARCH' || opp.type === 'HIGH_DEMAND_UNTARGETED') {
     demand = 85;
+  } else if (opp.type === 'HIGH_SEARCH_LOW_CONVERSION' || opp.type === 'HIGH_ATC_LOW_PURCHASE') {
+    demand = 90;
+  } else if (opp.type === 'WHOLESALE_LEAD_OPPORTUNITY' || opp.type === 'HIGH_TRAFFIC_LOW_ATC') {
+    demand = 80;
+  } else if (opp.type === 'REPEAT_PURCHASE_OPPORTUNITY') {
+    demand = 75;
+  } else if (opp.type === 'SEARCH_SYNONYM_OPPORTUNITY') {
+    demand = 70;
   }
 
   let visibilityGap = 50;
@@ -482,32 +490,44 @@ export function calculateGrowthOpportunityScore(
     } else {
       visibilityGap = 40;
     }
+  } else if (opp.type === 'ZERO_RESULT_SEARCH') {
+    visibilityGap = 95;
   } else if (opp.type === 'METADATA_INCOMPLETE' || opp.type === 'MISSING_GUIDE') {
     visibilityGap = 85;
-  } else if (opp.type === 'CANNIBALIZATION_RISK') {
+  } else if (opp.type === 'CANNIBALIZATION_RISK' || opp.type === 'SEO_CANNIBALIZATION') {
     visibilityGap = 75;
+  } else if (opp.type === 'PRODUCT_CONTENT_GAP' || opp.type === 'SUPPORTING_CONTENT_GAP') {
+    visibilityGap = 70;
   }
 
   let conversionPotential = 50;
   if (opp.gscPerformance?.ctr !== undefined && opp.gscPerformance.ctr < 0.03) {
     conversionPotential = 85;
-  } else if (opp.type === 'TRAFFIC_LEAK') {
+  } else if (opp.type === 'HIGH_ATC_LOW_PURCHASE' || opp.type === 'TRAFFIC_LEAK') {
     conversionPotential = 95;
-  } else if (opp.type === 'MISSING_IMAGE') {
+  } else if (opp.type === 'HIGH_TRAFFIC_LOW_ATC' || opp.type === 'WHOLESALE_LEAD_OPPORTUNITY') {
+    conversionPotential = 90;
+  } else if (opp.type === 'HIGH_SEARCH_LOW_CONVERSION') {
+    conversionPotential = 85;
+  } else if (opp.type === 'MISSING_IMAGE' || opp.type === 'MISSING_REAL_IMAGE') {
     conversionPotential = 80;
+  } else if (opp.type === 'REPEAT_PURCHASE_OPPORTUNITY') {
+    conversionPotential = 75;
   }
 
   let commercialValue = 60;
-  if (product?.price) {
-    commercialValue = Math.min(100, Math.max(30, Math.round((product.price / 500) * 100)));
-  } else if (opp.type === 'OUT_OF_STOCK_RISK') {
+  if (opp.type === 'WHOLESALE_LEAD_OPPORTUNITY') {
+    commercialValue = 95;
+  } else if (opp.type === 'OUT_OF_STOCK_RISK' || opp.type === 'REPEAT_PURCHASE_OPPORTUNITY') {
     commercialValue = 90;
+  } else if (product?.price) {
+    commercialValue = Math.min(100, Math.max(30, Math.round((product.price / 500) * 100)));
   }
 
   let contentReadiness = 50;
   if (product?.shortDescription && product.ingredients?.length) {
     contentReadiness = 80;
-  } else if (opp.type === 'METADATA_INCOMPLETE') {
+  } else if (opp.type === 'METADATA_INCOMPLETE' || opp.type === 'PRODUCT_CONTENT_GAP') {
     contentReadiness = 40;
   }
 
@@ -606,17 +626,34 @@ export function generateGrowthOpportunities(
   verifiedKeywords: GrowthKeyword[] = [],
   gscQueries: SearchConsoleQuery[] = [],
   orders: any[] = [],
-  guides: any[] = []
+  guides: any[] = [],
+  searchInsights?: { topSearches?: any[]; zeroResultSearches?: any[]; totalSearches?: number },
+  productFunnels?: any[],
+  wholesaleEnquiries?: any[]
 ): GrowthOpportunity[] {
   const opportunities: GrowthOpportunity[] = [];
   const seenKeys = new Set<string>();
 
+  // Helper to safely push with fingerprint deduplication
+  const addOpportunity = (opp: GrowthOpportunity) => {
+    const fingerprint = `${opp.source || 'SYS'}_${opp.type}_${opp.productId || opp.entityId || ''}_${opp.keyword || ''}`;
+    if (seenKeys.has(fingerprint)) return;
+    seenKeys.add(fingerprint);
+    opportunities.push({
+      ...opp,
+      opportunityId: opp.id,
+      score: opp.growthScore,
+      shortReason: opp.description,
+      status: opp.status || 'NEW',
+    });
+  };
+
   // ------------------------------------------------------------
-  // RULE A & B. GOOGLE SEARCH CONSOLE OPPORTUNITIES (Low CTR & Striking Distance)
+  // RULE 1 & 2. GOOGLE SEARCH CONSOLE OPPORTUNITIES (Low CTR & Striking Distance)
   // ------------------------------------------------------------
   for (const gsc of gscQueries) {
     const qLower = gsc.query.toLowerCase().trim();
-    if (!qLower || seenKeys.has(`gsc_${qLower}`)) continue;
+    if (!qLower) continue;
 
     const pos = gsc.position;
     const isStrikingDistance = pos >= 5.0 && pos <= 20.0;
@@ -643,9 +680,8 @@ export function generateGrowthOpportunities(
         matchingProduct
       );
 
-      seenKeys.add(`gsc_${qLower}`);
-      opportunities.push({
-        id: `opp_gsc_${Math.random().toString(36).substring(2, 9)}`,
+      addOpportunity({
+        id: `opp_gsc_${qLower.replace(/[^a-z0-9]/g, '_')}_${isLowCtr ? 'ctr' : 'strike'}`,
         title: isLowCtr
           ? `Low CTR on High-Impression Query: "${gsc.query}" (${gsc.impressions} Impr, ${(gsc.ctr * 100).toFixed(1)}% CTR)`
           : `Striking Distance #${pos.toFixed(1)}: "${gsc.query}" (${gsc.impressions} Impr)`,
@@ -661,6 +697,13 @@ export function generateGrowthOpportunities(
         productId: matchingProduct?.id,
         productName: matchingProduct?.name,
         productSlug: matchingProduct?.slug,
+        source: 'GOOGLE SEARCH CONSOLE',
+        entityType: 'SEARCH_QUERY',
+        entityId: gsc.query,
+        categoryFilter: 'SEO',
+        confidence: 'HIGH',
+        evidence: `Google Search Console: ${gsc.impressions} impressions, ${gsc.clicks} clicks, ${(gsc.ctr * 100).toFixed(1)}% CTR, Position #${pos.toFixed(1)}.`,
+        expectedBusinessImpact: '+25-40% organic clicks from front-page search impressions.',
         gscPerformance: {
           impressions: gsc.impressions,
           clicks: gsc.clicks,
@@ -678,25 +721,338 @@ export function generateGrowthOpportunities(
   }
 
   // ------------------------------------------------------------
-  // RULE C & E. MISSING GUIDE OPPORTUNITIES FOR ACTIVE PRODUCTS
+  // RULE 3. ZERO-RESULT INTERNAL SITE SEARCHES
+  // ------------------------------------------------------------
+  if (searchInsights?.zeroResultSearches && searchInsights.zeroResultSearches.length > 0) {
+    for (const item of searchInsights.zeroResultSearches) {
+      const q = (item.query || '').trim();
+      if (!q) continue;
+
+      const { growthScore, scoreBreakdown } = calculateGrowthOpportunityScore({
+        type: 'ZERO_RESULT_SEARCH',
+        keyword: q,
+      });
+
+      addOpportunity({
+        id: `opp_zero_search_${q.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+        title: `Zero-Result Search Demand: "${q}" (${item.count} searches)`,
+        description: `Store visitors searched for "${q}" ${item.count} times without finding any matching products. Creating catalog coverage, an educational guide, or mapping a synonym will eliminate search drop-off.`,
+        type: 'ZERO_RESULT_SEARCH',
+        priority: item.count >= 5 ? 'P1_NOW' : 'P2_NEXT',
+        status: 'NEW',
+        growthScore,
+        scoreBreakdown,
+        keyword: q,
+        source: 'INTERNAL SITE SEARCH',
+        entityType: 'SEARCH_QUERY',
+        entityId: q,
+        categoryFilter: 'SEARCH',
+        confidence: 'HIGH',
+        evidence: `Recorded ${item.count} internal store search queries with zero product matches.`,
+        expectedBusinessImpact: 'Capture zero-result search bounce and expand botanical catalog coverage.',
+        suggestedAction: 'MAP_SEARCH_SYNONYM',
+        actionLabel: 'Map Search Alias / Add Product',
+        actionLink: '/admin/products/new',
+        relevanceScore: 92,
+        freshnessStatus: 'Fresh',
+        createdAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  // ------------------------------------------------------------
+  // RULE 4. HIGH SEARCH DEMAND WITH LOW PRODUCT CONVERSION
+  // ------------------------------------------------------------
+  if (searchInsights?.topSearches && searchInsights.topSearches.length > 0 && productFunnels && productFunnels.length > 0) {
+    for (const searchItem of searchInsights.topSearches) {
+      if (searchItem.count < 3) continue;
+      const q = searchItem.query.toLowerCase().trim();
+
+      const matchedProduct = products.find(
+        (p) => p.name.toLowerCase().includes(q) || p.slug.includes(q.replace(/\s+/g, '-'))
+      );
+      if (!matchedProduct) continue;
+
+      const funnel = productFunnels.find((f) => f.id === matchedProduct.id);
+      if (funnel && funnel.views >= 5 && funnel.conversionRate < 3) {
+        const { growthScore, scoreBreakdown } = calculateGrowthOpportunityScore(
+          { type: 'HIGH_SEARCH_LOW_CONVERSION', keyword: searchItem.query },
+          matchedProduct
+        );
+
+        addOpportunity({
+          id: `opp_search_conv_${matchedProduct.id}`,
+          title: `Search-to-Purchase Gap: "${searchItem.query}" -> ${matchedProduct.name}`,
+          description: `Internal search query "${searchItem.query}" generates consistent search interest (${searchItem.count} searches), but product conversion is only ${funnel.conversionRate}%.`,
+          type: 'HIGH_SEARCH_LOW_CONVERSION',
+          priority: 'P2_NEXT',
+          status: 'NEW',
+          growthScore,
+          scoreBreakdown,
+          keyword: searchItem.query,
+          productId: matchedProduct.id,
+          productName: matchedProduct.name,
+          productSlug: matchedProduct.slug,
+          source: 'INTERNAL SITE SEARCH',
+          entityType: 'PRODUCT',
+          entityId: matchedProduct.id,
+          categoryFilter: 'CONVERSION',
+          confidence: 'HIGH',
+          evidence: `Search queries: ${searchItem.count}, Product views: ${funnel.views}, Conversion: ${funnel.conversionRate}%.`,
+          expectedBusinessImpact: '+15-30% search-to-order conversion rate.',
+          suggestedAction: 'REVIEW_CONVERSION',
+          actionLabel: 'Review Landing & Value Proposition',
+          actionLink: `/admin/products/${matchedProduct.id}`,
+          relevanceScore: 88,
+          freshnessStatus: 'Fresh',
+          createdAt: new Date().toISOString(),
+        });
+      }
+    }
+  }
+
+  // ------------------------------------------------------------
+  // RULE 5. SEARCH SYNONYM NORMALIZATION (HENNA / MEHNDI ALIASES)
+  // ------------------------------------------------------------
+  const hennaSynonyms = ['heena', 'hina', 'mehendi', 'mehandi', 'mehndi', 'henna powder', 'mehndi cone'];
+  if (searchInsights?.topSearches) {
+    for (const searchItem of searchInsights.topSearches) {
+      const q = searchItem.query.toLowerCase().trim();
+      if (hennaSynonyms.includes(q)) {
+        const { growthScore, scoreBreakdown } = calculateGrowthOpportunityScore({
+          type: 'SEARCH_SYNONYM_OPPORTUNITY',
+          keyword: searchItem.query,
+        });
+
+        addOpportunity({
+          id: `opp_synonym_${q.replace(/[^a-z0-9]/g, '_')}`,
+          title: `Entity Synonym Match: "${searchItem.query}" (${searchItem.count} searches)`,
+          description: `Query "${searchItem.query}" represents a high-frequency spelling variation for the core HENNA_MEHNDI botanical entity. Internal search router maps this seamlessly to canonical Henna catalog.`,
+          type: 'SEARCH_SYNONYM_OPPORTUNITY',
+          priority: 'P2_NEXT',
+          status: 'NEW',
+          growthScore,
+          scoreBreakdown,
+          keyword: searchItem.query,
+          source: 'INTERNAL SITE SEARCH',
+          entityType: 'SEARCH_QUERY',
+          entityId: searchItem.query,
+          categoryFilter: 'SEARCH',
+          confidence: 'HIGH',
+          evidence: `Verified ${searchItem.count} searches under botanical synonym "${searchItem.query}".`,
+          expectedBusinessImpact: 'Preserves consolidated authority without keyword cannibalization.',
+          suggestedAction: 'MAP_SEARCH_SYNONYM',
+          actionLabel: 'Verify Entity Synonym Routing',
+          actionLink: '/categories/henna',
+          relevanceScore: 85,
+          freshnessStatus: 'Fresh',
+          createdAt: new Date().toISOString(),
+        });
+      }
+    }
+  }
+
+  // ------------------------------------------------------------
+  // RULE 6 & 7. PRODUCT FUNNEL CONVERSION RISKS (High Traffic Low ATC / High ATC Low Order)
+  // ------------------------------------------------------------
+  if (productFunnels && productFunnels.length > 0) {
+    for (const funnel of productFunnels) {
+      const product = products.find((p) => p.id === funnel.id);
+      if (!product || product.isActive === false) continue;
+
+      // High Views Low ATC
+      if (funnel.views >= 15 && funnel.cartRate < 5) {
+        const { growthScore, scoreBreakdown } = calculateGrowthOpportunityScore(
+          { type: 'HIGH_TRAFFIC_LOW_ATC', keyword: product.name },
+          product
+        );
+
+        addOpportunity({
+          id: `opp_low_atc_${product.id}`,
+          title: `Traffic Leak: High Views but Low Add-to-Cart on "${product.name}"`,
+          description: `Product received ${funnel.views} page views but only ${funnel.addToCart} cart additions (${funnel.cartRate}% cart rate). Enhancing trust badges and pack size value will increase engagement.`,
+          type: 'HIGH_TRAFFIC_LOW_ATC',
+          priority: 'P1_NOW',
+          status: 'NEW',
+          growthScore,
+          scoreBreakdown,
+          keyword: product.name,
+          productId: product.id,
+          productName: product.name,
+          productSlug: product.slug,
+          source: 'STORE ANALYTICS',
+          entityType: 'PRODUCT',
+          entityId: product.id,
+          categoryFilter: 'CONVERSION',
+          confidence: 'HIGH',
+          evidence: `Page views: ${funnel.views}, Add to Cart: ${funnel.addToCart} (${funnel.cartRate}% ATC rate).`,
+          expectedBusinessImpact: '+25-50% add-to-cart rate.',
+          suggestedAction: 'REVIEW_CONVERSION',
+          actionLabel: 'Optimize Product Presentation & Pricing',
+          actionLink: `/admin/products/${product.id}`,
+          relevanceScore: 92,
+          freshnessStatus: 'Fresh',
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      // High ATC Low Purchase
+      if (funnel.addToCart >= 3 && (funnel.orders / funnel.addToCart) < 0.20) {
+        const { growthScore, scoreBreakdown } = calculateGrowthOpportunityScore(
+          { type: 'HIGH_ATC_LOW_PURCHASE', keyword: product.name },
+          product
+        );
+
+        addOpportunity({
+          id: `opp_low_purchase_${product.id}`,
+          title: `Checkout Friction: High Cart Adds but Low Purchases on "${product.name}"`,
+          description: `Product was added to cart ${funnel.addToCart} times, but completed only ${funnel.orders} orders. Clarifying free shipping thresholds and instant WhatsApp ordering will capture abandoned intent.`,
+          type: 'HIGH_ATC_LOW_PURCHASE',
+          priority: 'P1_NOW',
+          status: 'NEW',
+          growthScore,
+          scoreBreakdown,
+          keyword: product.name,
+          productId: product.id,
+          productName: product.name,
+          productSlug: product.slug,
+          source: 'STORE COMMERCE',
+          entityType: 'PRODUCT',
+          entityId: product.id,
+          categoryFilter: 'CONVERSION',
+          confidence: 'HIGH',
+          evidence: `Cart additions: ${funnel.addToCart}, Orders completed: ${funnel.orders}.`,
+          expectedBusinessImpact: '+30% cart-to-order completion.',
+          suggestedAction: 'REVIEW_CONVERSION',
+          actionLabel: 'Review Checkout & WhatsApp Order Handoff',
+          actionLink: `/admin/products/${product.id}`,
+          relevanceScore: 94,
+          freshnessStatus: 'Fresh',
+          createdAt: new Date().toISOString(),
+        });
+      }
+    }
+  }
+
+  // ------------------------------------------------------------
+  // RULE 8. REPEAT PURCHASE PATTERNS (COMMERCE SIGNALS)
+  // ------------------------------------------------------------
+  if (orders && orders.length > 0) {
+    const repeatMap = new Map<string, { count: number; name: string }>();
+    for (const o of orders) {
+      if (Array.isArray(o.items)) {
+        for (const item of o.items) {
+          if (!item.productId) continue;
+          const entry = repeatMap.get(item.productId) || { count: 0, name: item.productName || item.name || 'Botanical Product' };
+          entry.count += Number(item.quantity || 1);
+          repeatMap.set(item.productId, entry);
+        }
+      }
+    }
+
+    for (const [prodId, val] of repeatMap.entries()) {
+      if (val.count >= 2) {
+        const product = products.find((p) => p.id === prodId);
+        const { growthScore, scoreBreakdown } = calculateGrowthOpportunityScore(
+          { type: 'REPEAT_PURCHASE_OPPORTUNITY', keyword: val.name },
+          product
+        );
+
+        addOpportunity({
+          id: `opp_repeat_${prodId}`,
+          title: `Repeat Reorder Potential for "${val.name}" (${val.count} units sold)`,
+          description: `Product demonstrates repeat purchase velocity. Setting up replenishment reminders or multi-pack discounts will increase customer retention and lifetime value.`,
+          type: 'REPEAT_PURCHASE_OPPORTUNITY',
+          priority: 'P2_NEXT',
+          status: 'NEW',
+          growthScore,
+          scoreBreakdown,
+          keyword: val.name,
+          productId: prodId,
+          productName: val.name,
+          productSlug: product?.slug,
+          source: 'STORE COMMERCE',
+          entityType: 'PRODUCT',
+          entityId: prodId,
+          categoryFilter: 'PRODUCT',
+          confidence: 'HIGH',
+          evidence: `Recorded ${val.count} total unit orders in recent commerce dataset.`,
+          expectedBusinessImpact: '+20% customer lifetime value (LTV).',
+          suggestedAction: 'CREATE_REPEAT_REMINDER',
+          actionLabel: 'Create Replenishment Strategy',
+          actionLink: `/admin/products/${prodId}`,
+          relevanceScore: 86,
+          freshnessStatus: 'Fresh',
+          createdAt: new Date().toISOString(),
+        });
+      }
+    }
+  }
+
+  // ------------------------------------------------------------
+  // RULE 9. WHOLESALE & B2B LEADS
+  // ------------------------------------------------------------
+  if (wholesaleEnquiries && wholesaleEnquiries.length > 0) {
+    for (const ws of wholesaleEnquiries) {
+      const pReq = ws.productsRequired || ws.products || '';
+      const matchingProduct = products.find(
+        (p) => p.name.toLowerCase().includes(pReq.toLowerCase()) || pReq.toLowerCase().includes(p.name.toLowerCase())
+      );
+
+      const { growthScore, scoreBreakdown } = calculateGrowthOpportunityScore(
+        { type: 'WHOLESALE_LEAD_OPPORTUNITY', keyword: pReq || 'Bulk Wholesale' },
+        matchingProduct
+      );
+
+      addOpportunity({
+        id: `opp_ws_${ws.id || Math.random().toString(36).substring(2, 8)}`,
+        title: `B2B Wholesale Inquiry: ${ws.customerName || 'Salon Partner'} (${ws.approxQuantity || 'Bulk Quantity'})`,
+        description: `Received wholesale quotation request for "${pReq}" (${ws.approxQuantity || 'Custom volume'}). Priority B2B follow-up converts inquiries into recurring salon/wholesale supply contracts.`,
+        type: 'WHOLESALE_LEAD_OPPORTUNITY',
+        priority: 'P1_NOW',
+        status: 'NEW',
+        growthScore,
+        scoreBreakdown,
+        keyword: pReq || 'B2B Wholesale',
+        productId: matchingProduct?.id,
+        productName: matchingProduct?.name,
+        productSlug: matchingProduct?.slug,
+        source: 'WHOLESALE ENQUIRIES',
+        entityType: 'WHOLESALE',
+        entityId: ws.id,
+        categoryFilter: 'WHOLESALE',
+        confidence: 'HIGH',
+        evidence: `Wholesale request from ${ws.customerName} (${ws.city || 'India'}) for ${ws.approxQuantity || 'Bulk'}.`,
+        expectedBusinessImpact: 'High-ticket bulk commercial order.',
+        suggestedAction: 'PRIORITIZE_WHOLESALE_LEAD',
+        actionLabel: 'Follow-up on Wholesale Lead',
+        actionLink: '/admin/wholesale',
+        relevanceScore: 98,
+        freshnessStatus: 'Fresh',
+        createdAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  // ------------------------------------------------------------
+  // RULE 10, 11, 12, 13. PRODUCT CATALOG, CONTENT & METADATA AUDIT
   // ------------------------------------------------------------
   for (const p of products) {
     if (p.isActive === false) continue;
 
+    // Rule 10: Missing Guide
     const hasGuide = guides.some(
       (g) => g.slug.includes(p.slug) || (g.title && g.title.toLowerCase().includes(p.name.toLowerCase()))
     );
-
-    if (!hasGuide && !seenKeys.has(`missing_guide_${p.id}`)) {
-      seenKeys.add(`missing_guide_${p.id}`);
+    if (!hasGuide) {
       const { growthScore, scoreBreakdown } = calculateGrowthOpportunityScore(
         { type: 'MISSING_GUIDE', keyword: p.name },
         p
       );
 
-      opportunities.push({
+      addOpportunity({
         id: `opp_guide_${p.id}`,
-        title: `Content Gap: No Guide for "${p.name}"`,
+        title: `Content Gap: No Published Guide for "${p.name}"`,
         description: `Active product does not have a dedicated educational guide. Creating an Auto-Guide will capture top-of-funnel informational searches and drive product purchases.`,
         type: 'MISSING_GUIDE',
         priority: 'P2_NEXT',
@@ -707,6 +1063,13 @@ export function generateGrowthOpportunities(
         productId: p.id,
         productName: p.name,
         productSlug: p.slug,
+        source: 'CONTENT AUDIT',
+        entityType: 'PRODUCT',
+        entityId: p.id,
+        categoryFilter: 'CONTENT',
+        confidence: 'HIGH',
+        evidence: 'Zero published guides linked to this active product entity.',
+        expectedBusinessImpact: '+35% organic discovery and top-of-funnel traffic.',
         suggestedAction: 'CREATE_GUIDE_DRAFT',
         actionLabel: 'Generate Auto-Guide',
         actionLink: `/admin/guides`,
@@ -716,20 +1079,17 @@ export function generateGrowthOpportunities(
       });
     }
 
-    // ------------------------------------------------------------
-    // RULE F. MISSING REAL PRODUCT PHOTOGRAPHY (Fallback Image)
-    // ------------------------------------------------------------
+    // Rule 11: Missing Real Photography
     const usesFallbackImage = !p.images || p.images.length === 0 || p.images[0].includes('fallback');
-    if (usesFallbackImage && !seenKeys.has(`missing_img_${p.id}`)) {
-      seenKeys.add(`missing_img_${p.id}`);
+    if (usesFallbackImage) {
       const { growthScore, scoreBreakdown } = calculateGrowthOpportunityScore(
         { type: 'MISSING_IMAGE', keyword: p.name },
         p
       );
 
-      opportunities.push({
+      addOpportunity({
         id: `opp_img_${p.id}`,
-        title: `Visual Opportunity: Add Real Image for "${p.name}"`,
+        title: `Visual Opportunity: Missing Real Photography for "${p.name}"`,
         description: `Product currently uses an SVG placeholder image. Uploading genuine product photography increases add-to-cart conversion rate by over 40%.`,
         type: 'MISSING_IMAGE',
         priority: 'P1_NOW',
@@ -740,6 +1100,13 @@ export function generateGrowthOpportunities(
         productId: p.id,
         productName: p.name,
         productSlug: p.slug,
+        source: 'CATALOG AUDIT',
+        entityType: 'PRODUCT',
+        entityId: p.id,
+        categoryFilter: 'PRODUCT',
+        confidence: 'HIGH',
+        evidence: 'Product image is an SVG fallback placeholder.',
+        expectedBusinessImpact: '+40% buyer confidence and conversion rate.',
         suggestedAction: 'ADD_PRODUCT_IMAGE',
         actionLabel: 'Upload Product Photos',
         actionLink: `/admin/products/${p.id}`,
@@ -749,19 +1116,16 @@ export function generateGrowthOpportunities(
       });
     }
 
-    // ------------------------------------------------------------
-    // RULE H. INVENTORY & OUT-OF-STOCK RISK
-    // ------------------------------------------------------------
-    if (p.stockStatus === 'out_of_stock' && !seenKeys.has(`stock_${p.id}`)) {
-      seenKeys.add(`stock_${p.id}`);
+    // Rule 12: Inventory & Out-of-Stock Risk
+    if (p.stockStatus === 'out_of_stock') {
       const { growthScore, scoreBreakdown } = calculateGrowthOpportunityScore(
         { type: 'OUT_OF_STOCK_RISK', keyword: p.name },
         p
       );
 
-      opportunities.push({
+      addOpportunity({
         id: `opp_stock_${p.id}`,
-        title: `Commercial Risk: "${p.name}" is Out of Stock`,
+        title: `Inventory Risk: "${p.name}" is Out of Stock`,
         description: `Active product is marked out of stock. Updating stock status or manufacturing batch prevents lost customer orders.`,
         type: 'OUT_OF_STOCK_RISK',
         priority: 'P1_NOW',
@@ -772,6 +1136,13 @@ export function generateGrowthOpportunities(
         productId: p.id,
         productName: p.name,
         productSlug: p.slug,
+        source: 'STORE COMMERCE',
+        entityType: 'PRODUCT',
+        entityId: p.id,
+        categoryFilter: 'INVENTORY',
+        confidence: 'HIGH',
+        evidence: 'Product stockStatus is marked out_of_stock.',
+        expectedBusinessImpact: 'Prevent lost sales from organic search traffic.',
         suggestedAction: 'RESTOCK_PRODUCT',
         actionLabel: 'Update Stock Status',
         actionLink: `/admin/products/${p.id}`,
@@ -780,13 +1151,60 @@ export function generateGrowthOpportunities(
         createdAt: new Date().toISOString(),
       });
     }
+
+    // Rule 13: Product Content Incomplete (Botanical specifications)
+    const hasShortDesc = Boolean(p.shortDescription && p.shortDescription.trim().length >= 30);
+    const hasIngredients = Boolean(p.ingredients && p.ingredients.length > 0);
+    if (!hasShortDesc || !hasIngredients) {
+      const { growthScore, scoreBreakdown } = calculateGrowthOpportunityScore(
+        { type: 'PRODUCT_CONTENT_GAP', keyword: p.name },
+        p
+      );
+
+      addOpportunity({
+        id: `opp_content_${p.id}`,
+        title: `Content Gap: Enrich Botanical Details on "${p.name}"`,
+        description: `Product lacks detailed botanical specifications (ingredients / short description). Adding verified botanical properties increases customer trust and search relevance.`,
+        type: 'PRODUCT_CONTENT_GAP',
+        priority: 'P2_NEXT',
+        status: 'NEW',
+        growthScore,
+        scoreBreakdown,
+        keyword: p.name,
+        productId: p.id,
+        productName: p.name,
+        productSlug: p.slug,
+        source: 'CATALOG AUDIT',
+        entityType: 'PRODUCT',
+        entityId: p.id,
+        categoryFilter: 'PRODUCT',
+        confidence: 'HIGH',
+        evidence: `Missing fields: ${[!hasShortDesc && 'Short Description', !hasIngredients && 'Botanical Ingredients'].filter(Boolean).join(', ')}.`,
+        expectedBusinessImpact: '+20% customer trust and search relevance.',
+        suggestedAction: 'IMPROVE_PRODUCT_CONTENT',
+        actionLabel: 'Enrich Botanical Content',
+        actionLink: `/admin/products/${p.id}`,
+        relevanceScore: 84,
+        freshnessStatus: 'Fresh',
+        createdAt: new Date().toISOString(),
+      });
+    }
   }
 
   // ------------------------------------------------------------
-  // RULE G. KEYWORD CANNIBALIZATION DETECTION
+  // RULE 14. KEYWORD CANNIBALIZATION DETECTION
   // ------------------------------------------------------------
   const cannibalOpps = detectKeywordCannibalization(products, guides);
-  opportunities.push(...cannibalOpps);
+  for (const cOpp of cannibalOpps) {
+    addOpportunity({
+      ...cOpp,
+      source: 'CATALOG AUDIT',
+      categoryFilter: 'SEO',
+      confidence: 'HIGH',
+      evidence: `Conflicting products share identical primary keyword: "${cOpp.keyword}".`,
+      expectedBusinessImpact: 'Eliminate split rankings and consolidate Google link equity.',
+    });
+  }
 
   // Sort by growthScore descending
   return opportunities.sort((a, b) => (b.growthScore || 0) - (a.growthScore || 0));
@@ -858,6 +1276,87 @@ Discover the traditional benefits and authentic purity of ${pName} sourced direc
       };
     }
 
+    case 'MAP_SEARCH_SYNONYM': {
+      const text = `=== SEARCH SYNONYM ENTITY ALIGNMENT ===
+Entity: HENNA_MEHNDI
+Search Variant: "${kw}"
+Target Route: /categories/henna or /products/${product?.slug || 'sojat-pure-triple-shifted-henna-powder'}
+Resolution: Internal smart-router maps "${kw}" to primary Sojat Henna catalog without creating duplicate URL endpoints.`;
+
+      return {
+        type: 'MAP_SEARCH_SYNONYM',
+        title: `Search Synonym Alignment for "${kw}"`,
+        markdownContent: `\`\`\`text\n${text}\n\`\`\``,
+        copyableText: text,
+      };
+    }
+
+    case 'CREATE_REPEAT_REMINDER': {
+      const text = `=== REPEAT REORDER ENGAGEMENT DRAFT ===
+Product: ${pName}
+Customer Segment: Repeat Sojat Botanical Buyers
+Recommended Strategy:
+1. Provide 3-pack or 5-pack bulk value tier.
+2. Send WhatsApp replenishment reminder 45 days post-purchase.
+3. Offer recurring customer discount code: RETURNING5`;
+
+      return {
+        type: 'CREATE_REPEAT_REMINDER',
+        title: `Repeat Reorder Strategy for "${pName}"`,
+        markdownContent: `\`\`\`text\n${text}\n\`\`\``,
+        copyableText: text,
+      };
+    }
+
+    case 'PRIORITIZE_WHOLESALE_LEAD': {
+      const text = `=== B2B WHOLESALE LEAD ENGAGEMENT ===
+Target Product: ${pName}
+Priority: Immediate Sales Desk Follow-up
+Suggested Factory Terms:
+- Tier 1 (5kg–25kg): 15% wholesale discount
+- Tier 2 (25kg–100kg): 25% bulk packaging
+- Tier 3 (100kg+): Direct factory pallet rate with customized branding options`;
+
+      return {
+        type: 'PRIORITIZE_WHOLESALE_LEAD',
+        title: `B2B Wholesale Strategy for "${pName}"`,
+        markdownContent: `\`\`\`text\n${text}\n\`\`\``,
+        copyableText: text,
+      };
+    }
+
+    case 'IMPROVE_PRODUCT_CONTENT': {
+      const md = `### Botanical Content Enrichment Plan for "${pName}"
+
+1. **Verify Botanical Origin:** Harvested in Sojat, Pali District, Rajasthan (GI Origin).
+2. **Ingredient Transparency:** 100% pure, chemical-free Lawsonia inermis / natural botanicals.
+3. **Application Regimen:** Include preparation steps, resting time, and hair/skin application guidelines.
+4. **Packaging Photography:** Add real harvest packaging photos to replace any placeholder imagery.`;
+
+      return {
+        type: 'IMPROVE_PRODUCT_CONTENT',
+        title: `Content Enrichment for "${pName}"`,
+        markdownContent: md,
+        copyableText: md,
+      };
+    }
+
+    case 'REVIEW_CONVERSION': {
+      const md = `### Conversion Funnel Optimization Plan for "${pName}"
+
+1. **Above-the-fold Polish:** Prominently display verified customer reviews and Sojat GI origin trust badge.
+2. **Direct WhatsApp Action:** Verify "Order via WhatsApp" button is responsive with one-click prefilled message.
+3. **Pack Variant Clarity:** Clarify gram/kilogram weight pricing tiers.
+4. **COD & Delivery Assurance:** Emphasize free shipping threshold and fast dispatch from Sojat factory.`;
+
+      return {
+        type: 'REVIEW_CONVERSION',
+        title: `Conversion Optimization Plan for "${pName}"`,
+        markdownContent: md,
+        copyableText: md,
+      };
+    }
+
     case 'PREPARE_ADS_DRAFT': {
       const text = `=== GOOGLE SEARCH ADS DRAFT ===
 Headline 1: Pure Sojat Henna & Botanicals
@@ -912,7 +1411,8 @@ Final URL: https://muskydose.in/products/${product?.slug || ''}`;
 // 8. HIGH-PERFORMANCE PAGINATED DASHBOARD LOADER & ATTRIBUTION
 // ============================================================
 
-import { getRawAnalyticsEvents } from '@/lib/db/analytics-db';
+import { getRawAnalyticsEvents, getSearchInsights, getProductConversionFunnel } from '@/lib/db/analytics-db';
+import { getWholesaleEnquiries } from '@/lib/db/wholesale';
 import { GuideAttributionMetric } from './types';
 
 export async function getGuideAttributionSummary(
@@ -1017,6 +1517,7 @@ export async function getGrowthOpportunitiesDashboard(
     priority?: string;
     productId?: string;
     search?: string;
+    category?: string;
   } = {}
 ): Promise<{
   opportunities: GrowthOpportunity[];
@@ -1026,7 +1527,23 @@ export async function getGrowthOpportunitiesDashboard(
   limit: number;
   totalPages: number;
 }> {
-  const allOpps = generateGrowthOpportunities(products, verifiedKeywords, gscQueries, orders, guides);
+  // Fetch real first-party signals in parallel
+  const [searchInsights, productFunnels, wholesaleEnquiries] = await Promise.all([
+    getSearchInsights(30).catch(() => ({ topSearches: [], zeroResultSearches: [], totalSearches: 0 })),
+    getProductConversionFunnel(30).catch(() => []),
+    getWholesaleEnquiries().catch(() => []),
+  ]);
+
+  const allOpps = generateGrowthOpportunities(
+    products,
+    verifiedKeywords,
+    gscQueries,
+    orders,
+    guides,
+    searchInsights,
+    productFunnels,
+    wholesaleEnquiries
+  );
 
   // Compute overall stats
   let p1Count = 0;
@@ -1040,14 +1557,18 @@ export async function getGrowthOpportunitiesDashboard(
   let productsNeedingSeoCount = 0;
 
   for (const opp of allOpps) {
-    if (opp.priority === 'P1_NOW') p1Count++;
-    else if (opp.priority === 'P2_NEXT') p2Count++;
-    else p3Count++;
+    if (opp.priority === 'P1_NOW' || (opp.priority as string) === 'CRITICAL' || (opp.priority as string) === 'HIGH') {
+      p1Count++;
+    } else if (opp.priority === 'P2_NEXT' || (opp.priority as string) === 'MEDIUM') {
+      p2Count++;
+    } else {
+      p3Count++;
+    }
 
-    if (opp.type === 'HIGH_DEMAND_UNTARGETED') highDemandUntargetedCount++;
-    if (opp.type === 'GSC_RANKING_STRIKE') gscRankingStrikeCount++;
+    if (opp.type === 'HIGH_DEMAND_UNTARGETED' || opp.type === 'ZERO_RESULT_SEARCH') highDemandUntargetedCount++;
+    if (opp.type === 'GSC_RANKING_STRIKE' || opp.type === 'GSC_LOW_CTR') gscRankingStrikeCount++;
     if (opp.type === 'REGIONAL_MARKET_EXPANSION') regionalExpansionCount++;
-    if (opp.type === 'QUESTION_CONTENT_GAP') questionGapsCount++;
+    if (opp.type === 'QUESTION_CONTENT_GAP' || opp.type === 'MISSING_GUIDE') questionGapsCount++;
     if (opp.type === 'ADS_TARGETING_READY') adsDraftsCount++;
   }
 
@@ -1087,6 +1608,10 @@ export async function getGrowthOpportunitiesDashboard(
     filtered = filtered.filter((o) => o.type === params.type);
   }
 
+  if (params.category && params.category !== 'ALL') {
+    filtered = filtered.filter((o) => o.categoryFilter === params.category);
+  }
+
   if (params.productId) {
     filtered = filtered.filter((o) => o.productId === params.productId);
   }
@@ -1097,7 +1622,8 @@ export async function getGrowthOpportunitiesDashboard(
       (o) =>
         o.title.toLowerCase().includes(q) ||
         o.keyword.toLowerCase().includes(q) ||
-        (o.productName && o.productName.toLowerCase().includes(q))
+        (o.productName && o.productName.toLowerCase().includes(q)) ||
+        (o.evidence && o.evidence.toLowerCase().includes(q))
     );
   }
 

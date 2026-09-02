@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
     const priority = searchParams.get('priority') || undefined;
     const productId = searchParams.get('productId') || undefined;
     const search = searchParams.get('search') || searchParams.get('q') || undefined;
+    const category = searchParams.get('category') || undefined;
 
     const [products, keywords, categories, guides, orders, gscResult] = await Promise.all([
       getAllProductsAdmin(),
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest) {
       gscResult.queries,
       orders,
       guides,
-      { page, limit, type, priority, productId, search }
+      { page, limit, type, priority, productId, search, category }
     );
 
     const guideAttribution = await getGuideAttributionSummary(30, guides);

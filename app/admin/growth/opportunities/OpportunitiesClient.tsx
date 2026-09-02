@@ -62,8 +62,12 @@ export default function OpportunitiesClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters
-  const [activeTab, setActiveTab] = useState<'ALL' | 'P1' | 'SEO' | 'CONTENT' | 'CANNIBALIZATION' | 'ATTRIBUTION' | 'CATALOG'>('ALL');
+  // Filters & Sorting
+  type TabType = 'ALL' | 'P1' | 'SEO' | 'SEARCH' | 'CONVERSION' | 'PRODUCT' | 'INVENTORY' | 'WHOLESALE' | 'CONTENT' | 'ATTRIBUTION' | 'CATALOG';
+  type SortType = 'SCORE' | 'PRIORITY' | 'NEWEST' | 'IMPACT';
+
+  const [activeTab, setActiveTab] = useState<TabType>('ALL');
+  const [sortBy, setSortBy] = useState<SortType>('SCORE');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProductFilter, setSelectedProductFilter] = useState<string>('ALL');
 
@@ -110,9 +114,13 @@ export default function OpportunitiesClient() {
       if (selectedProductFilter !== 'ALL') url += `&productId=${encodeURIComponent(selectedProductFilter)}`;
 
       if (activeTab === 'P1') url += `&priority=P1_NOW`;
-      else if (activeTab === 'SEO') url += `&type=METADATA_INCOMPLETE`;
-      else if (activeTab === 'CONTENT') url += `&type=MISSING_GUIDE`;
-      else if (activeTab === 'CANNIBALIZATION') url += `&type=CANNIBALIZATION_RISK`;
+      else if (activeTab === 'SEO') url += `&category=SEO`;
+      else if (activeTab === 'SEARCH') url += `&category=SEARCH`;
+      else if (activeTab === 'CONVERSION') url += `&category=CONVERSION`;
+      else if (activeTab === 'PRODUCT') url += `&category=PRODUCT`;
+      else if (activeTab === 'INVENTORY') url += `&category=INVENTORY`;
+      else if (activeTab === 'WHOLESALE') url += `&category=WHOLESALE`;
+      else if (activeTab === 'CONTENT') url += `&category=CONTENT`;
 
       const res = await fetch(url, {
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
@@ -202,6 +210,22 @@ export default function OpportunitiesClient() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const sortedOpportunities = [...opportunities].sort((a, b) => {
+    if (sortBy === 'PRIORITY') {
+      const pMap = { P1_NOW: 3, CRITICAL: 3, HIGH: 3, P2_NEXT: 2, MEDIUM: 2, P3_LATER: 1, LOW: 1 };
+      const pA = pMap[a.priority as keyof typeof pMap] || 1;
+      const pB = pMap[b.priority as keyof typeof pMap] || 1;
+      return pB - pA || (b.growthScore || 0) - (a.growthScore || 0);
+    }
+    if (sortBy === 'NEWEST') {
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }
+    if (sortBy === 'IMPACT') {
+      return (b.growthScore || 0) - (a.growthScore || 0);
+    }
+    return (b.growthScore || 0) - (a.growthScore || 0);
+  });
+
   return (
     <div className="space-y-8 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       {/* Top Header */}
@@ -218,7 +242,7 @@ export default function OpportunitiesClient() {
             Growth &amp; Opportunity Center
           </h1>
           <p className="text-sm text-stone-600 mt-1">
-            Deterministic Demand &rarr; Content Opportunities &rarr; Commerce Attribution Loop
+            Real Data Signals &rarr; Deterministic Opportunities &rarr; Human Approval &amp; Action
           </p>
         </div>
 
@@ -233,7 +257,7 @@ export default function OpportunitiesClient() {
           <button
             onClick={() => fetchOpportunities()}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-[#183F2B] rounded-lg hover:bg-[#133222] transition disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-[#183F2B] rounded-lg hover:bg-[#133222] transition disabled:opacity-50 cursor-pointer"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh Opportunities
@@ -272,7 +296,7 @@ export default function OpportunitiesClient() {
               <button
                 onClick={handleSyncGsc}
                 disabled={syncingGsc}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-900 bg-white border border-emerald-300 rounded-lg hover:bg-emerald-100 transition disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-900 bg-white border border-emerald-300 rounded-lg hover:bg-emerald-100 transition disabled:opacity-50 cursor-pointer"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${syncingGsc ? 'animate-spin' : ''}`} />
                 {syncingGsc ? 'Syncing...' : 'Sync GSC Now'}
@@ -296,7 +320,7 @@ export default function OpportunitiesClient() {
               <AlertCircle className="w-4 h-4" />
             </div>
             <div className="text-2xl font-extrabold text-stone-900">{stats.p1Count}</div>
-            <div className="text-[11px] text-stone-500 mt-0.5">Immediate actions</div>
+            <div className="text-[11px] text-stone-500 mt-0.5">Critical actions</div>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-amber-100 shadow-sm">
@@ -313,8 +337,10 @@ export default function OpportunitiesClient() {
               <span className="text-xs font-bold uppercase tracking-wider">Growth Score</span>
               <TrendingUp className="w-4 h-4" />
             </div>
-            <div className="text-2xl font-extrabold text-stone-900">88/100</div>
-            <div className="text-[11px] text-stone-500 mt-0.5">Avg high priority</div>
+            <div className="text-2xl font-extrabold text-stone-900">
+              {opportunities.length > 0 ? Math.round(opportunities.reduce((sum, o) => sum + (o.growthScore || 0), 0) / opportunities.length) : 0}/100
+            </div>
+            <div className="text-[11px] text-stone-500 mt-0.5">Avg pipeline score</div>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
@@ -337,7 +363,7 @@ export default function OpportunitiesClient() {
 
           <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
             <div className="flex items-center justify-between text-stone-700 mb-1">
-              <span className="text-xs font-bold uppercase tracking-wider">Avg Health</span>
+              <span className="text-xs font-bold uppercase tracking-wider">Catalog SEO</span>
               <BarChart3 className="w-4 h-4 text-emerald-600" />
             </div>
             <div className="text-2xl font-extrabold text-emerald-700">{stats.averageSeoHealthScore}%</div>
@@ -351,7 +377,7 @@ export default function OpportunitiesClient() {
         <div className="flex items-center gap-1 overflow-x-auto pb-px">
           <button
             onClick={() => setActiveTab('ALL')}
-            className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap ${
+            className={`px-3.5 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap cursor-pointer ${
               activeTab === 'ALL'
                 ? 'border-emerald-700 text-emerald-900 bg-emerald-50/50'
                 : 'border-transparent text-stone-600 hover:text-stone-900'
@@ -361,68 +387,123 @@ export default function OpportunitiesClient() {
           </button>
           <button
             onClick={() => setActiveTab('P1')}
-            className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap ${
+            className={`px-3.5 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap cursor-pointer ${
               activeTab === 'P1'
                 ? 'border-red-600 text-red-900 bg-red-50/50'
                 : 'border-transparent text-stone-600 hover:text-stone-900'
             }`}
           >
-            🔴 P1 Immediate ({stats?.p1Count || 0})
+            🔴 Critical / P1 ({stats?.p1Count || 0})
           </button>
           <button
             onClick={() => setActiveTab('SEO')}
-            className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap ${
+            className={`px-3.5 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap cursor-pointer ${
               activeTab === 'SEO'
                 ? 'border-blue-600 text-blue-900 bg-blue-50/50'
                 : 'border-transparent text-stone-600 hover:text-stone-900'
             }`}
           >
-            🎯 SEO &amp; Metadata
+            🎯 SEO
           </button>
           <button
-            onClick={() => setActiveTab('CONTENT')}
-            className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap ${
-              activeTab === 'CONTENT'
-                ? 'border-purple-600 text-purple-900 bg-purple-50/50'
+            onClick={() => setActiveTab('SEARCH')}
+            className={`px-3.5 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap cursor-pointer ${
+              activeTab === 'SEARCH'
+                ? 'border-cyan-600 text-cyan-900 bg-cyan-50/50'
                 : 'border-transparent text-stone-600 hover:text-stone-900'
             }`}
           >
-            📚 Guides &amp; FAQs
+            🔍 Search Demand
           </button>
           <button
-            onClick={() => setActiveTab('CANNIBALIZATION')}
-            className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap ${
-              activeTab === 'CANNIBALIZATION'
+            onClick={() => setActiveTab('CONVERSION')}
+            className={`px-3.5 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap cursor-pointer ${
+              activeTab === 'CONVERSION'
+                ? 'border-indigo-600 text-indigo-900 bg-indigo-50/50'
+                : 'border-transparent text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            ⚡ Conversion
+          </button>
+          <button
+            onClick={() => setActiveTab('PRODUCT')}
+            className={`px-3.5 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap cursor-pointer ${
+              activeTab === 'PRODUCT'
+                ? 'border-emerald-600 text-emerald-900 bg-emerald-50/50'
+                : 'border-transparent text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            🌿 Product
+          </button>
+          <button
+            onClick={() => setActiveTab('INVENTORY')}
+            className={`px-3.5 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap cursor-pointer ${
+              activeTab === 'INVENTORY'
                 ? 'border-amber-600 text-amber-900 bg-amber-50/50'
                 : 'border-transparent text-stone-600 hover:text-stone-900'
             }`}
           >
-            ⚠️ Cannibalization Alerts
+            📦 Inventory
+          </button>
+          <button
+            onClick={() => setActiveTab('WHOLESALE')}
+            className={`px-3.5 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap cursor-pointer ${
+              activeTab === 'WHOLESALE'
+                ? 'border-purple-600 text-purple-900 bg-purple-50/50'
+                : 'border-transparent text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            💼 Wholesale
+          </button>
+          <button
+            onClick={() => setActiveTab('CONTENT')}
+            className={`px-3.5 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap cursor-pointer ${
+              activeTab === 'CONTENT'
+                ? 'border-emerald-700 text-emerald-900 bg-emerald-50/50'
+                : 'border-transparent text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            📚 Content &amp; Guides
           </button>
           <button
             onClick={() => setActiveTab('ATTRIBUTION')}
-            className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap ${
+            className={`px-3.5 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap cursor-pointer ${
               activeTab === 'ATTRIBUTION'
                 ? 'border-emerald-700 text-emerald-900 bg-emerald-50/50'
                 : 'border-transparent text-stone-600 hover:text-stone-900'
             }`}
           >
-            📊 Guide &rarr; Commerce Attribution
+            📊 Attribution
           </button>
           <button
             onClick={() => setActiveTab('CATALOG')}
-            className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap ${
+            className={`px-3.5 py-2.5 text-xs font-semibold border-b-2 transition whitespace-nowrap cursor-pointer ${
               activeTab === 'CATALOG'
                 ? 'border-stone-800 text-stone-900 bg-stone-100'
                 : 'border-transparent text-stone-600 hover:text-stone-900'
             }`}
           >
-            📦 Catalog SEO Health ({productSummaries.length})
+            📋 Catalog Health ({productSummaries.length})
           </button>
         </div>
 
-        {/* Search and Product Filters */}
-        <div className="flex items-center gap-2 pb-2">
+        {/* Search, Filter & Sort Controls */}
+        <div className="flex items-center gap-2 pb-2 flex-wrap">
+          <div className="flex items-center gap-1.5 text-xs text-stone-600">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-stone-400" />
+            <span className="font-semibold">Sort:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortType)}
+              className="px-2 py-1 text-xs bg-white border border-stone-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-600 cursor-pointer"
+            >
+              <option value="SCORE">Growth Score</option>
+              <option value="PRIORITY">Priority</option>
+              <option value="NEWEST">Newest</option>
+              <option value="IMPACT">Business Impact</option>
+            </select>
+          </div>
+
           <div className="relative">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
             <input
@@ -430,7 +511,7 @@ export default function OpportunitiesClient() {
               placeholder="Search opportunities..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 pr-3 py-1.5 text-xs bg-white border border-stone-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-600 w-48 sm:w-60"
+              className="pl-8 pr-3 py-1.5 text-xs bg-white border border-stone-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-600 w-44 sm:w-56"
             />
           </div>
         </div>
@@ -454,10 +535,11 @@ export default function OpportunitiesClient() {
                 <tr>
                   <th className="px-4 py-3">Product Name</th>
                   <th className="px-4 py-3">Category</th>
-                  <th className="px-4 py-3">SEO Health</th>
-                  <th className="px-4 py-3">Metadata</th>
-                  <th className="px-4 py-3">Keywords</th>
-                  <th className="px-4 py-3">Internal Links</th>
+                  <th className="px-4 py-3">Price</th>
+                  <th className="px-4 py-3 text-center">Health Score</th>
+                  <th className="px-4 py-3">Metadata Status</th>
+                  <th className="px-4 py-3">Keyword Coverage</th>
+                  <th className="px-4 py-3">Internal Linking</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -471,32 +553,27 @@ export default function OpportunitiesClient() {
                         <div className="text-[11px] text-stone-400 font-mono">/products/{p.slug}</div>
                       </td>
                       <td className="px-4 py-3.5 text-stone-600">{p.categoryName}</td>
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full font-bold text-[11px] ${
-                              h.rating === 'EXCELLENT'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : h.rating === 'GOOD'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-red-100 text-red-800'
-                            }`}
-                          >
-                            {h.overallScore}% — {h.rating}
-                          </span>
-                        </div>
+                      <td className="px-4 py-3.5 font-medium text-stone-900">₹{p.price}</td>
+                      <td className="px-4 py-3.5 text-center">
+                        <span className={`px-2.5 py-1 rounded-full font-bold text-xs ${
+                          h.overallScore >= 80 ? 'bg-emerald-100 text-emerald-800' :
+                          h.overallScore >= 50 ? 'bg-amber-100 text-amber-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {h.overallScore}%
+                        </span>
                       </td>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-1.5">
-                          {h.breakdown.hasSeoTitle ? (
-                            <span title="SEO Title OK"><CheckCircle2 className="w-4 h-4 text-emerald-600" /></span>
+                          {h.breakdown.titleLengthValid ? (
+                            <span title="Title OK"><CheckCircle2 className="w-4 h-4 text-emerald-600" /></span>
                           ) : (
-                            <span title="Missing Title"><AlertCircle className="w-4 h-4 text-red-500" /></span>
+                            <span title="Title Issue"><AlertCircle className="w-4 h-4 text-amber-500" /></span>
                           )}
                           <span className="text-stone-600">Title</span>
                           <span className="text-stone-300">|</span>
-                          {h.breakdown.hasSeoDescription ? (
-                            <span title="SEO Description OK"><CheckCircle2 className="w-4 h-4 text-emerald-600" /></span>
+                          {h.breakdown.descriptionLengthValid ? (
+                            <span title="Description OK"><CheckCircle2 className="w-4 h-4 text-emerald-600" /></span>
                           ) : (
                             <span title="Missing Description"><AlertCircle className="w-4 h-4 text-red-500" /></span>
                           )}
@@ -615,135 +692,170 @@ export default function OpportunitiesClient() {
               <RefreshCw className="w-6 h-6 animate-spin mx-auto text-emerald-600 mb-2" />
               Loading prioritized growth opportunities...
             </div>
-          ) : opportunities.length === 0 ? (
+          ) : sortedOpportunities.length === 0 ? (
             <div className="p-12 text-center text-stone-500 text-xs bg-white rounded-xl border border-stone-200">
               <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-600 mb-2" />
               Everything looks healthy right now. No opportunities matching this filter.
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-3">
-              {opportunities.map((opp) => (
-                <div
-                  key={opp.id}
-                  className="bg-white p-4 sm:p-5 rounded-xl border border-stone-200 shadow-sm hover:border-emerald-300 transition flex flex-col md:flex-row md:items-center justify-between gap-4"
-                >
-                  <div className="space-y-2 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {/* Score Badge */}
-                      {opp.growthScore !== undefined && (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-extrabold bg-emerald-800 text-white shadow-xs">
-                          ★ Score: {opp.growthScore}/100
-                        </span>
-                      )}
+            <div className="grid grid-cols-1 gap-3.5">
+              {sortedOpportunities.map((opp) => {
+                const sourceBadgeStyle =
+                  opp.source === 'GOOGLE SEARCH CONSOLE' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                  opp.source === 'INTERNAL SITE SEARCH' ? 'bg-cyan-100 text-cyan-800 border-cyan-200' :
+                  opp.source === 'STORE ANALYTICS' ? 'bg-indigo-100 text-indigo-800 border-indigo-200' :
+                  opp.source === 'STORE COMMERCE' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+                  opp.source === 'WHOLESALE ENQUIRIES' ? 'bg-purple-100 text-purple-800 border-purple-200' :
+                  'bg-stone-100 text-stone-800 border-stone-200';
 
-                      {opp.priority === 'P1_NOW' ? (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800 border border-red-200">
-                          P1 NOW
-                        </span>
-                      ) : opp.priority === 'P2_NEXT' ? (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                          P2 NEXT
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
-                          P3 LATER
-                        </span>
-                      )}
+                return (
+                  <div
+                    key={opp.id}
+                    className="bg-white p-4 sm:p-5 rounded-xl border border-stone-200 shadow-sm hover:border-emerald-400 transition flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                  >
+                    <div className="space-y-2.5 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Growth Score Badge */}
+                        {opp.growthScore !== undefined && (
+                          <span className="px-2.5 py-0.5 rounded text-[11px] font-extrabold bg-[#183F2B] text-white shadow-xs">
+                            ★ Score: {opp.growthScore}/100
+                          </span>
+                        )}
 
-                      <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider">
-                        {opp.type.replace(/_/g, ' ')}
-                      </span>
+                        {/* Priority Badge */}
+                        {opp.priority === 'P1_NOW' || (opp.priority as string) === 'CRITICAL' || (opp.priority as string) === 'HIGH' ? (
+                          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800 border border-red-200">
+                            P1 CRITICAL
+                          </span>
+                        ) : opp.priority === 'P2_NEXT' || (opp.priority as string) === 'MEDIUM' ? (
+                          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                            P2 NEXT
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                            P3 LATER
+                          </span>
+                        )}
 
-                      {opp.status && (
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
-                          opp.status === 'APPLIED' ? 'bg-emerald-100 text-emerald-800' :
-                          opp.status === 'APPROVED' ? 'bg-blue-100 text-blue-800' :
-                          opp.status === 'DISMISSED' ? 'bg-stone-200 text-stone-600' :
-                          'bg-stone-100 text-stone-700'
-                        }`}>
-                          {opp.status}
+                        {/* Source Badge */}
+                        {opp.source && (
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${sourceBadgeStyle}`}>
+                            {opp.source}
+                          </span>
+                        )}
+
+                        {/* Type Label */}
+                        <span className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider">
+                          {opp.type.replace(/_/g, ' ')}
                         </span>
-                      )}
-                    </div>
 
-                    <h4 className="text-base font-bold text-stone-900">{opp.title}</h4>
-                    <p className="text-xs text-stone-600 leading-relaxed max-w-3xl">{opp.description}</p>
-
-                    {/* Cannibalization Details if present */}
-                    {opp.cannibalizationDetails && (
-                      <div className="bg-amber-50/70 p-3 rounded-lg border border-amber-200 text-xs text-amber-900 space-y-1">
-                        <div className="font-bold flex items-center gap-1.5 text-amber-950">
-                          <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                          <span>Conflicting Pages:</span>
-                        </div>
-                        <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-800">
-                          {opp.cannibalizationDetails.conflictingPages.map((cp, idx) => (
-                            <li key={idx}>
-                              <span className="font-semibold">{cp.title}</span> ({cp.url}) — Intent: {cp.intent}
-                            </li>
-                          ))}
-                        </ul>
-                        <div className="text-[11px] text-amber-900 pt-1 font-medium">
-                          💡 Suggestion: {opp.cannibalizationDetails.resolutionSuggestion}
-                        </div>
+                        {/* Status Badge */}
+                        {opp.status && (
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
+                            opp.status === 'APPLIED' || opp.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' :
+                            opp.status === 'DISMISSED' ? 'bg-stone-200 text-stone-600' :
+                            'bg-stone-100 text-stone-700'
+                          }`}>
+                            {opp.status}
+                          </span>
+                        )}
                       </div>
-                    )}
 
-                    {/* Performance / Metric Tags */}
-                    <div className="flex items-center gap-3 text-[11px] text-stone-500 pt-1 flex-wrap">
-                      {opp.marketDemand?.searchVolume && (
-                        <span className="font-semibold text-stone-700">
-                          Volume: {opp.marketDemand.searchVolume.toLocaleString()}/mo
-                        </span>
+                      <h4 className="text-base font-bold text-stone-900">{opp.title}</h4>
+                      <p className="text-xs text-stone-600 leading-relaxed max-w-3xl">{opp.description}</p>
+
+                      {/* Exact Evidence Box */}
+                      {opp.evidence && (
+                        <div className="bg-stone-50 p-2.5 rounded-lg border border-stone-200 text-xs text-stone-700 flex items-start gap-2">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold text-stone-900">Verified Evidence: </span>
+                            <span>{opp.evidence}</span>
+                          </div>
+                        </div>
                       )}
-                      {opp.gscPerformance && (
-                        <>
-                          <span className="text-emerald-700 font-semibold">
-                            GSC Impressions: {opp.gscPerformance.impressions}
+
+                      {/* Cannibalization Details if present */}
+                      {opp.cannibalizationDetails && (
+                        <div className="bg-amber-50/70 p-3 rounded-lg border border-amber-200 text-xs text-amber-900 space-y-1">
+                          <div className="font-bold flex items-center gap-1.5 text-amber-950">
+                            <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Conflicting Pages:</span>
+                          </div>
+                          <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-800">
+                            {opp.cannibalizationDetails.conflictingPages.map((cp, idx) => (
+                              <li key={idx}>
+                                <span className="font-semibold">{cp.title}</span> ({cp.url}) — Intent: {cp.intent}
+                              </li>
+                            ))}
+                          </ul>
+                          <div className="text-[11px] text-amber-900 pt-1 font-medium">
+                            💡 Suggestion: {opp.cannibalizationDetails.resolutionSuggestion}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Performance / Expected Impact Tags */}
+                      <div className="flex items-center gap-3 text-[11px] text-stone-500 pt-1 flex-wrap">
+                        {opp.expectedBusinessImpact && (
+                          <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                            <TrendingUp className="w-3.5 h-3.5" />
+                            Impact: {opp.expectedBusinessImpact}
                           </span>
-                          <span className="text-stone-700">
-                            Avg Pos: #{opp.gscPerformance.position?.toFixed(1)}
+                        )}
+                        {opp.productName && (
+                          <span className="text-stone-700 font-medium">
+                            Affected Entity: <span className="font-semibold text-stone-900">{opp.productName}</span>
                           </span>
-                        </>
-                      )}
-                      {opp.productName && (
-                        <span className="text-stone-700 font-medium">
-                          Mapped Product: <span className="font-semibold">{opp.productName}</span>
-                        </span>
-                      )}
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action & Approval Controls */}
+                    <div className="flex flex-row lg:flex-col items-center lg:items-end gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-stone-100">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleGenerateDraft(opp)}
+                          disabled={draftLoading}
+                          className="px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition inline-flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                          {opp.actionLabel || 'Action Draft'}
+                        </button>
+
+                        {opp.actionLink && (
+                          <Link
+                            href={opp.actionLink}
+                            className="px-3 py-1.5 text-xs font-semibold text-white bg-[#183F2B] rounded-lg hover:bg-[#133222] transition inline-flex items-center gap-1 shadow-xs"
+                          >
+                            Open &rarr;
+                          </Link>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5 mt-1">
+                        {opp.status !== 'APPROVED' && (
+                          <button
+                            onClick={() => handleUpdateStatus(opp.id, 'APPROVED')}
+                            className="px-2.5 py-1 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition cursor-pointer"
+                            title="Approve opportunity"
+                          >
+                            Approve
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => handleUpdateStatus(opp.id, opp.status === 'DISMISSED' ? 'NEW' : 'DISMISSED')}
+                          className="px-2.5 py-1 text-[11px] font-medium text-stone-500 hover:text-stone-800 rounded hover:bg-stone-100 transition cursor-pointer"
+                          title={opp.status === 'DISMISSED' ? 'Restore' : 'Dismiss'}
+                        >
+                          {opp.status === 'DISMISSED' ? 'Restore' : 'Dismiss'}
+                        </button>
+                      </div>
                     </div>
                   </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => handleGenerateDraft(opp)}
-                      disabled={draftLoading}
-                      className="px-3.5 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition inline-flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                      {opp.actionLabel || 'Generate Action Draft'}
-                    </button>
-
-                    {opp.actionLink && (
-                      <Link
-                        href={opp.actionLink}
-                        className="px-3.5 py-2 text-xs font-semibold text-white bg-[#183F2B] rounded-lg hover:bg-[#133222] transition inline-flex items-center gap-1 shadow-xs"
-                      >
-                        Open Editor &rarr;
-                      </Link>
-                    )}
-
-                    <button
-                      onClick={() => handleUpdateStatus(opp.id, opp.status === 'DISMISSED' ? 'NEW' : 'DISMISSED')}
-                      className="p-2 text-stone-400 hover:text-stone-700 rounded-lg hover:bg-stone-100 transition text-xs"
-                      title={opp.status === 'DISMISSED' ? 'Restore' : 'Dismiss'}
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

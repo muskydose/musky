@@ -391,20 +391,38 @@ export type GrowthOpportunityPriority = 'P1_NOW' | 'P2_NEXT' | 'P3_LATER';
 
 export type GrowthOpportunityType =
   | 'HIGH_DEMAND_UNTARGETED'
-  | 'GSC_RANKING_STRIKE'
   | 'GSC_LOW_CTR'
+  | 'GSC_RANKING_STRIKE'
+  | 'ZERO_RESULT_SEARCH'
+  | 'HIGH_SEARCH_LOW_CONVERSION'
+  | 'HIGH_TRAFFIC_LOW_ATC'
+  | 'HIGH_ATC_LOW_PURCHASE'
+  | 'MISSING_GUIDE'
+  | 'MISSING_REAL_IMAGE'
+  | 'MISSING_IMAGE'
+  | 'OUT_OF_STOCK_RISK'
+  | 'REPEAT_PURCHASE_OPPORTUNITY'
+  | 'WHOLESALE_LEAD_OPPORTUNITY'
+  | 'CANNIBALIZATION_RISK'
+  | 'SEO_CANNIBALIZATION'
+  | 'PRODUCT_CONTENT_GAP'
+  | 'SUPPORTING_CONTENT_GAP'
+  | 'SEARCH_SYNONYM_OPPORTUNITY'
+  | 'METADATA_INCOMPLETE'
   | 'LONGTAIL_UNCOVERED'
   | 'QUESTION_CONTENT_GAP'
   | 'REGIONAL_MARKET_EXPANSION'
-  | 'METADATA_INCOMPLETE'
-  | 'MISSING_GUIDE'
-  | 'MISSING_IMAGE'
   | 'TRAFFIC_LEAK'
-  | 'ZERO_RESULT_SEARCH'
-  | 'CANNIBALIZATION_RISK'
-  | 'OUT_OF_STOCK_RISK'
-  | 'SUPPORTING_CONTENT_GAP'
   | 'ADS_TARGETING_READY';
+
+export type GrowthOpportunityCategory =
+  | 'SEO'
+  | 'SEARCH'
+  | 'CONVERSION'
+  | 'PRODUCT'
+  | 'INVENTORY'
+  | 'WHOLESALE'
+  | 'CONTENT';
 
 export type GrowthOpportunityAction =
   | 'OPTIMIZE_PRODUCT'
@@ -416,18 +434,26 @@ export type GrowthOpportunityAction =
   | 'RESTOCK_PRODUCT'
   | 'CREATE_LANDING_PAGE_DRAFT'
   | 'PREPARE_ADS_DRAFT'
-  | 'ADD_INTERNAL_LINKS';
+  | 'ADD_INTERNAL_LINKS'
+  | 'MAP_SEARCH_SYNONYM'
+  | 'CREATE_REPEAT_REMINDER'
+  | 'PRIORITIZE_WHOLESALE_LEAD'
+  | 'IMPROVE_PRODUCT_CONTENT';
 
-export type OpportunityStatus = 'NEW' | 'REVIEWING' | 'APPROVED' | 'APPLIED' | 'DISMISSED';
+export type OpportunityStatus = 'NEW' | 'REVIEWING' | 'APPROVED' | 'APPLIED' | 'DISMISSED' | 'OPEN' | 'IN_PROGRESS' | 'DONE';
 
 export interface GrowthOpportunity {
   id: string;
+  opportunityId?: string;
   title: string;
   description: string;
+  shortReason?: string;
+  evidence?: string;
   type: GrowthOpportunityType;
   priority: GrowthOpportunityPriority;
   status?: OpportunityStatus;
   growthScore?: number; // 0 to 100 deterministic score
+  score?: number;
   scoreBreakdown?: {
     demand: number;
     visibilityGap: number;
@@ -435,6 +461,13 @@ export interface GrowthOpportunity {
     commercialValue: number;
     contentReadiness: number;
   };
+  source?: string;
+  entityType?: 'PRODUCT' | 'GUIDE' | 'SEARCH_QUERY' | 'CATEGORY' | 'WHOLESALE' | 'MARKET';
+  entityId?: string;
+  categoryFilter?: GrowthOpportunityCategory;
+  recommendedAction?: string;
+  expectedBusinessImpact?: string;
+  confidence?: 'HIGH' | 'MEDIUM' | 'LOW';
   keyword: string;
   productId?: string;
   productName?: string;
