@@ -105,6 +105,26 @@ export function calculateIntentScore(events: IntentEventPayload[]): {
   return { score, level, reasons };
 }
 
+export type BulkTierClassification = 'LOW_BULK' | 'MEDIUM_BULK' | 'HIGH_BULK' | 'RETAIL_QUANTITY';
+
+export function classifyBulkQuantity(quantity?: string | number): BulkTierClassification {
+  if (!quantity) return 'LOW_BULK';
+  const qStr = String(quantity).toLowerCase();
+  const numMatch = qStr.match(/\d+(\.\d+)?/);
+  const num = numMatch ? parseFloat(numMatch[0]) : 0;
+
+  if (qStr.includes('ton') || num >= 100 || (qStr.includes('kg') && num >= 100)) {
+    return 'HIGH_BULK'; // > 100kg
+  }
+  if ((qStr.includes('kg') && num >= 25) || num >= 25) {
+    return 'MEDIUM_BULK'; // 25kg - 100kg
+  }
+  if (num > 1 || qStr.includes('kg') || qStr.includes('pack') || qStr.includes('box')) {
+    return 'LOW_BULK'; // < 25kg
+  }
+  return 'RETAIL_QUANTITY';
+}
+
 export function calculateCommercialRelevanceScore(
   leadType: CentralLeadType,
   requirement?: string,
@@ -124,20 +144,23 @@ export function calculateCommercialRelevanceScore(
     reasons.push('Retail consumer buyer profile (+15)');
   }
 
-  const qStr = String(quantity || '').toLowerCase();
+  const bulkTier = classifyBulkQuantity(quantity);
   const reqStr = String(requirement || '').toLowerCase();
 
-  if (qStr.includes('kg') || qStr.includes('ton') || reqStr.includes('bulk') || reqStr.includes('wholesale')) {
-    score += 30;
-    reasons.push('Bulk volume or weight requirement specified (+30)');
-  } else if (qStr && parseInt(qStr, 10) > 1) {
+  if (bulkTier === 'HIGH_BULK') {
+    score += 35;
+    reasons.push('High-bulk commercial volume (100kg+ or Tons, +35)');
+  } else if (bulkTier === 'MEDIUM_BULK') {
+    score += 25;
+    reasons.push('Medium-bulk wholesale volume (25kg–100kg, +25)');
+  } else if (bulkTier === 'LOW_BULK') {
     score += 15;
-    reasons.push('Multi-unit volume requirement (+15)');
+    reasons.push('Standard commercial/trial volume (<25kg, +15)');
   }
 
   if (reqStr.includes('quote') || reqStr.includes('price') || reqStr.includes('rate') || reqStr.includes('sample')) {
-    score += 25;
-    reasons.push('Specific pricing/sample inquiry (+25)');
+    score += 20;
+    reasons.push('Specific pricing/sample inquiry (+20)');
   }
 
   return { score: Math.min(100, score), reasons };
@@ -224,9 +247,17 @@ export async function saveLead(
   }
 
   // Calculate scores
-  const events: IntentEventPayload[] = [
-    { eventType: source === 'WHOLESALE_ENQUIRY' ? 'WHOLESALE_SUBMITTED' : 'WHATSAPP_CLICK', quantity },
-  ];
+  const events: IntentEventPayload[] = [];
+  if (source === 'WHOLESALE_ENQUIRY') {
+    events.push({ eventType: 'WHOLESALE_SUBMITTED', quantity });
+    events.push({ eventType: 'ENQUIRY_SUBMITTED' });
+    if (quantity) events.push({ eventType: 'BULK_INTERACTION', quantity });
+  } else if (source === 'BULK_ENQUIRY') {
+    events.push({ eventType: 'BULK_INTERACTION', quantity });
+    events.push({ eventType: 'ENQUIRY_SUBMITTED' });
+  } else {
+    events.push({ eventType: 'WHATSAPP_CLICK', quantity });
+  }
   if (productId) events.push({ eventType: 'PRODUCT_VIEW', productId });
   if (sourceQuery) events.push({ eventType: 'SEARCH_CLICK', query: sourceQuery });
   if (params.intentScore) events.push({ eventType: 'ENQUIRY_SUBMITTED' });

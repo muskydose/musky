@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import {
   getWholesaleEnquiriesPaginated,
   saveWholesaleEnquiry,
@@ -9,6 +9,8 @@ import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
 import { recordAuditLog } from '@/lib/auth';
 import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limit';
 import { sanitizeAdminError, createSuccessResponse, getRequestId } from '@/lib/api-errors';
+import { saveLead } from '@/lib/growth/lead-engine';
+import { CentralLeadType } from '@/lib/growth/types';
 
 export async function GET(req: NextRequest) {
   const requestId = getRequestId();
@@ -120,6 +122,42 @@ export async function POST(req: NextRequest) {
     };
 
     const saved = await saveWholesaleEnquiry(safeEnquiryData);
+
+    // Sync into central Lead Engine
+    try {
+      let mappedType: CentralLeadType = 'WHOLESALE';
+      const pReqLower = productsRequired.toLowerCase();
+      const nLower = `${customerName} ${businessName} ${notes}`.toLowerCase();
+      if (nLower.includes('artist') || nLower.includes('mehndi') || pReqLower.includes('artist')) {
+        mappedType = 'MEHNDI_ARTIST';
+      } else if (nLower.includes('salon') || nLower.includes('parlour') || nLower.includes('spa')) {
+        mappedType = 'SALON';
+      } else if (nLower.includes('reseller') || nLower.includes('distributor')) {
+        mappedType = 'RESELLER';
+      }
+
+      await saveLead({
+        name: customerName,
+        mobile: cleanPhone,
+        whatsapp: body.whatsapp ? String(body.whatsapp).replace(/\D/g, '') : cleanPhone,
+        email: email || undefined,
+        leadType: mappedType,
+        source: 'WHOLESALE_ENQUIRY',
+        requirement: `${productsRequired}${notes ? ` | Notes: ${notes}` : ''}`,
+        quantity: approxQuantity,
+        landingPage: '/wholesale',
+        attribution: {
+          channel: 'DIRECT_WHOLESALE',
+          firstTouch: new Date().toISOString(),
+          lastTouch: new Date().toISOString(),
+          touchpointsCount: 1,
+          searchAttributionType: 'DIRECT',
+        },
+      });
+    } catch (leadSyncErr: any) {
+      console.warn('[Wholesale API] Lead sync notice:', leadSyncErr?.message);
+    }
+
     return createSuccessResponse({ enquiry: saved }, undefined, requestId);
   } catch (err: any) {
     console.error('[API /api/wholesale] Error saving wholesale enquiry:', err);
