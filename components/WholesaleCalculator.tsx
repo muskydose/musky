@@ -147,12 +147,12 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
         } ${units.wholesaleUnit})`;
       } else if (matchedRule.discountType === 'fixed_amount') {
         unitDiscount = matchedRule.discountValue;
-        tierName = `Active Tier (₹${matchedRule.discountValue}/${units.pricingUnit} Off: ${matchedRule.minQuantity}${
+        tierName = `Active Tier (₹${matchedRule.discountValue}/${units.wholesaleUnit} Off: ${matchedRule.minQuantity}${
           matchedRule.maxQuantity ? `–${matchedRule.maxQuantity}` : '+'
         } ${units.wholesaleUnit})`;
       } else if (matchedRule.discountType === 'fixed_price') {
         unitDiscount = Math.max(0, basePrice - matchedRule.discountValue);
-        tierName = `Fixed Special Tier (₹${matchedRule.discountValue}/${units.pricingUnit}: ${matchedRule.minQuantity}${
+        tierName = `Fixed Special Tier (₹${matchedRule.discountValue}/${units.wholesaleUnit}: ${matchedRule.minQuantity}${
           matchedRule.maxQuantity ? `–${matchedRule.maxQuantity}` : '+'
         } ${units.wholesaleUnit})`;
       }
@@ -189,7 +189,7 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
       quantityUnit: units.wholesaleUnit,
       estimatedTotal: calculation.estimatedTotal,
       effectivePricePerUnit: calculation.effectivePrice,
-      pricingUnit: units.pricingUnit,
+      pricingUnit: units.wholesaleUnit,
       tierName: calculation.tierName,
     });
   };
@@ -256,7 +256,7 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
             {products.slice(0, 6).map((p) => {
               const isSelected = p.id === selectedProductId;
               const pUnits = resolveProductWholesaleUnits(p);
-              const pBase = calculateProductBaseWholesaleRate(p, pUnits);
+              const wholesaleRate = pUnits.rates.wholesaleRate;
               return (
                 <button
                   key={p.id}
@@ -273,7 +273,7 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
                       {p.name}
                     </p>
                     <p className="text-[10px] text-gray-500 font-mono mt-0.5">
-                      Base: ₹{pBase}/{pUnits.pricingUnit} • {p.quantityOrWeight || `${pUnits.packQuantity}${pUnits.packUnit}`}
+                      Base: {wholesaleRate.formattedRate} • {p.quantityOrWeight || `${pUnits.packQuantity}${pUnits.packUnit}`}
                     </p>
                   </div>
                   {isSelected && <CheckCircle2 className="w-4 h-4 text-[#1b4332] shrink-0" />}
@@ -292,10 +292,9 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
               >
                 {products.map((p) => {
                   const pUnits = resolveProductWholesaleUnits(p);
-                  const pBase = calculateProductBaseWholesaleRate(p, pUnits);
                   return (
                     <option key={p.id} value={p.id}>
-                      {p.name} (₹{pBase}/{pUnits.pricingUnit})
+                      {p.name} ({pUnits.rates.wholesaleRate.formattedRate})
                     </option>
                   );
                 })}
