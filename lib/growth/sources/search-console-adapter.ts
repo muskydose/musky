@@ -1,7 +1,8 @@
 import crypto from 'crypto';
 import { GrowthDataSourceAdapter, SyncResult } from './source-interface';
-import { FreshnessStatus, SearchConsoleQuery } from '../types';
+import { FreshnessStatus, SearchConsoleQuery, GrowthKeyword } from '../types';
 import { getSiteSettings } from '@/lib/db/settings';
+import { saveGrowthKeywords, saveDataSourceRecord } from '../growth-db';
 
 export type SearchConsoleStatusCode =
   | 'NOT_CONFIGURED'
@@ -304,12 +305,44 @@ export class SearchConsoleDataSourceAdapter implements GrowthDataSourceAdapter {
   async sync(): Promise<SyncResult> {
     const startTime = Date.now();
     try {
-      const res = await getSearchConsoleQueries();
+      const res = await getSearchConsoleQueries(undefined, true);
+      if (res.queries.length > 0) {
+        const growthKeywords: GrowthKeyword[] = res.queries.map((q) => ({
+          id: q.id,
+          keyword: q.query,
+          language: 'en',
+          country: q.country || 'IND',
+          searchVolume: q.impressions,
+          competition: q.position <= 5 ? 'HIGH' : q.position <= 15 ? 'MEDIUM' : 'LOW',
+          cpc: 0,
+          trend: q.clicks > 0 ? 'RISING' : 'STABLE',
+          sourceTier: 'VERIFIED',
+          sourceName: 'Google Search Console',
+          collectedAt: q.collectedAt,
+          updatedAt: new Date().toISOString(),
+        }));
+        await saveGrowthKeywords(growthKeywords).catch(() => {});
+      }
+
+      await saveDataSourceRecord({
+        id: 'ds_google_search_console',
+        providerKey: 'google_search_console',
+        name: 'Google Search Console (Musky Dose Performance)',
+        type: 'Google',
+        status: res.status === 'CONNECTED' ? 'Fresh' : 'Stale',
+        lastSyncedAt: new Date().toISOString(),
+        recordsCount: res.queries.length,
+        errorMessage: res.status !== 'CONNECTED' ? res.message : undefined,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }).catch(() => {});
+
       return {
-        success: true,
+        success: res.status === 'CONNECTED',
         recordsImported: res.queries.length,
         recordsUpdated: 0,
         durationMs: Date.now() - startTime,
+        errorMessage: res.status !== 'CONNECTED' ? res.message : undefined,
       };
     } catch (err: any) {
       return {
@@ -331,7 +364,10 @@ export class SearchConsoleDataSourceAdapter implements GrowthDataSourceAdapter {
   }
 }
 
-export async function getSearchConsoleQueries(searchQuery?: string): Promise<{
+export async function getSearchConsoleQueries(
+  searchQuery?: string,
+  forceRefresh: boolean = false
+): Promise<{
   queries: SearchConsoleQuery[];
   status: SearchConsoleStatusCode;
   message: string;
@@ -365,11 +401,13 @@ export async function getSearchConsoleQueries(searchQuery?: string): Promise<{
 
   const cacheKey = 'gsc_' + (normQuery || '__all__');
   const cached = gscMemoryCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < GSC_CACHE_TTL_MS) {
+  if (!forceRefresh && cached && Date.now() - cached.timestamp < GSC_CACHE_TTL_MS) {
     return {
       queries: cached.queries,
       status: 'CONNECTED',
-      message: 'Search Console queries served from fresh server cache.',
+      message: cached.queries.length > 0
+        ? `Serving ${cached.queries.length} Search Console queries from fresh server cache.`
+        : 'Search Console connected and verified (0 search queries returned for the last 28 days).',
     };
   }
 
@@ -398,7 +436,9 @@ export async function getSearchConsoleQueries(searchQuery?: string): Promise<{
     return {
       queries: liveQueries,
       status: 'CONNECTED',
-      message: 'Successfully fetched ' + liveQueries.length + ' verified Search Console queries.',
+      message: liveQueries.length > 0
+        ? `Successfully fetched ${liveQueries.length} verified Search Console queries.`
+        : 'Search Console connected and verified (0 search queries returned for the last 28 days).',
     };
   } catch (err: any) {
     const msg = err?.message || '';

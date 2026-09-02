@@ -60,6 +60,18 @@ memoryDataSources.set('first_party_orders', {
 });
 
 import { isGoogleAdsEnabled } from './sources/google-adapter';
+import { isSearchConsoleConfigured } from './sources/search-console-adapter';
+
+memoryDataSources.set('google_search_console', {
+  id: 'ds_google_search_console',
+  providerKey: 'google_search_console',
+  name: 'Google Search Console (Musky Dose Performance)',
+  type: 'Google',
+  status: isSearchConsoleConfigured() ? 'Fresh' : 'Disabled',
+  recordsCount: 0,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+});
 
 memoryDataSources.set('google_ads_keywords', {
   id: 'ds_google_ads',
@@ -847,8 +859,11 @@ export async function getDataSources(includeDisabled = false): Promise<GrowthDat
 
   if (!includeDisabled) {
     sources = sources.filter((ds) => {
-      if (ds.providerKey === 'google_ads_keywords' || ds.type === 'Google') {
+      if (ds.providerKey === 'google_ads_keywords') {
         return isGoogleAdsEnabled();
+      }
+      if (ds.providerKey === 'google_search_console') {
+        return isSearchConsoleConfigured();
       }
       return ds.status !== 'Disabled';
     });

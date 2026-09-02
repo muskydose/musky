@@ -68,13 +68,38 @@ export default function OpportunitiesClient() {
   const [selectedProductFilter, setSelectedProductFilter] = useState<string>('ALL');
 
   // GSC & Attribution data
-  const [gscStatus, setGscStatus] = useState<{ configured: boolean; statusText: string; message: string } | null>(null);
+  const [gscStatus, setGscStatus] = useState<{ configured: boolean; statusText: string; message: string; recordsCount?: number } | null>(null);
   const [guideAttribution, setGuideAttribution] = useState<any[]>([]);
+  const [syncingGsc, setSyncingGsc] = useState(false);
+  const [gscSyncNotice, setGscSyncNotice] = useState<string | null>(null);
 
   // Draft Modal
   const [activeDraft, setActiveDraft] = useState<DraftResponse | null>(null);
   const [draftLoading, setDraftLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const handleSyncGsc = async () => {
+    setSyncingGsc(true);
+    setGscSyncNotice(null);
+    try {
+      const res = await fetch('/api/admin/growth/data-sources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ providerKey: 'google_search_console' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setGscSyncNotice(`Sync completed: ${data.syncResult?.recordsImported ?? 0} queries imported.`);
+        fetchOpportunities();
+      } else {
+        setGscSyncNotice(`Sync notice: ${data.error || data.message || 'Connection check completed'}`);
+      }
+    } catch (e: any) {
+      setGscSyncNotice(`Sync error: ${e.message}`);
+    } finally {
+      setSyncingGsc(false);
+    }
+  };
 
   const fetchOpportunities = useCallback(async () => {
     setLoading(true);
@@ -218,24 +243,47 @@ export default function OpportunitiesClient() {
 
       {/* GSC Safe Status Banner */}
       {gscStatus && (
-        <div className={`p-4 rounded-xl border flex items-center justify-between gap-4 text-xs ${
-          gscStatus.configured
+        <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
+          gscStatus.statusText === 'CONNECTED'
             ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+            : gscStatus.configured
+            ? 'bg-blue-50 border-blue-200 text-blue-900'
             : 'bg-amber-50 border-amber-200 text-amber-900'
         }`}>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <span className={`px-2 py-0.5 rounded font-bold uppercase tracking-wider text-[10px] ${
-              gscStatus.configured ? 'bg-emerald-200 text-emerald-900' : 'bg-amber-200 text-amber-900'
+              gscStatus.statusText === 'CONNECTED'
+                ? 'bg-emerald-200 text-emerald-900'
+                : gscStatus.configured
+                ? 'bg-blue-200 text-blue-900'
+                : 'bg-amber-200 text-amber-900'
             }`}>
-              {gscStatus.statusText}
+              {gscStatus.statusText === 'CONNECTED'
+                ? (gscStatus.recordsCount && gscStatus.recordsCount > 0 ? 'CONNECTED + DATA AVAILABLE' : 'CONNECTED (0 ROWS)')
+                : gscStatus.statusText}
             </span>
-            <span>{gscStatus.message}</span>
+            <span className="font-medium">{gscStatus.message}</span>
+            {gscSyncNotice && (
+              <span className="text-emerald-700 font-semibold ml-2">[{gscSyncNotice}]</span>
+            )}
           </div>
-          {!gscStatus.configured && (
-            <span className="text-[11px] text-amber-700 font-medium shrink-0">
-              Deterministic First-Party Store Data Active
-            </span>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {gscStatus.configured && (
+              <button
+                onClick={handleSyncGsc}
+                disabled={syncingGsc}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-900 bg-white border border-emerald-300 rounded-lg hover:bg-emerald-100 transition disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${syncingGsc ? 'animate-spin' : ''}`} />
+                {syncingGsc ? 'Syncing...' : 'Sync GSC Now'}
+              </button>
+            )}
+            {!gscStatus.configured && (
+              <span className="text-[11px] text-amber-700 font-medium">
+                Deterministic First-Party Store Data Active
+              </span>
+            )}
+          </div>
         </div>
       )}
 
