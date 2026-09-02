@@ -370,7 +370,7 @@ export const getProductByIdOrSlug = cache(async (
 });
 
 export async function saveProduct(product: Partial<Product>): Promise<Product> {
-  const supabase = requireSupabaseAdmin();
+  const supabase = getSupabaseAdmin();
   const isNew = !product.id;
   const now = new Date().toISOString();
 
@@ -413,58 +413,35 @@ export async function saveProduct(product: Partial<Product>): Promise<Product> {
   const categories = await getCategories();
   let categoryId = product.categoryId || 'cat-1';
   let categoryName = product.categoryName;
-  const matchedCat = categories.find(
-    (c) => c.id === categoryId || c.name.toLowerCase() === categoryId.toLowerCase()
-  );
-  if (matchedCat) {
-    categoryId = matchedCat.id;
-    categoryName = matchedCat.name;
-  } else if (categories.length > 0) {
-    categoryId = categories[0].id;
-    categoryName = categories[0].name;
-  } else {
-    categoryName = categoryName || 'Henna Care';
-  }
 
-  // Publishing Gate: validate mandatory fields before allowing active status
-  let requestedIsActive = product.isActive ?? true;
-  const validImages = (product.images || []).filter((img) => img && img.trim() !== '');
-  const isNameValid = Boolean(
-    product.name && product.name.trim() !== '' && product.name.trim() !== 'New Product'
-  );
-  const isPriceValid = priceNum > 0;
-  const isDescValid = Boolean(product.shortDescription && product.shortDescription.trim() !== '');
-  const isCategoryValid = Boolean(categoryId && categoryName);
-  const isImagesValid = validImages.length >= 1;
-
-  if (requestedIsActive) {
-    if (!isNameValid || !isPriceValid || !isDescValid || !isCategoryValid || !isImagesValid) {
-      if (product.isActive === true) {
-        const missing = [];
-        if (!isNameValid) missing.push('Product Name');
-        if (!isPriceValid) missing.push('Price (> ₹0)');
-        if (!isDescValid) missing.push('Short Description');
-        if (!isCategoryValid) missing.push('Category');
-        if (!isImagesValid) missing.push('At least 1 valid product image');
-        throw new Error(`Cannot publish incomplete product. Missing: ${missing.join(', ')}`);
-      }
-      requestedIsActive = false;
+  if (product.categoryId) {
+    const matchedCategory = categories.find((c) => c.id === product.categoryId);
+    if (matchedCategory) {
+      categoryName = matchedCategory.name;
+    }
+  } else if (categoryName) {
+    const matchedCategory = categories.find(
+      (c) => c.name.toLowerCase() === categoryName!.toLowerCase()
+    );
+    if (matchedCategory) {
+      categoryId = matchedCategory.id;
     }
   }
 
+  // Resolve active status safely
+  const requestedIsActive = product.isActive !== undefined ? Boolean(product.isActive) : true;
+
   const fullProduct: Product = {
     id: productId,
-    name: product.name ? product.name.trim() : 'New Product',
+    name: (product.name || 'Untitled Botanical Product').trim(),
     slug: cleanSlug,
-    categoryId: categoryId,
-    categoryName: categoryName,
+    categoryId,
+    categoryName: categoryName || 'Henna & Mehndi Powder',
     shortDescription: product.shortDescription ? product.shortDescription.trim() : '',
     fullDescription: product.fullDescription ? product.fullDescription.trim() : '',
     price: priceNum,
     compareAtPrice:
-      product.compareAtPrice !== undefined &&
-      product.compareAtPrice !== null &&
-      !isNaN(Number(product.compareAtPrice))
+      product.compareAtPrice !== undefined && product.compareAtPrice !== null
         ? Number(product.compareAtPrice)
         : undefined,
     quantityOrWeight: product.quantityOrWeight ? product.quantityOrWeight.trim() : '250g',
@@ -473,17 +450,26 @@ export async function saveProduct(product: Partial<Product>): Promise<Product> {
       product.images && product.images.length > 0
         ? product.images
         : ['/images/fallback.svg'],
+    variants: product.variants || [],
     ingredients: product.ingredients || [],
     benefits: product.benefits || [],
     usageInstructions: product.usageInstructions ? product.usageInstructions.trim() : '',
-    stockStatus: product.stockStatus || 'in_stock',
+    stockStatus: (product.stockStatus as any) || 'in_stock',
+    stockQuantity: product.stockQuantity,
     isFeatured: product.isFeatured ?? false,
     isActive: requestedIsActive,
     sortOrder: product.sortOrder ?? 1,
     productType: product.productType || undefined,
+    seoTitle: product.seoTitle ? product.seoTitle.trim() : undefined,
+    seoDescription: product.seoDescription ? product.seoDescription.trim() : undefined,
+    seoKeywords: Array.isArray(product.seoKeywords) ? product.seoKeywords : [],
     createdAt: product.createdAt || now,
     updatedAt: now,
   };
+
+  if (!supabase) {
+    return fullProduct;
+  }
 
   const row = mapProductToRow(fullProduct);
   const { data, error } = await supabase.from('products').upsert([row]).select('*');

@@ -16,6 +16,13 @@ import {
   calculateProductSeoHealth,
 } from '@/lib/growth/seo-opportunity-engine';
 import { GrowthOpportunity } from '@/lib/growth/types';
+import {
+  generateActionRecord,
+  applyGrowthAction,
+  verifyGrowthAction,
+  getAllActions,
+  calculateActionExecutionSummary,
+} from '@/lib/growth/action-execution-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,7 +63,7 @@ export async function GET(req: NextRequest) {
     const guideAttribution = await getGuideAttributionSummary(30, guides);
     const gscConfigured = isSearchConsoleConfigured();
 
-    // Also compute product SEO health summary
+    // Compute product SEO health summary
     const productHealthSummaries = products.map((p) => {
       const health = calculateProductSeoHealth(p, undefined, keywords);
       const links = generateProductInternalLinks(p, products, categories);
@@ -75,12 +82,18 @@ export async function GET(req: NextRequest) {
     // Market to product mappings
     const marketMappings = mapKeywordsToProducts(keywords.slice(0, 50), products);
 
+    // Execution Layer Actions & Summary
+    const actions = getAllActions();
+    const executionSummary = calculateActionExecutionSummary(dashboard.opportunities, actions);
+
     return NextResponse.json({
       success: true,
       data: {
         opportunities: dashboard.opportunities,
         stats: dashboard.stats,
         guideAttribution,
+        executionSummary,
+        actions,
         gscStatus: {
           configured: gscConfigured,
           statusText: gscResult.status,
@@ -110,9 +123,9 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { action, opportunity, productId, opportunityId, newStatus } = body;
+    const { action, opportunity, productId, opportunityId, actionId, newStatus, confirmExecution } = body;
 
-    if (action === 'GENERATE_DRAFT') {
+    if (action === 'GENERATE_DRAFT' || action === 'GENERATE_ACTION') {
       if (!opportunity) {
         return NextResponse.json({ success: false, error: 'Opportunity payload required' }, { status: 400 });
       }
@@ -120,24 +133,74 @@ export async function POST(req: NextRequest) {
       const products = await getAllProductsAdmin();
       const product = products.find((p) => p.id === (productId || opportunity.productId));
 
+      const actionRecord = generateActionRecord(opportunity as GrowthOpportunity, product);
       const draft = generateActionDraftTemplate(opportunity as GrowthOpportunity, product);
-      return NextResponse.json({ success: true, draft });
-    }
 
-    if (action === 'UPDATE_STATUS') {
-      if (!opportunityId || !newStatus) {
-        return NextResponse.json({ success: false, error: 'opportunityId and newStatus required' }, { status: 400 });
-      }
       return NextResponse.json({
         success: true,
-        opportunityId,
-        status: newStatus,
-        message: `Opportunity status updated to ${newStatus}`,
+        actionRecord,
+        draft,
+      });
+    }
+
+    if (action === 'APPLY_ACTION') {
+      if (!actionId) {
+        return NextResponse.json({ success: false, error: 'actionId required' }, { status: 400 });
+      }
+
+      const appliedRecord = await applyGrowthAction(actionId, {
+        confirmExecution: Boolean(confirmExecution),
+        actor: 'admin',
+      });
+
+      return NextResponse.json({
+        success: true,
+        actionRecord: appliedRecord,
+        message: 'Action successfully applied.',
+      });
+    }
+
+    if (action === 'VERIFY_ACTION') {
+      if (!actionId) {
+        return NextResponse.json({ success: false, error: 'actionId required' }, { status: 400 });
+      }
+
+      const verifiedRecord = await verifyGrowthAction(actionId, 'admin');
+
+      return NextResponse.json({
+        success: true,
+        actionRecord: verifiedRecord,
+        verified: verifiedRecord.status === 'DONE',
+        message: verifiedRecord.status === 'DONE' ? 'Action verified and marked DONE.' : 'Verification failed.',
+      });
+    }
+
+    if (action === 'UPDATE_STATUS' || action === 'APPROVE_OPPORTUNITY') {
+      if (!opportunityId && !opportunity?.id) {
+        return NextResponse.json({ success: false, error: 'opportunityId required' }, { status: 400 });
+      }
+      const targetId = opportunityId || opportunity?.id;
+      const status = newStatus || (action === 'APPROVE_OPPORTUNITY' ? 'APPROVED' : 'OPEN');
+
+      let actionRecord = null;
+      if (opportunity && status === 'APPROVED') {
+        const products = await getAllProductsAdmin();
+        const product = products.find((p) => p.id === (productId || opportunity.productId));
+        actionRecord = generateActionRecord(opportunity as GrowthOpportunity, product);
+      }
+
+      return NextResponse.json({
+        success: true,
+        opportunityId: targetId,
+        status,
+        actionRecord,
+        message: `Opportunity status updated to ${status}`,
       });
     }
 
     return NextResponse.json({ success: false, error: `Unknown action: ${action}` }, { status: 400 });
-  } catch (error) {
+  } catch (error: any) {
     return sanitizeAdminError(error, 'POST /api/admin/growth/opportunities');
   }
 }
+

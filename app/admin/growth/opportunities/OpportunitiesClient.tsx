@@ -30,6 +30,8 @@ import {
   GrowthOpportunityPriority,
   OpportunityDashboardStats,
   ProductSeoHealthScore,
+  GrowthActionRecord,
+  GrowthActionExecutionSummary,
 } from '@/lib/growth/types';
 
 interface ProductHealthSummary {
@@ -58,6 +60,8 @@ interface DraftResponse {
 export default function OpportunitiesClient() {
   const [opportunities, setOpportunities] = useState<GrowthOpportunity[]>([]);
   const [stats, setStats] = useState<OpportunityDashboardStats | null>(null);
+  const [executionSummary, setExecutionSummary] = useState<GrowthActionExecutionSummary | null>(null);
+  const [actionRecords, setActionRecords] = useState<Record<string, GrowthActionRecord>>({});
   const [productSummaries, setProductSummaries] = useState<ProductHealthSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,9 +81,13 @@ export default function OpportunitiesClient() {
   const [syncingGsc, setSyncingGsc] = useState(false);
   const [gscSyncNotice, setGscSyncNotice] = useState<string | null>(null);
 
-  // Draft Modal
+  // Action Execution & Draft Modal
   const [activeDraft, setActiveDraft] = useState<DraftResponse | null>(null);
+  const [activeActionRecord, setActiveActionRecord] = useState<GrowthActionRecord | null>(null);
+  const [activeOpportunity, setActiveOpportunity] = useState<GrowthOpportunity | null>(null);
   const [draftLoading, setDraftLoading] = useState(false);
+  const [actionProcessing, setActionProcessing] = useState(false);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const handleSyncGsc = async () => {
@@ -134,9 +142,19 @@ export default function OpportunitiesClient() {
       if (json.success && json.data) {
         setOpportunities(json.data.opportunities || []);
         setStats(json.data.stats || null);
+        setExecutionSummary(json.data.executionSummary || null);
         setProductSummaries(json.data.productHealthSummaries || []);
         setGuideAttribution(json.data.guideAttribution || []);
         setGscStatus(json.data.gscStatus || null);
+
+        if (Array.isArray(json.data.actions)) {
+          const actMap: Record<string, GrowthActionRecord> = {};
+          json.data.actions.forEach((a: GrowthActionRecord) => {
+            actMap[a.opportunityId] = a;
+            actMap[a.actionId] = a;
+          });
+          setActionRecords(actMap);
+        }
       } else {
         throw new Error(json.error || 'Failed to load opportunities');
       }
@@ -174,9 +192,8 @@ export default function OpportunitiesClient() {
     }
   };
 
-  const handleGenerateDraft = async (opp: GrowthOpportunity) => {
-    setDraftLoading(true);
-    setActiveDraft(null);
+  const handleApproveOpportunity = async (opp: GrowthOpportunity) => {
+    setActionProcessing(true);
     try {
       const res = await fetch('/api/admin/growth/opportunities', {
         method: 'POST',
@@ -185,22 +202,150 @@ export default function OpportunitiesClient() {
           'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify({
-          action: 'GENERATE_DRAFT',
+          action: 'APPROVE_OPPORTUNITY',
           opportunity: opp,
           productId: opp.productId,
         }),
       });
 
       const json = await res.json();
-      if (json.success && json.draft) {
-        setActiveDraft(json.draft);
+      if (json.success) {
+        setOpportunities((prev) =>
+          prev.map((o) => (o.id === opp.id ? { ...o, status: 'APPROVED' } : o))
+        );
+        if (json.actionRecord) {
+          setActionRecords((prev) => ({
+            ...prev,
+            [opp.id]: json.actionRecord,
+            [json.actionRecord.actionId]: json.actionRecord,
+          }));
+        }
       } else {
-        alert(json.error || 'Failed to generate draft');
+        alert(json.error || 'Failed to approve opportunity');
+      }
+    } catch (e: any) {
+      alert(`Error approving opportunity: ${e.message}`);
+    } finally {
+      setActionProcessing(false);
+    }
+  };
+
+  const handleOpenActionModal = async (opp: GrowthOpportunity) => {
+    setDraftLoading(true);
+    setActiveOpportunity(opp);
+    setActiveDraft(null);
+    setActiveActionRecord(null);
+    setActionNotice(null);
+    try {
+      const res = await fetch('/api/admin/growth/opportunities', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({
+          action: 'GENERATE_ACTION',
+          opportunity: opp,
+          productId: opp.productId,
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setActiveDraft(json.draft || null);
+        setActiveActionRecord(json.actionRecord || null);
+        if (json.actionRecord) {
+          setActionRecords((prev) => ({
+            ...prev,
+            [opp.id]: json.actionRecord,
+            [json.actionRecord.actionId]: json.actionRecord,
+          }));
+        }
+      } else {
+        alert(json.error || 'Failed to generate action draft');
       }
     } catch (err: any) {
       alert(`Error: ${err.message}`);
     } finally {
       setDraftLoading(false);
+    }
+  };
+
+  const handleApplyActionLive = async (actionId: string) => {
+    setActionProcessing(true);
+    setActionNotice(null);
+    try {
+      const res = await fetch('/api/admin/growth/opportunities', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({
+          action: 'APPLY_ACTION',
+          actionId,
+          confirmExecution: true,
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success && json.actionRecord) {
+        setActiveActionRecord(json.actionRecord);
+        setActionRecords((prev) => ({
+          ...prev,
+          [json.actionRecord.opportunityId]: json.actionRecord,
+          [json.actionRecord.actionId]: json.actionRecord,
+        }));
+        setActionNotice('Action successfully applied! Now verifying result...');
+        await handleVerifyAction(actionId);
+      } else {
+        alert(json.error || 'Failed to apply action');
+      }
+    } catch (e: any) {
+      alert(`Apply Error: ${e.message}`);
+    } finally {
+      setActionProcessing(false);
+    }
+  };
+
+  const handleVerifyAction = async (actionId: string) => {
+    setActionProcessing(true);
+    try {
+      const res = await fetch('/api/admin/growth/opportunities', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({
+          action: 'VERIFY_ACTION',
+          actionId,
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success && json.actionRecord) {
+        setActiveActionRecord(json.actionRecord);
+        setActionRecords((prev) => ({
+          ...prev,
+          [json.actionRecord.opportunityId]: json.actionRecord,
+          [json.actionRecord.actionId]: json.actionRecord,
+        }));
+        if (json.verified) {
+          setActionNotice('✓ Verification successful: Action completed and marked DONE.');
+          setOpportunities((prev) =>
+            prev.map((o) => (o.id === json.actionRecord.opportunityId ? { ...o, status: 'DONE' } : o))
+          );
+        } else {
+          setActionNotice(`⚠️ Verification check notice: ${json.actionRecord.failureReason || 'Pending validation'}`);
+        }
+      } else {
+        alert(json.error || 'Verification failed');
+      }
+    } catch (e: any) {
+      alert(`Verification Error: ${e.message}`);
+    } finally {
+      setActionProcessing(false);
     }
   };
 
@@ -234,15 +379,15 @@ export default function OpportunitiesClient() {
           <div className="flex items-center gap-2 mb-1">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
               <Sparkles className="w-3.5 h-3.5" />
-              Growth Engine V1
+              Action Execution Layer V1
             </span>
-            <span className="text-xs text-stone-500 font-medium">Deterministic Opportunity Action Center</span>
+            <span className="text-xs text-stone-500 font-medium">Opportunity &rarr; Approval &rarr; Action &rarr; Verify &rarr; Done</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-stone-900 font-momo-display">
             Growth &amp; Opportunity Center
           </h1>
           <p className="text-sm text-stone-600 mt-1">
-            Real Data Signals &rarr; Deterministic Opportunities &rarr; Human Approval &amp; Action
+            Deterministic Real Signals &rarr; Human Approval Gate &rarr; Safe Action &amp; Live Verification
           </p>
         </div>
 
@@ -257,7 +402,7 @@ export default function OpportunitiesClient() {
           <button
             onClick={() => fetchOpportunities()}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-[#183F2B] rounded-lg hover:bg-[#133222] transition disabled:opacity-50 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-[#183F2B] rounded-lg hover:bg-[#133222] transition disabled:opacity-50 cursor-pointer shadow-xs"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh Opportunities
@@ -307,6 +452,52 @@ export default function OpportunitiesClient() {
                 Deterministic First-Party Store Data Active
               </span>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Execution Summary Strip */}
+      {executionSummary && (
+        <div className="bg-white rounded-xl border border-stone-200 p-4 shadow-xs space-y-3">
+          <div className="flex items-center justify-between gap-2 border-b border-stone-100 pb-2">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <h3 className="text-xs font-bold text-stone-900 uppercase tracking-wider">
+                Action Execution Pipeline Summary
+              </h3>
+            </div>
+            <div className="text-[11px] text-stone-500 font-medium">
+              <span className="text-emerald-700 font-semibold">{executionSummary.executableCount} Executable</span>
+              <span className="mx-1.5 text-stone-300">|</span>
+              <span>{executionSummary.draftOnlyCount} Draft/Review Tasks</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+            <div className="bg-stone-50 p-2.5 rounded-lg border border-stone-200">
+              <div className="text-[10px] uppercase font-bold text-stone-500">Open Opps</div>
+              <div className="text-lg font-bold text-stone-900">{executionSummary.openOpportunities}</div>
+            </div>
+            <div className="bg-amber-50/60 p-2.5 rounded-lg border border-amber-200">
+              <div className="text-[10px] uppercase font-bold text-amber-800">Awaiting Approval</div>
+              <div className="text-lg font-bold text-amber-900">{executionSummary.awaitingApproval}</div>
+            </div>
+            <div className="bg-blue-50/60 p-2.5 rounded-lg border border-blue-200">
+              <div className="text-[10px] uppercase font-bold text-blue-800">Drafts Ready</div>
+              <div className="text-lg font-bold text-blue-900">{executionSummary.draftsReady}</div>
+            </div>
+            <div className="bg-indigo-50/60 p-2.5 rounded-lg border border-indigo-200">
+              <div className="text-[10px] uppercase font-bold text-indigo-800">Actions Applied</div>
+              <div className="text-lg font-bold text-indigo-900">{executionSummary.actionsApplied}</div>
+            </div>
+            <div className="bg-red-50/60 p-2.5 rounded-lg border border-red-200">
+              <div className="text-[10px] uppercase font-bold text-red-800">Verify Issues</div>
+              <div className="text-lg font-bold text-red-900">{executionSummary.verificationFailures}</div>
+            </div>
+            <div className="bg-emerald-50/60 p-2.5 rounded-lg border border-emerald-200">
+              <div className="text-[10px] uppercase font-bold text-emerald-800">Completed Today</div>
+              <div className="text-lg font-bold text-emerald-900">{executionSummary.completedToday}</div>
+            </div>
           </div>
         </div>
       )}
@@ -700,6 +891,9 @@ export default function OpportunitiesClient() {
           ) : (
             <div className="grid grid-cols-1 gap-3.5">
               {sortedOpportunities.map((opp) => {
+                const actionRecord = actionRecords[opp.id];
+                const actionStatus = actionRecord?.status || (opp.status === 'APPROVED' ? 'APPROVED' : opp.status === 'DISMISSED' ? 'DISMISSED' : 'OPEN');
+
                 const sourceBadgeStyle =
                   opp.source === 'GOOGLE SEARCH CONSOLE' ? 'bg-blue-100 text-blue-800 border-blue-200' :
                   opp.source === 'INTERNAL SITE SEARCH' ? 'bg-cyan-100 text-cyan-800 border-cyan-200' :
@@ -749,16 +943,18 @@ export default function OpportunitiesClient() {
                           {opp.type.replace(/_/g, ' ')}
                         </span>
 
-                        {/* Status Badge */}
-                        {opp.status && (
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
-                            opp.status === 'APPLIED' || opp.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' :
-                            opp.status === 'DISMISSED' ? 'bg-stone-200 text-stone-600' :
-                            'bg-stone-100 text-stone-700'
-                          }`}>
-                            {opp.status}
-                          </span>
-                        )}
+                        {/* Lifecycle Status Badge */}
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
+                          actionStatus === 'DONE' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                          actionStatus === 'APPLIED' ? 'bg-indigo-100 text-indigo-800 border border-indigo-200' :
+                          actionStatus === 'ACTION_READY' ? 'bg-cyan-100 text-cyan-800 border border-cyan-200' :
+                          actionStatus === 'APPROVED' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                          actionStatus === 'VERIFY_FAILED' || actionStatus === 'ACTION_FAILED' ? 'bg-red-100 text-red-800 border border-red-200' :
+                          actionStatus === 'DISMISSED' ? 'bg-stone-200 text-stone-600' :
+                          'bg-stone-100 text-stone-700'
+                        }`}>
+                          {actionStatus === 'DONE' ? '✓ DONE (VERIFIED)' : actionStatus}
+                        </span>
                       </div>
 
                       <h4 className="text-base font-bold text-stone-900">{opp.title}</h4>
@@ -811,17 +1007,42 @@ export default function OpportunitiesClient() {
                       </div>
                     </div>
 
-                    {/* Action & Approval Controls */}
+                    {/* Action & Lifecycle Execution Controls */}
                     <div className="flex flex-row lg:flex-col items-center lg:items-end gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-stone-100">
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleGenerateDraft(opp)}
-                          disabled={draftLoading}
-                          className="px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition inline-flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                          {opp.actionLabel || 'Action Draft'}
-                        </button>
+                        {actionStatus === 'DONE' ? (
+                          <span className="px-3 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-lg inline-flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            Completed
+                          </span>
+                        ) : actionStatus === 'APPLIED' ? (
+                          <button
+                            onClick={() => handleVerifyAction(actionRecord?.actionId || opp.id)}
+                            disabled={actionProcessing}
+                            className="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-800 rounded-lg transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            Verify Live &rarr;
+                          </button>
+                        ) : actionStatus === 'VERIFY_FAILED' ? (
+                          <button
+                            onClick={() => handleVerifyAction(actionRecord?.actionId || opp.id)}
+                            disabled={actionProcessing}
+                            className="px-3 py-1.5 text-xs font-semibold text-white bg-red-700 hover:bg-red-800 rounded-lg transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            Retry Verification
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleOpenActionModal(opp)}
+                            disabled={draftLoading || actionProcessing}
+                            className="px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition inline-flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                            {actionStatus === 'APPROVED' || actionStatus === 'ACTION_READY' ? 'Review Draft' : 'Action Draft'}
+                          </button>
+                        )}
 
                         {opp.actionLink && (
                           <Link
@@ -834,9 +1055,10 @@ export default function OpportunitiesClient() {
                       </div>
 
                       <div className="flex items-center gap-1.5 mt-1">
-                        {opp.status !== 'APPROVED' && (
+                        {actionStatus === 'OPEN' && (
                           <button
-                            onClick={() => handleUpdateStatus(opp.id, 'APPROVED')}
+                            onClick={() => handleApproveOpportunity(opp)}
+                            disabled={actionProcessing}
                             className="px-2.5 py-1 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition cursor-pointer"
                             title="Approve opportunity"
                           >
@@ -861,47 +1083,129 @@ export default function OpportunitiesClient() {
         </div>
       )}
 
-      {/* Action Draft Modal */}
-      {activeDraft && (
+      {/* Action Execution & Draft Review Modal */}
+      {(activeDraft || activeActionRecord) && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-stone-200 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl border border-stone-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="px-6 py-4 border-b border-stone-200 flex items-center justify-between bg-stone-50 rounded-t-2xl">
               <div>
-                <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">
-                  Autonomous Content / Action Draft
-                </span>
-                <h3 className="text-base font-bold text-stone-900">{activeDraft.title}</h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded">
+                    {activeActionRecord?.actionType || 'GROWTH_ACTION'}
+                  </span>
+                  <span className="text-xs font-bold text-stone-500">
+                    Status: {activeActionRecord?.status || 'ACTION_READY'}
+                  </span>
+                </div>
+                <h3 className="text-base font-bold text-stone-900 mt-1">
+                  {activeActionRecord?.title || activeDraft?.title}
+                </h3>
               </div>
               <button
-                onClick={() => setActiveDraft(null)}
+                onClick={() => {
+                  setActiveDraft(null);
+                  setActiveActionRecord(null);
+                  setActionNotice(null);
+                }}
                 aria-label="Close Draft Modal"
-                className="p-1 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-200 transition"
+                className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-200 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto space-y-4 text-xs text-stone-800 leading-relaxed font-mono bg-stone-50/50 rounded-b-2xl">
-              <pre className="whitespace-pre-wrap font-sans bg-white p-4 rounded-xl border border-stone-200 shadow-inner">
-                {activeDraft.copyableText}
-              </pre>
+            <div className="p-6 overflow-y-auto space-y-4 text-xs text-stone-800 leading-relaxed bg-stone-50/50">
+              {actionNotice && (
+                <div className={`p-3 rounded-lg text-xs font-medium border flex items-center gap-2 ${
+                  actionNotice.startsWith('✓') ? 'bg-emerald-50 text-emerald-900 border-emerald-200' : 'bg-blue-50 text-blue-900 border-blue-200'
+                }`}>
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <span>{actionNotice}</span>
+                </div>
+              )}
+
+              {/* Opportunity Context */}
+              {activeOpportunity && (
+                <div className="bg-white p-3.5 rounded-xl border border-stone-200 space-y-1">
+                  <div className="text-[11px] font-bold text-stone-500 uppercase tracking-wider">Opportunity Context</div>
+                  <div className="font-semibold text-stone-900">{activeOpportunity.title}</div>
+                  <div className="text-stone-600">{activeOpportunity.description}</div>
+                  {activeOpportunity.evidence && (
+                    <div className="text-emerald-800 font-medium pt-1">
+                      Evidence: {activeOpportunity.evidence}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Proposed Change Markdown / Content */}
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-bold text-stone-700 uppercase tracking-wider">Proposed Action Draft</div>
+                <pre className="whitespace-pre-wrap font-sans bg-white p-4 rounded-xl border border-stone-200 shadow-inner text-xs leading-relaxed max-h-72 overflow-y-auto">
+                  {activeActionRecord?.proposedChange?.markdownContent || activeDraft?.copyableText}
+                </pre>
+              </div>
+
+              {/* Verification Results if present */}
+              {activeActionRecord?.verificationResult && (
+                <div className="bg-white p-3.5 rounded-xl border border-stone-200 space-y-2">
+                  <div className="text-[11px] font-bold text-stone-700 uppercase tracking-wider">Live Verification Report</div>
+                  <div className="space-y-1">
+                    {activeActionRecord.verificationResult.checks.map((c, i) => (
+                      <div key={i} className="flex items-center gap-1.5 text-[11px]">
+                        {c.passed ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <AlertCircle className="w-3.5 h-3.5 text-red-600" />}
+                        <span className={c.passed ? 'text-stone-800 font-medium' : 'text-red-700 font-semibold'}>{c.name}: {c.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="px-6 py-4 border-t border-stone-200 bg-white rounded-b-2xl flex items-center justify-between">
+            <div className="px-6 py-4 border-t border-stone-200 bg-white rounded-b-2xl flex flex-col sm:flex-row items-center justify-between gap-3">
               <span className="text-[11px] text-stone-500">
-                Draft template ready. Review and apply to product or blog content.
+                {activeActionRecord?.status === 'DONE'
+                  ? '✓ Action verified and completed.'
+                  : 'Explicit admin review required before applying live changes.'}
               </span>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => copyToClipboard(activeDraft.copyableText)}
-                  className="px-4 py-2 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg transition inline-flex items-center gap-1.5 shadow"
+                  onClick={() => copyToClipboard(activeActionRecord?.proposedChange?.copyableText || activeDraft?.copyableText || '')}
+                  className="px-3.5 py-2 text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-lg transition inline-flex items-center gap-1.5 cursor-pointer"
                 >
                   {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copied ? 'Copied to Clipboard!' : 'Copy Draft Text'}
+                  {copied ? 'Copied!' : 'Copy Draft'}
                 </button>
+
+                {activeActionRecord && activeActionRecord.status !== 'DONE' && activeActionRecord.status !== 'APPLIED' && (
+                  <button
+                    onClick={() => handleApplyActionLive(activeActionRecord.actionId)}
+                    disabled={actionProcessing}
+                    className="px-4 py-2 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg transition inline-flex items-center gap-1.5 shadow cursor-pointer disabled:opacity-50"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    {actionProcessing ? 'Applying...' : 'Apply Live Changes (Confirm)'}
+                  </button>
+                )}
+
+                {activeActionRecord && activeActionRecord.status === 'APPLIED' && (
+                  <button
+                    onClick={() => handleVerifyAction(activeActionRecord.actionId)}
+                    disabled={actionProcessing}
+                    className="px-4 py-2 text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-800 rounded-lg transition inline-flex items-center gap-1.5 shadow cursor-pointer disabled:opacity-50"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    {actionProcessing ? 'Verifying...' : 'Verify Live'}
+                  </button>
+                )}
+
                 <button
-                  onClick={() => setActiveDraft(null)}
-                  className="px-3.5 py-2 text-xs font-medium text-stone-600 hover:bg-stone-100 rounded-lg transition"
+                  onClick={() => {
+                    setActiveDraft(null);
+                    setActiveActionRecord(null);
+                    setActionNotice(null);
+                  }}
+                  className="px-3.5 py-2 text-xs font-medium text-stone-600 hover:bg-stone-100 rounded-lg transition cursor-pointer"
                 >
                   Close
                 </button>
