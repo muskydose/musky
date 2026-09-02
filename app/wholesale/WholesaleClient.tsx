@@ -222,18 +222,22 @@ function WholesaleContent() {
 
   const handleQuoteSelection = (data: {
     productName: string;
-    quantityKg: number;
+    quantity: number;
+    quantityUnit: string;
     estimatedTotal: number;
-    effectivePricePerKg: number;
+    effectivePricePerUnit: number;
+    pricingUnit: string;
     tierName: string;
   }) => {
+    const qUnit = data.quantityUnit || 'Unit';
+    const pUnit = data.pricingUnit || qUnit;
     setFormData((prev) => ({
       ...prev,
       productsRequired: `${data.productName} (Wholesale Tier: ${data.tierName})`,
-      approxQuantity: `${data.quantityKg} kg`,
+      approxQuantity: `${data.quantity} ${qUnit}`,
       notes: prev.notes
         ? prev.notes
-        : `Inquiry generated via Wholesale Calculator. Estimated tier rate: ₹${data.effectivePricePerKg}/kg (Est. Total: ~₹${data.estimatedTotal.toLocaleString('en-IN')})`,
+        : `Inquiry generated via Wholesale Calculator. Estimated tier rate: ₹${data.effectivePricePerUnit}/${pUnit} (Est. Total: ~₹${data.estimatedTotal.toLocaleString('en-IN')})`,
     }));
 
     if (typeof document !== 'undefined') {

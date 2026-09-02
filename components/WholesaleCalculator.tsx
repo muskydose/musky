@@ -19,19 +19,20 @@ import {
 import { motion, useReducedMotion } from 'motion/react';
 import { SPRINGS } from '@/lib/motion';
 import { trackWholesaleInquiryStarted } from '@/lib/analytics';
+import { resolveProductWholesaleUnits, calculateProductBaseWholesaleRate } from '@/lib/wholesale-units';
 
 interface WholesaleCalculatorProps {
   siteSettings?: SiteSettings;
   onSelectQuote?: (data: {
     productName: string;
-    quantityKg: number;
+    quantity: number;
+    quantityUnit: string;
     estimatedTotal: number;
-    effectivePricePerKg: number;
+    effectivePricePerUnit: number;
+    pricingUnit: string;
     tierName: string;
   }) => void;
 }
-
-const PRESET_QUANTITIES = [5, 10, 25, 50, 100, 250, 500, 1000];
 
 export default function WholesaleCalculator({ siteSettings, onSelectQuote }: WholesaleCalculatorProps) {
   const cms = getCmsText(siteSettings);
@@ -42,7 +43,7 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
   const [error, setError] = useState(false);
 
   const [selectedProductId, setSelectedProductId] = useState<string>('');
-  const [quantityKg, setQuantityKg] = useState<number>(25);
+  const [quantity, setQuantity] = useState<number>(25);
 
   const fetchPricingData = async () => {
     setLoading(true);
@@ -86,12 +87,25 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
     return products.find((p) => p.id === selectedProductId) || products[0];
   }, [products, selectedProductId]);
 
+  // Dynamic Canonical Unit Resolution
+  const units = useMemo(() => {
+    return resolveProductWholesaleUnits(selectedProduct);
+  }, [selectedProduct]);
+
+  // Adjust default quantity when product switches unit family
+  useEffect(() => {
+    if (units.presetQuantities && units.presetQuantities.length > 0) {
+      const defaultPreset = units.presetQuantities[2] || units.presetQuantities[0];
+      setQuantity(defaultPreset);
+    }
+  }, [units]);
+
   // Authoritative Pricing Calculation
   const calculation = useMemo(() => {
     if (!selectedProduct) {
       return {
-        basePricePerKg: 0,
-        effectivePricePerKg: 0,
+        basePrice: 0,
+        effectivePrice: 0,
         regularTotal: 0,
         estimatedTotal: 0,
         totalSavings: 0,
@@ -101,10 +115,9 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
       };
     }
 
-    // Base retail price per kg (assuming retail pack normalized or base price)
-    const basePricePerKg = Number(selectedProduct.price) || 250;
-    const qty = Math.max(1, Math.min(10000, Math.floor(quantityKg || 1)));
-    const regularTotal = basePricePerKg * qty;
+    const basePrice = calculateProductBaseWholesaleRate(selectedProduct, units);
+    const qty = Math.max(1, Math.min(10000, Math.floor(quantity || 1)));
+    const regularTotal = basePrice * qty;
 
     // Check database rules first
     let matchedRule = rules.find((r) => {
@@ -128,20 +141,20 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
 
     if (matchedRule) {
       if (matchedRule.discountType === 'percentage') {
-        unitDiscount = (basePricePerKg * matchedRule.discountValue) / 100;
+        unitDiscount = (basePrice * matchedRule.discountValue) / 100;
         tierName = `Active Tier (${matchedRule.discountValue}% Off: ${matchedRule.minQuantity}${
           matchedRule.maxQuantity ? `–${matchedRule.maxQuantity}` : '+'
-        }kg)`;
+        } ${units.wholesaleUnit})`;
       } else if (matchedRule.discountType === 'fixed_amount') {
         unitDiscount = matchedRule.discountValue;
-        tierName = `Active Tier (₹${matchedRule.discountValue}/kg Off: ${matchedRule.minQuantity}${
+        tierName = `Active Tier (₹${matchedRule.discountValue}/${units.pricingUnit} Off: ${matchedRule.minQuantity}${
           matchedRule.maxQuantity ? `–${matchedRule.maxQuantity}` : '+'
-        }kg)`;
+        } ${units.wholesaleUnit})`;
       } else if (matchedRule.discountType === 'fixed_price') {
-        unitDiscount = Math.max(0, basePricePerKg - matchedRule.discountValue);
-        tierName = `Fixed Special Tier (₹${matchedRule.discountValue}/kg: ${matchedRule.minQuantity}${
+        unitDiscount = Math.max(0, basePrice - matchedRule.discountValue);
+        tierName = `Fixed Special Tier (₹${matchedRule.discountValue}/${units.pricingUnit}: ${matchedRule.minQuantity}${
           matchedRule.maxQuantity ? `–${matchedRule.maxQuantity}` : '+'
-        }kg)`;
+        } ${units.wholesaleUnit})`;
       }
     } else {
       // Strictly canonical: If no database rule matches, do not invent artificial discounts
@@ -149,15 +162,15 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
       tierName = 'Base Rate / Custom Quote Required';
     }
 
-    unitDiscount = Math.min(basePricePerKg, Math.max(0, unitDiscount));
-    const effectivePricePerKg = Math.max(1, Math.round(basePricePerKg - unitDiscount));
+    unitDiscount = Math.min(basePrice, Math.max(0, unitDiscount));
+    const effectivePrice = Math.max(1, Math.round(basePrice - unitDiscount));
     const totalSavings = Math.round(unitDiscount * qty);
     const estimatedTotal = Math.max(0, regularTotal - totalSavings);
     const discountPercent = regularTotal > 0 ? Math.round((totalSavings / regularTotal) * 100) : 0;
 
     return {
-      basePricePerKg,
-      effectivePricePerKg,
+      basePrice,
+      effectivePrice,
       regularTotal,
       estimatedTotal,
       totalSavings,
@@ -165,16 +178,18 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
       tierName,
       matchedRule,
     };
-  }, [selectedProduct, quantityKg, rules]);
+  }, [selectedProduct, quantity, rules, units]);
 
   const handleApplyQuote = () => {
     if (!onSelectQuote || !selectedProduct) return;
     trackWholesaleInquiryStarted('Wholesale Calculator');
     onSelectQuote({
       productName: selectedProduct.name,
-      quantityKg: Math.max(5, quantityKg),
+      quantity: Math.max(units.minWholesaleQuantity, quantity),
+      quantityUnit: units.wholesaleUnit,
       estimatedTotal: calculation.estimatedTotal,
-      effectivePricePerKg: calculation.effectivePricePerKg,
+      effectivePricePerUnit: calculation.effectivePrice,
+      pricingUnit: units.pricingUnit,
       tierName: calculation.tierName,
     });
   };
@@ -221,13 +236,13 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
             Wholesale Quantity & Tier Calculator
           </h2>
           <p className="text-xs text-[#b2c8be] max-w-xl">
-            Select your required botanical powder and target quantity (kg) to view estimated volume tier pricing directly from Sojat.
+            Select your required product and target volume ({units.wholesaleUnit}) to view direct volume tier pricing from Sojat.
           </p>
         </div>
 
         <div className="shrink-0 flex items-center gap-2 bg-[#0f2d22]/80 px-3 py-2 rounded-xl border border-[#c5a059]/30 text-xs">
           <Sparkles className="w-4 h-4 text-[#c5a059] shrink-0" />
-          <span className="text-[#c5a059] font-bold">5kg – 10,000kg+ Sourcing</span>
+          <span className="text-[#c5a059] font-bold">Direct Factory Wholesale Sourcing</span>
         </div>
       </div>
 
@@ -235,11 +250,13 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
         {/* Step 1: Product Selection */}
         <div className="space-y-2">
           <label htmlFor="wholesale-product-select" className="block text-xs font-bold text-[#0f2d22] uppercase tracking-wider">
-            1. Select Botanical Powder / Product
+            1. Select Botanical Product
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {products.slice(0, 6).map((p) => {
               const isSelected = p.id === selectedProductId;
+              const pUnits = resolveProductWholesaleUnits(p);
+              const pBase = calculateProductBaseWholesaleRate(p, pUnits);
               return (
                 <button
                   key={p.id}
@@ -256,7 +273,7 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
                       {p.name}
                     </p>
                     <p className="text-[10px] text-gray-500 font-mono mt-0.5">
-                      Base: ₹{p.price}/kg • {p.quantityOrWeight || 'Bulk Pack'}
+                      Base: ₹{pBase}/{pUnits.pricingUnit} • {p.quantityOrWeight || `${pUnits.packQuantity}${pUnits.packUnit}`}
                     </p>
                   </div>
                   {isSelected && <CheckCircle2 className="w-4 h-4 text-[#1b4332] shrink-0" />}
@@ -273,24 +290,28 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
                 onChange={(e) => setSelectedProductId(e.target.value)}
                 className="w-full sm:w-auto px-3 py-2 rounded-lg border border-[#e8e2d5] bg-[#FAF8F5] text-xs font-medium text-[#0f2d22] focus:outline-none focus:ring-2 focus:ring-[#1b4332]"
               >
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} (₹{p.price}/kg)
-                  </option>
-                ))}
+                {products.map((p) => {
+                  const pUnits = resolveProductWholesaleUnits(p);
+                  const pBase = calculateProductBaseWholesaleRate(p, pUnits);
+                  return (
+                    <option key={p.id} value={p.id}>
+                      {p.name} (₹{pBase}/{pUnits.pricingUnit})
+                    </option>
+                  );
+                })}
               </select>
             </div>
           )}
         </div>
 
-        {/* Step 2: Quantity Selection & Quick Chips */}
+        {/* Step 2: Quantity Selection & Dynamic Presets */}
         <div className="space-y-3 pt-2 border-t border-[#e8e2d5]">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <label htmlFor="wholesale-quantity-input" className="block text-xs font-bold text-[#0f2d22] uppercase tracking-wider">
-              2. Target Quantity in Kilograms (kg)
+              2. {units.targetQuantityLabel}
             </label>
             <span className="text-[11px] text-gray-500">
-              Minimum order: <strong className="text-[#0f2d22]">5 kg</strong> • Maximum input: 10,000 kg
+              Minimum order: <strong className="text-[#0f2d22]">{units.minWholesaleQuantity} {units.wholesaleUnit}</strong> • Maximum input: {units.maxWholesaleQuantity} {units.wholesaleUnit}
             </span>
           </div>
 
@@ -299,46 +320,42 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
               <input
                 id="wholesale-quantity-input"
                 type="number"
-                min={5}
-                max={10000}
-                value={quantityKg}
+                min={units.minWholesaleQuantity}
+                max={units.maxWholesaleQuantity}
+                value={quantity}
                 onChange={(e) => {
                   const val = parseInt(e.target.value, 10);
-                  setQuantityKg(isNaN(val) ? 0 : Math.max(0, Math.min(10000, val)));
+                  setQuantity(isNaN(val) ? 0 : Math.max(0, Math.min(units.maxWholesaleQuantity, val)));
                 }}
-                className="w-full pl-4 pr-14 py-2.5 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-base font-bold text-[#0f2d22] tabular-nums focus:outline-none focus:border-[#1b4332] focus:ring-2 focus:ring-[#1b4332]/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all"
+                className="w-full pl-4 pr-16 py-2.5 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-base font-bold text-[#0f2d22] tabular-nums focus:outline-none focus:border-[#1b4332] focus:ring-2 focus:ring-[#1b4332]/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all"
               />
               <span className="absolute right-2.5 top-1/2 -translate-y-1/2 px-2 py-0.5 rounded-md bg-[#e8f3ed] text-[#1b4332] text-xs font-extrabold select-none pointer-events-none tracking-tight">
-                kg
+                {units.inputUnitBadge}
               </span>
             </div>
 
             <div className="text-xs text-[#626c66] flex items-center gap-1.5 flex-wrap">
               <span>≈</span>
-              <span className="font-semibold text-[#0f2d22] bg-[#f5f1e8] px-2 py-0.5 rounded-md border border-[#e8e2d5]/60">
-                {Math.floor(quantityKg * 10).toLocaleString('en-IN')} pouches (100g)
-              </span>
-              <span>or</span>
-              <span className="font-semibold text-[#0f2d22] bg-[#f5f1e8] px-2 py-0.5 rounded-md border border-[#e8e2d5]/60">
-                {(quantityKg / 25).toFixed(1)} bags (25kg)
+              <span className="font-semibold text-[#0f2d22] bg-[#f5f1e8] px-2.5 py-1 rounded-md border border-[#e8e2d5]/60">
+                {units.equivalentPackagesText(quantity)}
               </span>
             </div>
           </div>
 
-          {/* Quick Buttons */}
+          {/* Dynamic Quick Preset Buttons */}
           <div className="flex flex-wrap gap-1.5 pt-1">
-            {PRESET_QUANTITIES.map((qty) => (
+            {units.presetQuantities.map((qty) => (
               <button
                 key={qty}
                 type="button"
-                onClick={() => setQuantityKg(qty)}
+                onClick={() => setQuantity(qty)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95 ${
-                  quantityKg === qty
+                  quantity === qty
                     ? 'bg-[#1b4332] text-[#c5a059] shadow-xs'
                     : 'bg-[#FAF8F5] text-gray-700 border border-[#e8e2d5] hover:bg-[#e8f3ed]'
                 }`}
               >
-                {qty} kg
+                {qty} {units.wholesaleUnit}
               </button>
             ))}
           </div>
@@ -366,7 +383,9 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             <div className="p-3 bg-white rounded-xl border border-[#e8e2d5]">
               <span className="text-[10px] text-gray-500 uppercase font-bold block">Quantity</span>
-              <span className="text-base sm:text-lg font-extrabold text-[#0f2d22]">{quantityKg} kg</span>
+              <span className="text-base sm:text-lg font-extrabold text-[#0f2d22]">
+                {quantity} {units.wholesaleUnit}
+              </span>
             </div>
 
             <div className="p-3 bg-white rounded-xl border border-[#e8e2d5]">
@@ -375,9 +394,9 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
               </span>
               <div className="flex items-baseline gap-1.5">
                 <span className="text-base sm:text-lg font-extrabold text-[#0f2d22]">
-                  ₹{calculation.effectivePricePerKg}
+                  ₹{calculation.effectivePrice}
                 </span>
-                <span className="text-[10px] text-gray-400">/ kg</span>
+                <span className="text-[10px] text-gray-400">{units.pricePerUnitLabel}</span>
               </div>
             </div>
 
