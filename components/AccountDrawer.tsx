@@ -1,11 +1,11 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useUI } from '@/context/UIContext';
 import { useCart } from '@/context/CartContext';
 import SideDrawer from '@/components/ui/SideDrawer';
-import { Order, Product } from '@/lib/types';
+import { Order, Product, SiteSettings } from '@/lib/types';
 import {
   User,
   Package,
@@ -30,10 +30,13 @@ import {
   Check,
 } from 'lucide-react';
 import { trackWhatsAppClick, trackAddToCart } from '@/lib/analytics';
+import { getClientSiteSettings } from '@/lib/api-client';
+import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
 
 export default function AccountDrawer() {
   const { isAccountOpen, closeAccount } = useUI();
   const { addToCart, openCart } = useCart();
+  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
   const [orderQuery, setOrderQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
@@ -63,6 +66,11 @@ export default function AccountDrawer() {
         console.warn('Failed to parse recent orders from localStorage:', e);
       }
 
+      // Fetch siteSettings to ensure canonical WhatsApp and contact numbers
+      getClientSiteSettings().then((s) => {
+        if (s) setSiteSettings(s);
+      });
+
       // Fetch live catalog once to get authoritative prices & stock statuses
       fetch('/api/products')
         .then((res) => (res.ok && res.headers.get('content-type')?.includes('application/json') ? res.json() : null))
@@ -74,6 +82,9 @@ export default function AccountDrawer() {
         .catch(() => {});
     }
   }, [isAccountOpen]);
+
+  const configuredWhatsApp = getConfiguredWhatsAppNumber(siteSettings) || '918233703080';
+  const displayPhone = siteSettings?.displayPhone || '+91 82337 03080';
 
   const liveProductMap = useMemo(() => {
     const map = new Map<string, Product>();
@@ -116,7 +127,7 @@ export default function AccountDrawer() {
     const message = encodeURIComponent(
       `Hi Musky Dose, I want to track my order. My Phone/Order Number is: ${clean}`
     );
-    window.open(`https://wa.me/918233703080?text=${message}`, '_blank');
+    window.open(`https://wa.me/${configuredWhatsApp}?text=${message}`, '_blank');
     setSearching(false);
   };
 
@@ -403,7 +414,7 @@ export default function AccountDrawer() {
               <span className="font-bold text-xs text-[#c5a059]">Need Help with this Order?</span>
             </div>
             <a
-              href={`https://wa.me/918233703080?text=${encodeURIComponent(
+              href={`https://wa.me/${configuredWhatsApp}?text=${encodeURIComponent(
                 `Hi Musky Dose, I need support with my Order #${selectedOrder.orderNumber || selectedOrder.id}.`
               )}`}
               target="_blank"
@@ -633,14 +644,14 @@ export default function AccountDrawer() {
               </div>
             </div>
             <a
-              href="https://wa.me/918233703080?text=Hi%20Musky%20Dose,%20I%20need%20help%20with%20my%20order."
+              href={`https://wa.me/${configuredWhatsApp}?text=Hi%20Musky%20Dose,%20I%20need%20help%20with%20my%20order.`}
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => trackWhatsAppClick({ source: 'Account Drawer Support CTA' })}
               className="w-full flex items-center justify-center gap-2 py-2 bg-[#25D366] hover:bg-[#1EBE5D] text-white font-extrabold text-xs rounded-lg transition-all shadow-xs"
             >
               <MessageCircle className="w-3.5 h-3.5" />
-              <span>Chat on WhatsApp (+91 82337 03080)</span>
+              <span>Chat on WhatsApp ({displayPhone})</span>
             </a>
           </div>
 

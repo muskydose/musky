@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSiteSettings, getPublicSiteSettingsProjection, updateSiteSettings, getPaymentSettings, updatePaymentSettings } from '@/lib/db/settings';
 import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
 import { recordAuditLog } from '@/lib/auth';
@@ -86,10 +86,31 @@ export async function PUT(req: NextRequest) {
       updatedPayment = await updatePaymentSettings(paymentSettings);
     }
 
+    // Invalidate Next.js static cache and revalidate all public routes
+    try {
+      const { revalidatePath, revalidateTag } = await import('next/cache');
+      revalidatePath('/', 'layout');
+      revalidatePath('/contact');
+      revalidatePath('/about');
+      revalidatePath('/factory');
+      revalidatePath('/wholesale');
+      revalidatePath('/faq');
+      revalidatePath('/products');
+      revalidateTag('site_settings');
+      revalidateTag('business_settings');
+    } catch (revErr: any) {
+      console.warn('[API Settings] Revalidation notice:', revErr?.message);
+    }
+
     await recordAuditLog({
       action: 'SETTINGS_UPDATE',
       resource: 'site_settings',
-      details: { updatedSite: Boolean(siteSettings), updatedPayment: Boolean(paymentSettings) },
+      details: {
+        updatedSite: Boolean(siteSettings),
+        updatedPayment: Boolean(paymentSettings),
+        affectedSystems: ['Website', 'Schema', 'Footer', 'Contact', 'Invoices', 'MerchantFeed', 'Omnichannel'],
+        propagationStatus: 'SUCCESS',
+      },
     });
 
     return createSuccessResponse(

@@ -10,7 +10,7 @@
  * - No fake likes, fake followers, or fabricated metrics
  */
 
-import { Product } from '@/lib/types';
+import { Product, SiteSettings } from '@/lib/types';
 import {
   OmnichannelChannel,
   ProductOmnichannelLaunchPackage,
@@ -70,13 +70,17 @@ export function generateChannelUTMLink(
 
 export function generateProductOmnichannelLaunch(
   product: Product,
-  baseUrl: string = 'https://muskydose.in'
+  baseUrl: string = 'https://muskydose.in',
+  siteSettings?: Partial<SiteSettings>
 ): ProductOmnichannelLaunchPackage {
   const autoSeo = deriveProductAutoSeo(product);
   const feedValidation = validateProductForMerchantFeed(product, baseUrl);
   const pagePath = `/products/${product.slug}`;
   const pageUrl = `${baseUrl}${pagePath}`;
   const isHenna = product.name.toLowerCase().includes('henna') || product.name.toLowerCase().includes('mehndi');
+  const brandName = siteSettings?.businessName || siteSettings?.brandName || 'Musky Dose';
+  const displayPhone = siteSettings?.displayPhone || '+91 82337 03080';
+  const formattedAddress = siteSettings?.address || 'Musky Dose Products, Village: Dholiwadi Ka Bas, Post: Sojat City, District: Pali, Rajasthan – 306104, India';
 
   // Channel UTM links
   const igLink = generateChannelUTMLink(baseUrl, pagePath, 'INSTAGRAM', `${product.slug}_ig`);
@@ -107,14 +111,14 @@ export function generateProductOmnichannelLaunch(
 
   // YouTube Short Script
   const shortScriptDraft = `[0:00-0:03] HOOK: "Stop using synthetic powders with harmful chemical additives. Here is the real test of pure Sojat Henna."\n` +
-    `[0:03-0:15] DEMO: "Notice the vibrant olive-green color and ultra-fine triple-sifted texture of Musky Dose ${product.name}."\n` +
+    `[0:03-0:15] DEMO: "Notice the vibrant olive-green color and ultra-fine triple-sifted texture of ${brandName} ${product.name}."\n` +
     `[0:15-0:25] BENEFIT: "Harvested directly in Sojat, Rajasthan — delivers rich natural stains with zero chemicals or PPD."\n` +
     `[0:25-0:30] CTA: "Get fresh harvest batches delivered across India. Link in description/comments!"`;
 
   const videoTitle = `${product.name} - 100% Pure Sojat Harvest Test & Application Guide`;
   const youtubeDescription = `Discover 100% pure ${product.name} direct from Sojat, Rajasthan. Ideal for bridal artists, salons, and hair care.\n\n` +
     `🛒 Buy Online: ${ytLink}\n` +
-    `📱 WhatsApp Order: +91 9876543210\n\n` +
+    `📱 WhatsApp Order: ${displayPhone}\n\n` +
     `#MuskyDose #SojatHenna #NaturalHairCare`;
 
   // WhatsApp Broadcast & Response Drafts
@@ -123,7 +127,7 @@ export function generateProductOmnichannelLaunch(
   const waArtist = `Namaste Bridal Artist! Inquiring about our 5-sieve micro-filtered *${product.name}* with guaranteed deep burgundy stain? Reply *ARTIST* for professional salon pricing.`;
 
   // Google Business Post
-  const gBusinessPost = `Fresh Batch Available: ${product.name} direct from our manufacturing unit in Sojat, Pali, Rajasthan. 100% pure botanical harvest. Inquire online or visit our catalog at ${gbLink}.`;
+  const gBusinessPost = `Fresh Batch Available: ${product.name} direct from ${brandName} processing unit in Sojat, Pali, Rajasthan. 100% pure botanical harvest. Inquire online or visit our catalog at ${gbLink}. Facility: ${formattedAddress}`;
 
   return {
     productId: product.id,

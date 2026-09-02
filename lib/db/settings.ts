@@ -188,6 +188,8 @@ export const getSiteSettings = cache(async (): Promise<SiteSettings> => {
   }
 });
 
+export const getBusinessSettings = getSiteSettings;
+
 export function getPublicSiteSettingsProjection(settings: SiteSettings): Partial<SiteSettings> {
   if (!settings) return {};
 
