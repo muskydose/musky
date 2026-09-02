@@ -1,7 +1,7 @@
 import { Product, Category } from '@/lib/types';
 import { normalizeKeywordTerm } from './product-keyword-engine';
 
-export type SmartRouteType = 'PRODUCT' | 'CATEGORY' | 'SEARCH';
+export type SmartRouteType = 'PRODUCT' | 'CATEGORY' | 'SEARCH' | 'WHOLESALE';
 export type MatchConfidence = 'HIGH' | 'MEDIUM' | 'LOW';
 
 export interface SmartRouteResult {
@@ -24,6 +24,27 @@ export interface SmartRouteResult {
     type: 'product' | 'category' | 'search';
   }[];
 }
+
+const B2B_WHOLESALE_TOKENS = new Set([
+  'wholesale',
+  'bulk',
+  'supplier',
+  'suppliers',
+  'manufacturer',
+  'manufacturers',
+  'b2b',
+  'distributor',
+  'distributors',
+  'trader',
+  'traders',
+  'mandi',
+  'salon',
+  'salons',
+  'reseller',
+  'resellers',
+]);
+
+const RETAIL_PACK_INDICATORS = /\b(\d+\s*(g|gm|gms|gram|grams|kg|ml|ltr|litre|liter|piece|pieces|pack|cones?))\b/i;
 
 const GENERIC_MODIFIERS = new Set([
   'pure',
@@ -143,6 +164,24 @@ export function resolveSmartKeywordRoute(params: {
         },
       };
     }
+  }
+
+  // -------------------------------------------------------------
+  // 1C. HIGH-INTENT B2B WHOLESALE & BULK ROUTING (SCORE: 980)
+  // -------------------------------------------------------------
+  const hasWholesaleToken = queryTokens.some((t) => B2B_WHOLESALE_TOKENS.has(t));
+  const hasRetailPackIndicator = RETAIL_PACK_INDICATORS.test(rawQuery);
+
+  if (hasWholesaleToken && !hasRetailPackIndicator) {
+    return {
+      query: rawQuery,
+      normalizedQuery: q,
+      destinationUrl: '/wholesale',
+      routeType: 'WHOLESALE',
+      confidence: 'HIGH',
+      confidenceScore: 980,
+      reason: `High-intent B2B wholesale / bulk query detected ("${rawQuery}")`,
+    };
   }
 
   // -------------------------------------------------------------

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -636,6 +637,14 @@ function WholesaleContent() {
               <p className="text-xs text-[#626c66] mt-1 leading-relaxed max-w-3xl">
                 Direct factory manufacturing and wholesale supply from Sojat City, Rajasthan. We supply certified cosmetic grade Lawsonia Inermis, organic Indigo, and Ayurvedic hair-care botanicals in bulk commercial formats.
               </p>
+              <div className="pt-2">
+                <Link
+                  href="/sojat-henna"
+                  className="text-xs font-bold text-[#1b4332] hover:underline inline-flex items-center gap-1"
+                >
+                  <span>Learn about our authentic Sojat Henna cultivation & processing &rarr;</span>
+                </Link>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs text-[#2b302c]">

@@ -95,30 +95,34 @@ export async function generateMetadata(): Promise<Metadata> {
 
 function buildJsonLd(siteSettings: any) {
   const baseUrl = siteSettings.websiteUrl || 'https://muskydose.in';
+  const logoUrl = siteSettings.logoUrl
+    ? siteSettings.logoUrl.startsWith('http')
+      ? siteSettings.logoUrl
+      : `${baseUrl}${siteSettings.logoUrl.startsWith('/') ? '' : '/'}${siteSettings.logoUrl}`
+    : `${baseUrl}/logo.png`;
+
+  const postalAddress: any = {
+    '@type': 'PostalAddress',
+    streetAddress: siteSettings.address || 'Village: Dholiwadi Ka Bas, Post: Sojat City',
+    addressLocality: siteSettings.city || 'Sojat City',
+    addressRegion: siteSettings.state || 'Rajasthan',
+    postalCode: siteSettings.pincode || '306104',
+    addressCountry: 'IN',
+  };
 
   const org: any = {
     '@type': 'Organization',
     '@id': `${baseUrl}/#organization`,
     name: siteSettings.businessName || siteSettings.brandName || 'Musky Dose',
     url: baseUrl,
+    logo: logoUrl,
   };
 
-  if (siteSettings.logoUrl) {
-    org.logo = siteSettings.logoUrl.startsWith('http')
-      ? siteSettings.logoUrl
-      : `${baseUrl}${siteSettings.logoUrl.startsWith('/') ? '' : '/'}${siteSettings.logoUrl}`;
-  } else {
-    org.logo = `${baseUrl}/logo.png`;
-  }
   if (siteSettings.seoDescription) {
     org.description = siteSettings.seoDescription;
   }
   if (siteSettings.address) {
-    org.address = {
-      '@type': 'PostalAddress',
-      streetAddress: siteSettings.address,
-      addressCountry: 'IN',
-    };
+    org.address = postalAddress;
   }
   const phone = siteSettings.displayPhone;
   if (phone) {
@@ -127,13 +131,33 @@ function buildJsonLd(siteSettings: any) {
       telephone: phone,
       contactType: 'customer service',
       email: siteSettings.businessEmail,
+      areaServed: 'IN',
+      availableLanguage: ['en', 'hi'],
     };
   }
+
+  const localBusiness: any = {
+    '@type': ['LocalBusiness', 'Manufacturer'],
+    '@id': `${baseUrl}/#localbusiness`,
+    name: siteSettings.businessName || siteSettings.brandName || 'Musky Dose',
+    url: baseUrl,
+    logo: logoUrl,
+    image: [logoUrl],
+    description: siteSettings.seoDescription || org.description,
+    telephone: phone || undefined,
+    email: siteSettings.businessEmail || undefined,
+    address: postalAddress,
+    priceRange: '₹₹',
+    parentOrganization: {
+      '@id': `${baseUrl}/#organization`,
+    },
+  };
 
   return {
     '@context': 'https://schema.org',
     '@graph': [
       org,
+      localBusiness,
       {
         '@type': 'WebSite',
         '@id': `${baseUrl}/#website`,

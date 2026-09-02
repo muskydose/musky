@@ -654,10 +654,13 @@ export default function ProductDetailClient({
               <Shield className="w-4 h-4 text-[#c5a059] shrink-0" />
               <span className="font-medium text-[11px] text-[#0f2d22]">100% Pure & Unadulterated</span>
             </div>
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-[#fcfbf7] border border-[#e8e2d5]">
+            <Link
+              href="/sojat-henna"
+              className="flex items-center gap-2 p-2 rounded-lg bg-[#fcfbf7] border border-[#e8e2d5] hover:border-[#1b4332] transition-colors group"
+            >
               <MapPin className="w-4 h-4 text-[#1b4332] shrink-0" />
-              <span className="font-medium text-[11px] text-[#0f2d22]">Sojat, Rajasthan Origin</span>
-            </div>
+              <span className="font-medium text-[11px] text-[#0f2d22] group-hover:underline">Sojat, Rajasthan Origin &rarr;</span>
+            </Link>
             <div className="flex items-center gap-2 p-2 rounded-lg bg-[#fcfbf7] border border-[#e8e2d5]">
               <Truck className="w-4 h-4 text-[#1b4332] shrink-0" />
               <span className="font-medium text-[11px] text-[#0f2d22]">Pan-India Fast Dispatch</span>
