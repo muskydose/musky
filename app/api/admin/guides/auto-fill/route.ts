@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
-import { deriveProductGuide } from '@/lib/growth/guide-generator';
+import {
+  deriveProductGuide,
+  deriveProductIntelligence,
+  evaluateGuideOpportunities,
+  generateProductKeywordUniverseV2,
+  generateUniversalGuideDraft,
+  GuideFamily,
+} from '@/lib/growth/guide-generator';
 import { getProducts } from '@/lib/db/products';
 import { getGuides } from '@/lib/db/guides';
 import { sanitizeAdminError } from '@/lib/api-errors';
@@ -19,6 +26,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const productId = String(body.productId || '').trim();
     const productName = String(body.productName || body.title || '').trim();
+    const requestedFamily: GuideFamily | undefined = body.family;
 
     if (!productId && !productName) {
       return NextResponse.json(
@@ -44,14 +52,40 @@ export async function POST(req: NextRequest) {
       ingredients: body.ingredients || [],
       benefits: body.benefits || [],
       usageInstructions: body.usageInstructions || '',
+      images: body.images || [],
     };
 
-    // 4. Derive complete, truth-grounded guide draft
-    const draft = deriveProductGuide(targetProduct, products, guides);
+    // 4. Derive Universal Product Intelligence & Opportunities
+    const intelligence = deriveProductIntelligence(targetProduct, products);
+    const guideOpportunities = evaluateGuideOpportunities(intelligence, guides);
+    const keywordUniverse = generateProductKeywordUniverseV2({ intelligence });
+
+    // 5. Derive draft based on family or default
+    let draft: any;
+    if (requestedFamily) {
+      draft = generateUniversalGuideDraft({
+        intelligence,
+        family: requestedFamily,
+        keywordUniverse,
+        allProducts: products,
+        productId: targetProduct.id,
+        coverImage: targetProduct.images?.[0] || '/images/fallback.svg',
+      });
+    } else {
+      draft = deriveProductGuide(targetProduct, products, guides);
+    }
 
     return NextResponse.json({
       success: true,
       draft,
+      intelligence,
+      guideOpportunities,
+      keywordUniverse: {
+        totalKeywords: keywordUniverse.totalKeywords,
+        realGscKeywordsCount: keywordUniverse.realGscKeywordsCount,
+        generatedKeywordsCount: keywordUniverse.generatedKeywordsCount,
+        sampleKeywords: keywordUniverse.allKeywords.slice(0, 15),
+      },
     });
   } catch (error: any) {
     return sanitizeAdminError(error, 'Failed to generate guide auto-fill draft.');

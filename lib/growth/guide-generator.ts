@@ -5,6 +5,23 @@
 
 import { Product, ProductGuide, ProductGuideFAQ } from '@/lib/types';
 import { BOTANICAL_SEARCH_ENTITIES, detectProductEntity, SearchEntity } from './entities';
+import { deriveProductIntelligence, UniversalProductIntelligence } from './product-intelligence';
+import { generateProductKeywordUniverseV2, ProductKeywordUniverseV2 } from './keyword-universe-engine';
+import {
+  evaluateGuideOpportunities,
+  generateUniversalGuideDraft,
+  GuideFamily,
+  GuideOpportunity,
+  UniversalGuideDraft,
+} from './guide-opportunity-engine';
+
+export {
+  deriveProductIntelligence,
+  generateProductKeywordUniverseV2,
+  evaluateGuideOpportunities,
+  generateUniversalGuideDraft,
+};
+export type { UniversalProductIntelligence, ProductKeywordUniverseV2, GuideFamily, GuideOpportunity, UniversalGuideDraft };
 
 export function sanitizeSlug(input: string): string {
   if (!input || typeof input !== 'string') return '';
@@ -118,8 +135,49 @@ export function deriveProductGuide(
     case 'BHRINGRAJ':
       return generateAyurvedicHairSkinGuide(product, detectedEntity!, name, rawSlug, ingredients, verifiedBenefits, weight, coverImage, productId, relatedProductIds);
 
-    default:
-      return generateUnknownBotanicalGuide(product, name, rawSlug, ingredients, verifiedBenefits, weight, coverImage, productId, relatedProductIds);
+    default: {
+      const intel = deriveProductIntelligence(product, allProducts);
+      const kwUniverse = generateProductKeywordUniverseV2({ intelligence: intel });
+      const draft = generateUniversalGuideDraft({
+        intelligence: intel,
+        family: 'PRODUCT_OVERVIEW',
+        keywordUniverse: kwUniverse,
+        allProducts,
+        productId,
+        coverImage,
+      });
+
+      return {
+        title: draft.title,
+        slug: draft.slug,
+        shortIntro: draft.shortIntro,
+        category: draft.category,
+        readTime: draft.readTime,
+        overview: draft.overview,
+        whatIsThis: draft.whatIsThis,
+        keyBenefits: draft.keyBenefits,
+        ingredients: draft.ingredients,
+        whoShouldUse: draft.whoShouldUse,
+        whoShouldAvoid: draft.whoShouldAvoid,
+        howToUse: draft.howToUse,
+        quantityPreparation: draft.quantityPreparation,
+        storageInstructions: draft.storageInstructions,
+        importantNotes: draft.importantNotes,
+        content: draft.content,
+        faqs: draft.faqs,
+        seoTitle: draft.seoTitle,
+        seoDescription: draft.seoDescription,
+        seoKeywords: draft.seoKeywords,
+        primaryKeyword: draft.primaryKeyword,
+        secondaryKeywords: draft.secondaryKeywords,
+        longTailKeywords: draft.longTailKeywords,
+        associatedProductId: draft.associatedProductId,
+        relatedProductIds: draft.relatedProductIds,
+        coverImage: draft.coverImage,
+        needsReview: draft.needsReview,
+        missingFields: draft.reviewReasons,
+      };
+    }
   }
 }
 

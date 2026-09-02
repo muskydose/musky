@@ -5,7 +5,17 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ProductGuide, ProductGuideFAQ, Product } from '@/lib/types';
-import { deriveProductGuide } from '@/lib/growth/guide-generator';
+import {
+  deriveProductGuide,
+  deriveProductIntelligence,
+  evaluateGuideOpportunities,
+  generateProductKeywordUniverseV2,
+  generateUniversalGuideDraft,
+  GuideFamily,
+  GuideOpportunity,
+  UniversalProductIntelligence,
+  ProductKeywordUniverseV2,
+} from '@/lib/growth/guide-generator';
 import {
   ArrowLeft,
   Save,
@@ -72,14 +82,32 @@ export default function GuideFormClient({
     isFeatured: guide?.isFeatured ?? false,
   });
 
+  const [selectedFamily, setSelectedFamily] = useState<GuideFamily>('PRODUCT_OVERVIEW');
+  const [intelligence, setIntelligence] = useState<UniversalProductIntelligence | null>(null);
+  const [opportunities, setOpportunities] = useState<GuideOpportunity[]>([]);
+  const [keywordUniverse, setKeywordUniverse] = useState<ProductKeywordUniverseV2 | null>(null);
+  const [showKeywordModal, setShowKeywordModal] = useState(false);
   const [isAutoFilling, setIsAutoFilling] = useState(false);
   const [hasManuallyEdited, setHasManuallyEdited] = useState(isEditing);
   const [needsReviewWarning, setNeedsReviewWarning] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
-  // Auto-fill Guide Draft from selected Product
-  const handleAutoFill = (overrideManual = false) => {
+  // Sync Universal Product Intelligence whenever selected product changes
+  React.useEffect(() => {
+    const selectedProduct = products.find((p) => p.id === selectedProductId);
+    if (selectedProduct) {
+      const intel = deriveProductIntelligence(selectedProduct, products);
+      const opps = evaluateGuideOpportunities(intel);
+      const kw = generateProductKeywordUniverseV2({ intelligence: intel });
+      setIntelligence(intel);
+      setOpportunities(opps);
+      setKeywordUniverse(kw);
+    }
+  }, [selectedProductId, products]);
+
+  // Auto-fill Guide Draft from selected Product and Guide Family
+  const handleAutoFill = (targetFamily?: GuideFamily, overrideManual = false) => {
     if (hasManuallyEdited && !overrideManual) {
       const confirmOverwrite = window.confirm(
         'You have existing edits in this guide. Auto-filling will regenerate all fields from the selected product. Continue?'
@@ -93,9 +121,20 @@ export default function GuideFormClient({
       return;
     }
 
+    const fam = targetFamily || selectedFamily;
+
     setIsAutoFilling(true);
     try {
-      const draft = deriveProductGuide(selectedProduct, products);
+      const intel = deriveProductIntelligence(selectedProduct, products);
+      const kw = generateProductKeywordUniverseV2({ intelligence: intel });
+      const draft = generateUniversalGuideDraft({
+        intelligence: intel,
+        family: fam,
+        keywordUniverse: kw,
+        allProducts: products,
+        productId: selectedProduct.id,
+        coverImage: selectedProduct.images?.[0] || '/images/fallback.svg',
+      });
 
       setFormData((prev) => ({
         ...prev,
@@ -126,16 +165,16 @@ export default function GuideFormClient({
       }));
 
       if (draft.needsReview) {
-        setNeedsReviewWarning(draft.missingFields);
+        setNeedsReviewWarning(draft.reviewReasons);
         setNotification({
           type: 'info',
-          message: `Guide auto-filled! [GUIDE NEEDS REVIEW] Please review missing fields: ${draft.missingFields.join(', ')}`,
+          message: `Guide auto-filled! [GUIDE NEEDS REVIEW] Please review missing fields: ${draft.reviewReasons.join(', ')}`,
         });
       } else {
         setNeedsReviewWarning([]);
         setNotification({
           type: 'success',
-          message: `Complete professional guide draft generated from "${selectedProduct.name}"!`,
+          message: `Complete ${fam.replace(/_/g, ' ')} draft generated from "${selectedProduct.name}"!`,
         });
       }
 
@@ -297,20 +336,20 @@ export default function GuideFormClient({
       </div>
 
       {/* Universal Auto-Guide Generator Banner */}
-      <div className="bg-gradient-to-r from-[#0f2d22] to-[#1b4332] text-white p-6 rounded-2xl shadow-md border border-[#c5a059]/40 space-y-4">
+      <div className="bg-gradient-to-r from-[#0f2d22] to-[#1b4332] text-white p-6 rounded-2xl shadow-md border border-[#c5a059]/40 space-y-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-[#c5a059]" />
               <span className="font-serif-heading font-extrabold text-lg text-[#fcfbf7] tracking-wide">
-                Universal Auto-Guide Generator
+                Universal Auto-Guide Intelligence V2
               </span>
               <span className="bg-[#c5a059]/20 text-[#c5a059] border border-[#c5a059]/40 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
-                Taxonomy-Aware
+                Dynamic Taxonomy
               </span>
             </div>
             <p className="text-xs text-[#e8e2d5] max-w-2xl leading-relaxed">
-              Select any botanical product to auto-derive a complete truth-grounded guide draft with botanical overview, preparation charts, FAQs, and Auto-SEO.
+              Deconstructs any product name into canonical botanical entity, form, packaging, and unit governance to generate truth-grounded guide drafts.
             </p>
           </div>
 
@@ -329,7 +368,7 @@ export default function GuideFormClient({
 
             <button
               type="button"
-              onClick={() => handleAutoFill(false)}
+              onClick={() => handleAutoFill(selectedFamily, false)}
               disabled={isAutoFilling || products.length === 0}
               className="inline-flex items-center gap-2 bg-[#c5a059] hover:bg-[#b08d48] text-[#0f2d22] px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
             >
@@ -339,15 +378,127 @@ export default function GuideFormClient({
           </div>
         </div>
 
+        {/* Product Intelligence Badges */}
+        {intelligence && (
+          <div className="bg-black/20 p-3 rounded-xl border border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-gray-300 font-bold">Intelligence:</span>
+              <span className="bg-white/10 px-2 py-0.5 rounded text-[11px] font-mono">
+                Entity: {intelligence.entity}
+              </span>
+              <span className="bg-white/10 px-2 py-0.5 rounded text-[11px]">
+                Type: {intelligence.productType.replace(/_/g, ' ')}
+              </span>
+              <span className="bg-white/10 px-2 py-0.5 rounded text-[11px]">
+                Form: {intelligence.form}
+              </span>
+              <span className="bg-white/10 px-2 py-0.5 rounded text-[11px]">
+                Pack: {intelligence.packQuantity}{intelligence.packUnit}
+              </span>
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                  intelligence.confidence === 'HIGH'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
+                    : 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
+                }`}
+              >
+                {intelligence.confidence === 'HIGH' ? 'Confidence: High' : 'Confidence: Needs Review'}
+              </span>
+            </div>
+
+            {keywordUniverse && (
+              <button
+                type="button"
+                onClick={() => setShowKeywordModal(!showKeywordModal)}
+                className="text-xs text-[#c5a059] hover:underline font-bold inline-flex items-center gap-1"
+              >
+                <span>{keywordUniverse.totalKeywords} Keywords in Universe</span>
+                <Eye className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Guide Family Selector */}
+        {opportunities.length > 0 && (
+          <div className="space-y-2 pt-1 border-t border-white/10">
+            <div className="flex items-center justify-between text-xs text-gray-300">
+              <span className="font-bold">Select Guide Family Template ({opportunities.length} Available):</span>
+              <span className="text-[11px] text-gray-400">Click a family to auto-switch template</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {opportunities.map((opp) => {
+                const isActive = selectedFamily === opp.family;
+                return (
+                  <button
+                    key={opp.family}
+                    type="button"
+                    onClick={() => {
+                      setSelectedFamily(opp.family);
+                      handleAutoFill(opp.family, true);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-[#c5a059] text-[#0f2d22] font-bold shadow-xs scale-[1.02]'
+                        : 'bg-white/10 hover:bg-white/20 text-gray-200 border border-white/10'
+                    }`}
+                  >
+                    {opp.family.replace(/_/g, ' ')}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {needsReviewWarning.length > 0 && (
           <div className="bg-amber-500/20 border border-amber-400/40 rounded-xl p-3 text-xs text-amber-200 flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-amber-300 shrink-0" />
             <span>
-              <strong>GUIDE NEEDS REVIEW:</strong> Missing verified data for: {needsReviewWarning.join(', ')}. Please verify or fill in manually.
+              <strong>GUIDE NEEDS REVIEW:</strong> {needsReviewWarning.join('; ')}
             </span>
           </div>
         )}
       </div>
+
+      {/* Keyword Universe Preview Modal */}
+      {showKeywordModal && keywordUniverse && (
+        <div className="bg-white p-6 rounded-2xl border border-[#e8e2d5] shadow-md space-y-4">
+          <div className="flex items-center justify-between border-b border-[#e8e2d5] pb-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#1b4332]" />
+              <h4 className="font-serif-heading font-bold text-base text-[#0f2d22]">
+                20-Category Keyword Universe for &quot;{keywordUniverse.productName}&quot;
+              </h4>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowKeywordModal(false)}
+              className="text-xs text-gray-500 hover:text-gray-900 font-bold"
+            >
+              Close ✕
+            </button>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto pr-2">
+            {Object.entries(keywordUniverse.categories).map(([category, items]) => (
+              items.length > 0 && (
+                <div key={category} className="bg-[#fcfbf9] p-2.5 rounded-xl border border-[#e8e2d5] text-xs">
+                  <span className="font-bold text-[10px] uppercase text-[#626c66] block mb-1">
+                    {category.replace(/_/g, ' ')} ({items.length})
+                  </span>
+                  <ul className="space-y-0.5">
+                    {items.slice(0, 4).map((kw, i) => (
+                      <li key={i} className="text-[#0f2d22] font-mono text-[11px] truncate">
+                        • {kw.term}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Main Grid: Form Inputs */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

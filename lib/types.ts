@@ -105,6 +105,7 @@ export interface Product {
   maxWholesaleQuantity?: number;
   conversionRule?: string;
   unitConfig?: ProductUnitConfig;
+  isWholesaleEligible?: boolean;
   fieldMetadata?: Record<string, ProductFieldMetadata>;
   lockedFields?: string[];
   seoTitle?: string;
@@ -794,6 +795,10 @@ export interface ProductGuide {
   seoKeywords?: string;
   isFeatured?: boolean;
   sortOrder?: number;
+  status?: 'DRAFT' | 'NEEDS_REVIEW' | 'READY' | 'PUBLISHED' | 'UPDATE_AVAILABLE' | 'ARCHIVED';
+  contentUpdateAvailable?: boolean;
+  contentUpdateReason?: string;
+  source?: 'AUTO' | 'ADMIN' | 'MANUAL' | 'GSC' | 'VERIFIED';
   createdAt: string;
   updatedAt: string;
 }
