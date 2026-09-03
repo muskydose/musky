@@ -152,6 +152,37 @@ export const BOTANICAL_SEARCH_ENTITIES: Record<string, SearchEntity> = {
     relatedProductTypes: ['powder', 'oil'],
     primaryScope: 'HAIR',
   },
+  FENUGREEK: {
+    id: 'FENUGREEK',
+    canonicalName: 'Fenugreek',
+    aliases: ['fenugreek', 'methi', 'trigonella foenum-graecum', 'menthulu'],
+    scientificName: 'Trigonella Foenum-Graecum',
+    categorySlug: 'hair-care',
+    guideSlugs: [],
+    relatedProductTypes: ['powder', 'seeds'],
+    primaryScope: 'HAIR',
+  },
+  ESSENTIAL_OIL: {
+    id: 'ESSENTIAL_OIL',
+    canonicalName: 'Essential Oil',
+    aliases: [
+      'essential oil',
+      'lavender',
+      'tea tree',
+      'eucalyptus',
+      'rosemary',
+      'peppermint',
+      'clove',
+      'clove oil',
+      'nilgiri',
+      'aromatherapy',
+    ],
+    scientificName: 'Essential Oil',
+    categorySlug: 'herbal-products',
+    guideSlugs: [],
+    relatedProductTypes: ['oil'],
+    primaryScope: 'HERBAL',
+  },
 };
 
 /**

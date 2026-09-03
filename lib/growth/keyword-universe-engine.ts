@@ -148,7 +148,12 @@ export function generateProductKeywordUniverseV2(params: {
   // 1. Incorporate Real GSC Queries First
   for (const g of gscQueries) {
     const q = g.query.toLowerCase().trim();
-    if (q.includes(baseEntity) || q.includes(name.toLowerCase())) {
+    const hasEntityMatch =
+      q.includes(baseEntity) ||
+      q.includes(name.toLowerCase()) ||
+      (intelligence.blendComponents && intelligence.blendComponents.some((c) => q.includes(c.toLowerCase())));
+
+    if (hasEntityMatch) {
       let cat: KeywordUniverseCategory = 'PRODUCT';
       let intent: 'RETAIL' | 'B2B' | 'LOCAL' | 'INFORMATIONAL' = 'RETAIL';
 
@@ -291,6 +296,13 @@ export function generateProductKeywordUniverseV2(params: {
   // 21. S. RELATED PRODUCT KEYWORDS
   for (const rel of intelligence.relatedEntities) {
     addItem(`${baseEntity} and ${rel.toLowerCase()} combo`, 'RELATED_PRODUCT');
+  }
+  if (intelligence.blendComponents && intelligence.blendComponents.length > 1) {
+    for (const comp of intelligence.blendComponents) {
+      const compName = comp.toLowerCase().replace(/_/g, ' ');
+      addItem(`${compName} powder for hair care`, 'RELATED_PRODUCT');
+      addItem(`pure ${compName} component in blend`, 'RELATED_PRODUCT');
+    }
   }
 
   // 22. T. INFORMATIONAL KEYWORDS

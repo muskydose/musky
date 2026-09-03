@@ -301,7 +301,7 @@ export function generateUniversalGuideDraft(params: {
   let title = `Complete Guide to ${name}`;
   let slug = `${slugBase}-complete-guide`;
   let shortIntro = `A comprehensive botanical guide to ${name}, covering authentic sourcing, application, and care.`;
-  let overview = `${baseEntity} (${name}) is a single-ingredient botanical product sourced and prepared to verified purity standards for traditional personal care.`;
+  let overview = `${baseEntity} (${name}) is a traditional botanical product sourced and prepared to verified purity standards for traditional personal care.`;
   let whatIsThis = `This product consists of 100% natural ${baseEntity} ${form}, formulated without synthetic adulterants, artificial fragrance, or harsh chemical additives.`;
   let howToUse = `Mix with warm water into a smooth paste. Apply evenly and follow recommended resting times.`;
   let quantityPreparation = `For short hair or localized use, prepare 50g-100g. For longer hair or full body art, use 150g-250g.`;
@@ -309,10 +309,40 @@ export function generateUniversalGuideDraft(params: {
   let importantNotes = `Perform a standard patch test 24 hours prior to full application. For external application only.`;
   let whoShouldUse = `Suitable for individuals seeking authentic, unadulterated botanical products for traditional personal care.`;
   let whoShouldAvoid = `Individuals with known plant sensitivities to ${baseEntity} should conduct a preliminary patch test.`;
+
+  // Product Form & Blend Specializations
+  if (intelligence.entity === 'HERBAL_BLEND') {
+    overview = `${name} is an authentic multi-herb Ayurvedic preparation combining ${intelligence.blendComponents?.join(', ') || 'traditional botanicals'} for comprehensive hair and scalp care.`;
+    whatIsThis = `This product is a 100% pure botanical blend containing zero synthetic detergents, sulfates, silicones, artificial colorants, or chemical preservatives.`;
+    howToUse = `1. Take 2 to 3 tablespoons of herbal powder in a bowl.\n2. Mix with lukewarm water (or herbal tea) into a smooth, lump-free paste.\n3. Apply evenly to wet hair and massage gently into the scalp.\n4. Leave on for 15 to 30 minutes to allow natural saponins and botanical nutrients to cleanse and condition.\n5. Rinse thoroughly with plain water.`;
+    quantityPreparation = `Short Hair: 30-50g | Medium Hair: 60-80g | Long Hair: 100-120g mixed with warm water.`;
+  } else if (intelligence.form === 'paste_cone') {
+    overview = `${name} contains smooth, micro-filtered natural henna paste prepared for intricate bridal and traditional body art application.`;
+    whatIsThis = `Pre-rolled precision applicator cones filled with 100% natural Lawsonia Inermis paste, eucalyptus/clove terpene oil, and lemon-sugar blend. Free of chemical dye accelerators, PPD, and synthetic black stains.`;
+    howToUse = `1. Ensure skin is clean and oil-free.\n2. Snip the cone tip to the desired aperture.\n3. Apply intricate designs onto palms or feet.\n4. Allow paste to dry for 20-30 minutes, then apply lemon-sugar sealant.\n5. Leave on skin for 4-8 hours for deep, natural mahogany oxidation.\n6. Scrape off dried paste gently; avoid water contact for the first 12 hours.`;
+    quantityPreparation = `Cones are pre-mixed and ready to apply. Each cone yields approximately 1-2 full palm designs depending on complexity.`;
+    storageInstructions = `Fresh natural henna cones contain zero artificial preservatives. Store in airtight freezer packaging for up to 6 months to preserve lawsone staining potency. Thaw at room temperature for 15 minutes before use.`;
+  } else if (intelligence.productType === 'essential_oil' || intelligence.form === 'oil') {
+    overview = `${name} is an aromatic botanical distillate obtained through traditional steam distillation for aromatherapy diffusion, personal care, and terpene mixing.`;
+    whatIsThis = `100% pure, undiluted botanical essential oil containing zero artificial fragrance, mineral oil, parabens, or synthetic solvents.`;
+    howToUse = `For aromatherapy: Add 3-5 drops to a room diffuser.\nFor henna paste: Add 5-10ml per 100g henna powder for natural terpene enrichment.\nFor topical use: Always dilute with a carrier oil (such as coconut or jojoba oil) at 1-2% ratio. Never apply undiluted directly to skin.`;
+    quantityPreparation = `Use drop by drop. 1ml contains approximately 20-25 drops.`;
+    storageInstructions = `Store in original amber glass bottle tightly capped in a cool, dark cabinet away from sunlight, heat, and open flames.`;
+    importantNotes = `Concentrated botanical oil. For external application only. Keep away from eyes, children, and pets. Always conduct a 24-hour patch test before topical use.`;
+  } else if (intelligence.productType === 'hydrosol_spray') {
+    overview = `${name} is a pure floral hydrosol distillate captured during traditional hydro-distillation for facial toning, misting, and pack mixing.`;
+    whatIsThis = `100% pure botanical floral distillate containing zero alcohol, artificial fragrance, parabens, or added water.`;
+    howToUse = `Hold bottle 10-15cm away and spray gently over face and neck with eyes closed. Can be used as a morning refresher, post-cleansing toner, or mixing liquid for herbal face packs.`;
+    storageInstructions = `Store in a cool, dry place away from direct sunlight. Can be stored in refrigerator for an enhanced cooling sensation.`;
+  }
+
   let keyBenefits = intelligence.needsReview
     ? ['100% natural botanical ingredient', '[GUIDE NEEDS REVIEW: Verify specific product benefits in Admin]']
     : intelligence.useCases.slice(0, 4);
-  let ingredients = [intelligence.scientificName ? `100% Pure ${intelligence.scientificName}` : `100% Pure ${name}`];
+
+  let ingredients = intelligence.blendComponents && intelligence.blendComponents.length > 1
+    ? intelligence.blendComponents.map((c) => `100% Pure ${c.replace(/_/g, ' ')} Powder`)
+    : [intelligence.scientificName ? `100% Pure ${intelligence.scientificName}` : `100% Pure ${name}`];
 
   const faqs: ProductGuideFAQ[] = [
     {
@@ -334,13 +364,11 @@ export function generateUniversalGuideDraft(params: {
     title = `How to Use ${name}: Step-by-Step Instructions & Mixing Guide`;
     slug = `how-to-use-${slugBase}`;
     shortIntro = `Master the correct mixing ratios, preparation steps, and application times for ${name}.`;
-    if (intelligence.entity === 'HENNA_MEHNDI') {
+    if (intelligence.entity === 'HENNA_MEHNDI' && intelligence.form !== 'paste_cone') {
       howToUse = `1. In a glass or ceramic bowl, blend pure henna powder with lukewarm water into a smooth paste resembling yoghurt consistency.\n2. Cover with airtight wrap and allow 2-3 hours for natural lawsone dye release.\n3. Section hair or skin, applying evenly from roots to tips.\n4. Leave on for 2-3 hours for rich conditioning and color development.\n5. Rinse thoroughly with plain water; avoid shampooing for the first 24 hours to allow natural oxidation.`;
       quantityPreparation = `Short Hair: 50-80g | Medium Hair: 100-150g | Long Hair: 200-250g | Hands/Body Art: 30-50g per cone batch.`;
     } else if (intelligence.entity === 'INDIGO') {
       howToUse = `1. Indigo powder should be mixed freshly just before application with warm water.\n2. Do NOT let indigo rest for hours; its dye activates within 15-20 minutes.\n3. Apply immediately to clean, henna-treated hair for deep black results.\n4. Leave on for 1-2 hours under a shower cap.\n5. Rinse gently with water.`;
-    } else if (intelligence.form === 'oil') {
-      howToUse = `Warm a few drops in clean palms. Massage gently into scalp or skin in circular motions. Leave on for at least 45 minutes or overnight before rinsing with a mild botanical cleanser.`;
     }
   } else if (family === 'HOW_TO_STORE') {
     title = `How to Store ${name}: Shelf Life, Freshness & Oxidation Protection`;
@@ -368,7 +396,21 @@ export function generateUniversalGuideDraft(params: {
   }
 
   // Content compilation
-  const content = `## Overview\n\n${overview}\n\n## What is This Product?\n\n${whatIsThis}\n\n## How to Use\n\n${howToUse}\n\n## Recommended Quantities\n\n${quantityPreparation}\n\n## Storage & Shelf Life\n\n${storageInstructions}\n\n## Important Safety Notes\n\n${importantNotes}`;
+  let content = `## Overview\n\n${overview}\n\n## What is This Product?\n\n${whatIsThis}\n\n## How to Use\n\n${howToUse}\n\n## Recommended Quantities\n\n${quantityPreparation}\n\n## Storage & Shelf Life\n\n${storageInstructions}\n\n## Important Safety Notes\n\n${importantNotes}`;
+
+  const internalLinks: string[] = [];
+  if (intelligence.localIntent === 'SOJAT_ORIGIN') {
+    internalLinks.push(`- Explore authentic [Sojat Henna Origin & Processing](/sojat-henna).`);
+  }
+  if (intelligence.wholesaleEligible) {
+    internalLinks.push(`- Sourcing for salons or bulk resale? Visit our [Wholesale Sourcing Desk](/wholesale).`);
+  }
+  if (productId) {
+    internalLinks.push(`- View verified product details for [${name}](/products/${productId}).`);
+  }
+  if (internalLinks.length > 0) {
+    content += `\n\n## Related Sourcing & Direct Links\n\n${internalLinks.join('\n')}`;
+  }
 
   // SEO metadata
   const seoTitle = `${title.slice(0, 50)} | ${siteName}`;

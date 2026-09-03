@@ -47,6 +47,7 @@ export interface UniversalProductIntelligence {
   productType: ProductType;
   entity: string;
   botanicalEntity: string;
+  blendComponents?: string[];
   scientificName?: string;
   categorySlug: string;
   categoryName: string;
@@ -313,6 +314,7 @@ export const KNOWN_BOTANICALS: Record<string, BotanicalDefinition> = {
 export function parseProductName(rawName: string): {
   normalizedName: string;
   detectedBotanicalKey: string | null;
+  detectedComponents: string[];
   form: ProductForm;
   packQuantity: number;
   packUnit: string;
@@ -378,35 +380,42 @@ export function parseProductName(rawName: string): {
   const hasSojatSignal = /\b(sojat|pali|marwar)\b/i.test(rawName);
 
   // 4. Botanical Entity resolution
-  let detectedBotanicalKey: string | null = null;
+  const detectedComponents: string[] = [];
 
   // Strict Henna/Mehndi unification first
   for (const alias of HENNA_MEHNDI_ALIASES) {
     if (norm.includes(alias)) {
-      detectedBotanicalKey = 'HENNA_MEHNDI';
+      detectedComponents.push('HENNA_MEHNDI');
       break;
     }
   }
 
-  if (!detectedBotanicalKey) {
-    for (const [key, bot] of Object.entries(KNOWN_BOTANICALS)) {
-      if (key === 'HENNA_MEHNDI') continue;
-      if (bot.aliases.some((a) => norm.includes(a))) {
-        detectedBotanicalKey = key;
-        break;
+  for (const [key, bot] of Object.entries(KNOWN_BOTANICALS)) {
+    if (key === 'HENNA_MEHNDI') continue;
+    if (bot.aliases.some((a) => norm.includes(a))) {
+      if (!detectedComponents.includes(key)) {
+        detectedComponents.push(key);
       }
     }
+  }
+
+  let detectedBotanicalKey: string | null = null;
+  if (detectedComponents.length === 1) {
+    detectedBotanicalKey = detectedComponents[0];
+  } else if (detectedComponents.length > 1) {
+    detectedBotanicalKey = 'HERBAL_BLEND';
   }
 
   return {
     normalizedName: norm,
     detectedBotanicalKey,
+    detectedComponents,
     form,
     packQuantity,
     packUnit,
     isB2B,
     hasSojatSignal,
-    isBlend,
+    isBlend: isBlend || detectedComponents.length > 1,
     isCone,
     isOil,
     isLiquidSpray,
@@ -425,7 +434,10 @@ export function deriveProductIntelligence(
   const parsed = parseProductName(rawName);
 
   const productObj: Partial<Product> = typeof productOrName === 'string' ? {} : productOrName;
-  const knownBot = parsed.detectedBotanicalKey ? KNOWN_BOTANICALS[parsed.detectedBotanicalKey] : null;
+  const isMultiHerb = parsed.detectedComponents.length > 1 || (parsed.isBlend && parsed.detectedComponents.length > 0);
+  const knownBot = parsed.detectedBotanicalKey && parsed.detectedBotanicalKey !== 'HERBAL_BLEND'
+    ? KNOWN_BOTANICALS[parsed.detectedBotanicalKey]
+    : null;
 
   // Product Type Detection
   let productType: ProductType = 'single_botanical';
@@ -437,19 +449,53 @@ export function deriveProductIntelligence(
     productType = parsed.normalizedName.includes('essential') ? 'essential_oil' : 'carrier_oil';
   } else if (parsed.isLiquidSpray) {
     productType = 'hydrosol_spray';
-  } else if (parsed.isBlend) {
+  } else if (parsed.isBlend || isMultiHerb) {
     productType = 'herbal_blend';
   } else if (parsed.form === 'leaves') {
     productType = 'raw_herb';
-  } else if (!knownBot) {
+  } else if (!knownBot && !isMultiHerb) {
     productType = 'generic_product';
   }
 
-  // Category resolution
-  let categorySlug = productObj.categoryName?.toLowerCase().replace(/\s+/g, '-') || (knownBot?.defaultCategorySlug ?? 'herbal-products');
-  let categoryName = productObj.categoryName || (knownBot?.defaultCategoryName ?? 'Herbal & Ayurvedic Care');
+  // Entity & Botanical profile
+  let entity = parsed.detectedBotanicalKey || 'GENERIC_BOTANICAL';
+  let botanicalEntity = knownBot?.canonicalName || 'General Botanical';
+  let useCases = knownBot?.primaryUseCases ? [...knownBot.primaryUseCases] : ['Traditional botanical application', 'Personal wellness care'];
+  let relatedEntities = knownBot?.compatibleEntities ? [...knownBot.compatibleEntities] : [];
+  let aliases: string[] = knownBot?.aliases ? [...knownBot.aliases] : [];
+  let defaultCatSlug = knownBot?.defaultCategorySlug ?? 'herbal-products';
+  let defaultCatName = knownBot?.defaultCategoryName ?? 'Herbal & Ayurvedic Care';
 
-  // If known botanical, assign canonical category if not explicitly overridden by admin
+  if (isMultiHerb && parsed.detectedComponents.length > 1) {
+    entity = 'HERBAL_BLEND';
+    productType = 'herbal_blend';
+    const componentNames = parsed.detectedComponents.map((c) => KNOWN_BOTANICALS[c]?.canonicalName || c);
+    botanicalEntity = componentNames.join(' + ');
+    defaultCatSlug = 'hair-care';
+    defaultCatName = 'Natural Hair Care';
+
+    const combinedUseCases = new Set<string>();
+    const combinedRelated = new Set<string>();
+    const combinedAliases = new Set<string>();
+
+    for (const compKey of parsed.detectedComponents) {
+      const compDef = KNOWN_BOTANICALS[compKey];
+      if (compDef) {
+        compDef.primaryUseCases.forEach((u) => combinedUseCases.add(u));
+        compDef.compatibleEntities.forEach((e) => combinedRelated.add(e));
+        compDef.aliases.forEach((a) => combinedAliases.add(a));
+      }
+    }
+
+    useCases = Array.from(combinedUseCases);
+    relatedEntities = Array.from(combinedRelated).filter((e) => !parsed.detectedComponents.includes(e));
+    aliases = Array.from(combinedAliases);
+  }
+
+  // Category resolution
+  let categorySlug = productObj.categoryName?.toLowerCase().replace(/\s+/g, '-') || defaultCatSlug;
+  let categoryName = productObj.categoryName || defaultCatName;
+
   if (knownBot && (!productObj.categoryName || productObj.categoryName === 'Uncategorized')) {
     categorySlug = knownBot.defaultCategorySlug;
     categoryName = knownBot.defaultCategoryName;
@@ -465,7 +511,7 @@ export function deriveProductIntelligence(
   const reviewReasons: string[] = [];
   let confidence: IntelligenceConfidence = 'HIGH';
 
-  if (!knownBot) {
+  if (!knownBot && !isMultiHerb) {
     confidence = 'NEEDS_REVIEW';
     reviewReasons.push('Unrecognized botanical entity. Please verify botanical categorization and guide scope.');
   }
@@ -490,9 +536,6 @@ export function deriveProductIntelligence(
     ? 'HYBRID'
     : 'RETAIL';
 
-  // Use cases
-  const useCases = knownBot?.primaryUseCases ? [...knownBot.primaryUseCases] : ['Traditional botanical application', 'Personal wellness care'];
-
   // Audience
   const audienceTypes: string[] = ['Retail Customers', 'DIY Enthusiasts'];
   if (parsed.detectedBotanicalKey === 'HENNA_MEHNDI') {
@@ -501,9 +544,6 @@ export function deriveProductIntelligence(
   if (parsed.isB2B || productObj.isWholesaleEligible) {
     audienceTypes.push('Salons & Spas', 'Wholesale Distributors', 'Private Label Brands');
   }
-
-  // Related entities
-  const relatedEntities = knownBot?.compatibleEntities ? [...knownBot.compatibleEntities] : [];
 
   // Informational topics
   const informationalTopics = [
@@ -523,8 +563,9 @@ export function deriveProductIntelligence(
     canonicalProductName: rawName.trim(),
     normalizedProductName: parsed.normalizedName,
     productType,
-    entity: parsed.detectedBotanicalKey || 'GENERIC_BOTANICAL',
-    botanicalEntity: knownBot?.canonicalName || 'General Botanical',
+    entity,
+    botanicalEntity,
+    blendComponents: parsed.detectedComponents,
     scientificName: knownBot?.scientificName,
     categorySlug,
     categoryName,
@@ -535,8 +576,8 @@ export function deriveProductIntelligence(
     pricingUnit,
     wholesaleUnit,
     conversionRule,
-    aliases: knownBot?.aliases ? [...knownBot.aliases] : [],
-    spellingVariants: parsed.detectedBotanicalKey === 'HENNA_MEHNDI' ? Array.from(HENNA_MEHNDI_ALIASES) : [],
+    aliases,
+    spellingVariants: parsed.detectedComponents.includes('HENNA_MEHNDI') ? Array.from(HENNA_MEHNDI_ALIASES) : [],
     useCases,
     audienceTypes,
     commercialIntent,
