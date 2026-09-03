@@ -1,0 +1,66 @@
+name: Website Guardian Scheduled Pulse
+
+on:
+  schedule:
+    # Trigger every 10 minutes (continuous reliability & health monitoring)
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: guardian-pulse
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  guardian-pulse:
+    name: Execute Guardian Diagnostic Cycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Trigger Guardian Ping
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET is not configured in GitHub repository secrets."
+            exit 1
+          fi
+
+          # Call Guardian with bounded timeout of 30 seconds
+          RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 30 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "https://muskydose.in/api/cron/guardian")
+
+          HTTP_BODY=$(echo "$RESPONSE" | sed '$d')
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+
+          echo "HTTP Status: $HTTP_STATUS"
+
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "::error::Guardian endpoint returned non-200 status code: $HTTP_STATUS"
+            echo "Response: $HTTP_BODY"
+            exit 1
+          fi
+
+          # Verify JSON success flag
+          SUCCESS=$(echo "$HTTP_BODY" | jq -r '.success // false')
+          OVERALL_STATUS=$(echo "$HTTP_BODY" | jq -r '.summary.overallStatus // "UNKNOWN"')
+          HEARTBEAT_STATUS=$(echo "$HTTP_BODY" | jq -r '.summary.heartbeatStatus // "UNKNOWN"')
+          DURABLE_STORAGE=$(echo "$HTTP_BODY" | jq -r '.summary.durableStorageStatus // "UNKNOWN"')
+
+          echo "Guardian Result:"
+          echo "  success: $SUCCESS"
+          echo "  overallStatus: $OVERALL_STATUS"
+          echo "  heartbeatStatus: $HEARTBEAT_STATUS"
+          echo "  durableStorageStatus: $DURABLE_STORAGE"
+
+          if [ "$SUCCESS" != "true" ]; then
+            echo "::error::Guardian diagnostic run failed or reported success=false"
+            exit 1
+          fi
+
+          echo "Guardian pulse executed successfully."
+
