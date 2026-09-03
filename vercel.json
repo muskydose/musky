@@ -1,0 +1,13 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/guardian",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/gsc-sync",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}
+

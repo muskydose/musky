@@ -15,6 +15,7 @@ import {
   LogOut,
   Leaf,
   ShieldAlert,
+  ShieldCheck,
   CheckCircle,
   Menu,
   X,
@@ -87,6 +88,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
     { name: 'Business Content', href: '/admin/business-content', icon: Award },
     { name: 'Product Guides', href: '/admin/guides', icon: BookOpen },
     { name: 'SEO & Google', href: '/admin/seo', icon: Globe },
+    { name: 'Website Guardian', href: '/admin/guardian', icon: ShieldCheck },
     { name: 'Payment Settings', href: '/admin/payments', icon: CreditCard },
   ];
 
