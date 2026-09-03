@@ -167,16 +167,23 @@ export class WebsiteGuardian {
         }
       }
 
-      const duration = Date.now() - cycleStart;
+      const cycleEnd = Date.now();
+      const duration = cycleEnd - cycleStart;
+      const completedAtIso = new Date(cycleEnd).toISOString();
+
       guardianStore.recordRun(duration);
 
+      // 4. Record current run pulse BEFORE buildSummary evaluates heartbeat freshness
+      guardianStore.recordPulse(completedAtIso);
+
+      // 5. Build summary with fresh heartbeat status and active check results
       const summary = guardianStore.buildSummary(dbHealth.dbStatus);
 
-      // 5. Persist run & heartbeat to durable database
+      // 6. Persist run & heartbeat to durable database in parallel
       const runRecord: GuardianRunRecord = {
         id: runId,
         startedAt: new Date(cycleStart).toISOString(),
-        completedAt: new Date().toISOString(),
+        completedAt: completedAtIso,
         durationMs: duration,
         status: summary.overallStatus,
         checksTotal: summary.checksTotal,
@@ -189,12 +196,17 @@ export class WebsiteGuardian {
 
       await Promise.all([
         GuardianDb.persistRun(runRecord),
-        guardianStore.recordCronPulse(
+        GuardianDb.updateHeartbeat({
           runId,
-          summary.checksTotal,
-          summary.checksFailed,
-          recoveryCount
-        ),
+          status: summary.heartbeatStatus,
+          lastCompletedAt: completedAtIso,
+          lastSuccessAt: summary.checksFailed === 0 ? completedAtIso : undefined,
+          durationMs: duration,
+          checksTotal: summary.checksTotal,
+          checksFailed: summary.checksFailed,
+          recoveriesAttempted: recoveryCount,
+          consecutiveMissed: 0,
+        }).catch(() => {}),
       ]);
 
       return summary;

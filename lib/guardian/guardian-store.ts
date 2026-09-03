@@ -35,7 +35,8 @@ class GuardianStore {
   public async ensureLoaded() {
     if (this.isDurableLoaded) return;
     try {
-      const [heartbeat, dbIncidents] = await Promise.all([
+      const [, heartbeat, dbIncidents] = await Promise.all([
+        GuardianDb.checkDurableAvailability(),
         GuardianDb.loadHeartbeat(),
         GuardianDb.loadIncidents(),
       ]);
@@ -91,10 +92,19 @@ class GuardianStore {
     this.lastRunDurationMs = durationMs;
   }
 
+  public recordPulse(timestamp: string = new Date().toISOString()) {
+    this.lastPulseTimestamp = timestamp;
+    this.consecutiveMissedPulses = 0;
+  }
+
+  public setLastPulseForTesting(timestamp: string, consecutiveMissed: number = 0) {
+    this.lastPulseTimestamp = timestamp;
+    this.consecutiveMissedPulses = consecutiveMissed;
+  }
+
   public async recordCronPulse(runId: string, checksTotal: number, checksFailed: number, recoveries: number) {
     const now = new Date().toISOString();
-    this.lastPulseTimestamp = now;
-    this.consecutiveMissedPulses = 0;
+    this.recordPulse(now);
 
     await GuardianDb.updateHeartbeat({
       runId,

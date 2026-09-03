@@ -42,6 +42,10 @@ export class GuardianDb {
     return this.durableAvailable === true;
   }
 
+  public static setDurableAvailableForTesting(val: boolean | null): void {
+    this.durableAvailable = val;
+  }
+
   /**
    * Tries to acquire a mutual-exclusion execution lock to prevent overlapping runs.
    * Lock auto-expires after 60 seconds if a process crashed.
