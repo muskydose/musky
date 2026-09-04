@@ -11,7 +11,10 @@ import {
   detectSearchCannibalization,
   classifySearchIntent,
 } from '@/lib/growth/search-intent-router';
-import { getMerchantFeedHealthSummary } from '@/lib/growth/merchant-feed';
+import {
+  getMerchantFeedHealthSummary,
+  auditMerchantCatalog,
+} from '@/lib/growth/merchant-feed';
 import { buildHennaSearchCluster } from '@/lib/growth/seo-demand-engine';
 import { getProducts } from '@/lib/db/products';
 import { getPublishedGuides } from '@/lib/db/guides';
@@ -32,6 +35,10 @@ import {
   Store,
   FileCode,
   Info,
+  Image as ImageIcon,
+  Tag,
+  AlertCircle,
+  HelpCircle,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -92,8 +99,9 @@ export default async function OrganicHealthPage() {
   const cannibalizationWarnings = detectSearchCannibalization(sampleQueries);
   const { totalEntities, publicIndexableCount, needsReviewCount } = getAuthoritativeEntityCounts();
 
-  // Merchant Center Health
+  // Merchant Center Health & Catalog Readiness Audit
   const merchantSummary = getMerchantFeedHealthSummary(products);
+  const catalogAudit = auditMerchantCatalog(products);
 
   // Henna Search Cluster (Real GSC data check)
   const hennaCluster = buildHennaSearchCluster([]);
@@ -279,15 +287,15 @@ export default async function OrganicHealthPage() {
           </div>
         </div>
 
-        {/* SECTION 3: Google Merchant Center Feed Health */}
-        <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-xs">
+        {/* SECTION 3: Google Merchant Center Feed & Catalog Readiness Audit */}
+        <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-xs space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-100 pb-4">
             <div className="flex items-center gap-2">
               <Store className="h-5 w-5 text-emerald-600" />
               <div>
-                <h2 className="text-lg font-bold text-neutral-900">Google Merchant Center Feed Generator</h2>
+                <h2 className="text-lg font-bold text-neutral-900">Google Merchant Center Catalog Readiness Audit</h2>
                 <p className="text-xs text-neutral-500">
-                  Free Listings product XML &amp; JSON feeds strictly compliant with Google policies for India.
+                  Automated free listings compliance audit, image verification, and identifier diagnostics.
                 </p>
               </div>
             </div>
@@ -309,28 +317,46 @@ export default async function OrganicHealthPage() {
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-            <div className="rounded-xl bg-neutral-50 p-4 border border-neutral-100">
-              <p className="text-xs text-neutral-500">Active Products</p>
-              <p className="text-xl font-bold text-neutral-900 mt-1">{merchantSummary.totalProducts}</p>
+          {/* Catalog Readiness Summary Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-center">
+            <div className="rounded-xl bg-neutral-50 p-3.5 border border-neutral-200">
+              <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">Active Products</p>
+              <p className="text-xl font-extrabold text-neutral-900 mt-1">{catalogAudit.totalActiveProducts}</p>
+              <p className="text-[10px] text-neutral-400 mt-0.5">Live catalog</p>
             </div>
-            <div className="rounded-xl bg-emerald-50/50 p-4 border border-emerald-100">
-              <p className="text-xs text-emerald-700">FEED_READY</p>
-              <p className="text-xl font-bold text-emerald-800 mt-1">{merchantSummary.feedReadyCount}</p>
+            <div className="rounded-xl bg-emerald-50/70 p-3.5 border border-emerald-200">
+              <p className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wider">Feed Ready</p>
+              <p className="text-xl font-extrabold text-emerald-700 mt-1">{catalogAudit.feedReadyCount}</p>
+              <p className="text-[10px] text-emerald-600 mt-0.5">Approved in XML</p>
             </div>
-            <div className="rounded-xl bg-neutral-50 p-4 border border-neutral-100">
-              <p className="text-xs text-neutral-500">Needs Review</p>
-              <p className="text-xl font-bold text-neutral-700 mt-1">{merchantSummary.needsReviewCount}</p>
+            <div className="rounded-xl bg-amber-50/70 p-3.5 border border-amber-200">
+              <p className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider">Needs Review</p>
+              <p className="text-xl font-extrabold text-amber-700 mt-1">{catalogAudit.needsReviewCount}</p>
+              <p className="text-[10px] text-amber-600 mt-0.5">Excluded from XML</p>
             </div>
-            <div className="rounded-xl bg-neutral-50 p-4 border border-neutral-100">
-              <p className="text-xs text-neutral-500">Missing Images / Price</p>
-              <p className="text-xl font-bold text-neutral-700 mt-1">
-                {merchantSummary.missingImageCount + merchantSummary.missingPriceCount}
-              </p>
+            <div className="rounded-xl bg-rose-50/70 p-3.5 border border-rose-200">
+              <p className="text-[11px] font-semibold text-rose-800 uppercase tracking-wider">Image Issues</p>
+              <p className="text-xl font-extrabold text-rose-700 mt-1">{catalogAudit.imageIssueCount}</p>
+              <p className="text-[10px] text-rose-600 mt-0.5">Fallback/Missing</p>
+            </div>
+            <div className="rounded-xl bg-neutral-50 p-3.5 border border-neutral-200">
+              <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">Price Issues</p>
+              <p className="text-xl font-extrabold text-neutral-800 mt-1">{catalogAudit.priceIssueCount}</p>
+              <p className="text-[10px] text-neutral-400 mt-0.5">Invalid/Zero</p>
+            </div>
+            <div className="rounded-xl bg-neutral-50 p-3.5 border border-neutral-200">
+              <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">Identifier Issues</p>
+              <p className="text-xl font-extrabold text-neutral-800 mt-1">{catalogAudit.identifierIssueCount}</p>
+              <p className="text-[10px] text-neutral-400 mt-0.5">Barcode review</p>
+            </div>
+            <div className="rounded-xl bg-neutral-50 p-3.5 border border-neutral-200">
+              <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">Canonical Issues</p>
+              <p className="text-xl font-extrabold text-neutral-800 mt-1">{catalogAudit.canonicalIssueCount}</p>
+              <p className="text-[10px] text-neutral-400 mt-0.5">Slug/Indexability</p>
             </div>
           </div>
 
-          <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50/70 p-3.5 text-xs text-neutral-600 space-y-1">
+          <div className="rounded-xl border border-neutral-200 bg-neutral-50/70 p-3.5 text-xs text-neutral-600 space-y-1">
             <div className="flex items-center gap-1.5 font-semibold text-neutral-800">
               <ShieldCheck className="h-4 w-4 text-emerald-600" />
               Feed Compliance &amp; Policy Protections:
@@ -338,6 +364,110 @@ export default async function OrganicHealthPage() {
             <p>• Currency strictly formatted in Indian Rupees (<code>INR</code>) with 2 decimal precision.</p>
             <p>• Direct agricultural botanicals without commercial barcodes strictly provide <code>&lt;g:identifier_exists&gt;no&lt;/g:identifier_exists&gt;</code>.</p>
             <p>• Products with fallback SVG placeholders or missing descriptions are omitted from the live XML feed to protect Google account standing.</p>
+          </div>
+
+          {/* Merchant Catalog Readiness Table */}
+          <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+            <div className="border-b border-neutral-200 px-5 py-3.5 bg-neutral-50/80 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-neutral-900">Merchant Catalog Readiness Table</h3>
+                <p className="text-xs text-neutral-500">
+                  Item-by-item status breakdown for Google Free Listings.
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-neutral-200 text-left text-xs">
+                <thead className="bg-neutral-50 text-neutral-600 font-semibold uppercase tracking-wider">
+                  <tr>
+                    <th className="px-4 py-3">Product</th>
+                    <th className="px-3 py-3">SKU</th>
+                    <th className="px-3 py-3">Feed Status</th>
+                    <th className="px-3 py-3">Image</th>
+                    <th className="px-3 py-3">Price</th>
+                    <th className="px-3 py-3">Identifier</th>
+                    <th className="px-3 py-3">Canonical</th>
+                    <th className="px-4 py-3">Reason</th>
+                    <th className="px-4 py-3">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-200">
+                  {catalogAudit.items.map((item) => (
+                    <tr key={item.id} className="hover:bg-neutral-50/50">
+                      <td className="px-4 py-3.5 max-w-[200px]">
+                        <div className="font-bold text-neutral-900 truncate" title={item.name}>{item.name}</div>
+                        <div className="text-[11px] text-neutral-400 font-mono mt-0.5 truncate">{item.id}</div>
+                      </td>
+
+                      <td className="px-3 py-3.5 font-mono text-[11px] text-neutral-600">
+                        {item.sku}
+                      </td>
+
+                      <td className="px-3 py-3.5">
+                        {item.feedStatus === 'FEED_READY' ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">
+                            <CheckCircle2 className="h-3 w-3" /> FEED_READY
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
+                            <AlertTriangle className="h-3 w-3" /> NEEDS_REVIEW
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-3 py-3.5">
+                        {item.imageStatus === 'IMAGE_READY' ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                            <CheckCircle2 className="h-3 w-3" /> READY
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-700" title="Fallback SVG image">
+                            <AlertCircle className="h-3 w-3" /> Fallback SVG
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-3 py-3.5 font-semibold text-neutral-900 whitespace-nowrap">
+                        {item.price}
+                      </td>
+
+                      <td className="px-3 py-3.5">
+                        <span className="inline-flex items-center gap-1 font-mono text-[11px] text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded">
+                          {item.identifierStatus}
+                        </span>
+                      </td>
+
+                      <td className="px-3 py-3.5">
+                        {item.canonicalStatus === 'CANONICAL_READY' ? (
+                          <Link
+                            href={item.canonicalUrl}
+                            target="_blank"
+                            className="inline-flex items-center gap-1 text-[11px] font-mono text-emerald-700 hover:underline"
+                          >
+                            /products/{item.slug} <ExternalLink className="h-2.5 w-2.5" />
+                          </Link>
+                        ) : (
+                          <span className="text-[11px] text-rose-600 font-semibold">Invalid URL</span>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3.5 text-neutral-600 max-w-[220px]">
+                        <span className="text-[11px] leading-relaxed line-clamp-2" title={item.exactReason}>
+                          {item.exactReason}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-neutral-700 max-w-[200px]">
+                        <span className="text-[11px] font-medium text-neutral-800 leading-relaxed">
+                          {item.action}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 

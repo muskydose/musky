@@ -257,3 +257,174 @@ export function generateMerchantJsonFeed(
   };
 }
 
+// ============================================================
+// PHASE 8.1: IDENTIFIER GOVERNANCE & CATALOG AUDIT
+// ============================================================
+
+export type MerchantIdentifierStatus =
+  | 'VALID_GTIN'
+  | 'VALID_MPN'
+  | 'NO_IDENTIFIER'
+  | 'IDENTIFIER_REVIEW';
+
+export function determineMerchantIdentifierStatus(product: Product): {
+  status: MerchantIdentifierStatus;
+  identifierExists: 'yes' | 'no';
+  gtin?: string;
+  mpn?: string;
+  reason: string;
+} {
+  const gtin = ((product as any).gtin || (product as any).barcode || '').trim();
+  const mpn = ((product as any).mpn || '').trim();
+
+  // Validate GTIN: standard GTINs are 8, 12, 13, or 14 digits numeric
+  if (gtin) {
+    const isDigitsOnly = /^\d{8}$|^\d{12}$|^\d{13}$|^\d{14}$/.test(gtin);
+    if (isDigitsOnly) {
+      return {
+        status: 'VALID_GTIN',
+        identifierExists: 'yes',
+        gtin,
+        reason: 'Real assigned GTIN barcode present',
+      };
+    } else {
+      return {
+        status: 'IDENTIFIER_REVIEW',
+        identifierExists: 'no',
+        reason: 'Malformed GTIN barcode format (must be 8, 12, 13, or 14 digits)',
+      };
+    }
+  }
+
+  // Validate MPN if assigned
+  if (mpn) {
+    return {
+      status: 'VALID_MPN',
+      identifierExists: 'yes',
+      mpn,
+      reason: 'Valid manufacturer part number assigned',
+    };
+  }
+
+  // Genuine handcrafted / direct farm agricultural harvest without commercial barcode
+  return {
+    status: 'NO_IDENTIFIER',
+    identifierExists: 'no',
+    reason: 'Direct agricultural botanical harvest without assigned commercial barcode or MPN',
+  };
+}
+
+export interface MerchantProductAuditItem {
+  id: string;
+  name: string;
+  sku: string;
+  slug: string;
+  price: string;
+  priceNum: number;
+  salePrice?: string;
+  availability: 'in_stock' | 'out_of_stock' | 'preorder';
+  primaryImage: string;
+  imageStatus: 'IMAGE_READY' | 'IMAGE_NEEDS_REVIEW';
+  priceStatus: 'PRICE_READY' | 'PRICE_NEEDS_REVIEW';
+  identifierStatus: MerchantIdentifierStatus;
+  identifierExists: 'yes' | 'no';
+  gtin?: string;
+  mpn?: string;
+  canonicalUrl: string;
+  canonicalStatus: 'CANONICAL_READY' | 'CANONICAL_NEEDS_REVIEW';
+  feedStatus: MerchantFeedProductStatus;
+  validationErrors: string[];
+  exactReason: string;
+  action: string;
+}
+
+export interface MerchantCatalogReadinessAudit {
+  totalActiveProducts: number;
+  feedReadyCount: number;
+  needsReviewCount: number;
+  imageIssueCount: number;
+  priceIssueCount: number;
+  identifierIssueCount: number;
+  canonicalIssueCount: number;
+  items: MerchantProductAuditItem[];
+}
+
+export function auditMerchantCatalog(
+  products: Product[],
+  baseUrl: string = 'https://muskydose.in'
+): MerchantCatalogReadinessAudit {
+  const activeProducts = products.filter((p) => p && p.isActive !== false);
+
+  const items: MerchantProductAuditItem[] = activeProducts.map((product) => {
+    const { feedStatus, validationErrors, cleanItem } = validateProductForMerchantFeed(product, baseUrl);
+    const idResult = determineMerchantIdentifierStatus(product);
+
+    const priceNum = Number(product.price);
+    const priceStatus = (!isNaN(priceNum) && priceNum > 0) ? 'PRICE_READY' : 'PRICE_NEEDS_REVIEW';
+
+    const validImages = (product.images || []).filter(
+      (img) => img && typeof img === 'string' && img.trim() !== '' && !img.includes('fallback.svg')
+    );
+    const imageStatus = validImages.length > 0 ? 'IMAGE_READY' : 'IMAGE_NEEDS_REVIEW';
+
+    const slug = (product.slug || '').trim();
+    const canonicalStatus = slug.length > 0 && product.robotsIndex !== false ? 'CANONICAL_READY' : 'CANONICAL_NEEDS_REVIEW';
+
+    let action = 'Feed Ready - No action required.';
+    if (imageStatus === 'IMAGE_NEEDS_REVIEW') {
+      action = 'Upload a high-resolution product photograph (minimum 800x800px) in Admin Products.';
+    } else if (priceStatus === 'PRICE_NEEDS_REVIEW') {
+      action = 'Set a valid retail selling price greater than ₹0.00 in Admin Products.';
+    } else if (canonicalStatus === 'CANONICAL_NEEDS_REVIEW') {
+      action = 'Verify product slug and ensure indexable status (robotsIndex !== false).';
+    } else if (idResult.status === 'IDENTIFIER_REVIEW') {
+      action = 'Correct malformed barcode digits or remove invalid identifier.';
+    }
+
+    return {
+      id: product.id,
+      name: product.name || 'Untitled Product',
+      sku: product.sku || product.id,
+      slug,
+      price: cleanItem.price,
+      priceNum,
+      salePrice: cleanItem.salePrice,
+      availability: cleanItem.availability,
+      primaryImage: cleanItem.imageLink,
+      imageStatus,
+      priceStatus,
+      identifierStatus: idResult.status,
+      identifierExists: idResult.identifierExists,
+      gtin: idResult.gtin,
+      mpn: idResult.mpn,
+      canonicalUrl: cleanItem.link,
+      canonicalStatus,
+      feedStatus,
+      validationErrors,
+      exactReason: validationErrors.length > 0
+        ? validationErrors.join('; ')
+        : 'All mandatory Google Free Listings requirements met.',
+      action,
+    };
+  });
+
+  const totalActiveProducts = items.length;
+  const feedReadyCount = items.filter((i) => i.feedStatus === 'FEED_READY').length;
+  const needsReviewCount = items.filter((i) => i.feedStatus === 'FEED_NEEDS_REVIEW').length;
+  const imageIssueCount = items.filter((i) => i.imageStatus === 'IMAGE_NEEDS_REVIEW').length;
+  const priceIssueCount = items.filter((i) => i.priceStatus === 'PRICE_NEEDS_REVIEW').length;
+  const identifierIssueCount = items.filter((i) => i.identifierStatus === 'IDENTIFIER_REVIEW').length;
+  const canonicalIssueCount = items.filter((i) => i.canonicalStatus === 'CANONICAL_NEEDS_REVIEW').length;
+
+  return {
+    totalActiveProducts,
+    feedReadyCount,
+    needsReviewCount,
+    imageIssueCount,
+    priceIssueCount,
+    identifierIssueCount,
+    canonicalIssueCount,
+    items,
+  };
+}
+
