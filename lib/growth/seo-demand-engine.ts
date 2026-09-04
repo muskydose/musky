@@ -50,11 +50,80 @@ export type SeoDemandOpportunityType =
   | 'HIGH_IMPRESSION_LOW_CTR'
   | 'STRIKING_DISTANCE'
   | 'HIGH_COMMERCIAL_INTENT'
+  | 'DESTINATION_MISMATCH'
   | 'QUERY_DESTINATION_MISMATCH'
   | 'NO_STRONG_DESTINATION'
   | 'CONTENT_GAP'
   | 'CANNIBALIZATION'
   | 'CONVERSION_GAP';
+
+export type RecommendationLifecycleStatus = 'NEW' | 'REVIEWED' | 'DISMISSED' | 'IMPLEMENTED';
+
+export interface GscSearchRow {
+  query: string;
+  page: string;
+  date?: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+  entityKey?: string;
+  searchIntent?: string;
+  destinationType?: string;
+  opportunityType?: SeoDemandOpportunityType;
+}
+
+export interface GscOpportunityThresholds {
+  minImpressionsLowCtr?: number;
+  maxCtrLowCtr?: number;
+  minStrikingPosition?: number;
+  maxStrikingPosition?: number;
+  minStrikingImpressions?: number;
+  minContentGapImpressions?: number;
+}
+
+export const DEFAULT_GSC_THRESHOLDS: Required<GscOpportunityThresholds> = {
+  minImpressionsLowCtr: 50,
+  maxCtrLowCtr: 0.03,
+  minStrikingPosition: 4.0,
+  maxStrikingPosition: 20.0,
+  minStrikingImpressions: 20,
+  minContentGapImpressions: 15,
+};
+
+export type ProductQueryMatchType = 'EXACT_MATCH' | 'PARTIAL_MATCH' | 'VARIANT_MATCH' | 'UNRESOLVED';
+
+export interface ProductQueryMatchResult {
+  matchType: ProductQueryMatchType;
+  product: Product | null;
+  targetUrl: string;
+  confidence: number;
+  matchedField?: 'title' | 'slug' | 'alias' | 'brand_product';
+}
+
+export interface HennaSubCluster {
+  subIntent: 'HAIR' | 'BRIDAL_BODY_ART' | 'SOJAT_ORIGIN' | 'WHOLESALE_BULK' | 'GENERAL_CATEGORY';
+  label: string;
+  recommendedDestination: string;
+  queries: string[];
+  totalImpressions: number;
+  totalClicks: number;
+  averageCtr: number;
+  averagePosition: number;
+}
+
+export interface HennaSearchCluster {
+  canonicalEntityKey: 'HENNA_MEHNDI';
+  canonicalName: 'Henna / Mehndi';
+  totalQueries: number;
+  totalImpressions: number;
+  totalClicks: number;
+  averageCtr: number;
+  averagePosition: number;
+  subClusters: HennaSubCluster[];
+  dataStatus: 'DATA_AVAILABLE' | 'DATA_NOT_AVAILABLE';
+}
+
 
 export interface SeoAcquisitionRecommendation {
   query: string;
@@ -748,4 +817,349 @@ export async function recordSeoAction(record: SeoActionRecord): Promise<SeoActio
 
   await updateSiteSettings({ seoActionAuditLogs: updatedLogs } as any);
   return record;
+}
+
+// ============================================================
+// 8. PHASE 8: CLASSIFY GSC OPPORTUNITY
+// ============================================================
+
+export function classifyGscOpportunity(
+  row: GscSearchRow,
+  preferredDestination?: string,
+  thresholds: GscOpportunityThresholds = DEFAULT_GSC_THRESHOLDS
+): SeoDemandOpportunityType | null {
+  const mergedThresholds = { ...DEFAULT_GSC_THRESHOLDS, ...thresholds };
+  const normQ = normalizeQueryString(row.query);
+  const page = (row.page || '').trim();
+
+  // 1. Explicit CANNIBALIZATION flag from multi-row scan
+  if (row.opportunityType === 'CANNIBALIZATION') {
+    return 'CANNIBALIZATION';
+  }
+
+  // 2. DESTINATION_MISMATCH / QUERY_DESTINATION_MISMATCH
+  if (preferredDestination && page) {
+    const cleanPref = preferredDestination.replace(/\/$/, '');
+    const cleanPage = page.replace(/\/$/, '');
+    if (cleanPref !== cleanPage) {
+      const isB2bMismatch = (normQ.includes('wholesale') || normQ.includes('bulk')) && !cleanPage.includes('/wholesale');
+      const isHubMismatch = normQ.includes('sojat') && !cleanPage.includes('/sojat-henna') && !cleanPage.includes('/categories/');
+      if (isB2bMismatch || isHubMismatch || (preferredDestination.startsWith('/categories/') && cleanPage.startsWith('/products/'))) {
+        return 'DESTINATION_MISMATCH';
+      }
+    }
+  }
+
+  // 3. NO_STRONG_DESTINATION
+  const cleanLanding = page.replace(/^https?:\/\/[^/]+/, '');
+  if (cleanLanding === '/products' || cleanLanding === '/products/' || cleanLanding.includes('/search') || (!page && row.impressions >= 10)) {
+    const isInformational = INFORMATIONAL_REGEX.test(row.query) || normQ.includes('how to') || normQ.includes('benefits') || normQ.includes('uses');
+    if (isInformational && row.impressions >= mergedThresholds.minContentGapImpressions) {
+      return 'CONTENT_GAP';
+    }
+    return 'NO_STRONG_DESTINATION';
+  }
+
+  // 4. CONTENT_GAP
+  const isInformational = INFORMATIONAL_REGEX.test(row.query) || normQ.includes('how to') || normQ.includes('benefits') || normQ.includes('uses');
+  if (isInformational && row.impressions >= mergedThresholds.minContentGapImpressions) {
+    return 'CONTENT_GAP';
+  }
+
+  // 5. HIGH_IMPRESSION_LOW_CTR
+  if (
+    row.impressions >= mergedThresholds.minImpressionsLowCtr &&
+    row.ctr < mergedThresholds.maxCtrLowCtr
+  ) {
+    return 'HIGH_IMPRESSION_LOW_CTR';
+  }
+
+  // 6. STRIKING_DISTANCE
+  if (
+    row.position >= mergedThresholds.minStrikingPosition &&
+    row.position <= mergedThresholds.maxStrikingPosition &&
+    row.impressions >= mergedThresholds.minStrikingImpressions
+  ) {
+    return 'STRIKING_DISTANCE';
+  }
+
+  // 7. HIGH_COMMERCIAL_INTENT
+  const commercialTokens = ['buy', 'price', 'rate', 'cost', 'order', 'wholesale', 'bulk', 'supplier', 'kg', 'online'];
+  const hasCommercial = commercialTokens.some((t) => normQ.includes(t));
+  if (hasCommercial && row.impressions >= 10) {
+    return 'HIGH_COMMERCIAL_INTENT';
+  }
+
+  // 8. CONVERSION_GAP
+  if (row.clicks >= 5 && row.impressions >= 50) {
+    return 'CONVERSION_GAP';
+  }
+
+  return null;
+}
+
+// ============================================================
+// 9. PHASE 8: PRODUCT QUERY MATCHING
+// ============================================================
+
+export function matchProductQuery(query: string, products: Product[]): ProductQueryMatchResult {
+  const normQuery = normalizeQueryString(query);
+  if (!normQuery) {
+    return {
+      matchType: 'UNRESOLVED',
+      product: null,
+      targetUrl: '/products',
+      confidence: 0,
+    };
+  }
+
+  const activeProducts = products.filter((p) => p.isActive !== false);
+
+  // 1. EXACT MATCH: normalized title === normQuery or slug === normQuery
+  for (const p of activeProducts) {
+    const normTitle = normalizeQueryString(p.name || '');
+    const normSlug = normalizeQueryString(p.slug || '');
+    if (normTitle === normQuery || normSlug === normQuery) {
+      return {
+        matchType: 'EXACT_MATCH',
+        product: p,
+        targetUrl: `/products/${p.slug}`,
+        confidence: 1.0,
+        matchedField: normTitle === normQuery ? 'title' : 'slug',
+      };
+    }
+  }
+
+  // 2. VARIANT MATCH: product title + variant token (e.g. 100g, 250g, 1kg, etc.)
+  const packMatch = normQuery.match(/\b(\d+\s*(?:g|gm|gms|gram|grams|kg|ml|ltr|litre|cones?))\b/i);
+  for (const p of activeProducts) {
+    const normTitle = normalizeQueryString(p.name || '');
+    const titleWithoutBrand = normTitle.replace(/musky\s*dose|musky/g, '').trim();
+    const queryWithoutPack = normQuery.replace(/\b(\d+\s*(?:g|gm|gms|gram|grams|kg|ml|ltr|litre|cones?))\b/gi, '').replace(/\s+/g, ' ').trim();
+
+    if (packMatch && (queryWithoutPack === normTitle || queryWithoutPack === titleWithoutBrand)) {
+      return {
+        matchType: 'VARIANT_MATCH',
+        product: p,
+        targetUrl: `/products/${p.slug}`,
+        confidence: 0.95,
+        matchedField: 'title',
+      };
+    }
+  }
+
+  // 3. PARTIAL MATCH: significant title words match
+  let bestMatch: { product: Product; score: number } | null = null;
+  const queryTokens = new Set(normQuery.split(' ').filter((t) => t.length > 2));
+
+  for (const p of activeProducts) {
+    const normTitle = normalizeQueryString(p.name || '');
+    const titleTokens = normTitle.split(' ').filter((t) => t.length > 2 && t !== 'musky' && t !== 'dose');
+    if (titleTokens.length === 0) continue;
+
+    let matchCount = 0;
+    for (const t of titleTokens) {
+      if (queryTokens.has(t)) {
+        matchCount++;
+      }
+    }
+
+    const score = matchCount / titleTokens.length;
+    if ((score >= 0.6 && matchCount >= 2) || normQuery.includes(normTitle)) {
+      if (!bestMatch || score > bestMatch.score) {
+        bestMatch = { product: p, score };
+      }
+    }
+  }
+
+  if (bestMatch) {
+    return {
+      matchType: 'PARTIAL_MATCH',
+      product: bestMatch.product,
+      targetUrl: `/products/${bestMatch.product.slug}`,
+      confidence: Number((0.75 + bestMatch.score * 0.2).toFixed(2)),
+      matchedField: 'title',
+    };
+  }
+
+  return {
+    matchType: 'UNRESOLVED',
+    product: null,
+    targetUrl: '/products',
+    confidence: 0,
+  };
+}
+
+// ============================================================
+// 10. PHASE 8: HENNA SEARCH CLUSTER
+// ============================================================
+
+export function buildHennaSearchCluster(gscRows: GscSearchRow[] = []): HennaSearchCluster {
+  const hennaAliases = ['henna', 'mehndi', 'mehendi', 'mehandi', 'heena', 'hina', 'lawsonia'];
+
+  const matchingRows = gscRows.filter((r) => {
+    const q = normalizeQueryString(r.query);
+    return hennaAliases.some((a) => q.includes(a));
+  });
+
+  if (matchingRows.length === 0) {
+    return {
+      canonicalEntityKey: 'HENNA_MEHNDI',
+      canonicalName: 'Henna / Mehndi',
+      totalQueries: 0,
+      totalImpressions: 0,
+      totalClicks: 0,
+      averageCtr: 0,
+      averagePosition: 0,
+      subClusters: [
+        {
+          subIntent: 'HAIR',
+          label: 'Henna for Hair Care & Natural Coloring',
+          recommendedDestination: '/categories/henna',
+          queries: [],
+          totalImpressions: 0,
+          totalClicks: 0,
+          averageCtr: 0,
+          averagePosition: 0,
+        },
+        {
+          subIntent: 'BRIDAL_BODY_ART',
+          label: 'Bridal & Body Art Mehndi',
+          recommendedDestination: '/categories/henna',
+          queries: [],
+          totalImpressions: 0,
+          totalClicks: 0,
+          averageCtr: 0,
+          averagePosition: 0,
+        },
+        {
+          subIntent: 'SOJAT_ORIGIN',
+          label: 'Sojat Origin & Heritage Henna',
+          recommendedDestination: '/sojat-henna',
+          queries: [],
+          totalImpressions: 0,
+          totalClicks: 0,
+          averageCtr: 0,
+          averagePosition: 0,
+        },
+        {
+          subIntent: 'WHOLESALE_BULK',
+          label: 'Wholesale & Commercial Bulk Henna',
+          recommendedDestination: '/wholesale',
+          queries: [],
+          totalImpressions: 0,
+          totalClicks: 0,
+          averageCtr: 0,
+          averagePosition: 0,
+        },
+        {
+          subIntent: 'GENERAL_CATEGORY',
+          label: 'General Pure Henna / Mehndi Category',
+          recommendedDestination: '/categories/henna',
+          queries: [],
+          totalImpressions: 0,
+          totalClicks: 0,
+          averageCtr: 0,
+          averagePosition: 0,
+        },
+      ],
+      dataStatus: 'DATA_NOT_AVAILABLE',
+    };
+  }
+
+  const totalQueries = matchingRows.length;
+  const totalImpressions = matchingRows.reduce((acc, r) => acc + (r.impressions || 0), 0);
+  const totalClicks = matchingRows.reduce((acc, r) => acc + (r.clicks || 0), 0);
+  const averageCtr = totalImpressions > 0 ? Number((totalClicks / totalImpressions).toFixed(4)) : 0;
+  const weightedPosSum = matchingRows.reduce((acc, r) => acc + (r.position || 0) * (r.impressions || 1), 0);
+  const totalWeight = matchingRows.reduce((acc, r) => acc + (r.impressions || 1), 0);
+  const averagePosition = totalWeight > 0 ? Number((weightedPosSum / totalWeight).toFixed(1)) : 0;
+
+  const subClusterMap: Record<HennaSubCluster['subIntent'], GscSearchRow[]> = {
+    WHOLESALE_BULK: [],
+    SOJAT_ORIGIN: [],
+    HAIR: [],
+    BRIDAL_BODY_ART: [],
+    GENERAL_CATEGORY: [],
+  };
+
+  for (const row of matchingRows) {
+    const q = normalizeQueryString(row.query);
+    if (q.includes('wholesale') || q.includes('bulk') || q.includes('supplier') || q.includes('kg') || q.includes('trade')) {
+      subClusterMap.WHOLESALE_BULK.push(row);
+    } else if (q.includes('sojat') || q.includes('rajasthan') || q.includes('pali')) {
+      subClusterMap.SOJAT_ORIGIN.push(row);
+    } else if (q.includes('hair') || q.includes('grey') || q.includes('gray') || q.includes('scalp') || q.includes('condition')) {
+      subClusterMap.HAIR.push(row);
+    } else if (q.includes('bridal') || q.includes('cone') || q.includes('body art') || q.includes('hand') || q.includes('baq') || q.includes('stain')) {
+      subClusterMap.BRIDAL_BODY_ART.push(row);
+    } else {
+      subClusterMap.GENERAL_CATEGORY.push(row);
+    }
+  }
+
+  const buildSub = (
+    subIntent: HennaSubCluster['subIntent'],
+    label: string,
+    recommendedDestination: string
+  ): HennaSubCluster => {
+    const rows = subClusterMap[subIntent];
+    const imp = rows.reduce((acc, r) => acc + (r.impressions || 0), 0);
+    const clk = rows.reduce((acc, r) => acc + (r.clicks || 0), 0);
+    const ctr = imp > 0 ? Number((clk / imp).toFixed(4)) : 0;
+    const wSum = rows.reduce((acc, r) => acc + (r.position || 0) * (r.impressions || 1), 0);
+    const wTot = rows.reduce((acc, r) => acc + (r.impressions || 1), 0);
+    const pos = wTot > 0 ? Number((wSum / wTot).toFixed(1)) : 0;
+
+    return {
+      subIntent,
+      label,
+      recommendedDestination,
+      queries: rows.map((r) => r.query),
+      totalImpressions: imp,
+      totalClicks: clk,
+      averageCtr: ctr,
+      averagePosition: pos,
+    };
+  };
+
+  const subClusters: HennaSubCluster[] = [
+    buildSub('HAIR', 'Henna for Hair Care & Natural Coloring', '/categories/henna'),
+    buildSub('BRIDAL_BODY_ART', 'Bridal & Body Art Mehndi', '/categories/henna'),
+    buildSub('SOJAT_ORIGIN', 'Sojat Origin & Heritage Henna', '/sojat-henna'),
+    buildSub('WHOLESALE_BULK', 'Wholesale & Commercial Bulk Henna', '/wholesale'),
+    buildSub('GENERAL_CATEGORY', 'General Pure Henna / Mehndi Category', '/categories/henna'),
+  ];
+
+  return {
+    canonicalEntityKey: 'HENNA_MEHNDI',
+    canonicalName: 'Henna / Mehndi',
+    totalQueries,
+    totalImpressions,
+    totalClicks,
+    averageCtr,
+    averagePosition,
+    subClusters,
+    dataStatus: 'DATA_AVAILABLE',
+  };
+}
+
+// ============================================================
+// 11. PHASE 8: MANUAL SEO LOCK SAFEGUARD
+// ============================================================
+
+export function isManualSeoLocked(target: {
+  isManualSeoLocked?: boolean;
+  seoManualOverride?: boolean;
+  isManualLocked?: boolean;
+  seoLocked?: boolean;
+  [key: string]: any;
+}): boolean {
+  if (!target) return false;
+  return Boolean(
+    target.isManualSeoLocked ||
+    target.seoManualOverride ||
+    target.isManualLocked ||
+    target.seoLocked
+  );
 }
