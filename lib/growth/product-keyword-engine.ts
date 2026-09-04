@@ -681,8 +681,15 @@ export async function onProductDeletedLifecycle(productId: string): Promise<void
  * for ANY current or future botanical/cosmetic product without hallucinating or making external API calls.
  */
 import { AutoSeoResult, SeoCompletenessStatus } from './types';
+import { composeIntelligenceSeo } from './intelligence-seo-composer';
+
+export { composeIntelligenceSeo };
 
 export function deriveProductAutoSeo(product: Partial<Product>): AutoSeoResult {
+  if (product.intelligence) {
+    return composeIntelligenceSeo(product);
+  }
+
   const name = (product.name || '').trim();
   const slug = (product.slug || '').trim() || normalizeKeywordTerm(name).replace(/\s+/g, '-');
   const cleanSlug = slug || 'product';

@@ -3,6 +3,8 @@ import { getProducts } from '@/lib/db/products';
 import { getCategories } from '@/lib/db/categories';
 import { getCustomPages } from '@/lib/db/custom-pages';
 import { getPublishedGuides } from '@/lib/db/guides';
+import { CANONICAL_ENTITY_REGISTRY, getPublicIndexableEntities } from '@/lib/growth/entity-registry';
+import { ENTITY_KEY_TO_SLUG } from '@/lib/growth/search-intent-router';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
@@ -143,5 +145,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.8,
   }));
 
-  return [...staticRoutes, ...productRoutes, ...categoryRoutes, ...customPageRoutes, ...guideRoutes];
+  const knowledgeEntityRoutes: MetadataRoute.Sitemap = getPublicIndexableEntities()
+    .filter((record) => ENTITY_KEY_TO_SLUG[record.entityKey])
+    .map((record) => ({
+      url: `${baseUrl}/knowledge/${ENTITY_KEY_TO_SLUG[record.entityKey]}`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    }));
+
+  return [
+    ...staticRoutes,
+    ...productRoutes,
+    ...categoryRoutes,
+    ...customPageRoutes,
+    ...guideRoutes,
+    ...knowledgeEntityRoutes,
+  ];
 }

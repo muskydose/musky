@@ -113,6 +113,7 @@ export function mapRowToProduct(row: any): Product {
     unitConfig: row.unit_config || row.unitConfig || undefined,
     fieldMetadata: row.field_metadata || row.fieldMetadata || undefined,
     lockedFields: Array.isArray(row.locked_fields) ? row.locked_fields : Array.isArray(row.lockedFields) ? row.lockedFields : undefined,
+    intelligence: row.intelligence_metadata || row.intelligence || undefined,
     seoTitle: row.seo_title || row.seoTitle || undefined,
     seoDescription: row.seo_description || row.seoDescription || undefined,
     seoKeywords: Array.isArray(row.seo_keywords) ? row.seo_keywords : (typeof row.seo_keywords === 'string' ? row.seo_keywords.split(',').map((s: string) => s.trim()) : undefined),
@@ -488,6 +489,7 @@ export async function saveProduct(product: Partial<Product>): Promise<Product> {
     unitConfig: product.unitConfig,
     fieldMetadata: product.fieldMetadata,
     lockedFields: product.lockedFields,
+    intelligence: product.intelligence,
     seoTitle: product.seoTitle ? product.seoTitle.trim() : undefined,
     seoDescription: product.seoDescription ? product.seoDescription.trim() : undefined,
     seoKeywords: Array.isArray(product.seoKeywords) ? product.seoKeywords : [],
@@ -506,7 +508,9 @@ export async function saveProduct(product: Partial<Product>): Promise<Product> {
     throw new Error(`Database error saving product to Supabase: ${error.message}`);
   }
 
-  const savedProduct = data && data.length > 0 ? mapRowToProduct(data[0]) : fullProduct;
+  const savedProduct = data && data.length > 0
+    ? { ...mapRowToProduct(data[0]), intelligence: product.intelligence || mapRowToProduct(data[0]).intelligence }
+    : fullProduct;
 
   // Background Autonomous Keyword Universe synchronization (fast, non-blocking)
   syncProductKeywordUniverse(savedProduct).catch((kwErr) => {

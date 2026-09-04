@@ -88,6 +88,13 @@ export function deriveProductGuide(
   const defaultOpp = opps.find((o) => o.family === 'PRODUCT_OVERVIEW') || opps[0];
   const primaryFamily = defaultOpp?.family || 'PRODUCT_OVERVIEW';
 
+  // Check for existing manual or locked guide to protect
+  const existingGuide = allGuides.find(
+    (g) =>
+      (productId && (g.productId === productId || g.associatedProductId === productId)) ||
+      (product.slug && (g.slug === `${product.slug}-complete-guide` || g.slug === product.slug))
+  );
+
   // 5. Universal Truth-Grounded Template Draft Generation
   const draft = generateUniversalGuideDraft({
     intelligence: intel,
@@ -96,6 +103,7 @@ export function deriveProductGuide(
     allProducts,
     productId,
     coverImage,
+    existingGuide,
   });
 
   return {

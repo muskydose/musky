@@ -12,6 +12,12 @@ import { uploadMediaFile } from '@/lib/media-upload';
 import { deriveProductAutoSeo } from '@/lib/growth/product-keyword-engine';
 import { validateProductVariants, formatVariantWeight } from '@/lib/product-variants';
 import { resolveProductWholesaleUnits, calculateProductBaseWholesaleRate } from '@/lib/wholesale-units';
+import ProductIntelligenceSection from '@/components/admin/products/ProductIntelligenceSection';
+import {
+  deriveSafeIntelligenceDefaults,
+  validateProductIntelligence,
+} from '@/lib/growth/intelligence-validator';
+import { ProductIntelligenceMetadata } from '@/lib/types';
 import {
   Save,
   ArrowLeft,
@@ -136,8 +142,18 @@ export default function ProductFormClient({
     productSaved: boolean;
     wholesaleError: string;
   } | null>(null);
-  const [activeTab, setActiveTab] = useState<'basic' | 'pricing' | 'content' | 'media' | 'seo' | 'display'>('basic');
+  const [activeTab, setActiveTab] = useState<'basic' | 'pricing' | 'content' | 'media' | 'seo' | 'display' | 'intelligence'>('basic');
   const [isDirty, setIsDirty] = useState(false);
+
+  const [intelligenceData, setIntelligenceData] = useState<ProductIntelligenceMetadata>(() => {
+    if (initialProduct?.intelligence) {
+      return initialProduct.intelligence;
+    }
+    return deriveSafeIntelligenceDefaults({
+      name: initialProduct?.name,
+      categoryName: initialProduct?.categoryName,
+    });
+  });
 
   const [formData, setFormData] = useState<Partial<Product>>({
     id: initialProduct?.id,
@@ -799,6 +815,14 @@ export default function ProductFormClient({
       }
     }
 
+    // Phase 2: Validate Universal Product Intelligence Metadata
+    const intelCheck = validateProductIntelligence(intelligenceData);
+    if (!intelCheck.valid) {
+      setError(`Product Intelligence error: ${intelCheck.errors.join(' | ')}`);
+      setActiveTab('intelligence');
+      return;
+    }
+
     setSaving(true);
     setError('');
     setSuccessMsg('');
@@ -811,6 +835,7 @@ export default function ProductFormClient({
       const payload = {
         ...formData,
         variants: productVariants,
+        intelligence: intelligenceData,
       };
 
       const endpoint = formData.id ? `/api/products/${formData.id}` : '/api/products';
@@ -1120,6 +1145,34 @@ export default function ProductFormClient({
           >
             <Sliders className="w-4 h-4" />
             <span>Visibility & Display</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('intelligence')}
+            className={`px-5 py-3.5 flex items-center gap-2 border-b-2 transition-colors shrink-0 ${
+              activeTab === 'intelligence'
+                ? 'border-[#1b4332] bg-white text-[#1b4332]'
+                : 'border-transparent hover:text-[#1b4332]'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4 text-[#C5A059]" />
+            <span>Product Intelligence</span>
+            {intelligenceData.status === 'NEEDS_REVIEW' && (
+              <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                Review
+              </span>
+            )}
+            {intelligenceData.status === 'LOCKED' && (
+              <span className="bg-slate-100 text-slate-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                Locked
+              </span>
+            )}
+            {intelligenceData.verifiedAttributes.length > 0 && (
+              <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                {intelligenceData.verifiedAttributes.length}
+              </span>
+            )}
           </button>
         </div>
 
@@ -2817,6 +2870,20 @@ export default function ProductFormClient({
                 <p className="text-[11px] text-gray-500 mt-1">Lower numbers appear first in catalog listings.</p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Tab 7: Product Intelligence & Knowledge Controls */}
+        {activeTab === 'intelligence' && (
+          <div className="p-4 sm:p-8">
+            <ProductIntelligenceSection
+              intelligence={intelligenceData}
+              onChange={(updated) => {
+                setIsDirty(true);
+                setIntelligenceData(updated);
+              }}
+              productName={formData.name || ''}
+            />
           </div>
         )}
 

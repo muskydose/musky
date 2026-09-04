@@ -13,6 +13,12 @@
 
 import { Product, Category, ProductGuide } from '@/lib/types';
 import { HENNA_MEHNDI_ALIASES } from './seo-demand-engine';
+import {
+  IntelligenceStatus,
+  ProductScope,
+  VerifiedAttribute,
+} from './universal-product-contract';
+import { CANONICAL_ENTITIES } from './intelligence-validator';
 
 export type ProductType =
   | 'single_botanical'
@@ -70,6 +76,10 @@ export interface UniversalProductIntelligence {
   confidence: IntelligenceConfidence;
   needsReview: boolean;
   reviewReasons: string[];
+  intelligenceStatus?: IntelligenceStatus;
+  productScopes?: ProductScope[];
+  verifiedAttributes?: VerifiedAttribute[];
+  canonicalEntityId?: string;
 }
 
 // ------------------------------------------------------------
@@ -465,6 +475,47 @@ export function deriveProductIntelligence(
   let aliases: string[] = knownBot?.aliases ? [...knownBot.aliases] : [];
   let defaultCatSlug = knownBot?.defaultCategorySlug ?? 'herbal-products';
   let defaultCatName = knownBot?.defaultCategoryName ?? 'Herbal & Ayurvedic Care';
+  let scientificName = knownBot?.scientificName;
+
+  // Phase 4 Intelligence Integration:
+  const intelMeta = productObj.intelligence;
+  let intelligenceStatus: IntelligenceStatus | undefined = intelMeta?.status;
+  let productScopes: ProductScope[] | undefined = intelMeta?.scopes;
+  let verifiedAttributes: VerifiedAttribute[] | undefined = intelMeta?.verifiedAttributes;
+  let canonicalEntityId: string | undefined = intelMeta?.entityKey || (intelMeta as any)?.canonicalEntityId;
+
+  if (intelMeta) {
+    if (canonicalEntityId === 'UNKNOWN') {
+      entity = 'UNKNOWN';
+      botanicalEntity = productObj.name || rawName;
+      scientificName = undefined;
+    } else if (canonicalEntityId && CANONICAL_ENTITIES[canonicalEntityId]) {
+      const cDef = CANONICAL_ENTITIES[canonicalEntityId];
+      entity = cDef.key;
+      botanicalEntity = cDef.displayName;
+      scientificName = cDef.scientificName || scientificName;
+      aliases = Array.from(new Set([...aliases, ...cDef.aliases]));
+      if (!productScopes || productScopes.length === 0) {
+        productScopes = [...cDef.defaultScopes];
+      }
+    }
+  }
+
+  // Ensure canonicalEntityId is defined for legacy products
+  if (!canonicalEntityId) {
+    canonicalEntityId = entity;
+  }
+
+  // Derive default scopes if still unset
+  if (!productScopes || productScopes.length === 0) {
+    if (entity === 'HENNA_MEHNDI' || parsed.detectedBotanicalKey === 'HENNA_MEHNDI') {
+      productScopes = ['HAIR', 'BODY_ART'];
+    } else if (knownBot?.primaryScope) {
+      productScopes = [knownBot.primaryScope as ProductScope];
+    } else {
+      productScopes = ['HERBAL'];
+    }
+  }
 
   if (isMultiHerb && parsed.detectedComponents.length > 1) {
     entity = 'HERBAL_BLEND';
@@ -511,7 +562,7 @@ export function deriveProductIntelligence(
   const reviewReasons: string[] = [];
   let confidence: IntelligenceConfidence = 'HIGH';
 
-  if (!knownBot && !isMultiHerb) {
+  if (!knownBot && !isMultiHerb && entity !== 'HENNA_MEHNDI') {
     confidence = 'NEEDS_REVIEW';
     reviewReasons.push('Unrecognized botanical entity. Please verify botanical categorization and guide scope.');
   }
@@ -519,6 +570,18 @@ export function deriveProductIntelligence(
   if (productType === 'generic_product') {
     confidence = 'NEEDS_REVIEW';
     reviewReasons.push('Generic product type detected.');
+  }
+
+  if (canonicalEntityId === 'UNKNOWN' || entity === 'UNKNOWN') {
+    confidence = 'NEEDS_REVIEW';
+    reviewReasons.push('Canonical entity is marked as UNKNOWN. Needs admin verification.');
+  }
+
+  if (intelligenceStatus === 'NEEDS_REVIEW') {
+    confidence = 'NEEDS_REVIEW';
+    if (!reviewReasons.some((r) => r.includes('NEEDS_REVIEW'))) {
+      reviewReasons.push('Product intelligence status is marked as NEEDS_REVIEW.');
+    }
   }
 
   // Local intent signal (Authenticity protection: only if Sojat is genuine for this entity/product)
@@ -529,19 +592,43 @@ export function deriveProductIntelligence(
     localIntent = 'RAJASTHAN_ORIGIN';
   }
 
+  // Wholesale & B2B Governance
+  // 1. Explicit flag on product
+  // 2. Explicit B2B title keywords
+  // 3. Wholesale tiers present
+  // 4. Backward compatibility: if no intelligence object and detectedBotanicalKey is HENNA_MEHNDI and not explicitly retail-only
+  let wholesaleEligible = false;
+  if (productObj.isWholesaleEligible === false) {
+    wholesaleEligible = false;
+  } else if (productObj.isWholesaleEligible === true) {
+    wholesaleEligible = true;
+  } else if (parsed.isB2B || ((productObj as any).wholesalePricing && (productObj as any).wholesalePricing.length > 0)) {
+    wholesaleEligible = true;
+  } else if (!intelMeta && parsed.detectedBotanicalKey === 'HENNA_MEHNDI') {
+    wholesaleEligible = true;
+  } else {
+    wholesaleEligible = false;
+  }
+
   // Commercial intent
   const commercialIntent: CommercialIntentType = parsed.isB2B
     ? 'B2B_WHOLESALE'
-    : productObj.isWholesaleEligible
+    : wholesaleEligible
     ? 'HYBRID'
     : 'RETAIL';
 
   // Audience
   const audienceTypes: string[] = ['Retail Customers', 'DIY Enthusiasts'];
-  if (parsed.detectedBotanicalKey === 'HENNA_MEHNDI') {
-    audienceTypes.push('Mehndi Artists', 'Bridal Salons', 'Hair Care Enthusiasts');
+  const hasBodyArtScope = productScopes ? productScopes.includes('BODY_ART') : (parsed.detectedBotanicalKey === 'HENNA_MEHNDI');
+  const hasHairScope = productScopes ? productScopes.includes('HAIR') : true;
+
+  if (hasBodyArtScope) {
+    audienceTypes.push('Mehndi Artists', 'Bridal Salons');
   }
-  if (parsed.isB2B || productObj.isWholesaleEligible) {
+  if (hasHairScope && (entity === 'HENNA_MEHNDI' || parsed.detectedBotanicalKey === 'HENNA_MEHNDI')) {
+    audienceTypes.push('Hair Care Enthusiasts');
+  }
+  if (wholesaleEligible) {
     audienceTypes.push('Salons & Spas', 'Wholesale Distributors', 'Private Label Brands');
   }
 
@@ -566,7 +653,7 @@ export function deriveProductIntelligence(
     entity,
     botanicalEntity,
     blendComponents: parsed.detectedComponents,
-    scientificName: knownBot?.scientificName,
+    scientificName,
     categorySlug,
     categoryName,
     form: parsed.form,
@@ -577,17 +664,21 @@ export function deriveProductIntelligence(
     wholesaleUnit,
     conversionRule,
     aliases,
-    spellingVariants: parsed.detectedComponents.includes('HENNA_MEHNDI') ? Array.from(HENNA_MEHNDI_ALIASES) : [],
+    spellingVariants: parsed.detectedComponents.includes('HENNA_MEHNDI') || entity === 'HENNA_MEHNDI' ? Array.from(HENNA_MEHNDI_ALIASES) : [],
     useCases,
     audienceTypes,
     commercialIntent,
     localIntent,
-    wholesaleEligible: productObj.isWholesaleEligible !== false && (parsed.isB2B || parsed.packUnit === 'kg' || parsed.detectedBotanicalKey === 'HENNA_MEHNDI'),
+    wholesaleEligible,
     informationalTopics,
     relatedEntities,
     confidence,
     needsReview: confidence === 'NEEDS_REVIEW',
     reviewReasons,
+    intelligenceStatus,
+    productScopes,
+    verifiedAttributes,
+    canonicalEntityId,
   };
 }
 

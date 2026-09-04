@@ -1,3 +1,10 @@
+import type {
+  IntelligenceStatus,
+  ProductScope,
+  VerifiedAttribute,
+  ProductFamily,
+} from '@/lib/growth/universal-product-contract';
+
 export interface BrandColors {
   primary: string;
   secondary: string;
@@ -68,6 +75,16 @@ export interface ProductVariant {
   conversionRule?: string;
 }
 
+export interface ProductIntelligenceMetadata {
+  status: IntelligenceStatus;
+  entityKey: string;
+  family?: ProductFamily;
+  scopes: ProductScope[];
+  verifiedAttributes: VerifiedAttribute[];
+  updatedAt?: string;
+  notes?: string;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -76,6 +93,7 @@ export interface Product {
   categoryName?: string;
   shortDescription: string;
   fullDescription: string;
+  intelligence?: ProductIntelligenceMetadata;
   price: number;
   compareAtPrice?: number;
   quantityOrWeight: string; // e.g., "100g", "250g", "500g Pack", "500ml", "1 Litre", "Pack of 12 Cones"
