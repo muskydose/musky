@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -26,6 +26,8 @@ import {
   Sliders,
   CheckCircle,
   AlertCircle,
+  AlertTriangle,
+  XCircle,
   X,
   Star,
   ChevronLeft,
@@ -44,6 +46,79 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
+/**
+ * Pure function to validate wholesale pricing tiers and catch overlapping quantity ranges
+ */
+export function validateWholesaleTierOverlaps(
+  tiers: BulkPricingRule[]
+): { valid: boolean; error?: string; conflictingIndices?: [number, number] } {
+  const activeTiersWithIndex = tiers
+    .map((tier, originalIndex) => ({ tier, originalIndex }))
+    .filter(({ tier }) => tier.isActive !== false);
+
+  for (let i = 0; i < activeTiersWithIndex.length; i++) {
+    const { tier: tierA, originalIndex: idxA } = activeTiersWithIndex[i];
+    const minA = Number(tierA.minQuantity);
+    const maxA =
+      tierA.maxQuantity !== undefined && tierA.maxQuantity !== null && (tierA.maxQuantity as any) !== ''
+        ? Number(tierA.maxQuantity)
+        : Infinity;
+
+    if (isNaN(minA) || minA <= 0) {
+      return {
+        valid: false,
+        error: `Wholesale Tier #${idxA + 1}: Minimum quantity must be a positive number greater than 0.`,
+        conflictingIndices: [idxA, idxA],
+      };
+    }
+
+    if (isFinite(maxA) && maxA < minA) {
+      return {
+        valid: false,
+        error: `Wholesale Tier #${idxA + 1}: Maximum quantity (${maxA}) cannot be less than minimum quantity (${minA}).`,
+        conflictingIndices: [idxA, idxA],
+      };
+    }
+
+    if (typeof tierA.discountValue !== 'number' || isNaN(tierA.discountValue) || tierA.discountValue < 0) {
+      return {
+        valid: false,
+        error: `Wholesale Tier #${idxA + 1}: Discount value must be a non-negative number.`,
+        conflictingIndices: [idxA, idxA],
+      };
+    }
+
+    if (tierA.discountType === 'percentage' && tierA.discountValue > 100) {
+      return {
+        valid: false,
+        error: `Wholesale Tier #${idxA + 1}: Percentage discount cannot exceed 100%.`,
+        conflictingIndices: [idxA, idxA],
+      };
+    }
+
+    for (let j = i + 1; j < activeTiersWithIndex.length; j++) {
+      const { tier: tierB, originalIndex: idxB } = activeTiersWithIndex[j];
+      const minB = Number(tierB.minQuantity);
+      const maxB =
+        tierB.maxQuantity !== undefined && tierB.maxQuantity !== null && (tierB.maxQuantity as any) !== ''
+          ? Number(tierB.maxQuantity)
+          : Infinity;
+
+      if (minA <= maxB && maxA >= minB) {
+        const rangeA = `${minA}${isFinite(maxA) ? '-' + maxA : '+'}`;
+        const rangeB = `${minB}${isFinite(maxB) ? '-' + maxB : '+'}`;
+        return {
+          valid: false,
+          error: `Wholesale tier (${rangeA}) overlaps with tier (${rangeB}). Quantity ranges must not overlap.`,
+          conflictingIndices: [idxA, idxB],
+        };
+      }
+    }
+  }
+
+  return { valid: true };
+}
+
 interface ProductFormClientProps {
   initialProduct?: Product;
   categories: Category[];
@@ -57,6 +132,10 @@ export default function ProductFormClient({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [partialSaveStatus, setPartialSaveStatus] = useState<{
+    productSaved: boolean;
+    wholesaleError: string;
+  } | null>(null);
   const [activeTab, setActiveTab] = useState<'basic' | 'pricing' | 'content' | 'media' | 'seo' | 'display'>('basic');
   const [isDirty, setIsDirty] = useState(false);
 
@@ -127,20 +206,37 @@ export default function ProductFormClient({
   const [loadingRules, setLoadingRules] = useState(false);
 
   // Load product-specific bulk pricing rules from Supabase campaigns/bulk-pricing
-  useEffect(() => {
-    if (!initialProduct?.id) return;
+  const loadBulkRulesForProduct = useCallback(async (productId: string) => {
+    if (!productId) return;
     setLoadingRules(true);
-    fetch('/api/bulk-pricing?admin=true')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
+    try {
+      const res = await fetch('/api/bulk-pricing?admin=true');
+      if (res.ok) {
+        const data = await res.json();
         if (data?.success && Array.isArray(data.rules)) {
-          const matched = data.rules.filter((r: BulkPricingRule) => r.productId === initialProduct.id);
+          const matched = data.rules.filter((r: BulkPricingRule) => r.productId === productId);
           setProductBulkRules(matched);
+          setDeletedRuleIds([]);
         }
-      })
-      .catch((err) => console.warn('Could not load bulk pricing rules:', err))
-      .finally(() => setLoadingRules(false));
-  }, [initialProduct?.id]);
+      }
+    } catch (err) {
+      console.warn('Could not load bulk pricing rules:', err);
+    } finally {
+      setLoadingRules(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (initialProduct?.id) {
+      loadBulkRulesForProduct(initialProduct.id);
+    }
+  }, [initialProduct?.id, loadBulkRulesForProduct]);
+
+  // Derived live validation for wholesale tier overlaps
+  const tierValidationResult = useMemo(() => {
+    if (productBulkRules.length === 0) return { valid: true };
+    return validateWholesaleTierOverlaps(productBulkRules);
+  }, [productBulkRules]);
 
   // Derived wholesale commercial units for the current product
   const currentWholesaleUnits = resolveProductWholesaleUnits({
@@ -250,10 +346,24 @@ export default function ProductFormClient({
 
   // --- Wholesale Bulk Rule Handlers ---
   const handleAddBulkRule = () => {
+    let nextMin = 25;
+    if (productBulkRules.length > 0) {
+      const maxVal = productBulkRules.reduce((acc, curr) => {
+        const val =
+          curr.maxQuantity !== undefined && curr.maxQuantity !== null && !isNaN(Number(curr.maxQuantity))
+            ? Number(curr.maxQuantity)
+            : Number(curr.minQuantity);
+        return Math.max(acc, isNaN(val) ? 0 : val);
+      }, 0);
+      if (maxVal > 0) {
+        nextMin = maxVal + 1;
+      }
+    }
+
     const newRule: BulkPricingRule = {
       id: `rule_temp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       productId: formData.id || 'pending',
-      minQuantity: 25,
+      minQuantity: nextMin,
       maxQuantity: undefined,
       discountType: 'percentage',
       discountValue: 15,
@@ -679,21 +789,11 @@ export default function ProductFormClient({
       }
     }
 
-    // Phase 3E & 3F: Validate wholesale bulk pricing rules
-    for (let i = 0; i < productBulkRules.length; i++) {
-      const r = productBulkRules[i];
-      if (typeof r.minQuantity !== 'number' || r.minQuantity <= 0) {
-        setError(`Wholesale Tier #${i + 1}: Minimum quantity must be a positive number greater than 0.`);
-        setActiveTab('pricing');
-        return;
-      }
-      if (typeof r.discountValue !== 'number' || r.discountValue < 0) {
-        setError(`Wholesale Tier #${i + 1}: Discount value must be a non-negative number.`);
-        setActiveTab('pricing');
-        return;
-      }
-      if (r.discountType === 'percentage' && r.discountValue > 100) {
-        setError(`Wholesale Tier #${i + 1}: Percentage discount cannot exceed 100%.`);
+    // Phase 3E & 3F: Client-side validation of wholesale bulk pricing tiers and overlap detection
+    if (productBulkRules.length > 0) {
+      const tierCheck = validateWholesaleTierOverlaps(productBulkRules);
+      if (!tierCheck.valid) {
+        setError(tierCheck.error || 'Please correct overlapping wholesale quantity tiers.');
         setActiveTab('pricing');
         return;
       }
@@ -702,6 +802,10 @@ export default function ProductFormClient({
     setSaving(true);
     setError('');
     setSuccessMsg('');
+    setPartialSaveStatus(null);
+
+    let productSaveSucceeded = false;
+    let savedProductId = formData.id;
 
     try {
       const payload = {
@@ -724,6 +828,9 @@ export default function ProductFormClient({
       }
 
       const savedProduct = data.product;
+      productSaveSucceeded = true;
+      savedProductId = savedProduct.id;
+      setFormData((prev) => ({ ...prev, id: savedProduct.id }));
 
       // Phase 3H: Atomically persist wholesale rules
       if (productBulkRules.length > 0 || deletedRuleIds.length > 0) {
@@ -735,7 +842,8 @@ export default function ProductFormClient({
         }
 
         // Save active rules with the saved product ID
-        for (const rule of productBulkRules) {
+        for (let idx = 0; idx < productBulkRules.length; idx++) {
+          const rule = productBulkRules[idx];
           const rulePayload = {
             id: rule.id.startsWith('rule_temp_') ? undefined : rule.id,
             productId: savedProduct.id,
@@ -744,7 +852,7 @@ export default function ProductFormClient({
             discountType: rule.discountType,
             discountValue: rule.discountValue,
             isActive: rule.isActive !== false,
-            sortOrder: rule.sortOrder || 1,
+            sortOrder: rule.sortOrder || (idx + 1),
           };
           const ruleRes = await fetch('/api/bulk-pricing', {
             method: 'POST',
@@ -753,18 +861,36 @@ export default function ProductFormClient({
           });
           const ruleData = await ruleRes.json();
           if (!ruleRes.ok || !ruleData.success) {
-            throw new Error(`Product saved, but wholesale rule failed: ${ruleData.error || 'Check wholesale configuration.'}`);
+            const ruleErr = ruleData.error || 'Failed to save wholesale tier.';
+            throw new Error(`WHOLESALE_RULE_FAILED: ${ruleErr}`);
           }
         }
       }
 
       setIsDirty(false);
+      setPartialSaveStatus(null);
       setSuccessMsg('Product and pricing configurations saved successfully!');
       setTimeout(() => {
         router.push('/admin/products');
       }, 1000);
     } catch (err: any) {
-      setError(err.message || 'Server error while saving product record.');
+      if (productSaveSucceeded) {
+        const rawMsg = err.message || '';
+        const wholesaleMsg = rawMsg.startsWith('WHOLESALE_RULE_FAILED: ')
+          ? rawMsg.replace('WHOLESALE_RULE_FAILED: ', '')
+          : rawMsg;
+        setPartialSaveStatus({
+          productSaved: true,
+          wholesaleError: wholesaleMsg,
+        });
+        setError(`Product saved, but wholesale rule failed: ${wholesaleMsg}`);
+        setActiveTab('pricing');
+        if (savedProductId) {
+          loadBulkRulesForProduct(savedProductId);
+        }
+      } else {
+        setError(err.message || 'Server error while saving product record.');
+      }
     } finally {
       setSaving(false);
     }
@@ -797,8 +923,40 @@ export default function ProductFormClient({
         )}
       </div>
 
+      {/* Partial Save Notice (Two-Stage Feedback) */}
+      {partialSaveStatus && (
+        <div className="bg-amber-50 border border-amber-300 p-4 rounded-xl space-y-3 shadow-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-amber-900 font-bold text-xs">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>Partial Save Notice: Action Required on Wholesale Pricing</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPartialSaveStatus(null)}
+              className="text-amber-600 hover:text-amber-800 text-xs"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-2 rounded-lg font-semibold">
+              <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>Product Details: Saved Successfully</span>
+            </div>
+            <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 text-rose-800 px-3 py-2 rounded-lg font-semibold">
+              <XCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>Wholesale Pricing: {partialSaveStatus.wholesaleError}</span>
+            </div>
+          </div>
+          <p className="text-[11px] text-amber-800">
+            Your product record has been saved. Please resolve the wholesale pricing tier conflict below and click &ldquo;Save Product &amp; Variations&rdquo; again to update wholesale rules.
+          </p>
+        </div>
+      )}
+
       {/* Error / Success Feedback */}
-      {error && (
+      {error && !partialSaveStatus && (
         <div className="bg-rose-100 border border-rose-400 text-rose-800 text-xs p-4 rounded-xl font-bold flex items-center justify-between">
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-rose-600" />
@@ -1458,7 +1616,15 @@ export default function ProductFormClient({
                 </div>
               ) : (
                 <div className="space-y-3">
+                  {!tierValidationResult.valid && (
+                    <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 font-semibold flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>{tierValidationResult.error}</span>
+                    </div>
+                  )}
                   {productBulkRules.map((rule, rIdx) => {
+                    const isConflicting = tierValidationResult.conflictingIndices?.includes(rIdx);
+
                     // Calculate live effective price preview
                     let effectiveRate = currentBaseWholesaleRate;
                     if (rule.discountType === 'percentage') {
@@ -1472,20 +1638,35 @@ export default function ProductFormClient({
                     return (
                       <div
                         key={rule.id || rIdx}
-                        className="p-4 rounded-xl border border-[#e8e2d5] bg-white hover:border-gray-300 transition-all space-y-3"
+                        className={`p-4 rounded-xl border bg-white transition-all space-y-3 ${
+                          isConflicting
+                            ? 'border-rose-300 ring-2 ring-rose-100'
+                            : 'border-[#e8e2d5] hover:border-gray-300'
+                        }`}
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-2">
                           <div className="flex items-center gap-2">
-                            <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[10px]">
+                            <span
+                              className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
+                                isConflicting ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+                              }`}
+                            >
                               T{rIdx + 1}
                             </span>
                             <span className="font-bold text-xs text-gray-800">
                               Volume Tier: {rule.minQuantity}+ {currentWholesaleUnits.wholesaleUnit}
                             </span>
-                            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200">
-                              <ShieldCheck className="w-2.5 h-2.5" />
-                              CONFIRMED TIER
-                            </span>
+                            {isConflicting ? (
+                              <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-rose-200">
+                                <AlertCircle className="w-2.5 h-2.5" />
+                                OVERLAPPING TIER
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                                <ShieldCheck className="w-2.5 h-2.5" />
+                                CONFIRMED TIER
+                              </span>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-2">
