@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Product, BulkPricingRule, SiteSettings } from '@/lib/types';
 import { getCmsText } from '@/lib/cms';
 import {
@@ -23,6 +23,8 @@ import { resolveProductWholesaleUnits, calculateProductBaseWholesaleRate } from 
 
 interface WholesaleCalculatorProps {
   siteSettings?: SiteSettings;
+  initialProductId?: string;
+  initialQuantity?: number;
   onSelectQuote?: (data: {
     productName: string;
     quantity: number;
@@ -37,7 +39,12 @@ interface WholesaleCalculatorProps {
   }) => void;
 }
 
-export default function WholesaleCalculator({ siteSettings, onSelectQuote }: WholesaleCalculatorProps) {
+export default function WholesaleCalculator({
+  siteSettings,
+  initialProductId,
+  initialQuantity,
+  onSelectQuote,
+}: WholesaleCalculatorProps) {
   const cms = getCmsText(siteSettings);
   const shouldReduceMotion = useReducedMotion();
   const [products, setProducts] = useState<Product[]>([]);
@@ -45,10 +52,10 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  const [selectedProductId, setSelectedProductId] = useState<string>('');
-  const [quantity, setQuantity] = useState<number>(25);
+  const [selectedProductId, setSelectedProductId] = useState<string>(initialProductId || '');
+  const [quantity, setQuantity] = useState<number>(initialQuantity && initialQuantity > 0 ? initialQuantity : 25);
 
-  const fetchPricingData = async () => {
+  const fetchPricingData = useCallback(async () => {
     setLoading(true);
     setError(false);
     try {
@@ -64,14 +71,22 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
       setRules(loadedRules);
 
       if (loadedProducts.length > 0) {
-        // Default to first henna or botanical powder product if available
+        // Prioritize initialProductId if provided
+        const targetedProd = initialProductId
+          ? loadedProducts.find(
+              (p) => p.id === initialProductId || p.slug === initialProductId
+            )
+          : null;
+
         const defaultProd =
+          targetedProd ||
           loadedProducts.find(
             (p) =>
               p.name.toLowerCase().includes('henna') ||
               p.name.toLowerCase().includes('mehendi') ||
               p.categoryName?.toLowerCase().includes('henna')
-          ) || loadedProducts[0];
+          ) ||
+          loadedProducts[0];
         setSelectedProductId(defaultProd.id);
       }
     } catch (err) {
@@ -80,11 +95,11 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
     } finally {
       setLoading(false);
     }
-  };
+  }, [initialProductId]);
 
   useEffect(() => {
     fetchPricingData();
-  }, []);
+  }, [fetchPricingData]);
 
   const selectedProduct = useMemo(() => {
     return products.find((p) => p.id === selectedProductId) || products[0];
@@ -97,11 +112,13 @@ export default function WholesaleCalculator({ siteSettings, onSelectQuote }: Who
 
   // Adjust default quantity when product switches unit family
   useEffect(() => {
-    if (units.presetQuantities && units.presetQuantities.length > 0) {
+    if (initialQuantity && initialQuantity > 0) {
+      setQuantity(initialQuantity);
+    } else if (units.presetQuantities && units.presetQuantities.length > 0) {
       const defaultPreset = units.presetQuantities[2] || units.presetQuantities[0];
       setQuantity(defaultPreset);
     }
-  }, [units]);
+  }, [units, initialQuantity]);
 
   // Authoritative Pricing Calculation
   const calculation = useMemo(() => {

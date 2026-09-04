@@ -13,6 +13,7 @@ import {
   LeadRecord,
   CentralLeadType,
   CentralLeadStatus,
+  CentralLeadPriority,
   LeadCaptureSource,
   LeadIntentLevel,
   LeadAttribution,
@@ -200,7 +201,7 @@ export function deriveTotalLeadScore(
 }
 
 // ============================================================
-// PHASE 2 & 3 — CENTRAL LEAD RECORD MANAGEMENT
+// PHASE 2 & 3 — CENTRAL LEAD RECORD MANAGEMENT & INTELLIGENCE
 // ============================================================
 
 export function sanitizeMobile(phone: string): string {
@@ -209,6 +210,75 @@ export function sanitizeMobile(phone: string): string {
     return digits.slice(2);
   }
   return digits;
+}
+
+export function deriveLeadPriority(lead: {
+  leadScore?: number;
+  intentScore?: number;
+  leadType?: CentralLeadType;
+  source?: string;
+  status?: CentralLeadStatus;
+  isRepeatOpportunity?: boolean;
+}): CentralLeadPriority {
+  const score = lead.leadScore ?? 0;
+  const intent = lead.intentScore ?? 0;
+  const isB2B = lead.leadType && ['WHOLESALE', 'MANUFACTURER', 'MEHNDI_ARTIST', 'RESELLER', 'SALON'].includes(lead.leadType);
+  const isWholesaleSource = lead.source === 'WHOLESALE_ENQUIRY' || lead.source === 'BULK_ENQUIRY';
+
+  if (
+    lead.isRepeatOpportunity ||
+    lead.status === 'QUOTE_REQUESTED' ||
+    lead.status === 'CONTACT_REQUIRED' ||
+    (isB2B && (score >= 60 || intent >= 60 || isWholesaleSource))
+  ) {
+    return 'HIGH';
+  }
+  if (score >= 40 || isB2B) {
+    return 'MEDIUM';
+  }
+  return 'LOW';
+}
+
+// Canonical B2B stock replenishment window threshold (days)
+export const DEFAULT_B2B_REPLENISHMENT_THRESHOLD_DAYS = 30;
+
+export function detectRepeatOrderOpportunities(
+  lead: Partial<LeadRecord>,
+  options?: {
+    totalOrders?: number;
+    lastOrderDate?: string;
+    daysSinceWon?: number;
+    thresholdDays?: number;
+  }
+): { isRepeatOpportunity: boolean; repeatOpportunityReason?: string } {
+  const threshold = options?.thresholdDays ?? DEFAULT_B2B_REPLENISHMENT_THRESHOLD_DAYS;
+  const ordersCount = options?.totalOrders ?? lead.previousOrdersCount ?? 0;
+  const lastOrder = options?.lastOrderDate ?? lead.lastOrderDate;
+
+  if (ordersCount > 0) {
+    let daysDiff = 999;
+    if (lastOrder) {
+      const lastMs = new Date(lastOrder).getTime();
+      if (!isNaN(lastMs)) {
+        daysDiff = Math.floor((Date.now() - lastMs) / (1000 * 60 * 60 * 24));
+      }
+    }
+    if (daysDiff >= threshold) {
+      return {
+        isRepeatOpportunity: true,
+        repeatOpportunityReason: `Prior B2B purchase on record (${ordersCount} order(s)). Last order was ${daysDiff === 999 ? 'recorded previously' : `${daysDiff} days ago`} — meets ${threshold}-day stock replenishment threshold.`,
+      };
+    }
+  }
+
+  if (lead.status === 'WON' || (options?.daysSinceWon !== undefined && options.daysSinceWon >= threshold)) {
+    return {
+      isRepeatOpportunity: true,
+      repeatOpportunityReason: `Order previously fulfilled and marked WON over ${threshold} days ago. Prime candidate for repeat seasonal stock re-order.`,
+    };
+  }
+
+  return { isRepeatOpportunity: false };
 }
 
 export async function saveLead(
@@ -223,15 +293,35 @@ export async function saveLead(
   const existingLead = findLeadByMobile(cleanPhone);
 
   const name = (params.name || existingLead?.name || 'Musky Dose Visitor').trim().substring(0, 100);
+  const businessName = params.businessName || existingLead?.businessName || undefined;
+  const city = params.city || existingLead?.city || undefined;
+  const state = params.state || existingLead?.state || undefined;
   const leadType = params.leadType || existingLead?.leadType || 'RETAIL';
   const source = params.source || existingLead?.source || 'WHATSAPP_CTA';
-  const requirement = (params.requirement || existingLead?.requirement || '').trim().substring(0, 1000);
+
+  // Preserve requirement history on deduplication rather than overwriting
+  let requirement = existingLead?.requirement || '';
+  const newReq = (params.requirement || '').trim();
+  if (newReq) {
+    if (!requirement) {
+      requirement = newReq;
+    } else if (!requirement.includes(newReq)) {
+      requirement = `${requirement} | [${now.slice(0, 10)}] ${newReq}`;
+    }
+  }
+  requirement = requirement.substring(0, 2000);
+
   const quantity = params.quantity || existingLead?.quantity;
   const productId = params.productId || existingLead?.productId;
   const productName = params.productName || existingLead?.productName;
   const categoryId = params.categoryId || existingLead?.categoryId;
   const landingPage = params.landingPage || existingLead?.landingPage || '/';
   const sourceQuery = params.sourceQuery || existingLead?.sourceQuery;
+  const wholesaleEnquiryId = params.wholesaleEnquiryId || existingLead?.wholesaleEnquiryId || undefined;
+  const quoteAmount = params.quoteAmount !== undefined ? params.quoteAmount : existingLead?.quoteAmount;
+  const quoteNotes = params.quoteNotes || existingLead?.quoteNotes;
+  const previousOrdersCount = params.previousOrdersCount !== undefined ? params.previousOrdersCount : existingLead?.previousOrdersCount;
+  const lastOrderDate = params.lastOrderDate || existingLead?.lastOrderDate;
 
   // Touchpoint count & search attribution
   const touchpointsCount = (existingLead?.attribution?.touchpointsCount || 0) + 1;
@@ -283,14 +373,39 @@ export async function saveLead(
     new Set([...intentRes.reasons, ...commRes.reasons, ...engRes.reasons])
   ).slice(0, 6);
 
+  const initialStatus: CentralLeadStatus = existingLead ? existingLead.status : (params.status || 'NEW');
+
+  // Repeat opportunity check
+  const repeatCheck = detectRepeatOrderOpportunities({
+    status: initialStatus,
+    previousOrdersCount,
+    lastOrderDate,
+  });
+
+  const isRepeatOpportunity = params.isRepeatOpportunity ?? (repeatCheck.isRepeatOpportunity || existingLead?.isRepeatOpportunity || false);
+  const repeatOpportunityReason = params.repeatOpportunityReason || repeatCheck.repeatOpportunityReason || existingLead?.repeatOpportunityReason;
+
+  // Derive Priority
+  const priority: CentralLeadPriority = params.priority || deriveLeadPriority({
+    leadScore,
+    intentScore,
+    leadType,
+    source,
+    status: initialStatus,
+    isRepeatOpportunity,
+  });
+
   const leadId = existingLead?.leadId || `lead_${Date.now()}_${cleanPhone.slice(-4)}`;
 
   const record: LeadRecord = {
     leadId,
     name,
+    businessName,
     mobile: cleanPhone,
     whatsapp: params.whatsapp ? sanitizeMobile(params.whatsapp) : cleanPhone,
     email: params.email ? String(params.email).trim().toLowerCase() : existingLead?.email,
+    city,
+    state,
     leadType,
     source,
     sourceQuery,
@@ -312,8 +427,9 @@ export async function saveLead(
     commercialScore,
     engagementScore,
     leadScore,
+    priority,
     scoreReasons,
-    status: existingLead ? existingLead.status : (params.status || 'NEW'),
+    status: initialStatus,
     attribution: {
       channel: params.attribution?.channel || (source === 'WHOLESALE_ENQUIRY' ? 'Wholesale' : 'WhatsApp / Store'),
       landingPage,
@@ -328,6 +444,13 @@ export async function saveLead(
     assignedTo: params.assignedTo || existingLead?.assignedTo,
     notes: params.notes ? `${existingLead?.notes ? `${existingLead.notes}\n` : ''}[${now.slice(0, 10)}] ${params.notes}` : existingLead?.notes,
     convertedOrderId: params.convertedOrderId || existingLead?.convertedOrderId,
+    wholesaleEnquiryId,
+    quoteAmount,
+    quoteNotes,
+    isRepeatOpportunity,
+    repeatOpportunityReason,
+    previousOrdersCount,
+    lastOrderDate,
     createdAt: existingLead?.createdAt || now,
     updatedAt: now,
   };
@@ -342,7 +465,7 @@ export async function saveLead(
       .upsert([
         {
           id: record.leadId,
-          business_name: record.name,
+          business_name: record.businessName || record.name,
           contact_name: record.name,
           phone: record.mobile,
           whatsapp: record.whatsapp,
@@ -381,6 +504,7 @@ export function getLeadById(leadId: string): LeadRecord | null {
 export function getAllLeads(filters?: {
   status?: CentralLeadStatus | 'ALL';
   leadType?: CentralLeadType | 'ALL';
+  priority?: CentralLeadPriority | 'ALL';
   minScore?: number;
   search?: string;
 }): LeadRecord[] {
@@ -392,6 +516,9 @@ export function getAllLeads(filters?: {
   if (filters?.leadType && filters.leadType !== 'ALL') {
     list = list.filter((l) => l.leadType === filters.leadType);
   }
+  if (filters?.priority && filters.priority !== 'ALL') {
+    list = list.filter((l) => l.priority === filters.priority);
+  }
   if (filters?.minScore !== undefined) {
     list = list.filter((l) => l.leadScore >= filters.minScore!);
   }
@@ -400,6 +527,8 @@ export function getAllLeads(filters?: {
     list = list.filter(
       (l) =>
         l.name.toLowerCase().includes(q) ||
+        (l.businessName && l.businessName.toLowerCase().includes(q)) ||
+        (l.city && l.city.toLowerCase().includes(q)) ||
         l.mobile.includes(q) ||
         (l.productName && l.productName.toLowerCase().includes(q)) ||
         (l.requirement && l.requirement.toLowerCase().includes(q))
@@ -412,7 +541,14 @@ export function getAllLeads(filters?: {
 export function updateLeadStatus(
   leadId: string,
   status: CentralLeadStatus,
-  options?: { notes?: string; assignedTo?: string; convertedOrderId?: string }
+  options?: {
+    notes?: string;
+    assignedTo?: string;
+    convertedOrderId?: string;
+    quoteAmount?: number;
+    quoteNotes?: string;
+    priority?: CentralLeadPriority;
+  }
 ): LeadRecord {
   const lead = leadsStore.get(leadId);
   if (!lead) {
@@ -433,6 +569,18 @@ export function updateLeadStatus(
   if (options?.convertedOrderId) {
     lead.convertedOrderId = options.convertedOrderId;
   }
+  if (options?.quoteAmount !== undefined) {
+    lead.quoteAmount = options.quoteAmount;
+  }
+  if (options?.quoteNotes) {
+    lead.quoteNotes = options.quoteNotes;
+  }
+  if (options?.priority) {
+    lead.priority = options.priority;
+  } else {
+    // Re-evaluate priority on status change
+    lead.priority = deriveLeadPriority(lead);
+  }
 
   leadsStore.set(leadId, lead);
   return lead;
@@ -444,48 +592,84 @@ export function updateLeadStatus(
 
 export function getLeadFollowUpRecommendation(lead: LeadRecord): LeadFollowUpRecommendation {
   const prodName = lead.productName || 'Pure Sojat Henna Powder';
+  const buyerEntity = lead.businessName ? `${lead.name} (${lead.businessName})` : lead.name;
 
   switch (lead.status) {
     case 'NEW':
       if (lead.leadType === 'WHOLESALE' || lead.leadType === 'MANUFACTURER') {
         return {
-          action: 'Send Commercial B2B Rate Card & Sample Pack',
+          action: 'Send Current B2B Rate Card & Available Product Information',
           urgency: 'NOW',
+          priority: lead.priority || 'HIGH',
           channel: 'WHATSAPP',
           reason: 'High commercial value wholesale lead awaiting quotation response.',
-          suggestedMessage: `Namaste ${lead.name}, thank you for your wholesale enquiry for ${prodName}. Here is our Sojat direct bulk catalog (25kg - 500kg tiers) with Lab CoA & GST documentation. Would you like a 250g sample dispatch?`,
+          suggestedMessage: `Namaste ${lead.name}, thank you for your wholesale enquiry for ${prodName}. Here is our Sojat direct bulk catalog (25kg - 500kg tiers) with available batch documentation and GST billing terms. Would you like a sample pack dispatch?`,
         };
       }
       if (lead.leadType === 'MEHNDI_ARTIST' || lead.leadType === 'SALON') {
         return {
-          action: 'Share Professional Artist Pricing & Stain Guarantee',
+          action: 'Share Professional Artist Pricing & Product Information',
           urgency: 'NOW',
+          priority: lead.priority || 'HIGH',
           channel: 'WHATSAPP',
           reason: 'High repeat-potential Mehndi Artist / Salon professional inquiry.',
-          suggestedMessage: `Namaste ${lead.name}, thanks for reaching out to Musky Dose! Our 5-sieve micro-filtered Sojat henna powder is formulated specifically for bridal artists for dark, consistent stains. Here is our exclusive artist pack pricing.`,
+          suggestedMessage: `Namaste ${lead.name}, thanks for reaching out to Musky Dose! Our 5-sieve micro-filtered Sojat henna powder is formulated specifically for bridal artists for dark, rich color release. Here is our exclusive artist pack pricing and product information.`,
+        };
+      }
+      if (lead.leadType === 'RESELLER') {
+        return {
+          action: 'Send Applicable Reseller Pricing & Product Information',
+          urgency: 'NOW',
+          priority: lead.priority || 'MEDIUM',
+          channel: 'WHATSAPP',
+          reason: 'Store/Cosmetics shop distributor lead seeking resell margins.',
+          suggestedMessage: `Namaste ${lead.name}, thank you for your interest in reselling Musky Dose ${prodName}. Here is our master carton pricing (100g, 250g, 500g retail packs) with applicable reseller trade pricing and product details.`,
         };
       }
       return {
         action: 'Immediate Requirement Confirmation',
         urgency: 'NOW',
+        priority: lead.priority || 'MEDIUM',
         channel: 'WHATSAPP',
         reason: 'Fresh retail / product enquiry requiring prompt response.',
         suggestedMessage: `Namaste ${lead.name}, thank you for contacting Musky Dose! We received your request regarding ${prodName}. How may we assist with your order today?`,
+      };
+
+    case 'CONTACT_REQUIRED':
+      return {
+        action: 'Immediate Outbound Contact & Volume Qualification',
+        urgency: 'NOW',
+        priority: 'HIGH',
+        channel: 'WHATSAPP',
+        reason: 'Lead marked as urgently needing outbound contact to clarify commercial requirements.',
+        suggestedMessage: `Namaste ${lead.name}, our dispatch team is reviewing your requirement for ${prodName}. Could you share your expected delivery timeline and volume so we can prioritize your order?`,
       };
 
     case 'CONTACTED':
       return {
         action: 'Qualify Specific Volume & Dispatch Timeline',
         urgency: 'TODAY',
+        priority: lead.priority || 'MEDIUM',
         channel: 'WHATSAPP',
         reason: 'Contact established; clarify delivery location and volume to generate quotation.',
         suggestedMessage: `Hi ${lead.name}, following up on your inquiry. Could you share your expected delivery pincode and required quantity so we can arrange priority dispatch from our Sojat unit?`,
       };
 
+    case 'QUOTE_REQUESTED':
+      return {
+        action: 'Prepare & Dispatch Official Commercial Proforma Quote',
+        urgency: 'NOW',
+        priority: 'HIGH',
+        channel: 'WHATSAPP',
+        reason: 'Buyer has explicitly requested an active price quotation.',
+        suggestedMessage: `Namaste ${lead.name}, your wholesale quotation for ${lead.quantity || 'your required quantity'} of ${prodName} is ready with direct factory dispatch terms from Sojat. Would you like us to forward the proforma invoice?`,
+      };
+
     case 'QUALIFIED':
       return {
-        action: 'Issue Proforma Quotation & Payment Link',
+        action: 'Issue Proforma Quotation & Payment Terms',
         urgency: 'TODAY',
+        priority: lead.priority || 'MEDIUM',
         channel: 'WHATSAPP',
         reason: 'Requirement qualified and commercial parameters established.',
         suggestedMessage: `Hi ${lead.name}, your custom quote for ${lead.quantity || 'your order'} of ${prodName} is ready. Free freight from Sojat included. Would you like us to proceed with dispatch?`,
@@ -493,29 +677,52 @@ export function getLeadFollowUpRecommendation(lead: LeadRecord): LeadFollowUpRec
 
     case 'QUOTE_SENT':
       return {
-        action: 'Follow-Up on Quotation Acceptance',
+        action: 'Follow-Up on Quotation Acceptance & Dispatch Schedule',
         urgency: 'SCHEDULED',
+        priority: lead.priority || 'MEDIUM',
         channel: 'CALL',
-        reason: 'Quotation sent; check if customer has questions or requires batch certification.',
-        suggestedMessage: `Namaste ${lead.name}, checking in to see if you had a chance to review the quotation sent earlier. We are preparing our weekly Sojat batch dispatch tomorrow.`,
+        reason: 'Quotation sent; check if customer has questions or requires batch documentation.',
+        suggestedMessage: `Namaste ${lead.name}, checking in to see if you had a chance to review the quotation sent earlier for ${lead.quantity || 'your batch'} of ${prodName}. We are preparing our weekly Sojat batch dispatch.`,
       };
 
     case 'NEGOTIATION':
       return {
-        action: 'Finalize Commercial Terms & Confirm Batch',
+        action: 'Finalize Commercial Terms & Confirm Batch Dispatch',
         urgency: 'TODAY',
+        priority: 'HIGH',
         channel: 'WHATSAPP',
-        reason: 'Active deal in closing phase.',
-        suggestedMessage: `Hi ${lead.name}, we can apply our special tier discount for this batch to finalize your order today. Shall we prepare the invoice?`,
+        reason: 'Active deal in closing phase with pricing/terms under discussion.',
+        suggestedMessage: `Hi ${lead.name}, we can apply our special tier terms for this batch to finalize your order today. Shall we prepare the invoice for dispatch?`,
       };
 
     case 'WON':
       return {
-        action: 'Post-Delivery Feedback & Re-Order Schedule',
+        action: 'Post-Delivery Follow-Up & Dispatch Confirmation',
         urgency: 'SCHEDULED',
+        priority: 'MEDIUM',
         channel: 'WHATSAPP',
-        reason: 'Customer order completed; schedule replenishment reminder for next cycle.',
-        suggestedMessage: `Namaste ${lead.name}, we hope you loved your fresh harvest batch of ${prodName}. Please let us know if you need replenishment for the upcoming festive season!`,
+        reason: 'Customer order fulfilled; confirm receipt and satisfaction with fresh harvest batch.',
+        suggestedMessage: `Namaste ${lead.name}, we hope you loved your fresh harvest batch of ${prodName}. Please let us know if you need any assistance or upcoming replenishment!`,
+      };
+
+    case 'REPEAT_OPPORTUNITY':
+      return {
+        action: 'Initiate Repeat Order / Stock Replenishment Discussion',
+        urgency: 'NOW',
+        priority: 'HIGH',
+        channel: 'WHATSAPP',
+        reason: 'Prior customer detected with high probability of repeat batch replenishment.',
+        suggestedMessage: `Namaste ${lead.name}, checking in from Musky Dose Sojat. We are scheduling our upcoming harvest milling and wanted to ensure your studio/store has adequate ${prodName} stock before the rush. Shall we reserve your usual batch?`,
+      };
+
+    case 'NURTURE':
+      return {
+        action: 'Nurture with Seasonal Crop Updates & Available Product Information',
+        urgency: 'SCHEDULED',
+        priority: 'LOW',
+        channel: 'WHATSAPP',
+        reason: 'Longer cycle lead; maintain top-of-mind awareness without hard pressure.',
+        suggestedMessage: `Namaste ${lead.name}, hope you are well. Musky Dose has recently processed a fresh lot of triple-sifted Sojat henna. Feel free to reach out whenever you plan your next procurement!`,
       };
 
     case 'LOST':
@@ -523,9 +730,10 @@ export function getLeadFollowUpRecommendation(lead: LeadRecord): LeadFollowUpRec
       return {
         action: 'Re-Engagement on Next Harvest Batch',
         urgency: 'SCHEDULED',
+        priority: 'LOW',
         channel: 'WHATSAPP',
         reason: 'Lead marked inactive/lost; revisit during next seasonal crop cycle.',
-        suggestedMessage: `Namaste ${lead.name}, our new season Sojat henna harvest with extra-high Lawsonia pigment is now available. Let us know if you would like updated bulk rates!`,
+        suggestedMessage: `Namaste ${lead.name}, our new season Sojat henna harvest with high Lawsonia pigment is now available. Let us know if you would like updated bulk rates!`,
       };
   }
 }

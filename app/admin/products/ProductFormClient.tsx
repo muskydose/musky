@@ -4,12 +4,14 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Product, Category } from '@/lib/types';
+import { Product, Category, ProductVariant, BulkPricingRule } from '@/lib/types';
 import MediaSelectModal from '@/components/MediaSelectModal';
 import ProductAutoFillModal from '@/components/admin/products/ProductAutoFillModal';
 import { ProductAutoFillDraft } from '@/lib/ai/product-autofill';
 import { uploadMediaFile } from '@/lib/media-upload';
 import { deriveProductAutoSeo } from '@/lib/growth/product-keyword-engine';
+import { validateProductVariants, formatVariantWeight } from '@/lib/product-variants';
+import { resolveProductWholesaleUnits, calculateProductBaseWholesaleRate } from '@/lib/wholesale-units';
 import {
   Save,
   ArrowLeft,
@@ -36,6 +38,10 @@ import {
   RefreshCw,
   Lightbulb,
   Layers,
+  Percent,
+  Scale,
+  Tag,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface ProductFormClientProps {
@@ -111,6 +117,177 @@ export default function ProductFormClient({
   const [imageUploadError, setImageUploadError] = useState('');
   const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
   const [isAutoFillModalOpen, setIsAutoFillModalOpen] = useState(false);
+
+  // --- Step 3: Product Retail Variations & Wholesale Bulk Pricing State ---
+  const [productVariants, setProductVariants] = useState<ProductVariant[]>(
+    Array.isArray(initialProduct?.variants) ? initialProduct.variants : []
+  );
+  const [productBulkRules, setProductBulkRules] = useState<BulkPricingRule[]>([]);
+  const [deletedRuleIds, setDeletedRuleIds] = useState<string[]>([]);
+  const [loadingRules, setLoadingRules] = useState(false);
+
+  // Load product-specific bulk pricing rules from Supabase campaigns/bulk-pricing
+  useEffect(() => {
+    if (!initialProduct?.id) return;
+    setLoadingRules(true);
+    fetch('/api/bulk-pricing?admin=true')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.success && Array.isArray(data.rules)) {
+          const matched = data.rules.filter((r: BulkPricingRule) => r.productId === initialProduct.id);
+          setProductBulkRules(matched);
+        }
+      })
+      .catch((err) => console.warn('Could not load bulk pricing rules:', err))
+      .finally(() => setLoadingRules(false));
+  }, [initialProduct?.id]);
+
+  // Derived wholesale commercial units for the current product
+  const currentWholesaleUnits = resolveProductWholesaleUnits({
+    ...(initialProduct || {}),
+    ...(formData as Product),
+  });
+  const currentBaseWholesaleRate = calculateProductBaseWholesaleRate(
+    { ...(initialProduct || {}), ...(formData as Product) },
+    currentWholesaleUnits
+  );
+
+  // --- Retail Variant Handlers ---
+  const handleAddVariant = () => {
+    const defaultPackUnit = formData.packUnit || 'g';
+    const nextQty = productVariants.length === 0 ? 250 : productVariants.length === 1 ? 500 : 1000;
+    const newWeight = formatVariantWeight(nextQty, defaultPackUnit);
+    const baseSku = formData.sku ? formData.sku.trim() : 'MD-PRD';
+    const newSku = `${baseSku}-${nextQty}${defaultPackUnit}`;
+    const newVarId = `var_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+
+    const newVariant: ProductVariant = {
+      id: newVarId,
+      sku: newSku,
+      weight: newWeight,
+      packQuantity: nextQty,
+      packUnit: defaultPackUnit,
+      price: Number(formData.price) || 199,
+      compareAtPrice: formData.compareAtPrice ? Number(formData.compareAtPrice) : undefined,
+      stockStatus: 'in_stock',
+      isDefault: productVariants.length === 0,
+      isActive: true,
+    };
+
+    const updated = [...productVariants, newVariant];
+    setProductVariants(updated);
+    setFormData((prev) => ({ ...prev, variants: updated }));
+    setIsDirty(true);
+  };
+
+  const handleUpdateVariant = (index: number, field: keyof ProductVariant, value: any) => {
+    const updated = [...productVariants];
+    const item = { ...updated[index], [field]: value };
+
+    if (field === 'packQuantity' || field === 'packUnit') {
+      const q = Number(field === 'packQuantity' ? value : item.packQuantity);
+      const u = String(field === 'packUnit' ? value : item.packUnit || 'g');
+      if (!isNaN(q) && q > 0 && u) {
+        item.weight = formatVariantWeight(q, u);
+      }
+    }
+
+    updated[index] = item;
+    setProductVariants(updated);
+    setFormData((prev) => ({ ...prev, variants: updated }));
+    setIsDirty(true);
+  };
+
+  const handleSetDefaultVariant = (index: number) => {
+    const updated = productVariants.map((v, i) => ({
+      ...v,
+      isDefault: i === index,
+    }));
+    setProductVariants(updated);
+    setFormData((prev) => ({ ...prev, variants: updated }));
+    setIsDirty(true);
+  };
+
+  const handleRemoveVariant = (index: number) => {
+    const v = productVariants[index];
+    const label = v?.weight || (v?.packQuantity && v?.packUnit ? `${v.packQuantity}${v.packUnit}` : `Variation #${index + 1}`);
+    if (typeof window !== 'undefined') {
+      const confirmed = window.confirm(`Remove ${label} pack variation?`);
+      if (!confirmed) return;
+    }
+
+    const remaining = productVariants.filter((_, i) => i !== index);
+    if (productVariants[index]?.isDefault && remaining.length > 0) {
+      remaining[0].isDefault = true;
+    }
+    const updated = remaining.map((item, idx) => ({
+      ...item,
+      sortOrder: idx + 1,
+    }));
+    setProductVariants(updated);
+    setFormData((prev) => ({ ...prev, variants: updated }));
+    setIsDirty(true);
+  };
+
+  const handleMoveVariant = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= productVariants.length) return;
+
+    const updated = [...productVariants];
+    const [movedItem] = updated.splice(index, 1);
+    updated.splice(targetIndex, 0, movedItem);
+
+    // Reassign deterministic sequential sortOrder without duplicates
+    const reordered = updated.map((item, idx) => ({
+      ...item,
+      sortOrder: idx + 1,
+    }));
+
+    setProductVariants(reordered);
+    setFormData((prev) => ({ ...prev, variants: reordered }));
+    setIsDirty(true);
+  };
+
+  // --- Wholesale Bulk Rule Handlers ---
+  const handleAddBulkRule = () => {
+    const newRule: BulkPricingRule = {
+      id: `rule_temp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      productId: formData.id || 'pending',
+      minQuantity: 25,
+      maxQuantity: undefined,
+      discountType: 'percentage',
+      discountValue: 15,
+      isActive: true,
+      sortOrder: productBulkRules.length + 1,
+    };
+    setProductBulkRules([...productBulkRules, newRule]);
+    setIsDirty(true);
+  };
+
+  const handleUpdateBulkRule = (index: number, field: keyof BulkPricingRule, value: any) => {
+    const updated = [...productBulkRules];
+    updated[index] = { ...updated[index], [field]: value };
+    setProductBulkRules(updated);
+    setIsDirty(true);
+  };
+
+  const handleRemoveBulkRule = (index: number) => {
+    const rule = productBulkRules[index];
+    const label = `${rule.minQuantity}+ ${currentWholesaleUnits.wholesaleUnit}`;
+    if (typeof window !== 'undefined') {
+      const confirmed = window.confirm(`Remove ${label} wholesale tier?`);
+      if (!confirmed) return;
+    }
+
+    if (rule.id && !rule.id.startsWith('rule_temp_')) {
+      setDeletedRuleIds((prev) => [...prev, rule.id]);
+    }
+    const updated = productBulkRules
+      .filter((_, i) => i !== index)
+      .map((r, idx) => ({ ...r, sortOrder: idx + 1 }));
+    setProductBulkRules(updated);
+    setIsDirty(true);
+  };
 
   const handleSelectFromMediaLibrary = (url: string) => {
     setIsDirty(true);
@@ -461,32 +638,133 @@ export default function ProductFormClient({
       return;
     }
 
+    // Phase 3B: Validate retail variants via canonical validateProductVariants
+    if (productVariants.length > 0) {
+      const variantCheck = validateProductVariants(productVariants);
+      if (!variantCheck.valid) {
+        setError(`Variant validation error: ${variantCheck.errors.join(' | ')}`);
+        setActiveTab('pricing');
+        return;
+      }
+    }
+
+    // Step 7: MRP Sanity Validation (compareAtPrice > price when provided)
+    if (
+      formData.compareAtPrice !== undefined &&
+      formData.compareAtPrice !== null &&
+      (formData.compareAtPrice as any) !== '' &&
+      Number(formData.compareAtPrice) > 0
+    ) {
+      if (Number(formData.compareAtPrice) <= Number(formData.price)) {
+        setError('Base MRP should be greater than Selling Price, or leave MRP blank.');
+        setActiveTab('pricing');
+        return;
+      }
+    }
+
+    for (let i = 0; i < productVariants.length; i++) {
+      const v = productVariants[i];
+      if (
+        v.compareAtPrice !== undefined &&
+        v.compareAtPrice !== null &&
+        (v.compareAtPrice as any) !== '' &&
+        Number(v.compareAtPrice) > 0
+      ) {
+        if (Number(v.compareAtPrice) <= Number(v.price)) {
+          const packLabel = v.weight || `Variant #${i + 1}`;
+          setError(`${packLabel}: MRP should be greater than Selling Price, or leave MRP blank.`);
+          setActiveTab('pricing');
+          return;
+        }
+      }
+    }
+
+    // Phase 3E & 3F: Validate wholesale bulk pricing rules
+    for (let i = 0; i < productBulkRules.length; i++) {
+      const r = productBulkRules[i];
+      if (typeof r.minQuantity !== 'number' || r.minQuantity <= 0) {
+        setError(`Wholesale Tier #${i + 1}: Minimum quantity must be a positive number greater than 0.`);
+        setActiveTab('pricing');
+        return;
+      }
+      if (typeof r.discountValue !== 'number' || r.discountValue < 0) {
+        setError(`Wholesale Tier #${i + 1}: Discount value must be a non-negative number.`);
+        setActiveTab('pricing');
+        return;
+      }
+      if (r.discountType === 'percentage' && r.discountValue > 100) {
+        setError(`Wholesale Tier #${i + 1}: Percentage discount cannot exceed 100%.`);
+        setActiveTab('pricing');
+        return;
+      }
+    }
+
     setSaving(true);
     setError('');
     setSuccessMsg('');
 
     try {
+      const payload = {
+        ...formData,
+        variants: productVariants,
+      };
+
       const endpoint = formData.id ? `/api/products/${formData.id}` : '/api/products';
       const method = formData.id ? 'PUT' : 'POST';
 
       const res = await fetch(endpoint, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
-      if (data.success) {
-        setIsDirty(false);
-        setSuccessMsg('Product saved successfully!');
-        setTimeout(() => {
-          router.push('/admin/products');
-        }, 1000);
-      } else {
-        setError(data.error || 'Failed to save product');
+      if (!res.ok || !data.success || !data.product) {
+        throw new Error(data.error || 'Failed to save product');
       }
+
+      const savedProduct = data.product;
+
+      // Phase 3H: Atomically persist wholesale rules
+      if (productBulkRules.length > 0 || deletedRuleIds.length > 0) {
+        // Delete removed rules
+        for (const delId of deletedRuleIds) {
+          await fetch(`/api/bulk-pricing?id=${encodeURIComponent(delId)}`, {
+            method: 'DELETE',
+          }).catch((err) => console.warn('Rule delete error:', err));
+        }
+
+        // Save active rules with the saved product ID
+        for (const rule of productBulkRules) {
+          const rulePayload = {
+            id: rule.id.startsWith('rule_temp_') ? undefined : rule.id,
+            productId: savedProduct.id,
+            minQuantity: rule.minQuantity,
+            maxQuantity: rule.maxQuantity || null,
+            discountType: rule.discountType,
+            discountValue: rule.discountValue,
+            isActive: rule.isActive !== false,
+            sortOrder: rule.sortOrder || 1,
+          };
+          const ruleRes = await fetch('/api/bulk-pricing', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(rulePayload),
+          });
+          const ruleData = await ruleRes.json();
+          if (!ruleRes.ok || !ruleData.success) {
+            throw new Error(`Product saved, but wholesale rule failed: ${ruleData.error || 'Check wholesale configuration.'}`);
+          }
+        }
+      }
+
+      setIsDirty(false);
+      setSuccessMsg('Product and pricing configurations saved successfully!');
+      setTimeout(() => {
+        router.push('/admin/products');
+      }, 1000);
     } catch (err: any) {
-      setError('Server error while saving product record.');
+      setError(err.message || 'Server error while saving product record.');
     } finally {
       setSaving(false);
     }
@@ -804,53 +1082,654 @@ export default function ProductFormClient({
                   placeholder="e.g. 250g Pack, 100ml Bottle, Pack of 12"
                   className="w-full p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl focus:outline-none focus:border-[#1b4332]"
                 />
+                <p className="text-[10px] text-gray-500 mt-1">
+                  If you add multiple pack sizes under Pricing & Stock, those pack sizes take priority.
+                </p>
               </div>
             </div>
           </div>
         )}
 
-        {/* Tab 2: Pricing & Stock */}
+        {/* Tab 2: Pricing, Retail Variations & Wholesale Control */}
         {activeTab === 'pricing' && (
-          <div className="p-8 space-y-6 text-xs">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[#0f2d22] font-bold mb-1">
-                  Selling Price (₹) *
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="0"
-                  value={formData.price ?? 0}
-                  onChange={(e) => updateForm('price', Number(e.target.value))}
-                  className="w-full p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl font-bold text-[#1b4332] text-sm focus:outline-none focus:border-[#1b4332]"
-                />
+          <div className="p-8 space-y-8 text-xs">
+            {/* 1. Base Product Fallback Pricing & Inventory */}
+            <div className="bg-[#fcfbf7] p-5 rounded-2xl border border-[#e8e2d5] space-y-4">
+              <div className="flex items-center justify-between border-b border-[#e8e2d5] pb-3">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-[#1b4332]" />
+                  <h3 className="font-bold text-sm text-[#0f2d22]">
+                    Base Product Pricing & Inventory Fallback
+                  </h3>
+                </div>
+                <span className="text-[11px] font-semibold text-[#666] bg-white px-2.5 py-1 rounded-full border border-[#e8e2d5]">
+                  Primary / Default Fallback
+                </span>
               </div>
 
-              <div>
-                <label className="block text-[#0f2d22] font-bold mb-1">
-                  Compare-at Original Price (₹)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.compareAtPrice ?? 0}
-                  onChange={(e) => updateForm('compareAtPrice', Number(e.target.value))}
-                  className="w-full p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl focus:outline-none focus:border-[#1b4332]"
-                />
-              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+                <div>
+                  <label className="block text-[#0f2d22] font-bold mb-1">
+                    Base Selling Price (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    value={formData.price ?? 0}
+                    onChange={(e) => updateForm('price', Number(e.target.value))}
+                    className="w-full p-3 bg-white border border-[#e8e2d5] rounded-xl font-bold text-[#1b4332] text-sm focus:outline-none focus:border-[#1b4332]"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Used if no individual retail variation is selected.
+                  </p>
+                </div>
 
-              <div>
-                <label className="block text-[#0f2d22] font-bold mb-1">Stock Availability</label>
-                <select
-                  value={formData.stockStatus || 'in_stock'}
-                  onChange={(e: any) => updateForm('stockStatus', e.target.value)}
-                  className="w-full p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl font-semibold focus:outline-none focus:border-[#1b4332]"
+                <div>
+                  <label className="block text-[#0f2d22] font-bold mb-1">
+                    Compare-at Original Price / MRP (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.compareAtPrice ?? 0}
+                    onChange={(e) => updateForm('compareAtPrice', Number(e.target.value))}
+                    className="w-full p-3 bg-white border border-[#e8e2d5] rounded-xl focus:outline-none focus:border-[#1b4332]"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Shown with strikethrough (e.g. ₹299).
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-[#0f2d22] font-bold mb-1">Stock Availability</label>
+                  <select
+                    value={formData.stockStatus || 'in_stock'}
+                    onChange={(e: any) => updateForm('stockStatus', e.target.value)}
+                    className="w-full p-3 bg-white border border-[#e8e2d5] rounded-xl font-semibold focus:outline-none focus:border-[#1b4332]"
+                  >
+                    <option value="in_stock">In Stock (Available)</option>
+                    <option value="out_of_stock">Out of Stock</option>
+                    <option value="pre_order">Pre-Order</option>
+                  </select>
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Controls &ldquo;Add to Cart&rdquo; button state.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Phase 3A: Retail Variations / Pack Sizes */}
+            <div className="bg-white p-5 rounded-2xl border border-[#e8e2d5] shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#e8e2d5] pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-[#1b4332]" />
+                    <h3 className="font-bold text-sm text-[#0f2d22]">
+                      Retail Variations / Pack Sizes
+                    </h3>
+                    <span className="bg-[#e8f3ed] text-[#1b4332] text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                      {productVariants.length} Configured
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Configure arbitrary consumer sizes (e.g. 50g, 100g, 175g, 225g, 350g, 500g, 1kg, 125ml, 12 Cones). Quantity is arbitrary and governed by canonical unit families.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddVariant}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#1b4332] hover:bg-[#0f2d22] text-white font-bold rounded-xl transition-all shadow-xs cursor-pointer shrink-0 self-start sm:self-auto"
                 >
-                  <option value="in_stock">In Stock (Available)</option>
-                  <option value="out_of_stock">Out of Stock</option>
-                  <option value="pre_order">Pre-Order</option>
-                </select>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Variation</span>
+                </button>
+              </div>
+
+              {productVariants.length === 0 ? (
+                <div className="p-6 border-2 border-dashed border-[#e8e2d5] rounded-xl text-center space-y-2 bg-[#fcfbf7]">
+                  <Layers className="w-8 h-8 text-gray-300 mx-auto" />
+                  <p className="font-bold text-gray-700">No individual retail variations configured.</p>
+                  <p className="text-gray-500 max-w-md mx-auto text-[11px]">
+                    The base selling price (₹{formData.price}) and default pack ({formData.quantityOrWeight || 'Standard'}) will be used on the storefront. Click &ldquo;Add Variation&rdquo; to add pack sizes like 225g, 500g, or 1kg.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {productVariants.map((v, idx) => (
+                    <div
+                      key={v.id || idx}
+                      className={`p-4 rounded-xl border transition-all ${
+                        v.isDefault
+                          ? 'border-[#1b4332] bg-[#f7faf8] ring-1 ring-[#1b4332]/20'
+                          : 'border-[#e8e2d5] bg-white hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-gray-100 mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-[#e8e2d5] text-[#0f2d22] flex items-center justify-center font-bold text-[10px]">
+                            #{idx + 1}
+                          </span>
+                          <span className="font-bold text-xs text-[#0f2d22]">
+                            {v.weight || (v.packQuantity && v.packUnit ? formatVariantWeight(v.packQuantity, v.packUnit) : 'Pack')}
+                          </span>
+                          {v.isDefault && (
+                            <span className="inline-flex items-center gap-1 bg-[#1b4332] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                              <Star className="w-2.5 h-2.5 fill-white" />
+                              Primary Default
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {!v.isDefault && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetDefaultVariant(idx)}
+                              className="text-[10px] font-bold text-emerald-800 hover:text-emerald-950 px-2 py-1 rounded bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                            >
+                              Make Default
+                            </button>
+                          )}
+                          <div className="flex items-center border border-[#e8e2d5] rounded-lg overflow-hidden bg-[#fcfbf7]">
+                            <button
+                              type="button"
+                              onClick={() => handleMoveVariant(idx, 'up')}
+                              disabled={idx === 0}
+                              className="px-2 py-1 text-[10px] font-bold text-gray-600 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-colors"
+                              title="Move Up"
+                              aria-label="Move Up"
+                            >
+                              ▲
+                            </button>
+                            <span className="w-px h-3.5 bg-[#e8e2d5]" />
+                            <button
+                              type="button"
+                              onClick={() => handleMoveVariant(idx, 'down')}
+                              disabled={idx === productVariants.length - 1}
+                              className="px-2 py-1 text-[10px] font-bold text-gray-600 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-colors"
+                              title="Move Down"
+                              aria-label="Move Down"
+                            >
+                              ▼
+                            </button>
+                          </div>
+                          <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={v.isActive !== false}
+                              onChange={(e) => handleUpdateVariant(idx, 'isActive', e.target.checked)}
+                              className="w-3.5 h-3.5 text-[#1b4332] rounded focus:ring-0 cursor-pointer"
+                            />
+                            <span>Active</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveVariant(idx)}
+                            className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="Remove Variation"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-600 mb-1">
+                            Quantity *
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            step="any"
+                            required
+                            value={v.packQuantity}
+                            onChange={(e) => handleUpdateVariant(idx, 'packQuantity', Number(e.target.value))}
+                            placeholder="e.g. 225"
+                            className="w-full p-2 bg-[#fcfbf7] border border-[#e8e2d5] rounded-lg text-xs font-semibold focus:outline-none focus:border-[#1b4332]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-600 mb-1">
+                            Unit *
+                          </label>
+                          <select
+                            value={v.packUnit}
+                            onChange={(e) => handleUpdateVariant(idx, 'packUnit', e.target.value)}
+                            className="w-full p-2 bg-[#fcfbf7] border border-[#e8e2d5] rounded-lg text-xs font-semibold focus:outline-none focus:border-[#1b4332]"
+                          >
+                            <optgroup label="Weight">
+                              <option value="g">Grams (g)</option>
+                              <option value="kg">Kilograms (kg)</option>
+                              <option value="mg">Milligrams (mg)</option>
+                            </optgroup>
+                            <optgroup label="Volume">
+                              <option value="ml">Millilitres (ml)</option>
+                              <option value="Litre">Litres (Litre)</option>
+                            </optgroup>
+                            <optgroup label="Count / Units">
+                              <option value="cone">Cones (cone)</option>
+                              <option value="Box">Boxes (Box)</option>
+                              <option value="Piece">Pieces (Piece)</option>
+                              <option value="Pack">Packs (Pack)</option>
+                            </optgroup>
+                            <optgroup label="Containers">
+                              <option value="Bottle">Bottles (Bottle)</option>
+                              <option value="Pouch">Pouches (Pouch)</option>
+                              <option value="Jar">Jars (Jar)</option>
+                            </optgroup>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-600 mb-1">
+                            Price (₹) *
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            required
+                            value={v.price}
+                            onChange={(e) => handleUpdateVariant(idx, 'price', Number(e.target.value))}
+                            placeholder="e.g. 229"
+                            className="w-full p-2 bg-[#fcfbf7] border border-[#e8e2d5] rounded-lg text-xs font-bold text-emerald-800 focus:outline-none focus:border-[#1b4332]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-600 mb-1">
+                            MRP (₹)
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={v.compareAtPrice ?? ''}
+                            onChange={(e) => handleUpdateVariant(idx, 'compareAtPrice', e.target.value ? Number(e.target.value) : undefined)}
+                            placeholder="e.g. 329"
+                            className="w-full p-2 bg-[#fcfbf7] border border-[#e8e2d5] rounded-lg text-xs font-semibold focus:outline-none focus:border-[#1b4332]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-600 mb-1">
+                            SKU
+                          </label>
+                          <input
+                            type="text"
+                            value={v.sku || ''}
+                            onChange={(e) => handleUpdateVariant(idx, 'sku', e.target.value)}
+                            placeholder="MD-HEN-225"
+                            className="w-full p-2 bg-[#fcfbf7] border border-[#e8e2d5] rounded-lg text-xs font-mono focus:outline-none focus:border-[#1b4332]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-600 mb-1">
+                            Stock Status
+                          </label>
+                          <select
+                            value={v.stockStatus || 'in_stock'}
+                            onChange={(e: any) => handleUpdateVariant(idx, 'stockStatus', e.target.value)}
+                            className="w-full p-2 bg-[#fcfbf7] border border-[#e8e2d5] rounded-lg text-xs font-semibold focus:outline-none focus:border-[#1b4332]"
+                          >
+                            <option value="in_stock">In Stock</option>
+                            <option value="out_of_stock">Out of Stock</option>
+                            <option value="pre_order">Pre-Order</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 3. Phase 3E & 3F: Product-Level Wholesale / Bulk Pricing Control */}
+            <div className="bg-white p-5 rounded-2xl border border-[#e8e2d5] shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#e8e2d5] pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Percent className="w-4 h-4 text-[#1b4332]" />
+                    <h3 className="font-bold text-sm text-[#0f2d22]">
+                      Product-Level Wholesale & Bulk Tier Control
+                    </h3>
+                    <span className="bg-amber-100 text-amber-900 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                      {productBulkRules.length > 0
+                        ? `${productBulkRules.length} Confirmed Rule(s)`
+                        : 'Tri-State (Indicative / Custom Quote)'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Configure volume pricing tiers for B2B buyers. Fully integrated with canonical bulk_pricing_rules engine and commercial unit governance.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddBulkRule}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#1b4332] hover:bg-[#0f2d22] text-white font-bold rounded-xl transition-all shadow-xs cursor-pointer shrink-0 self-start sm:self-auto"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Wholesale Tier</span>
+                </button>
+              </div>
+
+              {/* Wholesale Commercial Unit Banner */}
+              <div className="bg-[#fcfbf7] p-3.5 rounded-xl border border-[#e8e2d5] flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1 text-gray-700">
+                    <Scale className="w-4 h-4 text-[#1b4332]" />
+                    <span>Commercial Unit:</span>
+                    <strong className="text-[#1b4332] font-bold">
+                      {currentWholesaleUnits.wholesaleUnit}
+                    </strong>
+                  </div>
+                  <span>•</span>
+                  <div className="text-gray-700">
+                    <span>Base Wholesale Rate:</span>
+                    <strong className="text-emerald-800 font-bold ml-1">
+                      ₹{currentBaseWholesaleRate} / {currentWholesaleUnits.wholesaleUnit}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-gray-500">
+                  <span>Standard Presets: </span>
+                  <span className="font-mono font-semibold">
+                    {currentWholesaleUnits.presetQuantities.join(', ')} {currentWholesaleUnits.wholesaleUnit}
+                  </span>
+                </div>
+              </div>
+
+              {loadingRules ? (
+                <div className="p-6 text-center text-gray-400 font-medium text-xs">
+                  Loading wholesale bulk rules...
+                </div>
+              ) : productBulkRules.length === 0 ? (
+                <div className="p-6 border-2 border-dashed border-[#e8e2d5] rounded-xl text-center space-y-2 bg-[#fcfbf7]">
+                  <Percent className="w-8 h-8 text-gray-300 mx-auto" />
+                  <p className="font-bold text-gray-700">No product-specific wholesale tiers configured.</p>
+                  <p className="text-gray-500 max-w-md mx-auto text-[11px]">
+                    On the public Wholesale calculator, this product currently follows the standard Tri-State model (15% Indicative Preview or Custom Quote). Click &ldquo;Add Wholesale Tier&rdquo; to define a confirmed volume discount for bulk orders.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {productBulkRules.map((rule, rIdx) => {
+                    // Calculate live effective price preview
+                    let effectiveRate = currentBaseWholesaleRate;
+                    if (rule.discountType === 'percentage') {
+                      effectiveRate = Math.round(currentBaseWholesaleRate * (1 - (rule.discountValue || 0) / 100));
+                    } else if (rule.discountType === 'fixed_amount') {
+                      effectiveRate = Math.max(0, currentBaseWholesaleRate - (rule.discountValue || 0));
+                    } else if (rule.discountType === 'fixed_price') {
+                      effectiveRate = rule.discountValue || 0;
+                    }
+
+                    return (
+                      <div
+                        key={rule.id || rIdx}
+                        className="p-4 rounded-xl border border-[#e8e2d5] bg-white hover:border-gray-300 transition-all space-y-3"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[10px]">
+                              T{rIdx + 1}
+                            </span>
+                            <span className="font-bold text-xs text-gray-800">
+                              Volume Tier: {rule.minQuantity}+ {currentWholesaleUnits.wholesaleUnit}
+                            </span>
+                            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                              <ShieldCheck className="w-2.5 h-2.5" />
+                              CONFIRMED TIER
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-700 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={rule.isActive !== false}
+                                onChange={(e) => handleUpdateBulkRule(rIdx, 'isActive', e.target.checked)}
+                                className="w-3.5 h-3.5 text-[#1b4332] rounded focus:ring-0 cursor-pointer"
+                              />
+                              <span>Active</span>
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveBulkRule(rIdx)}
+                              className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Delete Tier"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-center">
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-600 mb-1">
+                              Min Quantity ({currentWholesaleUnits.wholesaleUnit}) *
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              required
+                              value={rule.minQuantity}
+                              onChange={(e) => handleUpdateBulkRule(rIdx, 'minQuantity', Number(e.target.value))}
+                              placeholder="25"
+                              className="w-full p-2 bg-[#fcfbf7] border border-[#e8e2d5] rounded-lg text-xs font-semibold focus:outline-none focus:border-[#1b4332]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-600 mb-1">
+                              Max Quantity (Optional)
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={rule.maxQuantity ?? ''}
+                              onChange={(e) => handleUpdateBulkRule(rIdx, 'maxQuantity', e.target.value ? Number(e.target.value) : undefined)}
+                              placeholder="Leave blank for unlimited"
+                              className="w-full p-2 bg-[#fcfbf7] border border-[#e8e2d5] rounded-lg text-xs font-semibold focus:outline-none focus:border-[#1b4332]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-600 mb-1">
+                              Discount Type *
+                            </label>
+                            <select
+                              value={rule.discountType || 'percentage'}
+                              onChange={(e: any) => handleUpdateBulkRule(rIdx, 'discountType', e.target.value)}
+                              className="w-full p-2 bg-[#fcfbf7] border border-[#e8e2d5] rounded-lg text-xs font-semibold focus:outline-none focus:border-[#1b4332]"
+                            >
+                              <option value="percentage">% Percentage Off</option>
+                              <option value="fixed_amount">₹ Off per {currentWholesaleUnits.wholesaleUnit}</option>
+                              <option value="fixed_price">Fixed Rate per {currentWholesaleUnits.wholesaleUnit}</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-600 mb-1">
+                              Discount Value *
+                            </label>
+                            <div className="relative flex items-center">
+                              {rule.discountType !== 'percentage' && (
+                                <span className="absolute left-2.5 text-xs font-bold text-emerald-800 pointer-events-none select-none">
+                                  ₹
+                                </span>
+                              )}
+                              <input
+                                type="number"
+                                min="0"
+                                required
+                                value={rule.discountValue}
+                                onChange={(e) => handleUpdateBulkRule(rIdx, 'discountValue', Number(e.target.value))}
+                                placeholder={rule.discountType === 'percentage' ? '15' : '100'}
+                                className={`w-full p-2 bg-[#fcfbf7] border border-[#e8e2d5] rounded-lg text-xs font-bold text-emerald-800 focus:outline-none focus:border-[#1b4332] ${
+                                  rule.discountType === 'percentage' ? 'pr-7' : 'pl-6'
+                                }`}
+                              />
+                              {rule.discountType === 'percentage' && (
+                                <span className="absolute right-2.5 text-xs font-bold text-emerald-800 pointer-events-none select-none">
+                                  %
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Calculated Live Effective Rate Notice */}
+                        <div className="bg-[#f0f8f3] p-2.5 rounded-lg text-[11px] font-semibold text-emerald-900 flex items-center justify-between border border-emerald-200">
+                          <span>
+                            Effective Wholesale Rate for this tier:
+                          </span>
+                          <span className="font-extrabold text-xs text-emerald-800">
+                            ₹{effectiveRate} / {currentWholesaleUnits.wholesaleUnit}
+                            {rule.discountType === 'percentage' && ` (${rule.discountValue}% Savings)`}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* 4. Phase 3J: Live Admin Preview */}
+            <div className="bg-[#FAF8F5] p-5 rounded-2xl border border-amber-900/10 space-y-4">
+              <div className="flex items-center gap-2 border-b border-amber-900/10 pb-3">
+                <Sparkles className="w-4 h-4 text-[#c5a059]" />
+                <h3 className="font-bold text-sm text-[#0f2d22]">
+                  Live Storefront & Wholesale Preview (Current Form State)
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* Retail Storefront Preview */}
+                <div className="bg-white p-4 rounded-xl border border-[#e8e2d5] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-gray-800 uppercase tracking-wider">
+                      Retail Storefront Pack Options
+                    </span>
+                    <span className="text-[10px] text-gray-500">Customer View</span>
+                  </div>
+
+                  {productVariants.length === 0 ? (
+                    <div className="p-3 bg-[#fcfbf7] rounded-lg text-[11px] text-gray-600">
+                      Standard Pack: <strong>{formData.quantityOrWeight || 'Standard'}</strong> —{' '}
+                      <strong className="text-emerald-800">₹{formData.price}</strong>
+                      {formData.compareAtPrice && formData.compareAtPrice > (formData.price || 0) && (
+                        <span className="text-gray-400 line-through ml-1.5">
+                          ₹{formData.compareAtPrice}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {productVariants
+                        .filter((v) => v.isActive !== false)
+                        .map((v, i) => (
+                          <div
+                            key={v.id || i}
+                            className={`p-2.5 rounded-lg flex items-center justify-between text-xs ${
+                              v.isDefault
+                                ? 'bg-emerald-50 border border-emerald-200'
+                                : 'bg-[#fcfbf7] border border-[#e8e2d5]'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-gray-800">
+                                {v.weight || (v.packQuantity && v.packUnit ? formatVariantWeight(v.packQuantity, v.packUnit) : 'Pack')}
+                              </span>
+                              {v.isDefault && (
+                                <span className="bg-[#1b4332] text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded">
+                                  Default
+                                </span>
+                              )}
+                              {v.sku && (
+                                <span className="text-[10px] font-mono text-gray-400">
+                                  ({v.sku})
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {v.compareAtPrice && v.compareAtPrice > v.price && (
+                                <span className="text-[11px] text-gray-400 line-through">
+                                  ₹{v.compareAtPrice}
+                                </span>
+                              )}
+                              <span className="font-bold text-emerald-800">
+                                ₹{v.price}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Wholesale B2B Calculator Preview */}
+                <div className="bg-white p-4 rounded-xl border border-[#e8e2d5] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-gray-800 uppercase tracking-wider">
+                      Wholesale B2B Rate & Tiers
+                    </span>
+                    <span className="text-[10px] text-gray-500">Commercial View</span>
+                  </div>
+
+                  <div className="p-2.5 bg-[#fcfbf7] rounded-lg border border-[#e8e2d5] flex items-center justify-between text-xs">
+                    <span className="text-gray-600">Commercial Base Rate:</span>
+                    <strong className="text-emerald-800 font-bold">
+                      ₹{currentBaseWholesaleRate} / {currentWholesaleUnits.wholesaleUnit}
+                    </strong>
+                  </div>
+
+                  {productBulkRules.length === 0 ? (
+                    <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-lg text-[11px] text-amber-900 space-y-1">
+                      <div className="font-bold flex items-center gap-1.5">
+                        <Info className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Standard Tri-State Behavior</span>
+                      </div>
+                      <p className="text-amber-800 text-[10px]">
+                        Wholesale calculator will offer an Indicative 15% preview or route the enquiry to Custom Quote via WhatsApp.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {productBulkRules
+                        .filter((r) => r.isActive !== false)
+                        .map((r, i) => {
+                          let rate = currentBaseWholesaleRate;
+                          if (r.discountType === 'percentage') {
+                            rate = Math.round(currentBaseWholesaleRate * (1 - (r.discountValue || 0) / 100));
+                          } else if (r.discountType === 'fixed_amount') {
+                            rate = Math.max(0, currentBaseWholesaleRate - (r.discountValue || 0));
+                          } else if (r.discountType === 'fixed_price') {
+                            rate = r.discountValue || 0;
+                          }
+                          return (
+                            <div
+                              key={r.id || i}
+                              className="p-2 bg-emerald-50/70 border border-emerald-200 rounded-lg flex items-center justify-between text-[11px]"
+                            >
+                              <span className="font-semibold text-emerald-950">
+                                {r.minQuantity}+ {currentWholesaleUnits.wholesaleUnit}
+                              </span>
+                              <span className="font-bold text-emerald-800">
+                                ₹{rate} / {currentWholesaleUnits.wholesaleUnit}
+                              </span>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

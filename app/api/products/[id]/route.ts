@@ -1,4 +1,5 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { getProductByIdOrSlug, saveProduct, deleteProduct } from '@/lib/db/products';
 import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
 import { recordAuditLog } from '@/lib/auth';
@@ -57,6 +58,15 @@ export async function PUT(
       resource: updated.name,
       details: { productId: id },
     });
+
+    try {
+      revalidatePath('/products');
+      revalidatePath(`/products/${updated.slug}`);
+      revalidatePath('/wholesale');
+      revalidatePath('/');
+    } catch (revalErr) {
+      console.warn('Revalidation warning:', revalErr);
+    }
 
     return createSuccessResponse({ product: updated }, undefined, requestId);
   } catch (error: any) {

@@ -287,13 +287,22 @@ export default function CheckoutPage() {
         customerCity: formData.customerCity.trim(),
         customerState: formData.customerState.trim(),
         customerPincode: formData.customerPincode.trim(),
-        items: cart.map((item) => ({
-          productId: item.product.id,
-          productName: item.product.name,
-          quantity: item.quantity,
-          price: item.product.price,
-          weight: item.product.quantityOrWeight,
-        })),
+        items: cart.map((item) => {
+          const linePrice = item.selectedVariant?.price ?? item.product.price;
+          const packSize = item.selectedVariant?.weight || item.product.quantityOrWeight || 'Standard Pack';
+          return {
+            productId: item.product.id,
+            productName: item.product.name,
+            variantId: item.selectedVariant?.id || undefined,
+            variantSku: item.selectedVariant?.sku || item.product.sku || undefined,
+            packSize,
+            packQuantity: item.selectedVariant?.packQuantity,
+            packUnit: item.selectedVariant?.packUnit,
+            quantity: item.quantity,
+            price: linePrice,
+            weight: packSize,
+          };
+        }),
         shippingFee: siteSettings?.shippingFee ?? 0,
         couponCode: appliedCoupon?.valid ? appliedCoupon.campaign?.couponCode : undefined,
         notes: formData.notes.trim() || undefined,
@@ -866,53 +875,60 @@ export default function CheckoutPage() {
               </h2>
 
               {/* Cart Item List */}
-              <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
-                {cart.map((item) => (
-                  <div key={item.product.id} className="flex gap-3 text-sm pb-3 border-b border-gray-100 last:border-0 last:pb-0">
-                    <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 relative border border-gray-200">
-                      {item.product.images && item.product.images[0] ? (
-                        <Image
-                          src={sanitizeImageUrl(item.product.images[0])}
-                          alt={item.product.name}
-                          fill
-                          className="object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">No Image</div>
-                      )}
-                    </div>
+              <div className="space-y-4 max-h-56 sm:max-h-64 lg:max-h-52 xl:max-h-72 overflow-y-auto pr-1 overscroll-contain">
+                {cart.map((item) => {
+                  const linePrice = item.selectedVariant?.price ?? item.product.price;
+                  const packSize = item.selectedVariant?.weight || item.product.quantityOrWeight || 'Standard Pack';
+                  const cartItemId = item.id || `${item.product.id}::${item.selectedVariant?.id || 'default'}`;
+                  return (
+                    <div key={cartItemId} className="flex gap-3 text-sm pb-3 border-b border-gray-100 last:border-0 last:pb-0">
+                      <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 relative border border-gray-200">
+                        {item.product.images && item.product.images[0] ? (
+                          <Image
+                            src={sanitizeImageUrl(item.product.images[0])}
+                            alt={item.product.name}
+                            fill
+                            className="object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">No Image</div>
+                        )}
+                      </div>
 
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-gray-900 truncate">{item.product.name}</h4>
-                      <p className="text-xs text-gray-500">{item.product.quantityOrWeight || 'Standard Pack'}</p>
-                      
-                      <div className="flex items-center justify-between mt-2">
-                        <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
-                          <button
-                            type="button"
-                            onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                            className="px-2 py-0.5 text-xs font-bold text-gray-600 hover:bg-gray-200"
-                          >
-                            -
-                          </button>
-                          <span className="px-2 text-xs font-semibold">{item.quantity}</span>
-                          <button
-                            type="button"
-                            onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-                            className="px-2 py-0.5 text-xs font-bold text-gray-600 hover:bg-gray-200"
-                          >
-                            +
-                          </button>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-gray-900 truncate">{item.product.name}</h4>
+                        <p className="text-xs text-gray-500">
+                          Pack: {packSize} {item.selectedVariant?.sku ? `(${item.selectedVariant.sku}) ` : ''}| ₹{linePrice} each
+                        </p>
+
+                        <div className="flex items-center justify-between mt-2">
+                          <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                            <button
+                              type="button"
+                              onClick={() => updateQuantity(cartItemId, item.quantity - 1)}
+                              className="px-2 py-0.5 text-xs font-bold text-gray-600 hover:bg-gray-200"
+                            >
+                              -
+                            </button>
+                            <span className="px-2 text-xs font-semibold">{item.quantity}</span>
+                            <button
+                              type="button"
+                              onClick={() => updateQuantity(cartItemId, item.quantity + 1)}
+                              className="px-2 py-0.5 text-xs font-bold text-gray-600 hover:bg-gray-200"
+                            >
+                              +
+                            </button>
+                          </div>
+
+                          <span className="font-bold text-gray-900">
+                            ₹{linePrice * item.quantity}
+                          </span>
                         </div>
-
-                        <span className="font-bold text-gray-900">
-                          ₹{item.product.price * item.quantity}
-                        </span>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Coupon Code Input */}

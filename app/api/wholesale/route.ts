@@ -106,6 +106,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Notes must not exceed 2000 characters.', requestId }, { status: 400 });
     }
 
+    const rawBusinessType = String(body.businessType || body.buyerType || '').trim();
+    const enrichedNotes = rawBusinessType
+      ? `[Buyer Type: ${rawBusinessType}]${notes ? ` ${notes}` : ''}`
+      : notes;
+
     const safeEnquiryData = {
       customerName,
       phone: cleanPhone,
@@ -116,8 +121,9 @@ export async function POST(req: NextRequest) {
       state: body.state ? String(body.state).trim().substring(0, 100) : '',
       productsRequired,
       approxQuantity: approxQuantity.substring(0, 100),
-      notes,
+      notes: enrichedNotes,
       enquiryType,
+      buyerType: rawBusinessType || undefined,
       status: 'NEW' as const,
     };
 
@@ -126,25 +132,36 @@ export async function POST(req: NextRequest) {
     // Sync into central Lead Engine
     try {
       let mappedType: CentralLeadType = 'WHOLESALE';
-      const pReqLower = productsRequired.toLowerCase();
-      const nLower = `${customerName} ${businessName} ${notes}`.toLowerCase();
-      if (nLower.includes('artist') || nLower.includes('mehndi') || pReqLower.includes('artist')) {
-        mappedType = 'MEHNDI_ARTIST';
-      } else if (nLower.includes('salon') || nLower.includes('parlour') || nLower.includes('spa')) {
-        mappedType = 'SALON';
-      } else if (nLower.includes('reseller') || nLower.includes('distributor')) {
+      if (['MEHNDI_ARTIST', 'SALON', 'RESELLER', 'WHOLESALE', 'MANUFACTURER', 'OTHER'].includes(rawBusinessType)) {
+        mappedType = rawBusinessType as CentralLeadType;
+      } else if (rawBusinessType === 'COSMETICS_SHOP') {
         mappedType = 'RESELLER';
+      } else {
+        const pReqLower = productsRequired.toLowerCase();
+        const nLower = `${customerName} ${businessName} ${notes}`.toLowerCase();
+        if (nLower.includes('artist') || nLower.includes('mehndi') || pReqLower.includes('artist')) {
+          mappedType = 'MEHNDI_ARTIST';
+        } else if (nLower.includes('salon') || nLower.includes('parlour') || nLower.includes('spa')) {
+          mappedType = 'SALON';
+        } else if (nLower.includes('reseller') || nLower.includes('distributor') || nLower.includes('cosmetics')) {
+          mappedType = 'RESELLER';
+        }
       }
 
       await saveLead({
         name: customerName,
+        businessName: businessName || undefined,
+        city: body.city ? String(body.city).trim().substring(0, 100) : undefined,
+        state: body.state ? String(body.state).trim().substring(0, 100) : undefined,
         mobile: cleanPhone,
         whatsapp: body.whatsapp ? String(body.whatsapp).replace(/\D/g, '') : cleanPhone,
         email: email || undefined,
         leadType: mappedType,
         source: 'WHOLESALE_ENQUIRY',
-        requirement: `${productsRequired}${notes ? ` | Notes: ${notes}` : ''}`,
+        requirement: `${productsRequired}${enrichedNotes ? ` | Notes: ${enrichedNotes}` : ''}`,
         quantity: approxQuantity,
+        wholesaleEnquiryId: saved.id,
+        status: 'QUOTE_REQUESTED',
         landingPage: '/wholesale',
         attribution: {
           channel: 'DIRECT_WHOLESALE',

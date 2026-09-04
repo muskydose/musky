@@ -31,6 +31,8 @@ function WholesaleContent() {
   const searchParams = useSearchParams();
   const mode = searchParams ? searchParams.get('mode') : null;
   const isBulkMode = mode === 'bulk';
+  const initialProductId = searchParams ? (searchParams.get('product') || undefined) : undefined;
+  const initialQty = searchParams && searchParams.get('qty') ? Number(searchParams.get('qty')) : undefined;
 
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
 
@@ -45,6 +47,7 @@ function WholesaleContent() {
   const [formData, setFormData] = useState({
     customerName: '',
     businessName: '',
+    businessType: '',
     phone: '',
     whatsapp: '',
     email: '',
@@ -116,6 +119,7 @@ function WholesaleContent() {
         {
           customerName: formData.customerName.trim(),
           businessName: formData.businessName.trim() || (isBulkMode ? 'Bulk Order Enquiry' : 'Wholesale Buyer'),
+          businessType: formData.businessType || undefined,
           phone: cleanPhone,
           whatsapp: formData.whatsapp.trim() ? formData.whatsapp.replace(/\D/g, '') : cleanPhone,
           email: formData.email.trim(),
@@ -195,6 +199,7 @@ function WholesaleContent() {
         {
           customerName: formData.customerName.trim(),
           businessName: formData.businessName.trim() || (isBulkMode ? 'Bulk Order Enquiry' : 'Wholesale Buyer'),
+          businessType: formData.businessType || undefined,
           phone: cleanPhone,
           whatsapp: formData.whatsapp.trim() ? formData.whatsapp.replace(/\D/g, '') : cleanPhone,
           email: formData.email.trim(),
@@ -328,7 +333,12 @@ function WholesaleContent() {
         {/* Interactive Wholesale Tier Calculator Section */}
         <section className="py-10 px-4">
           <div className="max-w-5xl mx-auto">
-            <WholesaleCalculator siteSettings={siteSettings || undefined} onSelectQuote={handleQuoteSelection} />
+            <WholesaleCalculator
+              siteSettings={siteSettings || undefined}
+              initialProductId={initialProductId}
+              initialQuantity={initialQty}
+              onSelectQuote={handleQuoteSelection}
+            />
           </div>
         </section>
 
@@ -431,6 +441,27 @@ function WholesaleContent() {
                         className="w-full px-3 py-2 text-xs rounded-lg border border-[#e8e2d5] bg-[#FAF8F5] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#1b4332]"
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#0f2d22] mb-1">
+                      Business / Buyer Profile
+                    </label>
+                    <select
+                      name="businessType"
+                      value={formData.businessType}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-[#e8e2d5] bg-[#FAF8F5] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#1b4332]"
+                    >
+                      <option value="">Select your business category (Optional)</option>
+                      <option value="MEHNDI_ARTIST">Bridal Mehndi Artist / Henna Studio</option>
+                      <option value="SALON">Beauty Salon / Parlour / Spa</option>
+                      <option value="COSMETICS_SHOP">Cosmetics Shop / Herbal Retailer</option>
+                      <option value="RESELLER">Wholesale Distributor / Reseller</option>
+                      <option value="WHOLESALE">Bulk Commercial Sourcing (Mandi / 25kg+ Sacks)</option>
+                      <option value="MANUFACTURER">Contract Manufacturing / OEM / Private Label</option>
+                      <option value="OTHER">Other Business Entity</option>
+                    </select>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

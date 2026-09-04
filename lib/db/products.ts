@@ -6,6 +6,7 @@ import { sanitizeImageUrl, sanitizeImageUrls } from '@/lib/utils';
 import { getCategories } from './categories';
 import { INITIAL_PRODUCTS } from '@/lib/data-store';
 import { syncProductKeywordUniverse, onProductDeletedLifecycle } from '@/lib/growth/product-keyword-engine';
+import { validateProductVariants } from '@/lib/product-variants';
 
 function requireSupabaseAdmin(): SupabaseClient {
   const client = getSupabaseAdmin();
@@ -56,16 +57,17 @@ export function mapRowToProduct(row: any): Product {
     row.stockStatus ||
     (row.in_stock === false ? 'out_of_stock' : 'in_stock');
 
-  let variantsArr: any[] = [];
+  let rawVariants: any[] = [];
   if (Array.isArray(row.variants)) {
-    variantsArr = row.variants;
+    rawVariants = row.variants;
   } else if (typeof row.variants === 'string' && row.variants) {
     try {
-      variantsArr = JSON.parse(row.variants);
+      rawVariants = JSON.parse(row.variants);
     } catch {
-      variantsArr = [];
+      rawVariants = [];
     }
   }
+  const validatedVariants = validateProductVariants(rawVariants).normalized;
 
   return {
     id: row.id,
@@ -87,7 +89,7 @@ export function mapRowToProduct(row: any): Product {
     images: sanitizeImageUrls(
       imagesArr.length > 0 ? imagesArr : ['/images/fallback.svg']
     ),
-    variants: variantsArr.length > 0 ? variantsArr : undefined,
+    variants: validatedVariants,
     ingredients: ingredientsArr,
     benefits: benefitsArr,
     usageInstructions: row.usage || row.usageInstructions || '',
@@ -462,7 +464,9 @@ export async function saveProduct(product: Partial<Product>): Promise<Product> {
       product.images && product.images.length > 0
         ? product.images
         : ['/images/fallback.svg'],
-    variants: product.variants || [],
+    variants: Array.isArray(product.variants)
+      ? validateProductVariants(product.variants).normalized
+      : [],
     ingredients: product.ingredients || [],
     benefits: product.benefits || [],
     usageInstructions: product.usageInstructions ? product.usageInstructions.trim() : '',

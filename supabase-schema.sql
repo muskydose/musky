@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS products (
   is_active BOOLEAN DEFAULT TRUE,
   sort_order INT DEFAULT 0,
   product_type TEXT,
+  variants JSONB NOT NULL DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -44,6 +45,8 @@ CREATE TABLE IF NOT EXISTS products (
 -- Migrations for Products
 ALTER TABLE products ADD COLUMN IF NOT EXISTS stock_status TEXT DEFAULT 'in_stock';
 ALTER TABLE products ADD COLUMN IF NOT EXISTS product_type TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS variants JSONB NOT NULL DEFAULT '[]'::jsonb;
+CREATE INDEX IF NOT EXISTS idx_products_variants ON products USING gin (variants);
 
 -- 3. ORDERS TABLE
 CREATE TABLE IF NOT EXISTS orders (
@@ -218,6 +221,7 @@ CREATE TABLE IF NOT EXISTS wholesale_enquiries (
 -- Migrations for Wholesale Enquiries
 ALTER TABLE wholesale_enquiries ADD COLUMN IF NOT EXISTS requested_quantity TEXT;
 ALTER TABLE wholesale_enquiries ADD COLUMN IF NOT EXISTS enquiry_type TEXT DEFAULT 'wholesale';
+ALTER TABLE wholesale_enquiries ADD COLUMN IF NOT EXISTS buyer_type TEXT;
 
 -- 10. CAMPAIGNS TABLE
 CREATE TABLE IF NOT EXISTS campaigns (

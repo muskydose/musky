@@ -209,10 +209,14 @@ export default function CartDrawer({ siteSettings: initialSettings }: CartDrawer
       ) : (
         <div className="space-y-2.5">
           {cart.map((item) => {
-            const itemTotal = (item.product.price || 0) * item.quantity;
+            const linePrice = item.selectedVariant?.price ?? item.product.price ?? 0;
+            const itemTotal = linePrice * item.quantity;
+            const cartItemId = item.id || `${item.product.id}::${item.selectedVariant?.id || 'default'}`;
+            const packLabel = item.selectedVariant?.weight || item.product.quantityOrWeight || 'Standard';
+
             return (
               <div
-                key={item.product.id}
+                key={cartItemId}
                 className="bg-white p-3 rounded-xl border border-[#e8e2d5] shadow-2xs flex gap-3 items-center justify-between"
               >
                 <div className="relative w-14 h-14 rounded-lg overflow-hidden border border-[#e8e2d5] bg-[#f5f1e8] shrink-0">
@@ -230,15 +234,20 @@ export default function CartDrawer({ siteSettings: initialSettings }: CartDrawer
                   <h4 className="font-bold text-xs text-[#0f2d22] truncate">
                     {item.product.name}
                   </h4>
-                  <p className="text-[10px] text-gray-500 mt-0.5">
-                    Pack: {item.product.quantityOrWeight || 'Standard'} | ₹{item.product.price} each
+                  <p className="text-[10px] text-gray-500 mt-0.5 flex items-center gap-1 flex-wrap">
+                    <span>Pack: <strong className="text-gray-700">{packLabel}</strong></span>
+                    {item.selectedVariant?.sku && (
+                      <span className="font-mono text-gray-400">({item.selectedVariant.sku})</span>
+                    )}
+                    <span>•</span>
+                    <span>₹{linePrice} each</span>
                   </p>
 
                   <div className="flex items-center justify-between mt-2">
                     <div className="inline-flex items-center border border-[#e8e2d5] rounded-lg bg-[#fcfbf7]">
                       <button
                         type="button"
-                        onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                        onClick={() => updateQuantity(cartItemId, item.quantity - 1)}
                         className="p-1.5 hover:bg-[#f5f1e8] active:scale-90 active:bg-[#e8f3ed] rounded-l-lg text-[#0f2d22] transition-all cursor-pointer touch-manipulation"
                         aria-label="Decrease quantity"
                       >
@@ -249,7 +258,7 @@ export default function CartDrawer({ siteSettings: initialSettings }: CartDrawer
                       </span>
                       <button
                         type="button"
-                        onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                        onClick={() => updateQuantity(cartItemId, item.quantity + 1)}
                         className="p-1.5 hover:bg-[#f5f1e8] active:scale-90 active:bg-[#e8f3ed] rounded-r-lg text-[#0f2d22] transition-all cursor-pointer touch-manipulation"
                         aria-label="Increase quantity"
                       >
@@ -269,9 +278,9 @@ export default function CartDrawer({ siteSettings: initialSettings }: CartDrawer
                     trackRemoveFromCart({
                       id: item.product.id,
                       name: item.product.name,
-                      price: item.product.price,
+                      price: linePrice,
                     });
-                    removeFromCart(item.product.id);
+                    removeFromCart(cartItemId);
                   }}
                   className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 rounded-lg transition-all shrink-0 cursor-pointer touch-manipulation"
                   aria-label={`Remove ${item.product.name} from cart`}

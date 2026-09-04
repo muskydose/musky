@@ -22,11 +22,13 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status') as CentralLeadStatus | 'ALL' | null;
     const leadType = searchParams.get('leadType') as CentralLeadType | 'ALL' | null;
+    const priority = searchParams.get('priority') as any;
     const search = searchParams.get('search') || undefined;
 
     const leads = getAllLeads({
       status: status || undefined,
       leadType: leadType || undefined,
+      priority: priority || undefined,
       search,
     });
 
@@ -67,12 +69,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, recommendation, lead });
     }
 
-    // 2. Update Lead Status / Workflow
+    // 2. Update Lead Status / Workflow / Quote Progression
     if (body.action === 'UPDATE_STATUS' && body.leadId && body.status) {
       const updated = updateLeadStatus(body.leadId, body.status as CentralLeadStatus, {
         notes: body.notes,
         assignedTo: body.assignedTo,
         convertedOrderId: body.convertedOrderId,
+        quoteAmount: body.quoteAmount !== undefined ? Number(body.quoteAmount) : undefined,
+        quoteNotes: body.quoteNotes,
+        priority: body.priority,
       });
       const recommendation = getLeadFollowUpRecommendation(updated);
       return NextResponse.json({ success: true, lead: updated, recommendation });
@@ -87,12 +92,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const name = (body.name || body.businessName || body.contactName || 'Primary Contact').trim();
+    const name = (body.name || body.contactName || 'Primary Contact').trim();
+    const businessName = body.businessName ? String(body.businessName).trim() : undefined;
+    const city = body.city ? String(body.city).trim() : undefined;
+    const state = body.state ? String(body.state).trim() : undefined;
     const leadType = (body.leadType as CentralLeadType) || 'WHOLESALE';
     const source = (body.source as LeadCaptureSource) || 'MANUAL_ENTRY';
 
     const lead = await saveLead({
       name,
+      businessName,
+      city,
+      state,
       mobile: String(phone),
       whatsapp: body.whatsapp ? String(body.whatsapp) : undefined,
       email: body.email ? String(body.email).trim() : undefined,
@@ -104,6 +115,10 @@ export async function POST(req: NextRequest) {
       productName: body.productName || (Array.isArray(body.interestedProducts) ? body.interestedProducts[0] : undefined),
       notes: body.notes,
       assignedTo: body.assignedTo,
+      quoteAmount: body.quoteAmount !== undefined ? Number(body.quoteAmount) : undefined,
+      quoteNotes: body.quoteNotes,
+      status: body.status,
+      priority: body.priority,
     });
 
     const recommendation = getLeadFollowUpRecommendation(lead);

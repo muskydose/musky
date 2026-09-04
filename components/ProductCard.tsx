@@ -36,6 +36,24 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
   const [imgSrc, setImgSrc] = React.useState(primaryImage);
   const [isAddingToCart, setIsAddingToCart] = React.useState(false);
 
+  const activeVariants = React.useMemo(() => {
+    if (!Array.isArray(product.variants) || product.variants.length === 0) return [];
+    return product.variants
+      .filter((v) => v && v.isActive !== false)
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  }, [product.variants]);
+
+  const defaultVariant = React.useMemo(() => {
+    if (activeVariants.length === 0) return null;
+    return activeVariants.find((v) => v.isDefault) || activeVariants[0];
+  }, [activeVariants]);
+
+  const displayPrice = defaultVariant?.price ?? product.price;
+  const displayCompareAt = defaultVariant?.compareAtPrice ?? product.compareAtPrice;
+  const displayWeight = defaultVariant?.weight ?? product.quantityOrWeight;
+  const displaySku = defaultVariant?.sku ?? product.sku;
+  const isOutOfStock = (defaultVariant?.stockStatus ?? product.stockStatus) === 'out_of_stock';
+
   React.useEffect(() => {
     setImgSrc(primaryImage);
   }, [primaryImage]);
@@ -43,13 +61,23 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
   const handleAddToCart = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    if (isAddingToCart) return;
+    if (isAddingToCart || isOutOfStock) return;
     setIsAddingToCart(true);
-    addToCart(product, 1);
+    addToCart(
+      {
+        ...product,
+        price: displayPrice,
+        compareAtPrice: displayCompareAt,
+        quantityOrWeight: displayWeight,
+        sku: displaySku,
+      },
+      1,
+      defaultVariant
+    );
     trackAddToCart({
       id: product.id,
       name: product.name,
-      price: product.price,
+      price: displayPrice,
       quantity: 1,
     });
     openCart();
@@ -59,20 +87,31 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
   const handleWhatsAppOrder = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    addToCart(product, 1);
+    if (isOutOfStock) return;
+    addToCart(
+      {
+        ...product,
+        price: displayPrice,
+        compareAtPrice: displayCompareAt,
+        quantityOrWeight: displayWeight,
+        sku: displaySku,
+      },
+      1,
+      defaultVariant
+    );
     trackWhatsAppClick({
       source: 'product_card_order_button',
       productName: product.name,
       productId: product.id,
       quantity: 1,
-      totalAmount: product.price,
+      totalAmount: displayPrice,
     });
     startPageTransition();
     router.push('/checkout');
   };
 
-  const discountPercent = product.compareAtPrice && product.compareAtPrice > product.price
-    ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
+  const discountPercent = displayCompareAt && displayCompareAt > displayPrice
+    ? Math.round(((displayCompareAt - displayPrice) / displayCompareAt) * 100)
     : 0;
 
   const layoutControls = siteSettings?.layoutControls || {};
@@ -145,9 +184,12 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
           />
         </motion.button>
 
-        {product.quantityOrWeight && (
+        {displayWeight && (
           <div className="absolute bottom-1.5 sm:bottom-2.5 right-1.5 sm:right-2.5 bg-white/95 backdrop-blur-xs text-[#0f2d22] text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full border border-[#e8e2d5] shadow-2xs max-w-[85%] truncate">
-            {product.quantityOrWeight}
+            <span>{displayWeight}</span>
+            {activeVariants.length > 1 && (
+              <span className="text-[#1b4332] ml-1 font-semibold">({activeVariants.length} sizes)</span>
+            )}
           </div>
         )}
       </Link>
@@ -157,7 +199,7 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
         <div className="flex-1 flex flex-col justify-start">
           <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-[#8c7b60] font-semibold uppercase tracking-wider mb-1 flex-wrap gap-1">
             <span className="truncate max-w-[120px] sm:max-w-none">{product.categoryName || 'Sojat Henna'}</span>
-            {product.stockStatus === 'out_of_stock' && (
+            {isOutOfStock && (
               <span className="text-amber-800 text-[9px] sm:text-[10px] font-bold bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200 shrink-0">
                 {cms.productCardOutOfStockBadge}
               </span>
@@ -182,16 +224,16 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
           <div className="flex items-baseline justify-between gap-1">
             <div className="flex items-baseline gap-1.5">
               <span className="text-sm sm:text-base font-bold text-[#0f2d22]">
-                ₹{product.price}
+                ₹{displayPrice}
               </span>
-              {product.compareAtPrice && product.compareAtPrice > product.price && (
+              {displayCompareAt && displayCompareAt > displayPrice && (
                 <span className="text-[10px] sm:text-xs text-gray-400 line-through">
-                  ₹{product.compareAtPrice}
+                  ₹{displayCompareAt}
                 </span>
               )}
             </div>
             <span className="text-[9px] sm:text-[10px] font-bold text-[#1b4332] bg-[#f5f1e8] px-1.5 py-0.5 rounded-md shrink-0">
-              {cms.productCardInStockBadge}
+              {isOutOfStock ? cms.productCardOutOfStockBadge : cms.productCardInStockBadge}
             </span>
           </div>
 
@@ -201,15 +243,15 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
               type="button"
               whileTap={shouldReduceMotion ? undefined : { scale: 0.95 }}
               onClick={handleAddToCart}
-              disabled={product.stockStatus === 'out_of_stock' || isAddingToCart}
+              disabled={isOutOfStock || isAddingToCart}
               className={`w-full min-h-[36px] sm:min-h-[38px] py-1.5 sm:py-2 inline-flex items-center justify-center gap-1.5 text-xs font-bold px-2 rounded-xl transition-all shadow-xs cursor-pointer touch-manipulation ${
-                product.stockStatus === 'out_of_stock'
+                isOutOfStock
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
                   : isAddingToCart
                   ? 'bg-[#0f2d22] text-[#c5a059] border border-[#0f2d22]'
                   : 'bg-[#1b4332] hover:bg-[#0f2d22] text-[#faf5e8] hover:text-[#c5a059] border border-[#1b4332]'
               }`}
-              title={product.stockStatus === 'out_of_stock' ? cms.productCardOutOfStockBadge : 'Add to Cart'}
+              title={isOutOfStock ? cms.productCardOutOfStockBadge : 'Add to Cart'}
               aria-label="Add to Cart"
             >
               {isAddingToCart ? (
@@ -218,7 +260,7 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
                 <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#c5a059] shrink-0" />
               )}
               <span>
-                {product.stockStatus === 'out_of_stock'
+                {isOutOfStock
                   ? cms.productCardOutOfStockBadge
                   : isAddingToCart
                   ? 'Added'
@@ -230,9 +272,9 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
               type="button"
               whileTap={shouldReduceMotion ? undefined : { scale: 0.95 }}
               onClick={handleWhatsAppOrder}
-              disabled={product.stockStatus === 'out_of_stock'}
+              disabled={isOutOfStock}
               className={`w-full min-h-[36px] sm:min-h-[38px] py-1.5 sm:py-2 inline-flex items-center justify-center gap-1.5 text-xs font-bold px-2 rounded-xl transition-all shadow-2xs cursor-pointer touch-manipulation ${
-                product.stockStatus === 'out_of_stock'
+                isOutOfStock
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
                   : 'bg-[#f4faf6] hover:bg-[#e6f4ec] text-[#1b4332] border border-[#25D366]/40'
               }`}

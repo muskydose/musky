@@ -1,4 +1,5 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { getProducts, getAllProductsAdmin, saveProduct } from '@/lib/db/products';
 import { requireAdminAuthAndCsrf, isRequestAdminAuthenticated } from '@/lib/admin-middleware';
 import { recordAuditLog } from '@/lib/auth';
@@ -69,6 +70,15 @@ export async function POST(req: NextRequest) {
       resource: saved.name,
       details: { productId: saved.id, price: saved.price },
     });
+
+    try {
+      revalidatePath('/products');
+      revalidatePath(`/products/${saved.slug}`);
+      revalidatePath('/wholesale');
+      revalidatePath('/');
+    } catch (revalErr) {
+      console.warn('Revalidation warning:', revalErr);
+    }
 
     return createSuccessResponse({ product: saved }, undefined, requestId);
   } catch (error: any) {

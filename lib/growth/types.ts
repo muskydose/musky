@@ -777,12 +777,18 @@ export type CentralLeadType =
 
 export type CentralLeadStatus =
   | 'NEW'
+  | 'CONTACT_REQUIRED'
   | 'CONTACTED'
-  | 'QUALIFIED'
+  | 'QUOTE_REQUESTED'
   | 'QUOTE_SENT'
   | 'NEGOTIATION'
   | 'WON'
-  | 'LOST';
+  | 'LOST'
+  | 'NURTURE'
+  | 'REPEAT_OPPORTUNITY'
+  | 'QUALIFIED'; // preserved for backwards compatibility
+
+export type CentralLeadPriority = 'HIGH' | 'MEDIUM' | 'LOW';
 
 export type LeadCaptureSource =
   | 'WHATSAPP_CTA'
@@ -812,9 +818,12 @@ export interface LeadAttribution {
 export interface LeadRecord {
   leadId: string;
   name: string;
+  businessName?: string;
   mobile: string;
   whatsapp?: string;
   email?: string;
+  city?: string;
+  state?: string;
   leadType: CentralLeadType;
   source: LeadCaptureSource;
   sourceQuery?: string;
@@ -836,6 +845,7 @@ export interface LeadRecord {
   commercialScore: number; // 0 to 100
   engagementScore: number; // 0 to 100
   leadScore: number; // 0 to 100 (40% intent + 30% commercial + 30% engagement)
+  priority: CentralLeadPriority;
   scoreReasons: string[];
   status: CentralLeadStatus;
   attribution: LeadAttribution;
@@ -844,6 +854,14 @@ export interface LeadRecord {
   assignedTo?: string;
   notes?: string;
   convertedOrderId?: string;
+  // B2B Repeat & Quote Intelligence
+  wholesaleEnquiryId?: string;
+  quoteAmount?: number;
+  quoteNotes?: string;
+  isRepeatOpportunity?: boolean;
+  repeatOpportunityReason?: string;
+  previousOrdersCount?: number;
+  lastOrderDate?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -851,6 +869,7 @@ export interface LeadRecord {
 export interface LeadFollowUpRecommendation {
   action: string;
   urgency: 'NOW' | 'TODAY' | 'SCHEDULED';
+  priority?: CentralLeadPriority;
   suggestedMessage: string;
   channel: 'WHATSAPP' | 'CALL' | 'EMAIL';
   reason: string;

@@ -58,6 +58,8 @@ export interface ProductVariant {
   stockStatus: 'in_stock' | 'out_of_stock' | 'pre_order';
   isWholesaleEligible?: boolean;
   isActive?: boolean;
+  isDefault?: boolean;
+  sortOrder?: number;
   packQuantity?: number;
   packUnit?: string;
   pricingUnit?: string;
@@ -1078,8 +1080,8 @@ export interface BulkPricingRule {
   discountValue: number;
   isActive: boolean;
   sortOrder: number;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface WholesaleEnquiry {
@@ -1094,6 +1096,7 @@ export interface WholesaleEnquiry {
   productsRequired: string;
   approxQuantity: string;
   enquiryType?: string;
+  buyerType?: string;
   notes?: string;
   status: 'NEW' | 'CONTACTED' | 'QUOTED' | 'CONVERTED' | 'CLOSED';
   createdAt: string;

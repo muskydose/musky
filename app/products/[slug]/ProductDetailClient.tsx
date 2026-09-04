@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Product } from '@/lib/types';
+import { Product, ProductVariant } from '@/lib/types';
 import { INITIAL_FAQ_ITEMS } from '@/lib/data-store';
 import { getClientSiteSettings } from '@/lib/api-client';
 import { useCart } from '@/context/CartContext';
@@ -44,7 +44,7 @@ interface ProductDetailClientProps {
   whatsappTemplate?: string;
   brandName?: string;
   faqItems?: any[];
-  relevantGuides?: { id: string; title: string; slug: string; shortIntro?: string }[];
+  relevantGuides?: any[];
 }
 
 export default function ProductDetailClient({
@@ -60,13 +60,33 @@ export default function ProductDetailClient({
   const [selectedImage, setSelectedImage] = useState<string>(
     product.images?.[0] || '/images/fallback.svg'
   );
-  const [selectedVariant, setSelectedVariant] = useState<any>(
-    product.variants && product.variants.length > 0 ? product.variants[0] : null
-  );
+
+  const activeVariants = React.useMemo(() => {
+    if (!Array.isArray(product.variants) || product.variants.length === 0) return [];
+    return product.variants
+      .filter((v) => v && v.isActive !== false)
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  }, [product.variants]);
+
+  const defaultVariant = React.useMemo(() => {
+    if (activeVariants.length === 0) return null;
+    return activeVariants.find((v) => v.isDefault) || activeVariants[0];
+  }, [activeVariants]);
+
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(defaultVariant);
+
+  React.useEffect(() => {
+    if (defaultVariant && (!selectedVariant || !activeVariants.some((v) => v.id === selectedVariant.id))) {
+      setSelectedVariant(defaultVariant);
+    }
+  }, [defaultVariant, activeVariants, selectedVariant]);
+
   const activePrice = selectedVariant?.price ?? product.price;
   const activeComparePrice = selectedVariant?.compareAtPrice ?? product.compareAtPrice;
   const activeWeight = selectedVariant?.weight ?? product.quantityOrWeight;
   const activeSku = selectedVariant?.sku ?? product.sku;
+  const activeStockStatus = selectedVariant?.stockStatus ?? product.stockStatus;
+  const isOutOfStock = activeStockStatus === 'out_of_stock';
 
   const [quantity, setQuantity] = useState<number>(1);
   const [copied, setCopied] = useState(false);
@@ -465,27 +485,49 @@ export default function ProductDetailClient({
           </div>
 
           {/* Pack Size / Variant Selector */}
-          {product.variants && product.variants.length > 0 && (
-            <div className="space-y-2 p-3 bg-white rounded-xl border border-[#e8e2d5]">
+          {activeVariants.length > 0 && (
+            <div className="space-y-2.5 p-3.5 bg-white rounded-xl border border-[#e8e2d5] shadow-2xs">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-[#0f2d22] uppercase tracking-wider">Select Pack Size:</span>
-                <span className="font-bold text-[#1b4332]">{activeWeight}</span>
+                <span className="font-bold text-[#0f2d22] uppercase tracking-wider flex items-center gap-1.5">
+                  <span>Select Pack Size:</span>
+                  <span className="text-[10px] text-gray-500 font-normal">
+                    ({activeVariants.length} Sizes)
+                  </span>
+                </span>
+                <span className="font-bold text-[#1b4332] bg-[#f5f1e8] px-2 py-0.5 rounded-md">
+                  {activeWeight}
+                </span>
               </div>
               <div className="flex flex-wrap gap-2 pt-1">
-                {product.variants.map((v) => {
-                  const isSelected = selectedVariant?.id === v.id || activeWeight === v.weight;
+                {activeVariants.map((v) => {
+                  const isSelected = selectedVariant?.id === v.id;
+                  const isVarSoldOut = v.stockStatus === 'out_of_stock';
                   return (
                     <button
                       key={v.id}
                       type="button"
                       onClick={() => setSelectedVariant(v)}
-                      className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                      aria-pressed={isSelected}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer flex items-center gap-1.5 ${
                         isSelected
-                          ? 'bg-[#1b4332] text-white border-[#1b4332] shadow-xs'
+                          ? 'bg-[#1b4332] text-white border-[#1b4332] shadow-xs ring-1 ring-[#1b4332]'
                           : 'bg-[#fcfbf7] text-[#0f2d22] border-[#e8e2d5] hover:border-[#1b4332]'
-                      }`}
+                      } ${isVarSoldOut ? 'opacity-60' : ''}`}
                     >
-                      {v.weight} — ₹{v.price}
+                      <span>{v.weight}</span>
+                      <span className={isSelected ? 'text-[#c5a059]' : 'text-emerald-800'}>
+                        ₹{v.price}
+                      </span>
+                      {v.compareAtPrice && v.compareAtPrice > v.price && (
+                        <span className={`text-[10px] line-through ${isSelected ? 'text-white/60' : 'text-gray-400'}`}>
+                          ₹{v.compareAtPrice}
+                        </span>
+                      )}
+                      {isVarSoldOut && (
+                        <span className="text-[9px] bg-rose-100 text-rose-800 px-1 rounded font-normal">
+                          Sold Out
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -578,11 +620,15 @@ export default function ProductDetailClient({
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
-                disabled={product.stockStatus === 'out_of_stock' || isAddingToCart}
+                disabled={isOutOfStock || isAddingToCart}
                 onClick={() => {
-                  if (product.stockStatus === 'out_of_stock' || isAddingToCart) return;
+                  if (isOutOfStock || isAddingToCart) return;
                   setIsAddingToCart(true);
-                  addToCart({ ...product, price: activePrice, quantityOrWeight: activeWeight, sku: activeSku }, quantity);
+                  addToCart(
+                    { ...product, price: activePrice, quantityOrWeight: activeWeight, sku: activeSku, stockStatus: activeStockStatus },
+                    quantity,
+                    selectedVariant
+                  );
                   trackAddToCart({
                     id: product.id,
                     name: product.name,
@@ -593,7 +639,7 @@ export default function ProductDetailClient({
                   setTimeout(() => setIsAddingToCart(false), 800);
                 }}
                 className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-xs sm:text-sm tracking-wider border transition-all shadow-xs cursor-pointer touch-manipulation active:scale-[0.99] ${
-                  product.stockStatus === 'out_of_stock'
+                  isOutOfStock
                     ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
                     : isAddingToCart
                     ? 'bg-[#0f2d22] text-[#c5a059] border border-[#0f2d22]'
@@ -605,17 +651,24 @@ export default function ProductDetailClient({
                 ) : (
                   <ShoppingBag className="w-4 h-4 text-[#c5a059]" />
                 )}
-                <span>{isAddingToCart ? 'Added to Cart!' : 'Add to Order Cart'}</span>
+                <span>{isOutOfStock ? 'Out of Stock' : isAddingToCart ? 'Added to Cart!' : 'Add to Order Cart'}</span>
               </button>
 
               <Link
                 href="/checkout"
-                onClick={() => {
-                  if (product.stockStatus === 'out_of_stock') return;
-                  addToCart({ ...product, price: activePrice, quantityOrWeight: activeWeight, sku: activeSku }, quantity);
+                onClick={(e) => {
+                  if (isOutOfStock) {
+                    e.preventDefault();
+                    return;
+                  }
+                  addToCart(
+                    { ...product, price: activePrice, quantityOrWeight: activeWeight, sku: activeSku, stockStatus: activeStockStatus },
+                    quantity,
+                    selectedVariant
+                  );
                 }}
                 className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-xs sm:text-sm tracking-wider border transition-all shadow-xs touch-manipulation active:scale-[0.99] ${
-                  product.stockStatus === 'out_of_stock'
+                  isOutOfStock
                     ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed pointer-events-none'
                     : 'bg-[#f5f1e8] hover:bg-[#e8e2d5] text-[#0f2d22] border-[#e8e2d5]'
                 }`}

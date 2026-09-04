@@ -170,38 +170,77 @@ export default async function HomePage() {
             if (displayBestsellers.length === 0) return null;
 
             return (
-              <section key={sec.id} className="py-8 sm:py-12 bg-[#fcfbf7] border-b border-[#e8e2d5]">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                  <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-5 sm:mb-8 gap-3">
-                    <div>
-                      <span className="text-[11px] font-bold text-[#c5a059] uppercase tracking-widest block mb-1">
-                        {sec.subheading || 'Bestsellers & Featured'}
-                      </span>
-                      <h2 className="font-momo-display text-2xl sm:text-3xl font-normal text-[#0f2d22]">
-                        {sec.heading || 'Most Loved Sojat Henna & Herbal Care'}
-                      </h2>
-                      <p className="text-xs sm:text-sm text-[#626c66] mt-1 font-medium max-w-2xl">
-                        {sec.description || 'Customer favorites chosen for superior dye release, purity, and natural formulation.'}
-                      </p>
-                    </div>
-                    <Link
-                      href={sec.ctaLink || '/products'}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1b4332] hover:text-[#0f2d22] border-b-2 border-[#c5a059] pb-0.5 shrink-0 transition-all"
-                    >
-                      <span>{sec.ctaText || 'View All Products'}</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-[#c5a059]" />
-                    </Link>
-                  </div>
-
-                  <div className={`grid ${siteSettings?.layoutControls?.mobileGridColumns === 1 ? 'grid-cols-1' : 'grid-cols-2'} sm:grid-cols-3 md:grid-cols-3 ${siteSettings?.layoutControls?.desktopGridColumns === 3 ? 'lg:grid-cols-3' : siteSettings?.layoutControls?.desktopGridColumns === 5 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-2.5 sm:gap-5 lg:gap-6`}>
-                    {displayBestsellers.map((prod) => (
-                      <div key={prod.id} className="h-full flex flex-col">
-                        <ProductCard product={prod} whatsappNumber={whatsappNumber} />
+              <React.Fragment key={sec.id}>
+                <section className="py-8 sm:py-12 bg-[#fcfbf7] border-b border-[#e8e2d5]">
+                  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-5 sm:mb-8 gap-3">
+                      <div>
+                        <span className="text-[11px] font-bold text-[#c5a059] uppercase tracking-widest block mb-1">
+                          {sec.subheading || 'Bestsellers & Featured'}
+                        </span>
+                        <h2 className="font-momo-display text-2xl sm:text-3xl font-normal text-[#0f2d22]">
+                          {sec.heading || 'Most Loved Sojat Henna & Herbal Care'}
+                        </h2>
+                        <p className="text-xs sm:text-sm text-[#626c66] mt-1 font-medium max-w-2xl">
+                          {sec.description || 'Customer favorites chosen for superior dye release, purity, and natural formulation.'}
+                        </p>
                       </div>
-                    ))}
+                      <Link
+                        href={sec.ctaLink || '/products'}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1b4332] hover:text-[#0f2d22] border-b-2 border-[#c5a059] pb-0.5 shrink-0 transition-all"
+                      >
+                        <span>{sec.ctaText || 'View All Products'}</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-[#c5a059]" />
+                      </Link>
+                    </div>
+
+                    <div className={`grid ${siteSettings?.layoutControls?.mobileGridColumns === 1 ? 'grid-cols-1' : 'grid-cols-2'} sm:grid-cols-3 md:grid-cols-3 ${siteSettings?.layoutControls?.desktopGridColumns === 3 ? 'lg:grid-cols-3' : siteSettings?.layoutControls?.desktopGridColumns === 5 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-2.5 sm:gap-5 lg:gap-6`}>
+                      {displayBestsellers.map((prod) => (
+                        <div key={prod.id} className="h-full flex flex-col">
+                          <ProductCard product={prod} whatsappNumber={whatsappNumber} />
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </section>
+                </section>
+
+                {/* RESPONSIVE B2B FACTORY SOURCING STRIP (Accessible on Mobile & Desktop) */}
+                <section className="py-4 sm:py-6 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+                  <div className="bg-gradient-to-r from-[#0f2d22] via-[#1b4332] to-[#0f2d22] text-white rounded-2xl p-4 sm:p-6 border border-[#c5a059]/30 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
+                    <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#c5a059]/20 border border-[#c5a059]/40 flex items-center justify-center shrink-0 text-[#c5a059] mt-0.5 sm:mt-0">
+                        <Factory className="w-5 h-5 sm:w-6 sm:h-6" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[9px] sm:text-[10px] font-bold tracking-widest text-[#c5a059] uppercase bg-[#c5a059]/15 px-2 py-0.5 rounded">
+                            Factory Direct • Sojat, Rajasthan
+                          </span>
+                          <span className="text-[11px] sm:text-xs text-[#b2c8be] font-medium hidden sm:inline">
+                            Lab Tested & Cloth Sifted
+                          </span>
+                        </div>
+                        <h3 className="text-sm sm:text-lg font-bold text-white mt-1 leading-snug">
+                          Sourcing for Henna Artists, Salons, or Retail Distribution?
+                        </h3>
+                        <p className="text-[11px] sm:text-xs text-[#c2d6cc] mt-0.5 leading-relaxed">
+                          Direct harvest supply in 5kg, 10kg, 25kg & 50kg bulk tiers with tiered wholesale pricing.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 pt-1 md:pt-0">
+                      <Link
+                        href="/wholesale"
+                        className="w-full md:w-auto inline-flex items-center justify-center gap-2 bg-[#c5a059] hover:bg-[#b38e46] active:scale-95 text-[#0f2d22] px-4 py-2.5 sm:px-5 sm:py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-md touch-manipulation min-h-[42px]"
+                      >
+                        <Building2 className="w-4 h-4 shrink-0" />
+                        <span>Wholesale Rate Card</span>
+                        <ArrowRight className="w-3.5 h-3.5 shrink-0" />
+                      </Link>
+                    </div>
+                  </div>
+                </section>
+              </React.Fragment>
             );
           }
 

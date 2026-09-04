@@ -76,7 +76,8 @@ export function generateWhatsAppOrderMessage(
   orderId?: string
 ): string {
   const itemTotal = (product.price || 0) * (quantity || 1);
-  const itemsText = `1. *${product.name}* (${product.quantityOrWeight || 'Standard Pack'})\n   Qty: ${quantity} x ₹${product.price} = ₹${itemTotal}`;
+  const skuText = product.sku ? ` | SKU: ${product.sku}` : '';
+  const itemsText = `1. *${product.name}* (Pack: ${product.quantityOrWeight || 'Standard Pack'}${skuText})\n   Qty: ${quantity} x ₹${product.price} = ₹${itemTotal}`;
 
   const vars: Record<string, string | number> = {
     brand_name: brandName,
@@ -109,7 +110,7 @@ export function generateWhatsAppOrderMessage(
  * Generate formatted WhatsApp message for multi-product cart order
  */
 export function generateWhatsAppCartOrderMessage(
-  items: { product: Product; quantity: number }[],
+  items: { product: Product; quantity: number; selectedVariant?: any }[],
   whatsappNumber: string = '918233703080',
   customerName?: string,
   customerAddress?: string,
@@ -121,24 +122,31 @@ export function generateWhatsAppCartOrderMessage(
   let totalQuantity = 0;
 
   const itemLines = items.map((item, idx) => {
-    const itemSubtotal = (item.product.price || 0) * item.quantity;
+    const linePrice = item.selectedVariant?.price ?? item.product.price ?? 0;
+    const pack = item.selectedVariant?.weight || item.product.quantityOrWeight || 'Standard Pack';
+    const sku = item.selectedVariant?.sku || item.product.sku;
+    const skuText = sku ? ` | SKU: ${sku}` : '';
+    const itemSubtotal = linePrice * item.quantity;
     totalAmount += itemSubtotal;
     totalQuantity += item.quantity;
-    return `${idx + 1}. *${item.product.name}* (${item.product.quantityOrWeight || 'Pack'})\n   Qty: ${item.quantity} x ₹${item.product.price} = ₹${itemSubtotal}`;
+    return `${idx + 1}. *${item.product.name}* (Pack: ${pack}${skuText})\n   Qty: ${item.quantity} x ₹${linePrice} = ₹${itemSubtotal}`;
   });
 
   const itemsText = itemLines.join('\n\n');
 
   const firstProduct = items[0]?.product;
+  const firstVariant = items[0]?.selectedVariant;
+  const firstPack = firstVariant?.weight || firstProduct?.quantityOrWeight || 'Multiple Items';
+  const firstPrice = firstVariant?.price ?? firstProduct?.price ?? 0;
 
   const vars: Record<string, string | number> = {
     brand_name: brandName,
     business_name: brandName,
     product_name: firstProduct ? `${firstProduct.name} (+${items.length - 1} other items)` : 'Musky Dose Items',
-    product_sku: firstProduct?.sku || 'MD-MULTI',
+    product_sku: firstVariant?.sku || firstProduct?.sku || 'MD-MULTI',
     quantity: totalQuantity,
-    weight: firstProduct?.quantityOrWeight || 'Multiple Items',
-    unit_price: firstProduct?.price || 0,
+    weight: firstPack,
+    unit_price: firstPrice,
     subtotal: totalAmount,
     total: totalAmount,
     items: itemsText,
@@ -206,7 +214,15 @@ export function generateStructuredWhatsAppOrderMessage(
     customerCity?: string;
     customerState?: string;
     customerPincode?: string;
-    items: { productName: string; quantity: number; price: number }[];
+    items: {
+      productName: string;
+      quantity: number;
+      price: number;
+      packSize?: string;
+      weight?: string;
+      variantSku?: string;
+      sku?: string;
+    }[];
     subtotal: number;
     discountAmount?: number;
     discountDetails?: string;
@@ -218,7 +234,12 @@ export function generateStructuredWhatsAppOrderMessage(
 ): string {
   const itemLines = order.items
     .map((item, idx) => {
-      return `${idx + 1}. ${item.productName}\n   Quantity: ${item.quantity}\n   Price: ₹${item.price}`;
+      const pack = item.packSize || item.weight;
+      const sku = item.variantSku || item.sku;
+      const skuText = sku ? ` | SKU: ${sku}` : '';
+      const packInfo = pack ? ` (Pack: ${pack}${skuText})` : (skuText ? ` (${skuText.replace(' | ', '')})` : '');
+      const itemSubtotal = (item.price || 0) * (item.quantity || 1);
+      return `${idx + 1}. *${item.productName}*${packInfo}\n   Qty: ${item.quantity} x ₹${item.price} = ₹${itemSubtotal}`;
     })
     .join('\n\n');
 
@@ -292,6 +313,7 @@ export function generateWholesaleWhatsAppMessage(
   enquiry: {
     customerName: string;
     businessName?: string;
+    businessType?: string;
     phone: string;
     whatsapp?: string;
     email?: string;
@@ -303,12 +325,16 @@ export function generateWholesaleWhatsAppMessage(
   },
   customTemplate?: string
 ): string {
+  const businessTypeLine = enquiry.businessType ? `Business Type: ${enquiry.businessType}\n` : '';
+
   if (customTemplate && customTemplate.trim()) {
     const vars: Record<string, string | number> = {
       customerName: enquiry.customerName,
       customer_name: enquiry.customerName,
       businessName: enquiry.businessName || 'N/A',
       business_name: enquiry.businessName || 'N/A',
+      businessType: enquiry.businessType || 'N/A',
+      business_type: enquiry.businessType || 'N/A',
       phone: enquiry.phone,
       whatsapp: enquiry.whatsapp || enquiry.phone,
       email: enquiry.email || 'N/A',
@@ -327,7 +353,7 @@ export function generateWholesaleWhatsAppMessage(
 
 Name: ${enquiry.customerName}
 Business Name: ${enquiry.businessName || 'N/A'}
-Phone: ${enquiry.phone}
+${businessTypeLine}Phone: ${enquiry.phone}
 WhatsApp: ${enquiry.whatsapp || enquiry.phone}
 Email: ${enquiry.email || 'N/A'}
 Location: ${[enquiry.city, enquiry.state].filter(Boolean).join(', ') || 'N/A'}

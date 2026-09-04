@@ -117,7 +117,7 @@ export default function AnnouncementTicker({
       role="region"
       aria-label="Store Announcements"
     >
-      <div className={animationClass}>
+      <div className={`${animationClass} group-hover:[animation-play-state:paused] focus-within:[animation-play-state:paused]`}>
         {/* First track copy */}
         <div className="flex items-center shrink-0">
           {activeItems.map((item, idx) => renderItemPill(item, 'track-1', idx))}

@@ -42,6 +42,15 @@ const B2B_WHOLESALE_TOKENS = new Set([
   'salons',
   'reseller',
   'resellers',
+  'artist',
+  'artists',
+  'mehndi artist',
+  'mehndi artists',
+  'mehandi artist',
+  'parlour',
+  'parlors',
+  'parlor',
+  'cosmetics',
 ]);
 
 const RETAIL_PACK_INDICATORS = /\b(\d+\s*(g|gm|gms|gram|grams|kg|ml|ltr|litre|liter|piece|pieces|pack|cones?))\b/i;

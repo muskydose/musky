@@ -447,7 +447,7 @@ export function generateActionRecord(
         productId: product?.id || opportunity.productId,
         ctas: ['Ask About This Product', 'Get Artist Price (Sojat Direct)', 'Get Bulk Price'],
       };
-      markdownContent = `### Product Lead Capture Triggers\n\n1. "Ask About This Product" WhatsApp pre-fill.\n2. "Get Artist Price" 5-sieve stain guarantee modal.\n3. "Get Bulk Price (25kg+)" instant catalog handoff.`;
+      markdownContent = `### Product Lead Capture Triggers\n\n1. "Ask About This Product" WhatsApp pre-fill.\n2. "Get Artist Price" 5-sieve artist pricing modal.\n3. "Get Bulk Price (25kg+)" instant catalog handoff.`;
       draftText = markdownContent;
       copyableText = markdownContent;
       break;

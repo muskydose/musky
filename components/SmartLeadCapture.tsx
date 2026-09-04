@@ -208,7 +208,7 @@ export default function SmartLeadCapture({
                     rows={2}
                     value={requirement}
                     onChange={(e) => setRequirement(e.target.value)}
-                    placeholder="e.g. Inquiring about freshness, stain guarantee, or delivery timeline..."
+                    placeholder="e.g. Inquiring about freshness, batch specifications, or delivery timeline..."
                     className="w-full px-3 py-2 bg-[#fdfbf7] border border-[#e8e2d5] rounded-xl focus:outline-none focus:border-[#1b4332]"
                   />
                 </div>
