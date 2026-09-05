@@ -1,6 +1,15 @@
 {
   "css.lint.unknownAtRules": "ignore",
   "scss.lint.unknownAtRules": "ignore",
-  "less.lint.unknownAtRules": "ignore"
+  "less.lint.unknownAtRules": "ignore",
+  "git.autorefresh": false,
+  "git.autofetch": false,
+  "git.refreshOnWindowFocus": false,
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true,
+    "**/.next/**": true
+  }
 }
 
