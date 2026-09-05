@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Product, ProductVariant } from '@/lib/types';
+import { filterValidActiveVariants } from '@/lib/growth/product-catalog-governance';
 import { INITIAL_FAQ_ITEMS } from '@/lib/data-store';
 import { getClientSiteSettings } from '@/lib/api-client';
 import { useCart } from '@/context/CartContext';
@@ -62,11 +63,8 @@ export default function ProductDetailClient({
   );
 
   const activeVariants = React.useMemo(() => {
-    if (!Array.isArray(product.variants) || product.variants.length === 0) return [];
-    return product.variants
-      .filter((v) => v && v.isActive !== false)
-      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-  }, [product.variants]);
+    return filterValidActiveVariants(product);
+  }, [product]);
 
   const defaultVariant = React.useMemo(() => {
     if (activeVariants.length === 0) return null;

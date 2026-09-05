@@ -6,6 +6,7 @@ import { recordAuditLog } from '@/lib/auth';
 import { isBase64ImageData } from '@/lib/media-upload';
 import { sanitizeAdminError, createSuccessResponse, getRequestId } from '@/lib/api-errors';
 import { validateProductTypeClassification } from '@/lib/growth/product-type-governance';
+import { validateCatalogVariants } from '@/lib/growth/product-catalog-governance';
 
 export async function GET(
   req: NextRequest,
@@ -52,6 +53,9 @@ export async function PUT(
       }
     }
 
+    // Fetch existing product for context if needed
+    const existingProduct = await getProductByIdOrSlug(id, true);
+
     // Validate commercial product type classification if provided
     if (body.productType !== undefined) {
       const typeCheck = validateProductTypeClassification(body.productType);
@@ -62,6 +66,33 @@ export async function PUT(
         );
       }
       body.productType = typeCheck.sanitizedValue;
+    }
+
+    // Validate and sanitize variants against catalog unit family governance
+    if (Array.isArray(body.variants)) {
+      const effectiveType = body.productType || existingProduct?.productType;
+      const variantCheck = validateCatalogVariants(body.variants, effectiveType);
+      if (!variantCheck.valid) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Variant validation failed: ${variantCheck.errors.join('; ')}`,
+            requestId,
+          },
+          { status: 400 }
+        );
+      }
+      body.variants = variantCheck.sanitizedVariants;
+
+      // Synchronize root commercial fields with primary default variant
+      if (body.variants.length > 0) {
+        const defaultVar = body.variants.find((v: any) => v.isDefault) || body.variants[0];
+        if (defaultVar) {
+          body.price = defaultVar.price;
+          if (defaultVar.compareAtPrice !== undefined) body.compareAtPrice = defaultVar.compareAtPrice;
+          body.quantityOrWeight = defaultVar.weight;
+        }
+      }
     }
 
     const updated = await saveProduct({ ...body, id });

@@ -26,6 +26,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { formatProductTypeDisplay } from '@/lib/growth/product-type-governance';
+import { formatProductPackDisplay } from '@/lib/growth/product-catalog-governance';
 
 interface AdminProductsClientProps {
   initialProducts: Product[];
@@ -602,7 +603,7 @@ export default function AdminProductsClient({
                         )}
                       </td>
 
-                      <td className="p-4 font-medium text-gray-600">{p.quantityOrWeight}</td>
+                      <td className="p-4 font-medium text-gray-600">{formatProductPackDisplay(p)}</td>
 
                       <td className="p-4 font-mono text-[11px] text-gray-500">{p.sku}</td>
 

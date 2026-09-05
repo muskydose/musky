@@ -13,6 +13,7 @@
  */
 
 import { Product } from '@/lib/types';
+import { resolveCanonicalProductOffer } from './product-catalog-governance';
 import {
   GoogleMerchantFeedItem,
   MerchantFeedHealthSummary,
@@ -58,8 +59,9 @@ export function validateProductForMerchantFeed(
     errors.push('Missing product title');
   }
 
-  // 3. Price validation
-  const priceNum = Number(product.price);
+  // 3. Price validation (derived canonically from primary offer)
+  const canonicalOffer = resolveCanonicalProductOffer(product);
+  const priceNum = Number(canonicalOffer.price);
   if (isNaN(priceNum) || priceNum <= 0) {
     errors.push('Missing or invalid price (must be > 0)');
   }
@@ -116,15 +118,15 @@ export function validateProductForMerchantFeed(
     availability,
     price: formattedPrice,
     salePrice:
-      product.compareAtPrice && product.compareAtPrice > priceNum
-        ? `${Number(product.compareAtPrice).toFixed(2)} INR`
+      canonicalOffer.compareAtPrice && canonicalOffer.compareAtPrice > priceNum
+        ? `${Number(canonicalOffer.compareAtPrice).toFixed(2)} INR`
         : undefined,
     brand: 'Musky Dose',
     condition: 'new',
     productType: category,
     googleProductCategory: 'Health & Beauty > Personal Care > Hair Care',
     identifierExists: 'no', // Direct agricultural botanicals without GTIN
-    shippingWeight: product.quantityOrWeight || '250g',
+    shippingWeight: canonicalOffer.displayWeight || 'Standard Pack',
     shipping: {
       country: 'IN',
       service: 'Standard Express Direct from Sojat',

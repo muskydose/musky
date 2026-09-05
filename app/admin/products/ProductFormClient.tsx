@@ -23,7 +23,14 @@ import {
   PREDEFINED_TYPE_VALUES,
   validateProductTypeClassification,
   extractDistinctCustomProductTypes,
+  getProductTypeDisplay,
+  normalizeProductType,
 } from '@/lib/growth/product-type-governance';
+import {
+  getProductTypeUnitRule,
+  suggestNextVariant,
+  UNIT_DISPLAY_LABELS,
+} from '@/lib/growth/product-catalog-governance';
 import {
   Save,
   ArrowLeft,
@@ -194,13 +201,10 @@ export default function ProductFormClient({
     ogImageUrl: initialProduct?.ogImageUrl || '',
   });
 
-  const initialIsCustom = Boolean(
-    initialProduct?.productType &&
-    !PREDEFINED_TYPE_VALUES.has((initialProduct.productType || '').toUpperCase())
-  );
-  const [isCustomType, setIsCustomType] = useState<boolean>(initialIsCustom);
+  const initialNorm = normalizeProductType(initialProduct?.productType);
+  const [isCustomType, setIsCustomType] = useState<boolean>(initialNorm.isCustom);
   const [knownCustomTypes, setKnownCustomTypes] = useState<string[]>(() => {
-    return initialIsCustom && initialProduct?.productType ? [initialProduct.productType.trim()] : [];
+    return initialNorm.isCustom && initialNorm.canonicalType ? [initialNorm.canonicalType] : [];
   });
 
   // Reusable custom types discovery from catalog
@@ -302,9 +306,14 @@ export default function ProductFormClient({
 
   // --- Retail Variant Handlers ---
   const handleAddVariant = () => {
-    const defaultPackUnit = formData.packUnit || 'g';
-    const nextQty = productVariants.length === 0 ? 250 : productVariants.length === 1 ? 500 : 1000;
-    const newWeight = formatVariantWeight(nextQty, defaultPackUnit);
+    const suggestion = suggestNextVariant(
+      formData.productType,
+      formData.quantityOrWeight,
+      productVariants
+    );
+    const defaultPackUnit = suggestion.packUnit;
+    const nextQty = suggestion.packQuantity;
+    const newWeight = suggestion.weight;
     const baseSku = formData.sku ? formData.sku.trim() : 'MD-PRD';
     const newSku = `${baseSku}-${nextQty}${defaultPackUnit}`;
     const newVarId = `var_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
@@ -342,7 +351,11 @@ export default function ProductFormClient({
 
     updated[index] = item;
     setProductVariants(updated);
-    setFormData((prev) => ({ ...prev, variants: updated }));
+    setFormData((prev) => ({
+      ...prev,
+      variants: updated,
+      ...(item.isDefault ? { price: item.price, quantityOrWeight: item.weight, compareAtPrice: item.compareAtPrice } : {}),
+    }));
     setIsDirty(true);
   };
 
@@ -352,7 +365,14 @@ export default function ProductFormClient({
       isDefault: i === index,
     }));
     setProductVariants(updated);
-    setFormData((prev) => ({ ...prev, variants: updated }));
+    const chosen = updated[index];
+    setFormData((prev) => ({
+      ...prev,
+      variants: updated,
+      price: chosen.price,
+      compareAtPrice: chosen.compareAtPrice ?? prev.compareAtPrice,
+      quantityOrWeight: chosen.weight,
+    }));
     setIsDirty(true);
   };
 
@@ -1290,43 +1310,29 @@ export default function ProductFormClient({
                     Product Type
                   </label>
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#edf7f1] text-[#1b4332] border border-[#d8ece0]">
-                    {isCustomType ? (
-                      <>
-                        <span className="text-gray-500">Product Type:</span>
-                        <span className="font-bold text-[#1b4332]">Custom</span>
-                        <span className="text-gray-300">|</span>
-                        <span className="text-gray-500">Custom Type:</span>
-                        <span className="font-extrabold text-[#0f2d22]">
-                          {formData.productType?.trim() || 'Unspecified'}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-gray-500">Commercial Type:</span>
-                        <span className="font-bold text-[#1b4332]">
-                          {PREDEFINED_PRODUCT_TYPES.find(
-                            (p) => p.value === (formData.productType || 'POWDER').toUpperCase()
-                          )?.value || 'POWDER'}
-                        </span>
-                      </>
-                    )}
+                    <span className="text-gray-500">Product Type:</span>
+                    <span className="font-bold text-[#1b4332]">
+                      {getProductTypeDisplay(formData.productType)}
+                    </span>
                   </span>
                 </div>
 
                 <select
                   value={
                     isCustomType
-                      ? 'CUSTOM'
-                      : PREDEFINED_TYPE_VALUES.has((formData.productType || '').toUpperCase())
-                      ? (formData.productType || '').toUpperCase()
+                      ? knownCustomTypes.includes(formData.productType?.trim() || '')
+                        ? `KNOWN:${formData.productType?.trim()}`
+                        : 'CUSTOM'
+                      : normalizeProductType(formData.productType).isPredefined
+                      ? normalizeProductType(formData.productType).canonicalType
                       : 'CUSTOM'
                   }
                   onChange={(e) => {
                     const selected = e.target.value;
                     if (selected === 'CUSTOM') {
                       setIsCustomType(true);
-                      const current = formData.productType || '';
-                      const preserved = PREDEFINED_TYPE_VALUES.has(current.toUpperCase()) ? '' : current;
+                      const norm = normalizeProductType(formData.productType);
+                      const preserved = norm.isPredefined ? '' : (formData.productType || '');
                       updateForm('productType', preserved);
                     } else if (selected.startsWith('KNOWN:')) {
                       const customVal = selected.replace('KNOWN:', '');
@@ -1350,7 +1356,7 @@ export default function ProductFormClient({
                     <optgroup label="Reused Catalog Custom Types">
                       {knownCustomTypes.map((k) => (
                         <option key={k} value={`KNOWN:${k}`}>
-                          Custom: {k}
+                          {k}
                         </option>
                       ))}
                     </optgroup>
@@ -1394,9 +1400,20 @@ export default function ProductFormClient({
               </div>
 
               <div>
-                <label className="block text-[#0f2d22] font-bold mb-1">
-                  Pack Quantity / Weight *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[#0f2d22] font-bold">
+                    Pack Quantity / Weight *
+                  </label>
+                  {productVariants.filter((v) => v.isActive !== false).length > 0 ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                      Variants control selectable pack sizes
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      Base Pack is Authoritative
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
                   required
@@ -1406,7 +1423,9 @@ export default function ProductFormClient({
                   className="w-full p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl focus:outline-none focus:border-[#1b4332]"
                 />
                 <p className="text-[10px] text-gray-500 mt-1">
-                  If you add multiple pack sizes under Pricing & Stock, those pack sizes take priority.
+                  {productVariants.filter((v) => v.isActive !== false).length > 0
+                    ? 'Individual retail variations are configured. Storefront, checkout, and feeds use the authoritative default variation.'
+                    : 'Authoritative pack size for single-pack products across storefront, cart, schema, and merchant feeds.'}
                 </p>
               </div>
             </div>
@@ -1624,26 +1643,28 @@ export default function ProductFormClient({
                             onChange={(e) => handleUpdateVariant(idx, 'packUnit', e.target.value)}
                             className="w-full p-2 bg-[#fcfbf7] border border-[#e8e2d5] rounded-lg text-xs font-semibold focus:outline-none focus:border-[#1b4332]"
                           >
-                            <optgroup label="Weight">
-                              <option value="g">Grams (g)</option>
-                              <option value="kg">Kilograms (kg)</option>
-                              <option value="mg">Milligrams (mg)</option>
-                            </optgroup>
-                            <optgroup label="Volume">
-                              <option value="ml">Millilitres (ml)</option>
-                              <option value="Litre">Litres (Litre)</option>
-                            </optgroup>
-                            <optgroup label="Count / Units">
-                              <option value="cone">Cones (cone)</option>
-                              <option value="Box">Boxes (Box)</option>
-                              <option value="Piece">Pieces (Piece)</option>
-                              <option value="Pack">Packs (Pack)</option>
-                            </optgroup>
-                            <optgroup label="Containers">
-                              <option value="Bottle">Bottles (Bottle)</option>
-                              <option value="Pouch">Pouches (Pouch)</option>
-                              <option value="Jar">Jars (Jar)</option>
-                            </optgroup>
+                            {(() => {
+                              const rule = getProductTypeUnitRule(formData.productType);
+                              const isAllowed = Boolean(v.packUnit && rule.allowedUnits.includes(v.packUnit));
+                              return (
+                                <>
+                                  <optgroup label={`Allowed for ${getProductTypeDisplay(formData.productType)} (${rule.family})`}>
+                                    {rule.allowedUnits.map((u) => (
+                                      <option key={u} value={u}>
+                                        {UNIT_DISPLAY_LABELS[u] || u}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                  {!isAllowed && v.packUnit && (
+                                    <optgroup label="Legacy / Non-compliant">
+                                      <option value={v.packUnit}>
+                                        {UNIT_DISPLAY_LABELS[v.packUnit] || v.packUnit} (Invalid for {getProductTypeDisplay(formData.productType)})
+                                      </option>
+                                    </optgroup>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </select>
                         </div>
 

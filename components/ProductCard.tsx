@@ -14,6 +14,7 @@ import { trackAddToCart, trackWhatsAppClick } from '@/lib/analytics';
 import { sanitizeImageUrl } from '@/lib/utils';
 import { SPRINGS, DURATION, EASING } from '@/lib/motion';
 import { startPageTransition } from '@/lib/navigation';
+import { resolveCanonicalProductOffer } from '@/lib/growth/product-catalog-governance';
 
 interface ProductCardProps {
   product: Product;
@@ -36,22 +37,15 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
   const [imgSrc, setImgSrc] = React.useState(primaryImage);
   const [isAddingToCart, setIsAddingToCart] = React.useState(false);
 
-  const activeVariants = React.useMemo(() => {
-    if (!Array.isArray(product.variants) || product.variants.length === 0) return [];
-    return product.variants
-      .filter((v) => v && v.isActive !== false)
-      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-  }, [product.variants]);
+  const canonicalOffer = React.useMemo(() => {
+    return resolveCanonicalProductOffer(product);
+  }, [product]);
 
-  const defaultVariant = React.useMemo(() => {
-    if (activeVariants.length === 0) return null;
-    return activeVariants.find((v) => v.isDefault) || activeVariants[0];
-  }, [activeVariants]);
-
-  const displayPrice = defaultVariant?.price ?? product.price;
-  const displayCompareAt = defaultVariant?.compareAtPrice ?? product.compareAtPrice;
-  const displayWeight = defaultVariant?.weight ?? product.quantityOrWeight;
-  const displaySku = defaultVariant?.sku ?? product.sku;
+  const defaultVariant = canonicalOffer.defaultVariant;
+  const displayPrice = canonicalOffer.price;
+  const displayCompareAt = canonicalOffer.compareAtPrice;
+  const displayWeight = canonicalOffer.displayWeight;
+  const displaySku = canonicalOffer.sku;
   const isOutOfStock = (defaultVariant?.stockStatus ?? product.stockStatus) === 'out_of_stock';
 
   React.useEffect(() => {
@@ -187,8 +181,8 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
         {displayWeight && (
           <div className="absolute bottom-1.5 sm:bottom-2.5 right-1.5 sm:right-2.5 bg-white/95 backdrop-blur-xs text-[#0f2d22] text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full border border-[#e8e2d5] shadow-2xs max-w-[85%] truncate">
             <span>{displayWeight}</span>
-            {activeVariants.length > 1 && (
-              <span className="text-[#1b4332] ml-1 font-semibold">({activeVariants.length} sizes)</span>
+            {canonicalOffer.activeVariants.length > 1 && (
+              <span className="text-[#1b4332] ml-1 font-semibold">({canonicalOffer.activeVariants.length} sizes)</span>
             )}
           </div>
         )}

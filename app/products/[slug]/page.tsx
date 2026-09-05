@@ -14,6 +14,7 @@ import { safeJsonLd } from '@/lib/utils';
 import ProductDetailClient from './ProductDetailClient';
 
 import { deriveProductAutoSeo } from '@/lib/growth/product-keyword-engine';
+import { resolveCanonicalProductOffer } from '@/lib/growth/product-catalog-governance';
 
 export const dynamic = 'force-dynamic';
 export const dynamicParams = true;
@@ -121,6 +122,7 @@ export default async function ProductDetailPage({
   }
 
   const autoSeo = deriveProductAutoSeo(product);
+  const canonicalOffer = resolveCanonicalProductOffer(product);
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -131,7 +133,7 @@ export default async function ProductDetailPage({
         name: product.name,
         image: product.images?.[0] ? (product.images[0].startsWith('http') ? product.images[0] : `${baseUrl}${product.images[0]}`) : undefined,
         description: product.fullDescription && product.fullDescription.length > 50 ? product.fullDescription : autoSeo.metaDescription,
-        sku: product.sku || product.id,
+        sku: canonicalOffer.sku,
         brand: {
           '@type': 'Brand',
           name: siteSettings?.brandName || 'Musky Dose',
@@ -140,7 +142,7 @@ export default async function ProductDetailPage({
           '@type': 'Offer',
           url: `${baseUrl}/products/${product.slug}`,
           priceCurrency: 'INR',
-          price: product.price,
+          price: canonicalOffer.price,
           itemCondition: 'https://schema.org/NewCondition',
           availability: product.stockStatus === 'in_stock' ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
           seller: {

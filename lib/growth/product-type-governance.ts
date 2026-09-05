@@ -55,10 +55,148 @@ export const PREDEFINED_TYPE_VALUES: ReadonlySet<string> = new Set(
   PREDEFINED_PRODUCT_TYPES.map((pt) => pt.value)
 );
 
+/**
+ * Deterministic legacy aliases mapping historical catalog/commercial values
+ * to canonical predefined Product Types at the application/UI layer.
+ */
+export const LEGACY_PRODUCT_TYPE_ALIASES: Readonly<Record<string, string>> = {
+  // OIL aliases
+  'essential oil': 'OIL',
+  'essential oils': 'OIL',
+  'essential_oil': 'OIL',
+  'essential_oils': 'OIL',
+  'hair oil': 'OIL',
+  'hair oils': 'OIL',
+  'hair_oil': 'OIL',
+  'hair_oils': 'OIL',
+  'herbal oil': 'OIL',
+  'herbal oils': 'OIL',
+  'herbal_oil': 'OIL',
+  'botanical oil': 'OIL',
+  'botanical oils': 'OIL',
+  'botanical_oil': 'OIL',
+  'carrier oil': 'OIL',
+  'carrier oils': 'OIL',
+  'carrier_oil': 'OIL',
+
+  // POWDER aliases
+  'powder': 'POWDER',
+  'powders': 'POWDER',
+  'herbal powder': 'POWDER',
+  'herbal powders': 'POWDER',
+  'herbal_powder': 'POWDER',
+  'henna powder': 'POWDER',
+  'leaf powder': 'POWDER',
+
+  // RAW aliases
+  'raw': 'RAW',
+  'raw herb': 'RAW',
+  'raw herbs': 'RAW',
+  'raw_herb': 'RAW',
+  'raw_herbs': 'RAW',
+  'whole leaves': 'RAW',
+  'leaves': 'RAW',
+  'raw leaf': 'RAW',
+  'raw leaves': 'RAW',
+
+  // FINISHED aliases
+  'finished': 'FINISHED',
+  'cone': 'FINISHED',
+  'cones': 'FINISHED',
+  'mehendi cone': 'FINISHED',
+  'mehendi cones': 'FINISHED',
+  'shampoo': 'FINISHED',
+  'pack': 'FINISHED',
+
+  // PASTE aliases
+  'paste': 'PASTE',
+  'henna paste': 'PASTE',
+  'mehndi paste': 'PASTE',
+  'body art paste': 'PASTE',
+
+  // MIST aliases
+  'mist': 'MIST',
+  'spray': 'MIST',
+  'hydrosol': 'MIST',
+  'hydrosol spray': 'MIST',
+  'hydrosol_spray': 'MIST',
+  'rose water': 'MIST',
+  'floral water': 'MIST',
+};
+
 export const MAX_CUSTOM_PRODUCT_TYPE_LENGTH = 60;
 
 // Allowed characters: letters, numbers, spaces, hyphens, and normal punctuation
 const VALID_CUSTOM_TYPE_REGEX = /^[\p{L}\p{N}\s\-_.,/&()']+$/u;
+
+export interface NormalizedProductType {
+  canonicalType: string;
+  isPredefined: boolean;
+  isCustom: boolean;
+  rawInput: string;
+}
+
+/**
+ * Normalizes raw product type strings to canonical representation:
+ * - Maps recognized legacy aliases deterministically to predefined types (e.g. 'essential oil' -> 'OIL').
+ * - Preserves exact admin wording for genuine custom types.
+ * - Defaults undefined/null/empty to 'POWDER'.
+ */
+export function normalizeProductType(value: string | undefined | null): NormalizedProductType {
+  if (value === undefined || value === null || !value.trim()) {
+    return {
+      canonicalType: 'POWDER',
+      isPredefined: true,
+      isCustom: false,
+      rawInput: '',
+    };
+  }
+
+  const trimmed = value.trim();
+  const upper = trimmed.toUpperCase();
+
+  // 1. Exact predefined match
+  if (PREDEFINED_TYPE_VALUES.has(upper)) {
+    return {
+      canonicalType: upper,
+      isPredefined: true,
+      isCustom: false,
+      rawInput: value,
+    };
+  }
+
+  // 2. Deterministic legacy alias match
+  const lower = trimmed.toLowerCase();
+  if (LEGACY_PRODUCT_TYPE_ALIASES[lower]) {
+    return {
+      canonicalType: LEGACY_PRODUCT_TYPE_ALIASES[lower],
+      isPredefined: true,
+      isCustom: false,
+      rawInput: value,
+    };
+  }
+
+  // 3. Genuine custom type
+  return {
+    canonicalType: trimmed,
+    isPredefined: false,
+    isCustom: true,
+    rawInput: value,
+  };
+}
+
+/**
+ * Canonical product type display helper.
+ * Rules:
+ * - Predefined: returns canonical token (e.g. "POWDER", "RAW", "FINISHED", "OIL", "PASTE", "MIST")
+ * - Legacy alias: returns canonical predefined token (e.g. "essential oil" -> "OIL")
+ * - Genuine custom: returns exact wording without prefix/suffix (e.g. "Hair Mask", "Serum", "Balm")
+ * - NEVER returns "Custom (...)" or "Custom: ..."
+ */
+export function getProductTypeDisplay(value: string | undefined | null): string {
+  const norm = normalizeProductType(value);
+  return norm.canonicalType;
+}
 
 export interface ProductTypeValidationResult {
   valid: boolean;
@@ -70,7 +208,7 @@ export interface ProductTypeValidationResult {
 
 /**
  * Validates and sanitizes a commercial product type classification.
- * - If predefined: valid immediately, normalized to canonical uppercase.
+ * - If predefined or recognized legacy alias: valid immediately, normalized to canonical uppercase.
  * - If custom: non-empty, non-whitespace, max 60 chars, allowed characters.
  * - Preserves exact admin-entered wording (e.g. "Hair Mask", "HAIR SERUM", "Cold-Pressed Balm").
  */
@@ -128,12 +266,12 @@ export function validateProductTypeClassification(
     };
   }
 
-  // Check if it matches any predefined type (case-insensitive)
-  const upperVal = trimmed.toUpperCase();
-  if (PREDEFINED_TYPE_VALUES.has(upperVal)) {
+  // Use deterministic normalization
+  const norm = normalizeProductType(value);
+  if (norm.isPredefined) {
     return {
       valid: true,
-      sanitizedValue: upperVal,
+      sanitizedValue: norm.canonicalType,
       isCustom: false,
     };
   }
@@ -179,42 +317,34 @@ export interface FormattedProductTypeDisplay {
 
 /**
  * Returns formatted labels for friendly admin display.
+ * For predefined: friendly label (e.g. POWDER (Henna & Herbal Powders)) and badgeLabel: POWDER.
+ * For custom: displayLabel and badgeLabel are exact wording (e.g. Hair Mask) without "Custom (...)".
  */
 export function formatProductTypeDisplay(typeValue: string | undefined | null): FormattedProductTypeDisplay {
-  if (!typeValue || !typeValue.trim()) {
-    const def = PREDEFINED_PRODUCT_TYPES[0];
+  const norm = normalizeProductType(typeValue);
+
+  if (norm.isPredefined) {
+    const matched = PREDEFINED_PRODUCT_TYPES.find((pt) => pt.value === norm.canonicalType);
     return {
       isCustom: false,
-      displayLabel: def.label,
-      typeValue: def.value,
-      badgeLabel: def.value,
-    };
-  }
-
-  const trimmed = typeValue.trim();
-  const upper = trimmed.toUpperCase();
-  const matched = PREDEFINED_PRODUCT_TYPES.find((pt) => pt.value === upper);
-
-  if (matched) {
-    return {
-      isCustom: false,
-      displayLabel: matched.label,
-      typeValue: matched.value,
-      badgeLabel: matched.value,
+      displayLabel: matched ? matched.label : norm.canonicalType,
+      typeValue: norm.canonicalType,
+      badgeLabel: norm.canonicalType,
     };
   }
 
   return {
     isCustom: true,
-    displayLabel: `Custom: ${trimmed}`,
+    displayLabel: norm.canonicalType,
     typeValue: 'CUSTOM',
-    customValue: trimmed,
-    badgeLabel: `Custom (${trimmed})`,
+    customValue: norm.canonicalType,
+    badgeLabel: norm.canonicalType,
   };
 }
 
 /**
  * Extracts distinct reusable custom types from an array of products.
+ * Ignores predefined types and recognized legacy aliases.
  */
 export function extractDistinctCustomProductTypes(
   products: Array<{ productType?: string | null }>
@@ -222,10 +352,9 @@ export function extractDistinctCustomProductTypes(
   const customSet = new Set<string>();
   for (const p of products) {
     if (!p.productType) continue;
-    const trimmed = p.productType.trim();
-    if (!trimmed) continue;
-    if (!PREDEFINED_TYPE_VALUES.has(trimmed.toUpperCase())) {
-      customSet.add(trimmed);
+    const norm = normalizeProductType(p.productType);
+    if (norm.isCustom && norm.canonicalType) {
+      customSet.add(norm.canonicalType);
     }
   }
   return Array.from(customSet).sort((a, b) => a.localeCompare(b));
@@ -246,14 +375,15 @@ export interface GovernanceIndependenceAudit {
  */
 export function assertProductTypeGovernanceIndependence(
   product: Partial<Product>,
-  commercialProductType: string
+  commercialProductType?: string
 ): GovernanceIndependenceAudit {
   const violations: string[] = [];
+  const typeToCheck = (commercialProductType || product.productType || 'POWDER').trim();
 
   // 1. Check if commercialProductType is claimed to be a botanical entity
   for (const entity of Object.values(BOTANICAL_SEARCH_ENTITIES)) {
-    if (commercialProductType.toLowerCase() === entity.id.toLowerCase()) {
-      violations.push(`Commercial Product Type "${commercialProductType}" directly mimics entity ID "${entity.id}".`);
+    if (typeToCheck.toLowerCase() === entity.id.toLowerCase()) {
+      violations.push(`Commercial Product Type "${typeToCheck}" directly mimics entity ID "${entity.id}".`);
     }
   }
 
