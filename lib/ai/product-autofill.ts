@@ -1,4 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
+import { ProductAutoFillDraft as EngineDraft, deriveProductAutoFill } from '@/lib/growth/product-autofill-engine';
+
+export type ProductAutoFillDraft = EngineDraft;
 
 export interface ProductAutoFillInput {
   productName: string;
@@ -8,24 +11,6 @@ export interface ProductAutoFillInput {
   quantityOrWeight?: string;
   hints?: string;
   existingCategories?: { id: string; name: string }[];
-}
-
-export interface ProductAutoFillDraft {
-  suggestedCategoryName: string;
-  suggestedCategoryId?: string;
-  productType: string;
-  shortDescription: string;
-  fullDescription: string;
-  benefits: string[];
-  ingredients: string[];
-  usageInstructions: string;
-  faqs: { question: string; answer: string }[];
-  seoTitle: string;
-  seoDescription: string;
-  keywords: string[];
-  tags: string[];
-  slug: string;
-  quantityOrWeight: string;
 }
 
 /**
@@ -72,243 +57,16 @@ function createSlug(text: string): string {
 }
 
 /**
- * Intelligent Grounded Fallback Generator (for offline, testing, or API key missing)
+ * Intelligent Grounded Fallback Generator (delegated to canonical product-autofill-engine)
  */
 export function generateGroundedFallbackDraft(input: ProductAutoFillInput): ProductAutoFillDraft {
-  const name = input.productName.trim();
-  const lowerName = name.toLowerCase();
-
-  let categoryName = input.categoryName || 'Hair Care';
-  let productType: string = input.productType || 'POWDER';
-  let weight = input.quantityOrWeight || '250g Pack';
-  let ingredients: string[] = [];
-  let benefits: string[] = [];
-  let usage = '';
-
-  if (lowerName.includes('cone') || (lowerName.includes('bridal') && (lowerName.includes('mehendi') || lowerName.includes('mehndi') || lowerName.includes('henna')))) {
-    categoryName = input.categoryName || 'Henna Care';
-    productType = input.productType || 'FINISHED';
-    weight = input.quantityOrWeight || 'Pack of 12 Cones';
-    ingredients = [
-      '100% Pure Sojat Henna Powder (Lawsonia Inermis)',
-      'Eucalyptus Essential Oil',
-      'Clove Bud Essential Oil',
-      'Tea Tree Essential Oil',
-      'Natural Cane Sugar',
-      'Purified Water',
-    ];
-    benefits = [
-      'Ready-to-use smooth flowing paste crafted for intricate bridal body art designs',
-      'Infused with pure therapeutic essential oils for dark, rich, long-lasting stain development',
-      'Clinically smooth pin-hole nozzle ensuring precise line work and zero clogging',
-      '100% natural herbal paste free from toxic chemical dyes or synthetic stain accelerators',
-    ];
-    usage = 'Clean and dry skin thoroughly before application. Snip the cone tip to desired thickness. Apply intricate patterns on palms and feet. Allow paste to dry for 30-45 minutes. Keep paste on skin for 4 to 8 hours, then gently scrape off without water for 24 hours to maximize deep stain oxidation.';
-  } else if (lowerName.includes('henna') || lowerName.includes('mehendi') || lowerName.includes('mehndi')) {
-    categoryName = input.categoryName || 'Henna Care';
-    productType = input.productType || (lowerName.includes('leaf') || lowerName.includes('leaves') ? 'RAW' : 'POWDER');
-    ingredients = ['100% Pure Lawsonia Inermis (Natural Sojat Henna) Leaf Powder'];
-    benefits = [
-      'Authentic Sojat origin Lawsonia Inermis with rich natural Lawsone pigment',
-      'Ultra-fine sifted powder ensuring effortless mixing and smooth application',
-      'Guaranteed 100% pure with zero added chemicals, metallic salts, or PPD',
-      'Acts as a natural cooling conditioner, strengthening hair roots and imparting rich color',
-    ];
-    usage = 'In a non-metallic bowl, mix henna powder with warm water or black tea brew into a creamy consistency. Cover and allow dye release for 4-6 hours. Apply section by section on clean dry hair. Leave for 2 to 3 hours, then rinse gently with lukewarm water.';
-  } else if (lowerName.includes('indigo')) {
-    categoryName = input.categoryName || 'Hair Care';
-    productType = input.productType || 'POWDER';
-    ingredients = ['100% Pure Indigofera Tinctoria (Natural Indigo) Leaf Powder'];
-    benefits = [
-      'Pure organic Indigo leaves harvested and processed for rich blue-black natural coloration',
-      'Perfect 2-step natural hair coloring partner with pure Sojat henna for rich brown to jet black shades',
-      'Completely free from hydrogen peroxide, PPD, resorcinol, and synthetic dyes',
-      'Conditions hair cuticles and provides lasting shine without damaging hair texture',
-    ];
-    usage = 'Mix fresh indigo powder with lukewarm water and a pinch of salt. Apply immediately onto freshly henna-treated hair. Keep on hair for 1.5 to 2 hours, then rinse with water only without shampoo for 48 hours to allow natural oxidation.';
-  } else if (lowerName.includes('amla') || lowerName.includes('gooseberry') || lowerName.includes('emblica')) {
-    categoryName = input.categoryName || 'Hair Care';
-    productType = input.productType || 'POWDER';
-    ingredients = ['100% Pure Phyllanthus Emblica (Organic Amla / Indian Gooseberry) Fruit Pulp Powder'];
-    benefits = [
-      'Naturally rich in Vitamin C, antioxidants, and essential botanical phytonutrients',
-      'Helps strengthen hair roots, reduce premature graying, and curb excess hair fall',
-      'Restores natural scalp pH balance and boosts hair volume with brilliant luster',
-      '100% pure sun-dried amla fruit pulp powder free from artificial colors or fillers',
-    ];
-    usage = 'Mix 2 tablespoons of Amla powder with warm water, aloe vera gel, or coconut oil to create a nourishing scalp mask. Massage gently into scalp and hair strands. Leave for 30-45 minutes before rinsing with a mild herbal cleanser.';
-  } else if (lowerName.includes('rose') || lowerName.includes('water') || lowerName.includes('gulab') || lowerName.includes('toner')) {
-    categoryName = input.categoryName || 'Face Care';
-    productType = input.productType || 'FINISHED';
-    weight = input.quantityOrWeight || '200ml Bottle';
-    ingredients = ['100% Pure Hydro-Distilled Rosa Damascena (Damask Rose) Floral Water'];
-    benefits = [
-      'Traditional steam-distilled pure Damask Rose water capturing natural essential oils',
-      'Instant hydrating skin toner and natural pH balancer for all skin types',
-      'Calms skin redness, refines facial pores, and provides an uplifting natural rose aroma',
-      'No added synthetic fragrances, alcohol, or parabens',
-    ];
-    usage = 'Spritz directly onto clean face and neck as a refreshing daily toner or hydrating mist. Can also be used to mix herbal face packs and henna paste for an enhanced soothing experience.';
-  } else if (lowerName.includes('shikakai')) {
-    categoryName = input.categoryName || 'Hair Care';
-    productType = input.productType || 'POWDER';
-    ingredients = ['100% Pure Acacia Concinna (Organic Shikakai) Fruit & Bark Powder'];
-    benefits = [
-      'Natural plant saponin cleanser that washes hair gently without stripping essential scalp moisture',
-      'Detangles hair strands, controls dandruff, and promotes silky bounce and texture',
-      'Low pH natural herbal cleanser that preserves natural cuticle integrity',
-      'Zero synthetic detergents, sulfates, silicones, or chemical preservatives',
-    ];
-    usage = 'Mix 2-3 tablespoons with warm water into a thin runny paste. Massage onto wet scalp for 3-5 minutes until mild natural lather develops, then rinse thoroughly with clean water.';
-  } else if (lowerName.includes('reetha') || lowerName.includes('soapnut') || lowerName.includes('aritha')) {
-    categoryName = input.categoryName || 'Hair Care';
-    productType = input.productType || 'POWDER';
-    ingredients = ['100% Pure Sapindus Mukorossi (Organic Reetha / Soapnut) Shell Powder'];
-    benefits = [
-      'Rich in natural botanical saponins for gentle, foam-rich herbal scalp and hair cleansing',
-      'Eliminates scalp grease, dirt, and environmental pollutants naturally',
-      'Adds lustrous body, softness, and volume to oily or limp hair',
-      '100% biodegradable and hypoallergenic pure herbal cleansing remedy',
-    ];
-    usage = 'Combine with warm water (or mix with Shikakai and Amla) to create a gentle cleansing tea or paste. Apply to damp scalp, massage gently, and rinse thoroughly with water.';
-  } else if (lowerName.includes('bhringraj')) {
-    categoryName = input.categoryName || 'Hair Care';
-    productType = input.productType || 'POWDER';
-    ingredients = ['100% Pure Eclipta Alba (Organic Bhringraj / False Daisy) Leaf Powder'];
-    benefits = [
-      'Known in Ayurveda as the "King of Hair" for promoting follicle vitality and scalp health',
-      'Helps nourish hair roots, manage premature graying, and soothe irritated scalp',
-      'Deeply conditions hair shafts, making hair softer, thicker, and more resilient',
-      '100% pure shade-dried Bhringraj leaves with zero additives or fillers',
-    ];
-    usage = 'Mix with coconut oil, sesame oil, or warm water into a smooth paste. Massage thoroughly into scalp roots. Leave on for 45-60 minutes before washing with a gentle herbal cleanser.';
-  } else if (lowerName.includes('neem')) {
-    categoryName = input.categoryName || 'Face Care';
-    productType = input.productType || 'POWDER';
-    ingredients = ['100% Pure Azadirachta Indica (Organic Neem) Leaf Powder'];
-    benefits = [
-      'Potent natural antibacterial and antifungal properties for clarifying troubled skin and scalp',
-      'Helps purify pores, control excess sebum, and soothe active breakouts and blemishes',
-      'Relieves scalp itchiness and helps maintain clean, dandruff-free roots',
-      'Pure shade-dried mature neem leaves without fillers or synthetic additives',
-    ];
-    usage = 'Mix 1 tablespoon with rose water or plain water to form a smooth paste. Apply evenly to face (avoiding eyes) or scalp. Leave for 15-20 minutes, then rinse gently with lukewarm water.';
-  } else if (lowerName.includes('hibiscus') || lowerName.includes('gudhal')) {
-    categoryName = input.categoryName || 'Hair Care';
-    productType = input.productType || 'POWDER';
-    ingredients = ['100% Pure Hibiscus Rosa-Sinensis (Organic Hibiscus Flower & Leaf) Powder'];
-    benefits = [
-      'Rich in natural amino acids, mucilage, and alpha-hydroxy acids for intense hair hydration',
-      'Improves hair elasticity, prevents split ends, and leaves hair silky smooth',
-      'Enhances natural red highlights and adds deep lustrous shine to hair',
-      '100% pure sun-dried hibiscus petals and leaves with zero artificial colorants',
-    ];
-    usage = 'Blend with coconut milk or warm water into a rich mask. Apply from roots to tips. Leave for 30-40 minutes and rinse thoroughly with water.';
-  } else if (lowerName.includes('brahmi')) {
-    categoryName = input.categoryName || 'Hair Care';
-    productType = input.productType || 'POWDER';
-    ingredients = ['100% Pure Bacopa Monnieri (Organic Brahmi) Whole Plant Powder'];
-    benefits = [
-      'Traditional Ayurvedic rejuvenator that calms the scalp and strengthens hair roots',
-      'Forms a protective natural layer around hair fibers, reducing split ends and breakage',
-      'Nourishes dry, stressed hair follicles and boosts overall hair density',
-      '100% pure organic Brahmi with zero chemical processing',
-    ];
-    usage = 'Mix with warm water, amla, or yogurt into a conditioning mask. Apply to scalp and hair, leave for 30-45 minutes, then rinse with lukewarm water.';
-  } else if (lowerName.includes('multani') || lowerName.includes('clay') || lowerName.includes('earth')) {
-    categoryName = input.categoryName || 'Face Care';
-    productType = input.productType || 'POWDER';
-    ingredients = ['100% Pure Natural Calcium Bentonite (Fuller\'s Earth / Multani Mitti) Clay'];
-    benefits = [
-      'Deeply cleanses facial pores by drawing out excess sebum, dirt, and impurities',
-      'Imparts a natural cooling sensation, refining skin texture and toning enlarged pores',
-      'Soothes sun-exposed skin and helps reduce acne-causing blemishes',
-      '100% natural sun-cured volcanic clay free from artificial bleaching agents',
-    ];
-    usage = 'Mix 1-2 tablespoons with pure Musky Dose Rose Water into a creamy paste. Apply evenly to face and neck. Allow to dry for 10-15 minutes, then wash gently with lukewarm water.';
-  } else if (lowerName.includes('oil')) {
-    categoryName = input.categoryName || 'Hair Care';
-    productType = input.productType || 'FINISHED';
-    weight = input.quantityOrWeight || '100ml Bottle';
-    ingredients = [`100% Pure Cold-Pressed ${name} Herbal Infusion`];
-    benefits = [
-      'Cold-pressed botanical infusion delivering intensive root and scalp nourishment',
-      'Lightweight, non-sticky formula that penetrates deep into hair follicles',
-      'Helps tame frizz, prevent moisture loss, and impart radiant healthy shine',
-      'Free from mineral oils, silicones, synthetic fragrances, and artificial preservatives',
-    ];
-    usage = 'Dispense a few drops into palms, rub hands together, and massage gently into scalp and hair strands. Leave on overnight or for at least 1 hour before washing.';
-  } else {
-    // Neutral Generic Botanical Powder or Product
-    categoryName = input.categoryName || 'Hair Care';
-    productType = input.productType || 'POWDER';
-    ingredients = [`100% Pure Natural ${name} (Botanical Formulation)`];
-    benefits = [
-      `Authentic pure botanical formulation crafted from premium natural herbs`,
-      `Gently nourishes and revitalizes with traditional Ayurvedic herbal nutrients`,
-      `Ultra-fine sifted for a smooth, lump-free consistency`,
-      `100% chemical-free with zero added artificial colors, fragrances, or preservatives`,
-    ];
-    usage = `Mix required quantity of ${name} with warm water or suitable natural liquid into a smooth paste. Apply evenly to desired area, allow to absorb for 20 to 30 minutes, then rinse thoroughly with plain water.`;
-  }
-
-  // Match categoryId from existing categories
-  let categoryId = input.categoryId;
-  if (!categoryId && input.existingCategories && input.existingCategories.length > 0) {
-    const matched = input.existingCategories.find(
-      (c) => c.name.toLowerCase().includes(categoryName.toLowerCase()) || categoryName.toLowerCase().includes(c.name.toLowerCase())
-    );
-    categoryId = matched?.id || input.existingCategories[0]?.id;
-    if (matched) categoryName = matched.name;
-  }
-
-  const shortDesc = `${name} — 100% pure, authentic natural botanical formulation by Musky Dose. Completely chemical-free, preservative-free, and crafted with uncompromising purity.`;
-  const fullDesc = `${name} by Musky Dose represents the highest standard of traditional Ayurvedic herbal care. Sourced with utmost integrity, our botanicals are harvested at peak maturity and gently processed to preserve their natural phytochemical potency.\n\nWhether used as a standalone revitalizing treatment or blended into customized beauty recipes, this authentic formulation delivers pure, wholesome nourishment with guaranteed purity and zero synthetic additives.`;
-
-  const slug = createSlug(name);
-  const seoTitle = `${name} | 100% Pure Natural — Musky Dose`;
-  const seoDesc = `Buy authentic ${name} direct from Musky Dose. 100% pure, natural chemical-free botanical care. Order online or via WhatsApp.`;
-
-  const keywords = [
-    name.toLowerCase(),
-    `pure ${name.toLowerCase()}`,
-    `natural ${name.toLowerCase()}`,
-    `organic ${name.toLowerCase()}`,
-    'musky dose botanical care',
-  ];
-
-  const faqs = [
-    {
-      question: `Is Musky Dose ${name} 100% natural and free of chemicals?`,
-      answer: `Yes, our ${name} is 100% pure and completely free from PPD, ammonia, metallic salts, artificial fragrances, and chemical preservatives.`,
-    },
-    {
-      question: `How should I store ${name} for best shelf life?`,
-      answer: 'Store in an airtight container in a cool, dry, and dark place away from direct sunlight and moisture.',
-    },
-    {
-      question: 'Where is this product sourced and manufactured?',
-      answer: 'This product is cultivated, processed, and packaged at our dedicated facility in Sojat City, Pali District, Rajasthan, India.',
-    },
-  ];
-
-  return {
-    suggestedCategoryName: categoryName,
-    suggestedCategoryId: categoryId,
-    productType,
-    shortDescription: shortDesc,
-    fullDescription: fullDesc,
-    benefits,
-    ingredients,
-    usageInstructions: usage,
-    faqs,
-    seoTitle,
-    seoDescription: seoDesc,
-    keywords,
-    tags: keywords.slice(0, 5),
-    slug,
-    quantityOrWeight: weight,
-  };
+  return deriveProductAutoFill({
+    productName: input.productName,
+    categoryId: input.categoryId,
+    categoryName: input.categoryName,
+    productType: input.productType,
+    quantityOrWeight: input.quantityOrWeight,
+  });
 }
 
 /**
@@ -400,6 +158,7 @@ function sanitizeAndValidateDraft(
   const productType = parsed.productType || input.productType || fallback.productType;
 
   return {
+    ...fallback,
     suggestedCategoryName: categoryName,
     suggestedCategoryId: categoryId,
     productType,

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Product, Category } from '@/lib/types';
-import { ProductAutoFillDraft } from '@/lib/ai/product-autofill';
+import { ProductAutoFillDraft } from '@/lib/growth/product-autofill-engine';
 import {
   Sparkles,
   RefreshCw,

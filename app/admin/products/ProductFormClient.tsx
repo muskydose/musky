@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { Product, Category, ProductVariant, BulkPricingRule } from '@/lib/types';
 import MediaSelectModal from '@/components/MediaSelectModal';
 import ProductAutoFillModal from '@/components/admin/products/ProductAutoFillModal';
-import { ProductAutoFillDraft } from '@/lib/ai/product-autofill';
+import { ProductAutoFillDraft } from '@/lib/growth/product-autofill-engine';
 import { uploadMediaFile } from '@/lib/media-upload';
 import { deriveProductAutoSeo } from '@/lib/growth/product-keyword-engine';
 import { validateProductVariants, formatVariantWeight } from '@/lib/product-variants';
@@ -30,6 +30,7 @@ import {
   getProductTypeUnitRule,
   suggestNextVariant,
   UNIT_DISPLAY_LABELS,
+  validateCatalogVariants,
 } from '@/lib/growth/product-catalog-governance';
 import {
   Save,
@@ -172,27 +173,25 @@ export default function ProductFormClient({
     id: initialProduct?.id,
     name: initialProduct?.name || '',
     slug: initialProduct?.slug || '',
-    categoryId: initialProduct?.categoryId || (categories[0]?.id || 'cat-1'),
-    categoryName: initialProduct?.categoryName || (categories[0]?.name || 'Henna'),
+    categoryId: initialProduct?.categoryId || (categories[0]?.id || ''),
+    categoryName: initialProduct?.categoryName || (categories[0]?.name || ''),
     shortDescription: initialProduct?.shortDescription || '',
     fullDescription: initialProduct?.fullDescription || '',
-    price: initialProduct?.price || 199,
-    compareAtPrice: initialProduct?.compareAtPrice || 299,
-    quantityOrWeight: initialProduct?.quantityOrWeight || '250g Pack',
-    sku: initialProduct?.sku || 'MD-888',
+    price: initialProduct?.price ?? 0,
+    compareAtPrice: initialProduct?.compareAtPrice ?? 0,
+    quantityOrWeight: initialProduct?.quantityOrWeight || '',
+    sku: initialProduct?.sku || '',
     images: (initialProduct?.images || []).filter(
       (img): img is string => typeof img === 'string' && Boolean(img.trim()) && !img.includes('fallback.svg')
     ),
-    ingredients: initialProduct?.ingredients || ['100% Pure Natural Lawsonia Inermis Leaf Powder'],
-    benefits: initialProduct?.benefits || ['Deep rich mahogany stain', 'Chemical-free natural hair coolant'],
-    usageInstructions:
-      initialProduct?.usageInstructions ||
-      'Mix with warm water into smooth paste. Soak for 6 hours before application.',
+    ingredients: initialProduct?.ingredients || [],
+    benefits: initialProduct?.benefits || [],
+    usageInstructions: initialProduct?.usageInstructions || '',
     stockStatus: initialProduct?.stockStatus || 'in_stock',
     isFeatured: initialProduct?.isFeatured ?? false,
     isActive: initialProduct?.isActive ?? false,
     sortOrder: initialProduct?.sortOrder ?? 1,
-    productType: initialProduct?.productType || 'POWDER',
+    productType: initialProduct?.productType || '',
     seoTitle: initialProduct?.seoTitle || '',
     seoDescription: initialProduct?.seoDescription || '',
     seoKeywords: initialProduct?.seoKeywords || [],
@@ -825,9 +824,9 @@ export default function ProductFormClient({
       return;
     }
 
-    // Phase 3B: Validate retail variants via canonical validateProductVariants
+    // Phase 3B: Validate retail variants via canonical validateCatalogVariants
     if (productVariants.length > 0) {
-      const variantCheck = validateProductVariants(productVariants);
+      const variantCheck = validateCatalogVariants(productVariants, formData.productType);
       if (!variantCheck.valid) {
         setError(`Variant validation error: ${variantCheck.errors.join(' | ')}`);
         setActiveTab('pricing');
@@ -1360,6 +1359,7 @@ export default function ProductFormClient({
                   }}
                   className="w-full min-h-[44px] p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
                 >
+                  <option value="">Select Commercial Product Type...</option>
                   <optgroup label="Predefined Commercial Types">
                     {PREDEFINED_PRODUCT_TYPES.map((t) => (
                       <option key={t.value} value={t.value}>

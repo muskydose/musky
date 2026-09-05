@@ -8,6 +8,8 @@ import { pruneProductReferencesFromSettings } from './settings';
 import { revalidateCatalogSurfaces } from '@/lib/revalidation';
 import { INITIAL_PRODUCTS } from '@/lib/data-store';
 import { syncProductKeywordUniverse, onProductDeletedLifecycle } from '@/lib/growth/product-keyword-engine';
+import { validateCatalogVariants, getProductTypeUnitRule } from '@/lib/growth/product-catalog-governance';
+import { validateProductTypeClassification } from '@/lib/growth/product-type-governance';
 import { validateProductVariants } from '@/lib/product-variants';
 
 function requireSupabaseAdmin(): SupabaseClient {
@@ -486,6 +488,25 @@ export async function saveProduct(product: Partial<Product>): Promise<Product> {
 
   const productId = product.id || `prod-${Date.now()}`;
   const allProducts = await getAllProductsAdmin();
+  const existingProduct = isNew ? null : allProducts.find((p) => p.id === productId);
+
+  // Validate productType classification if provided
+  if (product.productType && product.productType.trim()) {
+    const typeValidation = validateProductTypeClassification(product.productType);
+    if (!typeValidation.valid) {
+      throw new Error(`Invalid product type "${product.productType}": ${typeValidation.error || 'Invalid classification'}`);
+    }
+  }
+
+  // Validate variants with centralized catalog governance
+  let validatedVariants: Product['variants'] = [];
+  if (Array.isArray(product.variants) && product.variants.length > 0) {
+    const variantCheck = validateCatalogVariants(product.variants, product.productType);
+    if (!variantCheck.valid) {
+      throw new Error(`Variant validation failed: ${variantCheck.errors.join(' | ')}`);
+    }
+    validatedVariants = variantCheck.sanitizedVariants;
+  }
 
   // Validate duplicate SKU if provided
   if (product.sku && product.sku.trim()) {
@@ -516,7 +537,7 @@ export async function saveProduct(product: Partial<Product>): Promise<Product> {
 
   // Category matching
   const categories = await getCategories();
-  let categoryId = product.categoryId || 'cat-1';
+  let categoryId = product.categoryId || '';
   let categoryName = product.categoryName;
 
   if (product.categoryId) {
@@ -533,6 +554,31 @@ export async function saveProduct(product: Partial<Product>): Promise<Product> {
     }
   }
 
+  if (!categoryId && categories.length > 0) {
+    categoryId = categories[0].id;
+    categoryName = categoryName || categories[0].name;
+  } else if (!categoryId) {
+    categoryId = 'uncategorized';
+    categoryName = categoryName || 'Uncategorized';
+  }
+
+  // Contextual quantityOrWeight resolution
+  let resolvedWeight = product.quantityOrWeight ? product.quantityOrWeight.trim() : '';
+  if (!resolvedWeight) {
+    if (validatedVariants && validatedVariants.length > 0) {
+      const defVariant = validatedVariants.find((v) => v.isDefault && v.isActive !== false) || validatedVariants[0];
+      if (defVariant?.weight) {
+        resolvedWeight = defVariant.weight;
+      }
+    }
+    if (!resolvedWeight && product.productType) {
+      const unitRule = getProductTypeUnitRule(product.productType);
+      if (unitRule.allowedUnits && unitRule.allowedUnits.length > 0) {
+        resolvedWeight = `1 ${unitRule.allowedUnits[0]}`;
+      }
+    }
+  }
+
   // Resolve active status safely
   const requestedIsActive = product.isActive !== undefined ? Boolean(product.isActive) : true;
 
@@ -541,7 +587,7 @@ export async function saveProduct(product: Partial<Product>): Promise<Product> {
     name: (product.name || 'Untitled Botanical Product').trim(),
     slug: cleanSlug,
     categoryId,
-    categoryName: categoryName || 'Henna & Mehndi Powder',
+    categoryName: categoryName || 'Uncategorized',
     shortDescription: product.shortDescription ? product.shortDescription.trim() : '',
     fullDescription: product.fullDescription ? product.fullDescription.trim() : '',
     price: priceNum,
@@ -549,12 +595,10 @@ export async function saveProduct(product: Partial<Product>): Promise<Product> {
       product.compareAtPrice !== undefined && product.compareAtPrice !== null
         ? Number(product.compareAtPrice)
         : undefined,
-    quantityOrWeight: product.quantityOrWeight ? product.quantityOrWeight.trim() : '250g',
+    quantityOrWeight: resolvedWeight,
     sku: product.sku ? product.sku.trim() : `MD-${Date.now().toString().slice(-4)}`,
     images: sanitizeImageUrls(product.images),
-    variants: Array.isArray(product.variants)
-      ? validateProductVariants(product.variants).normalized
-      : [],
+    variants: validatedVariants,
     ingredients: product.ingredients || [],
     benefits: product.benefits || [],
     usageInstructions: product.usageInstructions ? product.usageInstructions.trim() : '',
@@ -600,7 +644,15 @@ export async function saveProduct(product: Partial<Product>): Promise<Product> {
     : fullProduct;
 
   // Background Autonomous Keyword Universe synchronization (fast, non-blocking)
-  syncProductKeywordUniverse(savedProduct).catch((kwErr) => {
+  // Force refresh cache if product transitioned from NEEDS_REVIEW to AUTO/MANUAL
+  const oldReviewStatus = existingProduct?.intelligence?.status;
+  const newReviewStatus = product.intelligence?.status;
+  const transitionedFromReview =
+    oldReviewStatus === 'NEEDS_REVIEW' &&
+    newReviewStatus &&
+    newReviewStatus !== 'NEEDS_REVIEW';
+
+  syncProductKeywordUniverse(savedProduct, transitionedFromReview).catch((kwErr) => {
     console.warn(`[saveProduct] Background keyword universe sync notice for ${savedProduct.id}:`, kwErr?.message);
   });
 

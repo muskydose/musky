@@ -590,12 +590,26 @@ export function generateProductKeywordUniverse(
 const universeCache = new Map<string, ProductKeywordUniverse>();
 
 /**
+ * Invalidate cached keyword universe for a specific product ID
+ */
+export function invalidateProductKeywordUniverse(productId: string): void {
+  universeCache.delete(productId);
+}
+
+/**
  * Fetches or generates keyword universe for a single product
  */
-export async function getProductKeywordUniverse(product: Product): Promise<ProductKeywordUniverse> {
-  const cached = universeCache.get(product.id);
-  if (cached && (Date.now() - new Date(cached.lastGeneratedAt).getTime()) < 300000) {
-    return cached;
+export async function getProductKeywordUniverse(
+  product: Product,
+  forceRefresh: boolean = false
+): Promise<ProductKeywordUniverse> {
+  if (forceRefresh) {
+    universeCache.delete(product.id);
+  } else {
+    const cached = universeCache.get(product.id);
+    if (cached && (Date.now() - new Date(cached.lastGeneratedAt).getTime()) < 300000) {
+      return cached;
+    }
   }
 
   let verifiedKeywords: GrowthKeyword[] = [];
@@ -614,8 +628,11 @@ export async function getProductKeywordUniverse(product: Product): Promise<Produ
  * Background / Deferred synchronization hook for product lifecycle
  * Automatically syncs generated keywords and connects verified demand
  */
-export async function syncProductKeywordUniverse(product: Product): Promise<ProductKeywordUniverse> {
-  const universe = await getProductKeywordUniverse(product);
+export async function syncProductKeywordUniverse(
+  product: Product,
+  forceRefresh: boolean = false
+): Promise<ProductKeywordUniverse> {
+  const universe = await getProductKeywordUniverse(product, forceRefresh);
   const supabase = getSupabaseAdmin();
 
   if (supabase) {
@@ -806,7 +823,7 @@ export function deriveProductAutoSeo(product: Partial<Product>): AutoSeoResult {
     }
     longTailSet.add(`authentic ${botanical.rootNames[0]} powder direct from sojat rajasthan`);
   } else {
-    longTailSet.add(`100 pure natural ${cleanBaseName.toLowerCase()} from rajasthan`);
+    longTailSet.add(`100 pure natural ${cleanBaseName.toLowerCase()}`);
     longTailSet.add(`chemical free single ingredient ${cleanBaseName.toLowerCase()}`);
   }
   const longTailKeywords = Array.from(longTailSet).slice(0, 4);
@@ -814,7 +831,7 @@ export function deriveProductAutoSeo(product: Partial<Product>): AutoSeoResult {
   // 6. Semantic Terms
   const semanticTerms = botanical
     ? [...botanical.semanticThemes, ...botanical.scientificName, ...botanical.originRegions]
-    : ['pure botanical', 'single origin rajasthan', 'chemical free herbal care'];
+    : ['pure botanical', 'natural formulation', 'chemical free herbal care'];
 
   // 7. Deterministic SEO Title Generation (<= 60 chars, no duplicate brand suffix)
   let seoTitle = product.seoTitle?.trim() || '';
@@ -828,14 +845,14 @@ export function deriveProductAutoSeo(product: Partial<Product>): AutoSeoResult {
     } else if (detectedScope === 'BODY_ART') {
       seoTitle = `${name} — Mehndi & Body Art Use`;
     } else {
-      seoTitle = `${name} — Pure Botanical Care from Sojat`;
+      seoTitle = `${name} — Pure Natural Botanical Care`;
     }
     // Truncate to 60 chars cleanly if needed
     if (seoTitle.length > 60) {
       seoTitle = seoTitle.slice(0, 57).replace(/\s+[^\s]*$/, '') + '...';
     }
   } else {
-    seoTitle = 'Botanical Care Product from Sojat';
+    seoTitle = 'Natural Botanical Care Product';
   }
 
   // 8. Deterministic Meta Description Generation (140-155 chars)
@@ -859,7 +876,7 @@ export function deriveProductAutoSeo(product: Partial<Product>): AutoSeoResult {
         metaDescription = `100% pure botanical ${botanical.rootNames[0]} harvested in ${origin}. Chemical-free natural herbal powder for traditional Ayurvedic care.`;
       }
     } else {
-      metaDescription = `100% natural ${name || 'botanical powder'} harvested in Sojat, Rajasthan. Pure, unadulterated herbal formulation with zero synthetic additives.`;
+      metaDescription = `100% natural ${name || 'botanical product'} by Musky Dose. Pure, unadulterated botanical formulation with zero synthetic additives.`;
     }
   }
 

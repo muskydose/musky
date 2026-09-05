@@ -220,6 +220,11 @@ export function resolveEntityFromQuery(rawQuery: string): SearchEntity | null {
   return null;
 }
 
+function matchesAlias(text: string, alias: string): boolean {
+  const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`\\b${escaped}\\b`, 'i').test(text);
+}
+
 /**
  * Detects which canonical entity a product belongs to.
  * Prioritizes product name and slug for primary classification.
@@ -230,7 +235,7 @@ export function detectProductEntity(product: Partial<Product>): SearchEntity | n
 
   // 1. Check primary product name & slug first
   for (const entity of Object.values(BOTANICAL_SEARCH_ENTITIES)) {
-    if (entity.aliases.some((a) => nameSlug.includes(a))) {
+    if (entity.aliases.some((a) => matchesAlias(nameSlug, a))) {
       return entity;
     }
   }
@@ -243,7 +248,7 @@ export function detectProductEntity(product: Partial<Product>): SearchEntity | n
   ].join(' ').toLowerCase();
 
   for (const entity of Object.values(BOTANICAL_SEARCH_ENTITIES)) {
-    if (entity.aliases.some((a) => secondary.includes(a))) {
+    if (entity.aliases.some((a) => matchesAlias(secondary, a))) {
       return entity;
     }
   }
