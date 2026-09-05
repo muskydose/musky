@@ -86,9 +86,7 @@ export function mapRowToProduct(row: any): Product {
         : undefined,
     quantityOrWeight: row.quantity || row.quantityOrWeight || '250g',
     sku: row.sku || '',
-    images: sanitizeImageUrls(
-      imagesArr.length > 0 ? imagesArr : ['/images/fallback.svg']
-    ),
+    images: sanitizeImageUrls(imagesArr),
     variants: validatedVariants,
     ingredients: ingredientsArr,
     benefits: benefitsArr,
@@ -461,10 +459,7 @@ export async function saveProduct(product: Partial<Product>): Promise<Product> {
         : undefined,
     quantityOrWeight: product.quantityOrWeight ? product.quantityOrWeight.trim() : '250g',
     sku: product.sku ? product.sku.trim() : `MD-${Date.now().toString().slice(-4)}`,
-    images:
-      product.images && product.images.length > 0
-        ? product.images
-        : ['/images/fallback.svg'],
+    images: sanitizeImageUrls(product.images),
     variants: Array.isArray(product.variants)
       ? validateProductVariants(product.variants).normalized
       : [],

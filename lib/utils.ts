@@ -33,16 +33,16 @@ export function sanitizeImageUrl(url?: string | null, fallback = '/images/fallba
   return trimmed;
 }
 
-export function sanitizeImageUrls(urls?: (string | null | undefined)[], fallback = '/images/fallback.svg'): string[] {
+export function sanitizeImageUrls(urls?: (string | null | undefined)[], fallback = ''): string[] {
   if (!urls || !Array.isArray(urls) || urls.length === 0) {
-    return [fallback];
+    return fallback ? [fallback] : [];
   }
   const sanitized = urls
     .map((u) => sanitizeImageUrl(u, fallback))
-    .filter((u) => Boolean(u));
+    .filter((u) => Boolean(u) && (fallback ? true : !u.includes('fallback.svg')));
 
   if (sanitized.length === 0) {
-    return [fallback];
+    return fallback ? [fallback] : [];
   }
   return sanitized;
 }

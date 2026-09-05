@@ -180,9 +180,9 @@ export default function ProductFormClient({
     compareAtPrice: initialProduct?.compareAtPrice || 299,
     quantityOrWeight: initialProduct?.quantityOrWeight || '250g Pack',
     sku: initialProduct?.sku || 'MD-888',
-    images: initialProduct?.images || [
-      '/images/fallback.svg',
-    ],
+    images: (initialProduct?.images || []).filter(
+      (img): img is string => typeof img === 'string' && Boolean(img.trim()) && !img.includes('fallback.svg')
+    ),
     ingredients: initialProduct?.ingredients || ['100% Pure Natural Lawsonia Inermis Leaf Powder'],
     benefits: initialProduct?.benefits || ['Deep rich mahogany stain', 'Chemical-free natural hair coolant'],
     usageInstructions:
@@ -472,10 +472,11 @@ export default function ProductFormClient({
   };
 
   const handleSelectFromMediaLibrary = (url: string) => {
+    if (!url || url.includes('fallback.svg')) return;
     setIsDirty(true);
     setFormData((prev) => ({
       ...prev,
-      images: [...(prev.images || []), url],
+      images: [...(prev.images || []).filter((img) => !img.includes('fallback.svg')), url],
     }));
   };
 
@@ -663,6 +664,10 @@ export default function ProductFormClient({
 
   const handleAddImageUrl = () => {
     if (!imageInput.trim()) return;
+    if (imageInput.trim().includes('fallback.svg')) {
+      setImageUploadError('Fallback placeholder cannot be added as a product image.');
+      return;
+    }
     if (imageInput.startsWith('data:image/')) {
       setImageUploadError('Base64 image data cannot be stored directly. Please upload the file or provide a clean HTTPS URL.');
       return;
@@ -675,7 +680,7 @@ export default function ProductFormClient({
     setIsDirty(true);
     setFormData((prev) => ({
       ...prev,
-      images: [...(prev.images || []), imageInput.trim()],
+      images: [...(prev.images || []).filter((img) => !img.includes('fallback.svg')), imageInput.trim()],
     }));
     setImageInput('');
   };
@@ -706,7 +711,7 @@ export default function ProductFormClient({
         setIsDirty(true);
         setFormData((prev) => ({
           ...prev,
-          images: [...(prev.images || []).filter((img) => img !== '/images/fallback.svg'), res.url],
+          images: [...(prev.images || []).filter((img) => !img.includes('fallback.svg')), res.url],
         }));
       } else {
         setImageUploadError(`Failed to upload "${file.name}": ${res.error || 'Upload error'}`);
@@ -721,7 +726,7 @@ export default function ProductFormClient({
     setIsDirty(true);
     setFormData((prev) => ({
       ...prev,
-      images: prev.images?.filter((_, i) => i !== index),
+      images: (prev.images || []).filter((_, i) => i !== index),
     }));
   };
 
@@ -896,8 +901,12 @@ export default function ProductFormClient({
     let savedProductId = formData.id;
 
     try {
+      const cleanImages = (formData.images || []).filter(
+        (img): img is string => typeof img === 'string' && Boolean(img.trim()) && !img.includes('fallback.svg')
+      );
       const payload = {
         ...formData,
+        images: cleanImages,
         productType: typeCheck.sanitizedValue,
         variants: productVariants,
         intelligence: intelligenceData,
@@ -920,7 +929,13 @@ export default function ProductFormClient({
       const savedProduct = data.product;
       productSaveSucceeded = true;
       savedProductId = savedProduct.id;
-      setFormData((prev) => ({ ...prev, id: savedProduct.id }));
+      setFormData((prev) => ({
+        ...prev,
+        id: savedProduct.id,
+        images: (savedProduct.images || []).filter(
+          (img: string) => typeof img === 'string' && Boolean(img.trim()) && !img.includes('fallback.svg')
+        ),
+      }));
 
       // Phase 3H: Atomically persist wholesale rules
       if (productBulkRules.length > 0 || deletedRuleIds.length > 0) {
@@ -2259,7 +2274,7 @@ export default function ProductFormClient({
                   type="text"
                   value={imageInput}
                   onChange={(e) => setImageInput(e.target.value)}
-                  placeholder="https://example.com/image.jpg or /images/fallback.svg"
+                  placeholder="https://example.com/image.jpg or /uploads/product.webp"
                   className="flex-1 p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl focus:outline-none focus:border-[#1b4332]"
                 />
                 <button
