@@ -29,27 +29,81 @@ const ALLOWED_EVENTS = new Set([
   'guide_product_click',
 ]);
 
+const NOINDEX_HEADERS = {
+  'X-Robots-Tag': 'noindex, nofollow',
+  'Cache-Control': 'no-store, max-age=0',
+} as const;
+
+/**
+ * Deterministic method guard: GET/HEAD requests from bots/crawlers
+ * must never expose indexable content and return 405 Method Not Allowed.
+ */
+export async function GET() {
+  return NextResponse.json(
+    { success: false, error: 'Method not allowed. Internal analytics event ingestion endpoint.' },
+    {
+      status: 405,
+      headers: {
+        'Allow': 'POST',
+        ...NOINDEX_HEADERS,
+      },
+    }
+  );
+}
+
+export async function HEAD() {
+  return new NextResponse(null, {
+    status: 405,
+    headers: {
+      'Allow': 'POST',
+      ...NOINDEX_HEADERS,
+    },
+  });
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Allow': 'POST',
+      ...NOINDEX_HEADERS,
+    },
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIp(req.headers);
     const rl = await checkRateLimitAsync(`analytics_ingest:${ip}`, 240, 60 * 1000);
     if (!rl.allowed) {
-      return NextResponse.json({ success: false, error: 'Rate limit exceeded.' }, { status: 429 });
+      return NextResponse.json(
+        { success: false, error: 'Rate limit exceeded.' },
+        { status: 429, headers: NOINDEX_HEADERS }
+      );
     }
 
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== 'object') {
-      return NextResponse.json({ success: false, error: 'Invalid event payload.' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'Invalid event payload.' },
+        { status: 400, headers: NOINDEX_HEADERS }
+      );
     }
 
     const { eventName, sessionId, pathname, productId, productName, category, searchQuery, resultCount, quantity, value, source, metadata } = body;
 
     if (!eventName || !ALLOWED_EVENTS.has(eventName)) {
-      return NextResponse.json({ success: false, error: 'Unrecognized event type.' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'Unrecognized event type.' },
+        { status: 400, headers: NOINDEX_HEADERS }
+      );
     }
 
     if (!sessionId || typeof sessionId !== 'string' || sessionId.length > 100) {
-      return NextResponse.json({ success: false, error: 'Valid session identifier required.' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'Valid session identifier required.' },
+        { status: 400, headers: NOINDEX_HEADERS }
+      );
     }
 
     // Fire and save event
@@ -68,9 +122,12 @@ export async function POST(req: NextRequest) {
       metadata: typeof metadata === 'object' && metadata !== null ? metadata : {},
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true }, { headers: NOINDEX_HEADERS });
   } catch (err: any) {
     // Fail silently with 200 to never break client analytics or checkout
-    return NextResponse.json({ success: false, error: 'Ingestion error' }, { status: 200 });
+    return NextResponse.json(
+      { success: false, error: 'Ingestion error' },
+      { status: 200, headers: NOINDEX_HEADERS }
+    );
   }
 }
