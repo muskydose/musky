@@ -433,3 +433,60 @@ export async function updatePaymentSettings(settings: Partial<PaymentSettings>):
   cachedPaymentSettingsMemory = merged;
   return merged;
 }
+
+/**
+ * Data-driven cascade pruning:
+ * When one or more products are deleted, removes their IDs from:
+ * - siteSettings.homepageProducts
+ * - siteSettings.homepageSections (selectedProductIds)
+ * Preserves all other settings and configurations.
+ */
+export async function pruneProductReferencesFromSettings(productIds: string[]): Promise<boolean> {
+  if (!productIds || productIds.length === 0) return false;
+  const idSet = new Set(productIds.map((id) => (typeof id === 'string' ? id.trim() : id)).filter(Boolean));
+  if (idSet.size === 0) return false;
+
+  try {
+    const current = await getSiteSettings();
+    let changed = false;
+
+    let updatedHomepageProducts = current.homepageProducts;
+    if (Array.isArray(current.homepageProducts)) {
+      const filtered = current.homepageProducts.filter((p) => p && !idSet.has(p.id));
+      if (filtered.length !== current.homepageProducts.length) {
+        updatedHomepageProducts = filtered;
+        changed = true;
+      }
+    }
+
+    let updatedHomepageSections = current.homepageSections;
+    if (Array.isArray(current.homepageSections)) {
+      const newSections = current.homepageSections.map((sec) => {
+        if (Array.isArray(sec.selectedProductIds) && sec.selectedProductIds.some((id) => idSet.has(id))) {
+          changed = true;
+          return {
+            ...sec,
+            selectedProductIds: sec.selectedProductIds.filter((id) => !idSet.has(id)),
+          };
+        }
+        return sec;
+      });
+      if (changed) {
+        updatedHomepageSections = newSections;
+      }
+    }
+
+    if (changed) {
+      await updateSiteSettings({
+        homepageProducts: updatedHomepageProducts,
+        homepageSections: updatedHomepageSections,
+      });
+      return true;
+    }
+
+    return false;
+  } catch (err: any) {
+    console.error('[pruneProductReferencesFromSettings] Error:', err?.message);
+    return false;
+  }
+}

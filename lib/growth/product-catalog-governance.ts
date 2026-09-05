@@ -18,7 +18,7 @@
  *    Storefront, Schema, Google Merchant Feed, Cart, and Checkout all consume resolveCanonicalProductOffer(product).
  */
 
-import { Product, ProductVariant } from '../types';
+import { Product, ProductVariant, SiteSettings } from '../types';
 import { normalizeUnitString, getUnitFamily, UnitFamily } from '../unit-pricing';
 import { formatVariantWeight, validateProductVariant } from '../product-variants';
 import { normalizeProductType } from './product-type-governance';
@@ -529,4 +529,104 @@ export function synchronizeProductRootWithDefaultVariant(product: Product): Prod
     quantityOrWeight: offer.defaultVariant.weight,
     sku: product.sku || offer.defaultVariant.sku,
   };
+}
+
+/**
+ * Centralized Homepage Product Reference Resolver:
+ * Enforces authoritative database state across homepage merchandising:
+ * 1. Only products present in activeProducts (verified existing and active in DB) can ever be returned.
+ * 2. Merchandised references to deleted or inactive products are strictly ignored/pruned.
+ * 3. Never falls back to deleted or unverified products.
+ * 4. Data-driven: zero hardcoded product IDs.
+ */
+export function resolveAuthoritativeHomepageProducts(
+  activeProducts: Product[],
+  siteSettings: Partial<SiteSettings>
+): Product[] {
+  if (!activeProducts || activeProducts.length === 0) {
+    return [];
+  }
+
+  const activeMap = new Map<string, Product>(
+    activeProducts.filter((p) => p && p.isActive !== false).map((p) => [p.id, p])
+  );
+
+  if (activeMap.size === 0) {
+    return [];
+  }
+
+  // 1. Check siteSettings.homepageProducts merchandising configuration
+  if (Array.isArray(siteSettings.homepageProducts) && siteSettings.homepageProducts.length > 0) {
+    const configuredList: Product[] = [];
+
+    // Sort config by sortOrder
+    const sortedConfig = [...siteSettings.homepageProducts]
+      .filter((c) => c && c.enabled !== false && activeMap.has(c.id))
+      .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+
+    for (const c of sortedConfig) {
+      const prod = activeMap.get(c.id);
+      if (prod && !configuredList.some((p) => p.id === prod.id)) {
+        configuredList.push(prod);
+      }
+    }
+
+    if (configuredList.length > 0) {
+      return configuredList;
+    }
+  }
+
+  // 2. Fallback: featured / best-seller active products
+  const featured = activeProducts
+    .filter((p) => p.isActive !== false && (p.isFeatured || (p as any).isBestSeller))
+    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
+  if (featured.length > 0) {
+    return featured;
+  }
+
+  // 3. Fallback: first 6 active products
+  return activeProducts
+    .filter((p) => p.isActive !== false)
+    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+    .slice(0, 6);
+}
+
+/**
+ * Resolves and sanitizes products for a specific homepage section (e.g. bestsellers or custom section).
+ * Only references pointing to currently active products are accepted.
+ */
+export function resolveAuthoritativeSectionProducts(
+  activeProducts: Product[],
+  section: { selectedProductIds?: string[]; itemLimit?: number },
+  defaultProducts: Product[] = []
+): Product[] {
+  if (!activeProducts || activeProducts.length === 0) {
+    return [];
+  }
+
+  const activeMap = new Map<string, Product>(
+    activeProducts.filter((p) => p && p.isActive !== false).map((p) => [p.id, p])
+  );
+
+  if (activeMap.size === 0) {
+    return [];
+  }
+
+  let selected: Product[] = [];
+  if (Array.isArray(section.selectedProductIds) && section.selectedProductIds.length > 0) {
+    for (const id of section.selectedProductIds) {
+      const prod = activeMap.get(id);
+      if (prod && !selected.some((p) => p.id === prod.id)) {
+        selected.push(prod);
+      }
+    }
+  }
+
+  if (selected.length === 0) {
+    selected = defaultProducts.filter((p) => p && activeMap.has(p.id));
+  }
+
+  const limit = section.itemLimit || 8;
+  return selected.slice(0, limit);
 }

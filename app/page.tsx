@@ -18,6 +18,7 @@ import { sanitizeImageUrl } from '@/lib/utils';
 import { getCmsText } from '@/lib/cms';
 import { DEFAULT_HOMEPAGE_SECTIONS, DEFAULT_WHY_CARDS, DEFAULT_TESTIMONIALS } from '@/lib/data-store';
 import { HomepageSectionConfig } from '@/lib/types';
+import { resolveAuthoritativeHomepageProducts, resolveAuthoritativeSectionProducts } from '@/lib/growth/product-catalog-governance';
 import {
   MessageCircle,
   ShieldCheck,
@@ -74,35 +75,10 @@ export default async function HomePage() {
   }
 
   // 2. Active Products Only (Never render inactive products on public homepage)
-  const activeProducts = products.filter((p) => p.isActive !== false);
+  const activeProducts = products.filter((p) => p && p.isActive !== false);
 
-  // 3. Merchandised Homepage Products
-  let displayFeaturedProducts: typeof activeProducts = [];
-
-  if (siteSettings.homepageProducts && siteSettings.homepageProducts.length > 0) {
-    const prodMap = new Map(siteSettings.homepageProducts.map((p) => [p.id, p]));
-    const configuredList = activeProducts.filter((p) => {
-      const config = prodMap.get(p.id);
-      return config ? config.enabled !== false : false;
-    });
-
-    configuredList.sort((a, b) => {
-      const orderA = prodMap.get(a.id)?.sortOrder ?? (a.sortOrder || 999);
-      const orderB = prodMap.get(b.id)?.sortOrder ?? (b.sortOrder || 999);
-      return orderA - orderB;
-    });
-
-    if (configuredList.length > 0) {
-      displayFeaturedProducts = configuredList;
-    }
-  }
-
-  if (displayFeaturedProducts.length === 0) {
-    const fallbackFeatured = activeProducts
-      .filter((p) => p.isFeatured || p.isBestSeller)
-      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-    displayFeaturedProducts = fallbackFeatured.length > 0 ? fallbackFeatured : activeProducts.slice(0, 6);
-  }
+  // 3. Merchandised Homepage Products (Authoritative centralized resolution)
+  const displayFeaturedProducts = resolveAuthoritativeHomepageProducts(activeProducts, siteSettings);
 
   // Active Sections Configuration from Settings or Default
   const configuredSections: HomepageSectionConfig[] =
@@ -142,19 +118,10 @@ export default async function HomePage() {
 
           case 'bestsellers':
           case 'other_products': {
-            let displayBestsellers = displayFeaturedProducts;
-            if (sec.selectedProductIds && sec.selectedProductIds.length > 0) {
-              const selected = activeProducts.filter((p) => sec.selectedProductIds?.includes(p.id));
-              if (selected.length > 0) {
-                selected.sort((a, b) => {
-                  const idxA = sec.selectedProductIds!.indexOf(a.id);
-                  const idxB = sec.selectedProductIds!.indexOf(b.id);
-                  return (idxA >= 0 ? idxA : 999) - (idxB >= 0 ? idxB : 999);
-                });
-                displayBestsellers = selected;
-              }
-            }
-            displayBestsellers = displayBestsellers.slice(0, sec.itemLimit || 8).map((p) => ({
+            const rawSectionProducts = resolveAuthoritativeSectionProducts(activeProducts, sec, displayFeaturedProducts);
+            if (rawSectionProducts.length === 0) return null;
+
+            const displayBestsellers = rawSectionProducts.map((p) => ({
               id: p.id,
               name: p.name,
               slug: p.slug,
@@ -167,7 +134,6 @@ export default async function HomePage() {
               shortDescription: p.shortDescription || '',
               quantityOrWeight: p.quantityOrWeight || '',
             })) as unknown as typeof activeProducts;
-            if (displayBestsellers.length === 0) return null;
 
             return (
               <React.Fragment key={sec.id}>

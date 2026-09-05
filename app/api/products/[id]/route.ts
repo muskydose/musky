@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidatePath } from 'next/cache';
+import { revalidateCatalogSurfaces } from '@/lib/revalidation';
 import { getProductByIdOrSlug, saveProduct, deleteProduct } from '@/lib/db/products';
 import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
 import { recordAuditLog } from '@/lib/auth';
@@ -103,14 +103,10 @@ export async function PUT(
       details: { productId: id },
     });
 
-    try {
-      revalidatePath('/products');
-      revalidatePath(`/products/${updated.slug}`);
-      revalidatePath('/wholesale');
-      revalidatePath('/');
-    } catch (revalErr) {
-      console.warn('Revalidation warning:', revalErr);
-    }
+    await revalidateCatalogSurfaces({
+      slugs: [existingProduct?.slug, updated.slug],
+      categorySlugsOrIds: [updated.categoryId, existingProduct?.categoryId],
+    });
 
     return createSuccessResponse({ product: updated }, undefined, requestId);
   } catch (error: any) {
@@ -130,11 +126,18 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    const existingProduct = await getProductByIdOrSlug(id, true);
+
     await deleteProduct(id);
 
     await recordAuditLog({
       action: 'PRODUCT_DELETE',
       resource: id,
+    });
+
+    await revalidateCatalogSurfaces({
+      slugs: [existingProduct?.slug],
+      categorySlugsOrIds: [existingProduct?.categoryId],
     });
 
     return createSuccessResponse({ message: 'Product deleted successfully' }, undefined, requestId);

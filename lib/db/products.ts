@@ -4,6 +4,8 @@ import { getSupabase, getSupabaseAdmin } from '@/lib/supabase';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { sanitizeImageUrl, sanitizeImageUrls } from '@/lib/utils';
 import { getCategories } from './categories';
+import { pruneProductReferencesFromSettings } from './settings';
+import { revalidateCatalogSurfaces } from '@/lib/revalidation';
 import { INITIAL_PRODUCTS } from '@/lib/data-store';
 import { syncProductKeywordUniverse, onProductDeletedLifecycle } from '@/lib/growth/product-keyword-engine';
 import { validateProductVariants } from '@/lib/product-variants';
@@ -181,6 +183,7 @@ export async function getAllProductsAdmin(): Promise<Product[]> {
 export const getActiveProductsForStore = cache(async (): Promise<Product[]> => {
   const supabase = getSupabaseAdmin() || getSupabase();
   if (!supabase) {
+    // Offline local development fallback ONLY when database is genuinely unconfigured
     return INITIAL_PRODUCTS.filter((p) => p.isActive !== false);
   }
 
@@ -190,8 +193,13 @@ export const getActiveProductsForStore = cache(async (): Promise<Product[]> => {
     .eq('is_active', true)
     .order('sort_order', { ascending: true });
 
-  if (error || !data || data.length === 0) {
-    return INITIAL_PRODUCTS.filter((p) => p.isActive !== false);
+  if (error) {
+    console.error('[getActiveProductsForStore] Database query error:', error.message);
+    return [];
+  }
+
+  if (!data || data.length === 0) {
+    return [];
   }
 
   return data.map(mapRowToProduct);
@@ -235,15 +243,7 @@ export const getProductsByCategory = cache(async (categoryIdOrSlug: string): Pro
 
     if (error) {
       console.warn(`[getProductsByCategory] Query warning: ${error.message}`);
-      if (process.env.NODE_ENV === 'production') {
-        return [];
-      }
-      const all = await getActiveProductsForStore();
-      return all.filter(
-        (p) =>
-          p.categoryId === targetCategoryId ||
-          (matchedCategory && p.categoryName?.toLowerCase() === matchedCategory.name.toLowerCase())
-      );
+      return [];
     }
 
     if (!data || data.length === 0) {
@@ -253,11 +253,7 @@ export const getProductsByCategory = cache(async (categoryIdOrSlug: string): Pro
     return data.map(mapRowToProduct);
   } catch (err: any) {
     console.error('[getProductsByCategory] Error:', err?.message);
-    if (process.env.NODE_ENV === 'production') {
-      return [];
-    }
-    const all = await getActiveProductsForStore();
-    return all.filter((p) => p.categoryId === clean);
+    return [];
   }
 });
 
@@ -320,8 +316,7 @@ export async function getRelatedProducts(
     return mapped;
   } catch (err: any) {
     console.error('[getRelatedProducts] Error:', err?.message);
-    const all = await getActiveProductsForStore();
-    return all.filter((p) => p.id !== productId).slice(0, limit);
+    return [];
   }
 }
 
@@ -342,21 +337,29 @@ export async function getFeaturedProducts(limit: number = 8): Promise<Product[]>
       .order('sort_order', { ascending: true })
       .limit(limit);
 
-    if (error || !data || data.length === 0) {
-      const { data: fallbackData } = await supabase
+    if (error) {
+      console.error('[getFeaturedProducts] Query error:', error.message);
+      return [];
+    }
+
+    if (!data || data.length === 0) {
+      const { data: fallbackData, error: fbErr } = await supabase
         .from('products')
         .select('*')
         .eq('is_active', true)
         .order('sort_order', { ascending: true })
         .limit(limit);
-      return (fallbackData || []).map(mapRowToProduct);
+
+      if (fbErr || !fallbackData || fallbackData.length === 0) {
+        return [];
+      }
+      return fallbackData.map(mapRowToProduct);
     }
 
     return data.map(mapRowToProduct);
   } catch (err: any) {
     console.error('[getFeaturedProducts] Error:', err?.message);
-    const all = await getActiveProductsForStore();
-    return all.slice(0, limit);
+    return [];
   }
 }
 
@@ -446,13 +449,12 @@ export const getProductByIdOrSlug = cache(async (
       console.error('[getProductByIdOrSlug] DB query error:', err?.message);
     }
 
-    // In production or admin mode, do NOT fall back to mock INITIAL_PRODUCTS
-    if (process.env.NODE_ENV === 'production' || includeInactive) {
-      return null;
-    }
+    // Authoritative Database Rule: When Supabase is configured, if the product is not in DB,
+    // return null. Never fall through to mock INITIAL_PRODUCTS.
+    return null;
   }
 
-  // Fallback to searching active store list ONLY when Supabase is unavailable (offline local dev)
+  // Fallback to searching active store list ONLY when Supabase is genuinely unconfigured (offline local dev)
   const all = await getActiveProductsForStore();
   const found = all.find(
     (p) =>
@@ -602,20 +604,41 @@ export async function saveProduct(product: Partial<Product>): Promise<Product> {
     console.warn(`[saveProduct] Background keyword universe sync notice for ${savedProduct.id}:`, kwErr?.message);
   });
 
+  // Centralized catalog revalidation
+  await revalidateCatalogSurfaces({
+    slugs: [savedProduct.slug],
+    categorySlugsOrIds: [savedProduct.categoryId, savedProduct.categoryName],
+  });
+
   return savedProduct;
 }
 
 export async function deleteProduct(id: string): Promise<boolean> {
   const supabase = requireSupabaseAdmin();
+
+  // Retrieve existing product details before deletion for slug & category revalidation
+  const existing = await getProductByIdOrSlug(id, true);
+
   const { error } = await supabase.from('products').delete().eq('id', id);
 
   if (error) {
     throw new Error(`Database error deleting product: ${error.message}`);
   }
 
+  // Cascade prune from site settings
+  await pruneProductReferencesFromSettings([id]).catch((err) => {
+    console.warn(`[deleteProduct] Settings prune notice for ${id}:`, err?.message);
+  });
+
   // Cleanup keyword target associations
   onProductDeletedLifecycle(id).catch((kwErr) => {
     console.warn(`[deleteProduct] Background keyword cleanup notice for ${id}:`, kwErr?.message);
+  });
+
+  // Centralized catalog revalidation
+  await revalidateCatalogSurfaces({
+    slugs: existing ? [existing.slug] : [],
+    categorySlugsOrIds: existing?.categoryId ? [existing.categoryId] : [],
   });
 
   return true;
@@ -645,6 +668,11 @@ export async function bulkUpdateProducts(
     throw new Error(`Database error bulk updating products: ${error.message}`);
   }
 
+  // Centralized catalog revalidation
+  await revalidateCatalogSurfaces({
+    categorySlugsOrIds: updates.categoryId ? [updates.categoryId] : undefined,
+  });
+
   return { updatedCount: data ? data.length : ids.length, failedIds: [] };
 }
 
@@ -660,5 +688,22 @@ export async function bulkDeleteProducts(
     throw new Error(`Database error bulk deleting products: ${error.message}`);
   }
 
-  return { deletedCount: data ? data.length : ids.length, failedIds: [] };
+  const deletedIds = data ? data.map((d: any) => d.id) : ids;
+
+  // Cascade prune from site settings
+  await pruneProductReferencesFromSettings(deletedIds).catch((err) => {
+    console.warn(`[bulkDeleteProducts] Settings prune notice:`, err?.message);
+  });
+
+  // Cleanup keyword target associations for each deleted product
+  for (const id of deletedIds) {
+    onProductDeletedLifecycle(id).catch((kwErr) => {
+      console.warn(`[bulkDeleteProducts] Background keyword cleanup notice for ${id}:`, kwErr?.message);
+    });
+  }
+
+  // Centralized catalog revalidation
+  await revalidateCatalogSurfaces();
+
+  return { deletedCount: deletedIds.length, failedIds: [] };
 }
