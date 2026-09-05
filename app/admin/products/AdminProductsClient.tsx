@@ -25,6 +25,7 @@ import {
   Tag,
   SlidersHorizontal,
 } from 'lucide-react';
+import { formatProductTypeDisplay } from '@/lib/growth/product-type-governance';
 
 interface AdminProductsClientProps {
   initialProducts: Product[];
@@ -584,7 +585,12 @@ export default function AdminProductsClient({
                       </td>
 
                       <td className="p-4 font-semibold text-[#626c66]">
-                        {p.categoryName || 'Sojat Herbal'}
+                        <div>{p.categoryName || 'Sojat Herbal'}</div>
+                        {p.productType && (
+                          <div className="text-[10px] text-[#2d6a4f] font-medium mt-0.5">
+                            {formatProductTypeDisplay(p.productType).badgeLabel}
+                          </div>
+                        )}
                       </td>
 
                       <td className="p-4 font-extrabold text-[#1b4332]">

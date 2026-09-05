@@ -225,7 +225,8 @@ export function resolveEntityFromQuery(rawQuery: string): SearchEntity | null {
  * Prioritizes product name and slug for primary classification.
  */
 export function detectProductEntity(product: Partial<Product>): SearchEntity | null {
-  const nameSlug = [product.name || '', product.slug || '', product.productType || ''].join(' ').toLowerCase();
+  // Commercial productType must NEVER dictate or bias botanical entity detection
+  const nameSlug = [product.name || '', product.slug || ''].join(' ').toLowerCase();
 
   // 1. Check primary product name & slug first
   for (const entity of Object.values(BOTANICAL_SEARCH_ENTITIES)) {

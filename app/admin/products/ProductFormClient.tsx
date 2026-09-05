@@ -19,6 +19,12 @@ import {
 } from '@/lib/growth/intelligence-validator';
 import { ProductIntelligenceMetadata } from '@/lib/types';
 import {
+  PREDEFINED_PRODUCT_TYPES,
+  PREDEFINED_TYPE_VALUES,
+  validateProductTypeClassification,
+  extractDistinctCustomProductTypes,
+} from '@/lib/growth/product-type-governance';
+import {
   Save,
   ArrowLeft,
   Plus,
@@ -179,6 +185,7 @@ export default function ProductFormClient({
     isFeatured: initialProduct?.isFeatured ?? false,
     isActive: initialProduct?.isActive ?? false,
     sortOrder: initialProduct?.sortOrder ?? 1,
+    productType: initialProduct?.productType || 'POWDER',
     seoTitle: initialProduct?.seoTitle || '',
     seoDescription: initialProduct?.seoDescription || '',
     seoKeywords: initialProduct?.seoKeywords || [],
@@ -186,6 +193,35 @@ export default function ProductFormClient({
     robotsFollow: initialProduct?.robotsFollow ?? true,
     ogImageUrl: initialProduct?.ogImageUrl || '',
   });
+
+  const initialIsCustom = Boolean(
+    initialProduct?.productType &&
+    !PREDEFINED_TYPE_VALUES.has((initialProduct.productType || '').toUpperCase())
+  );
+  const [isCustomType, setIsCustomType] = useState<boolean>(initialIsCustom);
+  const [knownCustomTypes, setKnownCustomTypes] = useState<string[]>(() => {
+    return initialIsCustom && initialProduct?.productType ? [initialProduct.productType.trim()] : [];
+  });
+
+  // Reusable custom types discovery from catalog
+  useEffect(() => {
+    let mounted = true;
+    fetch('/api/products?mode=admin')
+      .then((res) => res.json())
+      .then((data) => {
+        if (mounted && data?.products && Array.isArray(data.products)) {
+          const distinct = extractDistinctCustomProductTypes(data.products);
+          setKnownCustomTypes((prev) => {
+            const combined = new Set([...prev, ...distinct]);
+            return Array.from(combined).sort((a, b) => a.localeCompare(b));
+          });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const [keywordUniverse, setKeywordUniverse] = useState<any | null>(null);
   const [seoHealth, setSeoHealth] = useState<any | null>(null);
@@ -823,6 +859,14 @@ export default function ProductFormClient({
       return;
     }
 
+    // Commercial Product Type Classification Governance Validation
+    const typeCheck = validateProductTypeClassification(formData.productType, isCustomType);
+    if (!typeCheck.valid) {
+      setError(`Product Type error: ${typeCheck.error}`);
+      setActiveTab('basic');
+      return;
+    }
+
     setSaving(true);
     setError('');
     setSuccessMsg('');
@@ -834,6 +878,7 @@ export default function ProductFormClient({
     try {
       const payload = {
         ...formData,
+        productType: typeCheck.sanitizedValue,
         variants: productVariants,
         intelligence: intelligenceData,
       };
@@ -1239,34 +1284,101 @@ export default function ProductFormClient({
                 </select>
               </div>
 
-              <div>
-                <label className="block text-[#0f2d22] font-bold mb-1">Product Type / Classification</label>
-                <div className="flex gap-2">
-                  <select
-                    value={['POWDER', 'RAW', 'FINISHED', 'OIL', 'PASTE', 'MIST'].includes((formData.productType || '').toUpperCase()) ? (formData.productType || '').toUpperCase() : 'CUSTOM'}
-                    onChange={(e) => {
-                      if (e.target.value !== 'CUSTOM') {
-                        updateForm('productType', e.target.value);
-                      }
-                    }}
-                    className="w-1/2 p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
-                  >
-                    <option value="POWDER">POWDER (Henna & Herbal Powders)</option>
-                    <option value="RAW">RAW (Whole Leaves & Raw Herbs)</option>
-                    <option value="FINISHED">FINISHED (Cones, Shampoos, Packs)</option>
-                    <option value="OIL">OIL (Essential & Hair Oils)</option>
-                    <option value="PASTE">PASTE (Body Art & Herbal Paste)</option>
-                    <option value="MIST">MIST (Hydrosols & Rose Water)</option>
-                    <option value="CUSTOM">Custom Type...</option>
-                  </select>
-                  <input
-                    type="text"
-                    value={formData.productType || ''}
-                    onChange={(e) => updateForm('productType', e.target.value)}
-                    placeholder="Enter type / classification"
-                    className="w-1/2 p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
-                  />
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                  <label className="block text-[#0f2d22] font-bold">
+                    Product Type
+                  </label>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#edf7f1] text-[#1b4332] border border-[#d8ece0]">
+                    {isCustomType ? (
+                      <>
+                        <span className="text-gray-500">Product Type:</span>
+                        <span className="font-bold text-[#1b4332]">Custom</span>
+                        <span className="text-gray-300">|</span>
+                        <span className="text-gray-500">Custom Type:</span>
+                        <span className="font-extrabold text-[#0f2d22]">
+                          {formData.productType?.trim() || 'Unspecified'}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-gray-500">Commercial Type:</span>
+                        <span className="font-bold text-[#1b4332]">
+                          {PREDEFINED_PRODUCT_TYPES.find(
+                            (p) => p.value === (formData.productType || 'POWDER').toUpperCase()
+                          )?.value || 'POWDER'}
+                        </span>
+                      </>
+                    )}
+                  </span>
                 </div>
+
+                <select
+                  value={
+                    isCustomType
+                      ? 'CUSTOM'
+                      : PREDEFINED_TYPE_VALUES.has((formData.productType || '').toUpperCase())
+                      ? (formData.productType || '').toUpperCase()
+                      : 'CUSTOM'
+                  }
+                  onChange={(e) => {
+                    const selected = e.target.value;
+                    if (selected === 'CUSTOM') {
+                      setIsCustomType(true);
+                      const current = formData.productType || '';
+                      const preserved = PREDEFINED_TYPE_VALUES.has(current.toUpperCase()) ? '' : current;
+                      updateForm('productType', preserved);
+                    } else if (selected.startsWith('KNOWN:')) {
+                      const customVal = selected.replace('KNOWN:', '');
+                      setIsCustomType(true);
+                      updateForm('productType', customVal);
+                    } else {
+                      setIsCustomType(false);
+                      updateForm('productType', selected);
+                    }
+                  }}
+                  className="w-full min-h-[44px] p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
+                >
+                  <optgroup label="Predefined Commercial Types">
+                    {PREDEFINED_PRODUCT_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                  {knownCustomTypes.length > 0 && (
+                    <optgroup label="Reused Catalog Custom Types">
+                      {knownCustomTypes.map((k) => (
+                        <option key={k} value={`KNOWN:${k}`}>
+                          Custom: {k}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <optgroup label="Custom Option">
+                    <option value="CUSTOM">CUSTOM TYPE...</option>
+                  </optgroup>
+                </select>
+
+                {isCustomType && (
+                  <div className="bg-[#f8f6f0] p-3 rounded-xl border border-[#e8e2d5] space-y-1.5 transition-all">
+                    <label className="block text-[#0f2d22] font-bold text-xs">
+                      Custom Product Type <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={60}
+                      value={formData.productType || ''}
+                      onChange={(e) => updateForm('productType', e.target.value)}
+                      placeholder="e.g. Balm, Serum, Hair Mask, Soap"
+                      className="w-full min-h-[44px] p-3 bg-white border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
+                    />
+                    <p className="text-[11px] text-[#556960] leading-relaxed">
+                      Commercial product classification only. Preserves exact admin wording. Does not invent botanical entities or alter verified SEO claims. Max 60 characters.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div>

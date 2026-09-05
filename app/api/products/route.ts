@@ -5,6 +5,7 @@ import { requireAdminAuthAndCsrf, isRequestAdminAuthenticated } from '@/lib/admi
 import { recordAuditLog } from '@/lib/auth';
 import { isBase64ImageData } from '@/lib/media-upload';
 import { sanitizeAdminError, createSuccessResponse, getRequestId } from '@/lib/api-errors';
+import { validateProductTypeClassification } from '@/lib/growth/product-type-governance';
 
 export async function GET(req: NextRequest) {
   const requestId = getRequestId();
@@ -61,6 +62,18 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
+    }
+
+    // Validate commercial product type classification if provided
+    if (body.productType !== undefined) {
+      const typeCheck = validateProductTypeClassification(body.productType);
+      if (!typeCheck.valid) {
+        return NextResponse.json(
+          { success: false, error: typeCheck.error || 'Invalid product type classification', requestId },
+          { status: 400 }
+        );
+      }
+      body.productType = typeCheck.sanitizedValue;
     }
 
     const saved = await saveProduct(body);
