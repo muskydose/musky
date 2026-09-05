@@ -80,25 +80,85 @@ export async function getAllCategoriesAdmin(): Promise<Category[]> {
 
 export async function getCategoryByIdOrSlug(identifier: string): Promise<Category | null> {
   if (!identifier) return null;
-  const decoded = decodeURIComponent(identifier).trim();
+  let decoded = identifier.trim();
+  try {
+    decoded = decodeURIComponent(identifier).trim();
+  } catch {
+    decoded = identifier.trim();
+  }
   const lower = decoded.toLowerCase();
 
   const supabase = getSupabaseAdmin() || getSupabase();
   if (supabase) {
     try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .or(`id.eq.${decoded},slug.eq.${lower}`)
-        .maybeSingle();
+      let row: any = null;
+      const isLikelyId = decoded.startsWith('cat-');
 
-      if (!error && data) {
-        const cat = mapRowToCategory(data);
+      if (isLikelyId) {
+        const { data: byId, error: idErr } = await supabase
+          .from('categories')
+          .select('*')
+          .eq('id', decoded)
+          .maybeSingle();
+
+        if (idErr) {
+          console.error('[getCategoryByIdOrSlug] DB ID query error:', idErr.message);
+        } else if (byId) {
+          row = byId;
+        }
+
+        if (!row) {
+          const { data: bySlug, error: slugErr } = await supabase
+            .from('categories')
+            .select('*')
+            .eq('slug', lower)
+            .maybeSingle();
+
+          if (slugErr) {
+            console.error('[getCategoryByIdOrSlug] DB slug query error:', slugErr.message);
+          } else if (bySlug) {
+            row = bySlug;
+          }
+        }
+      } else {
+        const { data: bySlug, error: slugErr } = await supabase
+          .from('categories')
+          .select('*')
+          .eq('slug', lower)
+          .maybeSingle();
+
+        if (slugErr) {
+          console.error('[getCategoryByIdOrSlug] DB slug query error:', slugErr.message);
+        } else if (bySlug) {
+          row = bySlug;
+        }
+
+        if (!row) {
+          const { data: byId, error: idErr } = await supabase
+            .from('categories')
+            .select('*')
+            .eq('id', decoded)
+            .maybeSingle();
+
+          if (idErr) {
+            console.error('[getCategoryByIdOrSlug] DB ID query error:', idErr.message);
+          } else if (byId) {
+            row = byId;
+          }
+        }
+      }
+
+      if (row) {
+        const cat = mapRowToCategory(row);
         if (cat.isActive === false) return null;
         return cat;
       }
     } catch (err: any) {
       console.error('[getCategoryByIdOrSlug] DB query error:', err?.message);
+    }
+
+    if (process.env.NODE_ENV === 'production') {
+      return null;
     }
   }
 

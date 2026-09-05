@@ -21,7 +21,7 @@ interface RateLimitRecord {
 const memoryRateLimitStore = new Map<string, RateLimitRecord>();
 
 if (typeof setInterval !== 'undefined') {
-  setInterval(() => {
+  const timer = setInterval(() => {
     const now = Date.now();
     for (const [key, record] of memoryRateLimitStore.entries()) {
       if (now - record.windowStart > 60 * 60 * 1000) {
@@ -29,6 +29,9 @@ if (typeof setInterval !== 'undefined') {
       }
     }
   }, 5 * 60 * 1000);
+  if (typeof timer === 'object' && timer && typeof timer.unref === 'function') {
+    timer.unref();
+  }
 }
 
 function checkMemoryRateLimit(

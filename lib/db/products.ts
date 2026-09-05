@@ -160,7 +160,18 @@ export async function getAllProductsAdmin(): Promise<Product[]> {
 
   const { data, error } = await supabase.from('products').select('*');
 
-  if (error || !data || data.length === 0) {
+  if (error) {
+    console.error('[getAllProductsAdmin] Database query error:', error.message);
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(`Failed to load admin products from database: ${error.message}`);
+    }
+    return INITIAL_PRODUCTS;
+  }
+
+  if (!data || data.length === 0) {
+    if (process.env.NODE_ENV === 'production') {
+      return [];
+    }
     return INITIAL_PRODUCTS;
   }
 
@@ -205,20 +216,33 @@ export const getProductsByCategory = cache(async (categoryIdOrSlug: string): Pro
   }
 
   try {
+    const categories = await getCategories();
+    const matchedCategory = categories.find(
+      (c) =>
+        c.id === clean ||
+        c.slug === clean.toLowerCase() ||
+        c.name.toLowerCase() === clean.toLowerCase()
+    );
+
+    const targetCategoryId = matchedCategory ? matchedCategory.id : clean;
+
     const { data, error } = await supabase
       .from('products')
       .select('*')
       .eq('is_active', true)
-      .or(`category_id.eq.${clean},category_name.ilike.${clean}`)
+      .eq('category_id', targetCategoryId)
       .order('sort_order', { ascending: true });
 
     if (error) {
       console.warn(`[getProductsByCategory] Query warning: ${error.message}`);
+      if (process.env.NODE_ENV === 'production') {
+        return [];
+      }
       const all = await getActiveProductsForStore();
       return all.filter(
         (p) =>
-          p.categoryId === clean ||
-          p.categoryName?.toLowerCase() === clean.toLowerCase()
+          p.categoryId === targetCategoryId ||
+          (matchedCategory && p.categoryName?.toLowerCase() === matchedCategory.name.toLowerCase())
       );
     }
 
@@ -229,6 +253,9 @@ export const getProductsByCategory = cache(async (categoryIdOrSlug: string): Pro
     return data.map(mapRowToProduct);
   } catch (err: any) {
     console.error('[getProductsByCategory] Error:', err?.message);
+    if (process.env.NODE_ENV === 'production') {
+      return [];
+    }
     const all = await getActiveProductsForStore();
     return all.filter((p) => p.categoryId === clean);
   }
@@ -338,20 +365,78 @@ export const getProductByIdOrSlug = cache(async (
   includeInactive: boolean = false
 ): Promise<Product | null> => {
   if (!identifier) return null;
-  const decoded = decodeURIComponent(identifier).trim();
+  let decoded = identifier.trim();
+  try {
+    decoded = decodeURIComponent(identifier).trim();
+  } catch {
+    decoded = identifier.trim();
+  }
   const lower = decoded.toLowerCase();
 
   const supabase = getSupabaseAdmin() || getSupabase();
   if (supabase) {
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .or(`id.eq.${decoded},slug.eq.${lower}`)
-        .maybeSingle();
+      let row: any = null;
+      const isLikelyId = decoded.startsWith('prod-');
 
-      if (!error && data) {
-        const product = mapRowToProduct(data);
+      if (isLikelyId) {
+        // Query by primary key ID first
+        const { data: byId, error: idErr } = await supabase
+          .from('products')
+          .select('*')
+          .eq('id', decoded)
+          .maybeSingle();
+
+        if (idErr) {
+          console.error('[getProductByIdOrSlug] DB ID query error:', idErr.message);
+        } else if (byId) {
+          row = byId;
+        }
+
+        if (!row) {
+          const { data: bySlug, error: slugErr } = await supabase
+            .from('products')
+            .select('*')
+            .eq('slug', lower)
+            .maybeSingle();
+
+          if (slugErr) {
+            console.error('[getProductByIdOrSlug] DB slug query error:', slugErr.message);
+          } else if (bySlug) {
+            row = bySlug;
+          }
+        }
+      } else {
+        // Query by unique slug first (typical for customer storefront URLs)
+        const { data: bySlug, error: slugErr } = await supabase
+          .from('products')
+          .select('*')
+          .eq('slug', lower)
+          .maybeSingle();
+
+        if (slugErr) {
+          console.error('[getProductByIdOrSlug] DB slug query error:', slugErr.message);
+        } else if (bySlug) {
+          row = bySlug;
+        }
+
+        if (!row) {
+          const { data: byId, error: idErr } = await supabase
+            .from('products')
+            .select('*')
+            .eq('id', decoded)
+            .maybeSingle();
+
+          if (idErr) {
+            console.error('[getProductByIdOrSlug] DB ID query error:', idErr.message);
+          } else if (byId) {
+            row = byId;
+          }
+        }
+      }
+
+      if (row) {
+        const product = mapRowToProduct(row);
         if (!includeInactive && product.isActive === false) {
           return null;
         }
@@ -360,9 +445,14 @@ export const getProductByIdOrSlug = cache(async (
     } catch (err: any) {
       console.error('[getProductByIdOrSlug] DB query error:', err?.message);
     }
+
+    // In production or admin mode, do NOT fall back to mock INITIAL_PRODUCTS
+    if (process.env.NODE_ENV === 'production' || includeInactive) {
+      return null;
+    }
   }
 
-  // Fallback to searching active store list if direct query yields nothing
+  // Fallback to searching active store list ONLY when Supabase is unavailable (offline local dev)
   const all = await getActiveProductsForStore();
   const found = all.find(
     (p) =>
