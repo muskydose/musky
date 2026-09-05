@@ -264,6 +264,8 @@ export class WebsiteGuardian {
    */
   public static async getTelemetrySummary(): Promise<GuardianSystemSummary> {
     await guardianStore.ensureLoaded();
-    return guardianStore.buildSummary('CONNECTED');
+    const isDurable = GuardianDb.isDurableActive();
+    const dbStatus = isDurable ? 'CONNECTED' : 'FALLBACK_LOCAL';
+    return guardianStore.buildSummary(dbStatus);
   }
 }

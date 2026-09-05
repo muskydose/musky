@@ -24,6 +24,8 @@ export const GUARDIAN_HEARTBEAT_CONFIG = {
 };
 
 class GuardianStore {
+  private static readonly DURABLE_CACHE_TTL_MS = 20 * 1000; // 20s TTL for serverless instances
+
   private recentChecks: GuardianCheckResult[] = [];
   private incidents: Map<string, GuardianIncident> = new Map();
   private lastRunTimestamp: string = new Date().toISOString();
@@ -31,9 +33,13 @@ class GuardianStore {
   private lastPulseTimestamp: string = new Date().toISOString();
   private consecutiveMissedPulses: number = 0;
   private isDurableLoaded: boolean = false;
+  private lastDurableLoadTime: number = 0;
 
-  public async ensureLoaded() {
-    if (this.isDurableLoaded) return;
+  public async ensureLoaded(forceRefresh: boolean = false) {
+    const now = Date.now();
+    if (!forceRefresh && this.isDurableLoaded && (now - this.lastDurableLoadTime < GuardianStore.DURABLE_CACHE_TTL_MS)) {
+      return;
+    }
     try {
       const [, heartbeat, dbIncidents] = await Promise.all([
         GuardianDb.checkDurableAvailability(),
@@ -42,7 +48,10 @@ class GuardianStore {
       ]);
 
       if (heartbeat) {
-        this.lastPulseTimestamp = heartbeat.lastSuccessAt || heartbeat.lastStartedAt;
+        // Vitality pulse tracks the daemon's actual execution time (completedAt || startedAt || successAt)
+        this.lastPulseTimestamp = heartbeat.lastCompletedAt || heartbeat.lastStartedAt || heartbeat.lastSuccessAt || new Date().toISOString();
+        this.lastRunTimestamp = heartbeat.lastCompletedAt || heartbeat.lastStartedAt || this.lastRunTimestamp;
+        this.lastRunDurationMs = heartbeat.durationMs || this.lastRunDurationMs;
         this.consecutiveMissedPulses = heartbeat.consecutiveMissed || 0;
       }
 
@@ -54,8 +63,10 @@ class GuardianStore {
         }
       }
       this.isDurableLoaded = true;
+      this.lastDurableLoadTime = now;
     } catch {
       this.isDurableLoaded = true; // fallback safely
+      this.lastDurableLoadTime = now;
     }
   }
 
@@ -155,7 +166,8 @@ class GuardianStore {
   }
 
   public computeHeartbeatStatus(): GuardianHeartbeatStatus {
-    const lastPulseMs = Date.now() - new Date(this.lastPulseTimestamp).getTime();
+    const pulseTime = new Date(this.lastPulseTimestamp).getTime();
+    const lastPulseMs = Number.isFinite(pulseTime) ? Date.now() - pulseTime : 0;
 
     if (lastPulseMs > GUARDIAN_HEARTBEAT_CONFIG.DOWN_THRESHOLD_MS || this.consecutiveMissedPulses >= 3) {
       return 'GUARDIAN_DOWN';
@@ -190,7 +202,6 @@ class GuardianStore {
       layeredHealth.l0Connectivity === 'FAIL' ||
       layeredHealth.l3Commerce === 'FAIL' ||
       layeredHealth.l2Database === 'FAIL' ||
-      heartbeatStatus === 'GUARDIAN_DOWN' ||
       activeIncidents.some((i) => i.severity === 'P0_CRITICAL')
     ) {
       overallStatus = 'DOWN';
@@ -200,6 +211,7 @@ class GuardianStore {
       layeredHealth.l2Database === 'WARN' ||
       layeredHealth.l4BusinessIntegrity === 'FAIL' ||
       activeIncidents.some((i) => i.severity === 'P1_HIGH' || i.severity === 'P2_MEDIUM') ||
+      heartbeatStatus === 'GUARDIAN_DOWN' ||
       heartbeatStatus === 'GUARDIAN_STALE'
     ) {
       overallStatus = 'DEGRADED';
@@ -253,6 +265,7 @@ class GuardianStore {
     this.lastPulseTimestamp = new Date().toISOString();
     this.consecutiveMissedPulses = 0;
     this.isDurableLoaded = false;
+    this.lastDurableLoadTime = 0;
   }
 }
 
