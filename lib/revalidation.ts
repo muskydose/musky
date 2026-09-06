@@ -142,6 +142,24 @@ export async function revalidateEntitySurfaces(
         } catch {}
         break;
 
+      case 'BULK_PRICING':
+        try {
+          revalidatePath('/wholesale', 'page');
+          revalidatePath('/products', 'page');
+          revalidatePath('/cart', 'page');
+          revalidatePath('/checkout', 'page');
+          revalidatePath('/api/bulk-pricing');
+          revalidatePath('/api/products');
+          for (const s of cleanSlugs) {
+            if (s && s !== 'global') {
+              revalidatePath(`/products/${s}`, 'page');
+            }
+          }
+          revalidateTag('products');
+          revalidateTag('site_settings');
+        } catch {}
+        break;
+
       default:
         try {
           revalidatePath('/', 'page');

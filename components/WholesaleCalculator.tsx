@@ -20,6 +20,7 @@ import { motion, useReducedMotion } from 'motion/react';
 import { SPRINGS } from '@/lib/motion';
 import { trackWholesaleInquiryStarted } from '@/lib/analytics';
 import { resolveProductWholesaleUnits, calculateProductBaseWholesaleRate } from '@/lib/wholesale-units';
+import { resolveCanonicalWholesalePricing } from '@/lib/wholesale-pricing-resolver';
 
 interface WholesaleCalculatorProps {
   siteSettings?: SiteSettings;
@@ -120,7 +121,7 @@ export default function WholesaleCalculator({
     }
   }, [units, initialQuantity]);
 
-  // Authoritative Pricing Calculation
+  // Authoritative Pricing Calculation via Canonical Resolver
   const calculation = useMemo(() => {
     if (!selectedProduct) {
       return {
@@ -135,68 +136,24 @@ export default function WholesaleCalculator({
       };
     }
 
-    const basePrice = calculateProductBaseWholesaleRate(selectedProduct, units);
     const qty = Math.max(1, Math.min(10000, Math.floor(quantity || 1)));
-    const regularTotal = basePrice * qty;
-
-    // Check database rules first
-    let matchedRule = rules.find((r) => {
-      if (r.productId !== selectedProduct.id) return false;
-      const minOk = qty >= r.minQuantity;
-      const maxOk = !r.maxQuantity || qty <= r.maxQuantity;
-      return minOk && maxOk;
+    const canonical = resolveCanonicalWholesalePricing({
+      product: selectedProduct,
+      quantity: qty,
+      rules,
+      units,
+      fallbackPolicy: 'CUSTOM_QUOTE',
     });
 
-    if (!matchedRule) {
-      matchedRule = rules.find((r) => {
-        if (r.productId && r.productId !== 'global') return false;
-        const minOk = qty >= r.minQuantity;
-        const maxOk = !r.maxQuantity || qty <= r.maxQuantity;
-        return minOk && maxOk;
-      });
-    }
-
-    let unitDiscount = 0;
-    let tierName = 'Standard Base Rate';
-
-    if (matchedRule) {
-      if (matchedRule.discountType === 'percentage') {
-        unitDiscount = (basePrice * matchedRule.discountValue) / 100;
-        tierName = `Active Tier (${matchedRule.discountValue}% Off: ${matchedRule.minQuantity}${
-          matchedRule.maxQuantity ? `–${matchedRule.maxQuantity}` : '+'
-        } ${units.wholesaleUnit})`;
-      } else if (matchedRule.discountType === 'fixed_amount') {
-        unitDiscount = matchedRule.discountValue;
-        tierName = `Active Tier (₹${matchedRule.discountValue}/${units.wholesaleUnit} Off: ${matchedRule.minQuantity}${
-          matchedRule.maxQuantity ? `–${matchedRule.maxQuantity}` : '+'
-        } ${units.wholesaleUnit})`;
-      } else if (matchedRule.discountType === 'fixed_price') {
-        unitDiscount = Math.max(0, basePrice - matchedRule.discountValue);
-        tierName = `Fixed Special Tier (₹${matchedRule.discountValue}/${units.wholesaleUnit}: ${matchedRule.minQuantity}${
-          matchedRule.maxQuantity ? `–${matchedRule.maxQuantity}` : '+'
-        } ${units.wholesaleUnit})`;
-      }
-    } else {
-      // Strictly canonical: If no database rule matches, do not invent artificial discounts
-      unitDiscount = 0;
-      tierName = 'Base Rate / Custom Quote Required';
-    }
-
-    unitDiscount = Math.min(basePrice, Math.max(0, unitDiscount));
-    const effectivePrice = Math.max(1, Math.round(basePrice - unitDiscount));
-    const totalSavings = Math.round(unitDiscount * qty);
-    const estimatedTotal = Math.max(0, regularTotal - totalSavings);
-    const discountPercent = regularTotal > 0 ? Math.round((totalSavings / regularTotal) * 100) : 0;
-
     return {
-      basePrice,
-      effectivePrice,
-      regularTotal,
-      estimatedTotal,
-      totalSavings,
-      discountPercent,
-      tierName,
-      matchedRule,
+      basePrice: canonical.baseWholesaleRate,
+      effectivePrice: canonical.effectiveWholesaleRate,
+      regularTotal: canonical.regularTotal,
+      estimatedTotal: canonical.effectiveTotal,
+      totalSavings: canonical.savingsAmount,
+      discountPercent: canonical.savingsPercent,
+      tierName: canonical.tierName,
+      matchedRule: canonical.matchedRule,
     };
   }, [selectedProduct, quantity, rules, units]);
 

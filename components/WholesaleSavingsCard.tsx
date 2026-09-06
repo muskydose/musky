@@ -36,7 +36,6 @@ export default function WholesaleSavingsCard({
       quantity,
       rules: bulkRules,
       units,
-      indicativeDiscountPercent: bulkRules.length === 0 ? 15 : undefined,
     });
   }, [product, quantity, bulkRules, units]);
 
@@ -62,7 +61,7 @@ export default function WholesaleSavingsCard({
             <h4 className="text-xs font-bold tracking-wide uppercase text-[#faf5e8]">
               {isConfirmed
                 ? 'Wholesale Benefit & Savings'
-                : 'Bulk Sourcing Value'}
+                : 'Wholesale / Bulk Sourcing'}
             </h4>
             <p className="text-[10px] text-[#c5a059]">
               Direct from Sojat Factory • 100% Verified Botanical
@@ -75,9 +74,13 @@ export default function WholesaleSavingsCard({
             <CheckCircle2 className="w-3 h-3" />
             Verified Bulk Tier
           </span>
-        ) : (
+        ) : isIndicative ? (
           <span className="inline-flex items-center gap-1 bg-amber-950/60 text-amber-300 border border-amber-500/30 text-[10px] font-semibold px-2 py-0.5 rounded-full">
             Indicative Preview
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 bg-stone-800 text-stone-300 border border-stone-600/40 text-[10px] font-medium px-2 py-0.5 rounded-full">
+            Custom Factory Quote
           </span>
         )}
       </div>

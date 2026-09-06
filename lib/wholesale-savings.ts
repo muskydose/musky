@@ -9,7 +9,7 @@
  *    - STATE A: CONFIRMED (actual Admin/BulkPricingRule exists)
  *    - STATE B: INDICATIVE (no active rule, preview potential with clear disclaimer)
  *    - STATE C: CUSTOM_QUOTE (manual quotation required, zero fabricated rates)
- * 5. Maximum configurable tier framework up to 50%.
+ * 5. Universal configurable tier framework (0% to 100%).
  */
 
 import { Product, BulkPricingRule } from './types';
@@ -20,6 +20,12 @@ import {
   formatRatePerUnit,
   normalizeUnitString,
 } from './unit-pricing';
+import {
+  resolveCanonicalWholesalePricing,
+  CanonicalWholesaleResolution,
+} from './wholesale-pricing-resolver';
+
+export * from './wholesale-pricing-resolver';
 
 export type SavingsSource = 'CONFIRMED' | 'INDICATIVE' | 'CUSTOM_QUOTE';
 
@@ -63,7 +69,7 @@ export interface WholesaleSavingsResult {
 }
 
 /**
- * Standard suggested tier framework templates (up to 50%).
+ * Standard suggested tier framework templates.
  * These are configurable templates, NOT automatically guaranteed discounts.
  */
 export const WHOLESALE_BENEFIT_TIER_TEMPLATES = [
@@ -75,7 +81,10 @@ export const WHOLESALE_BENEFIT_TIER_TEMPLATES = [
   { label: '30% Regional Depot', percent: 30, minQty: 250 },
   { label: '35% Export Tier', percent: 35, minQty: 500 },
   { label: '40% Semi-Bulk Container', percent: 40, minQty: 1000 },
-  { label: '50% Maximum Enterprise Tier', percent: 50, minQty: 2500 },
+  { label: '50% Enterprise Tier', percent: 50, minQty: 2500 },
+  { label: '85% Commercial Volume Tier', percent: 85, minQty: 5000 },
+  { label: '87% Maximum Wholesale Tier', percent: 87, minQty: 10000 },
+  { label: '90% Mega Commercial Tier', percent: 90, minQty: 25000 },
 ];
 
 export interface DeriveWholesaleSavingsParams {
@@ -88,11 +97,7 @@ export interface DeriveWholesaleSavingsParams {
 
 /**
  * Derives the canonical wholesale value and savings comparison.
- * Strictly adheres to:
- * - retailUnitRate in wholesaleUnit
- * - wholesaleUnitRate in wholesaleUnit
- * - savingsAmount = retailTotal - wholesaleTotal
- * - savingsPercent = (savingsAmount / retailTotal) * 100
+ * Delegates directly to the single authoritative canonical resolver: resolveCanonicalWholesalePricing.
  */
 export function deriveWholesaleSavings({
   product,
@@ -102,128 +107,115 @@ export function deriveWholesaleSavings({
   indicativeDiscountPercent,
 }: DeriveWholesaleSavingsParams): WholesaleSavingsResult {
   const units = providedUnits || resolveProductWholesaleUnits(product);
-  const targetUnit = units.wholesaleUnit;
-
-  // 1. Resolve Canonical Retail Rate in target Wholesale Unit
-  // e.g. For 250g Henna @ ₹249, retailUnitRate in kg is ₹996/kg
-  const retailUnitRate = units.rates.wholesaleRate.rate;
-
-  // 2. Resolve requested quantity
+  const targetUnit = units.wholesaleUnit || 'kg';
   const minQty = units.minWholesaleQuantity || 1;
   const effectiveQty = quantity != null && quantity > 0 ? quantity : minQty;
+  const retailUnitRate = units.rates.wholesaleRate.rate;
 
-  // 3. Search for active matching Admin rule
-  let matchedRule: BulkPricingRule | undefined = undefined;
-  if (rules.length > 0) {
-    // Product-specific rule first
-    matchedRule = rules.find((r) => {
-      if (!r.isActive || r.productId !== product.id) return false;
-      const minOk = effectiveQty >= r.minQuantity;
-      const maxOk = !r.maxQuantity || effectiveQty <= r.maxQuantity;
-      return minOk && maxOk;
-    });
+  const canonical = resolveCanonicalWholesalePricing({
+    product,
+    quantity: effectiveQty,
+    rules,
+    units,
+    fallbackPolicy: 'CUSTOM_QUOTE',
+  });
 
-    // Global rule fallback
-    if (!matchedRule) {
-      matchedRule = rules.find((r) => {
-        if (!r.isActive || (r.productId && r.productId !== 'global')) return false;
-        const minOk = effectiveQty >= r.minQuantity;
-        const maxOk = !r.maxQuantity || effectiveQty <= r.maxQuantity;
-        return minOk && maxOk;
-      });
-    }
+  if (canonical.hasConfiguredTier && canonical.matchedRule) {
+    return {
+      productId: product.id,
+      productName: product.name,
+      quantity: effectiveQty,
+      unit: targetUnit,
+      retailUnitRate: canonical.baseWholesaleRate,
+      wholesaleUnitRate: canonical.effectiveWholesaleRate,
+      retailTotal: canonical.regularTotal,
+      wholesaleTotal: canonical.effectiveTotal,
+      savingsAmount: canonical.savingsAmount,
+      savingsPercent: canonical.savingsPercent,
+      savingsPerUnit: canonical.savingsPerUnit,
+      isConfirmed: true,
+      source: 'CONFIRMED',
+      tierName: canonical.tierName,
+      matchedRule: canonical.matchedRule,
+      display: {
+        formattedRetailRate: canonical.display.formattedBaseRate,
+        formattedWholesaleRate: canonical.display.formattedWholesaleRate,
+        formattedSavingsPerUnit: canonical.display.formattedSavingsPerUnit,
+        formattedRetailTotal: canonical.display.formattedRegularTotal,
+        formattedWholesaleTotal: canonical.display.formattedEffectiveTotal,
+        formattedSavingsTotal: canonical.display.formattedSavingsTotal,
+        formattedSavingsPercent: Number.isInteger(canonical.savingsPercent)
+          ? `${canonical.savingsPercent}%`
+          : `${Number(canonical.savingsPercent.toFixed(2))}%`,
+        equivalentPackagesLabel: canonical.display.equivalentPackagesLabel,
+      },
+    };
   }
 
-  let wholesaleUnitRate = retailUnitRate;
-  let source: SavingsSource = 'CUSTOM_QUOTE';
-  let tierName = 'Base Catalog Rate';
-  let isConfirmed = false;
+  // Handle explicit indicative preview request only if explicitly passed
+  if (indicativeDiscountPercent != null && indicativeDiscountPercent > 0) {
+    const boundedPercent = Math.min(100, Math.max(0, indicativeDiscountPercent));
+    const wholesaleUnitRate = Math.max(0, retailUnitRate * (1 - boundedPercent / 100));
+    const retailTotal = Math.round(retailUnitRate * effectiveQty * 100) / 100;
+    const wholesaleTotal = Math.round(wholesaleUnitRate * effectiveQty * 100) / 100;
+    const savingsAmount = Math.max(0, Math.round((retailTotal - wholesaleTotal) * 100) / 100);
+    const savingsPercent = retailTotal > 0 ? (savingsAmount / retailTotal) * 100 : 0;
+    const savingsPerUnit = Math.max(0, retailUnitRate - wholesaleUnitRate);
 
-  // 4. Calculate Wholesale Rate based on Rule State
-  if (matchedRule) {
-    isConfirmed = true;
-    source = 'CONFIRMED';
-
-    if (matchedRule.discountType === 'percentage') {
-      const discountVal = Math.min(50, Math.max(0, matchedRule.discountValue));
-      wholesaleUnitRate = retailUnitRate * (1 - discountVal / 100);
-      tierName = `Active Tier (${discountVal}% Off: ${matchedRule.minQuantity}${
-        matchedRule.maxQuantity ? `–${matchedRule.maxQuantity}` : '+'
-      } ${targetUnit})`;
-    } else if (matchedRule.discountType === 'fixed_amount') {
-      const discountVal = Math.min(retailUnitRate * 0.5, Math.max(0, matchedRule.discountValue));
-      wholesaleUnitRate = Math.max(1, retailUnitRate - discountVal);
-      tierName = `Active Tier (₹${matchedRule.discountValue}/${targetUnit} Off: ${matchedRule.minQuantity}${
-        matchedRule.maxQuantity ? `–${matchedRule.maxQuantity}` : '+'
-      } ${targetUnit})`;
-    } else if (matchedRule.discountType === 'fixed_price') {
-      wholesaleUnitRate = Math.max(1, matchedRule.discountValue);
-      tierName = `Fixed Special Tier (₹${matchedRule.discountValue}/${targetUnit}: ${matchedRule.minQuantity}${
-        matchedRule.maxQuantity ? `–${matchedRule.maxQuantity}` : '+'
-      } ${targetUnit})`;
-    }
-  } else if (indicativeDiscountPercent != null && indicativeDiscountPercent > 0) {
-    // STATE B: Indicative Preview
-    source = 'INDICATIVE';
-    isConfirmed = false;
-    const boundedPercent = Math.min(50, Math.max(0, indicativeDiscountPercent));
-    wholesaleUnitRate = retailUnitRate * (1 - boundedPercent / 100);
-    tierName = `Indicative Bulk Benefit (~${boundedPercent}% Est.)`;
-  } else {
-    // STATE C: Custom Quote Required
-    source = 'CUSTOM_QUOTE';
-    isConfirmed = false;
-    wholesaleUnitRate = retailUnitRate;
-    tierName = 'Custom Factory Quote Required';
+    return {
+      productId: product.id,
+      productName: product.name,
+      quantity: effectiveQty,
+      unit: targetUnit,
+      retailUnitRate,
+      wholesaleUnitRate,
+      retailTotal,
+      wholesaleTotal,
+      savingsAmount,
+      savingsPercent,
+      savingsPerUnit,
+      isConfirmed: false,
+      source: 'INDICATIVE',
+      tierName: `Indicative Bulk Benefit (~${boundedPercent}% Est.)`,
+      display: {
+        formattedRetailRate: formatRatePerUnit(retailUnitRate, targetUnit),
+        formattedWholesaleRate: formatRatePerUnit(wholesaleUnitRate, targetUnit),
+        formattedSavingsPerUnit: savingsAmount > 0 ? formatRatePerUnit(savingsPerUnit, targetUnit) : '₹0',
+        formattedRetailTotal: `₹${Math.round(retailTotal).toLocaleString('en-IN')}`,
+        formattedWholesaleTotal: `₹${Math.round(wholesaleTotal).toLocaleString('en-IN')}`,
+        formattedSavingsTotal: savingsAmount > 0 ? `₹${Math.round(savingsAmount).toLocaleString('en-IN')}` : 'Quote on Request',
+        formattedSavingsPercent: Number.isInteger(savingsPercent)
+          ? `${savingsPercent}%`
+          : `${Number(savingsPercent.toFixed(2))}%`,
+        equivalentPackagesLabel: units.equivalentPackagesText(effectiveQty),
+      },
+    };
   }
 
-  // Safety caps: reject negative or inverted discounts unless custom pricing
-  wholesaleUnitRate = Math.max(0.1, wholesaleUnitRate);
-
-  // 5. Compute Totals & Savings (strict raw arithmetic)
-  const retailTotal = Math.round(retailUnitRate * effectiveQty * 100) / 100;
-  const wholesaleTotal = Math.round(wholesaleUnitRate * effectiveQty * 100) / 100;
-  const savingsAmount = Math.max(0, Math.round((retailTotal - wholesaleTotal) * 100) / 100);
-  const savingsPercent = retailTotal > 0 ? (savingsAmount / retailTotal) * 100 : 0;
-  const savingsPerUnit = Math.max(0, retailUnitRate - wholesaleUnitRate);
-
-  // 6. Safe Formatting for Display
-  const formattedRetailRate = formatRatePerUnit(retailUnitRate, targetUnit);
-  const formattedWholesaleRate =
-    source === 'CUSTOM_QUOTE' ? 'Custom Quote' : formatRatePerUnit(wholesaleUnitRate, targetUnit);
-  const formattedSavingsPerUnit =
-    savingsAmount > 0 ? formatRatePerUnit(savingsPerUnit, targetUnit) : '₹0';
-  const formattedRetailTotal = `₹${Math.round(retailTotal).toLocaleString('en-IN')}`;
-  const formattedWholesaleTotal =
-    source === 'CUSTOM_QUOTE' ? 'On Request' : `₹${Math.round(wholesaleTotal).toLocaleString('en-IN')}`;
-  const formattedSavingsTotal =
-    savingsAmount > 0 ? `₹${Math.round(savingsAmount).toLocaleString('en-IN')}` : 'Quote on Request';
-  const formattedSavingsPercent = `${(Math.round(savingsPercent * 10) / 10).toFixed(1)}%`;
-
+  // Fallback: Safe Custom Quote state
   return {
     productId: product.id,
     productName: product.name,
     quantity: effectiveQty,
     unit: targetUnit,
     retailUnitRate,
-    wholesaleUnitRate,
-    retailTotal,
-    wholesaleTotal,
-    savingsAmount,
-    savingsPercent,
-    savingsPerUnit,
-    isConfirmed,
-    source,
-    tierName,
-    matchedRule,
+    wholesaleUnitRate: retailUnitRate,
+    retailTotal: Math.round(retailUnitRate * effectiveQty * 100) / 100,
+    wholesaleTotal: Math.round(retailUnitRate * effectiveQty * 100) / 100,
+    savingsAmount: 0,
+    savingsPercent: 0,
+    savingsPerUnit: 0,
+    isConfirmed: false,
+    source: 'CUSTOM_QUOTE',
+    tierName: 'Custom Factory Quote Required',
     display: {
-      formattedRetailRate,
-      formattedWholesaleRate,
-      formattedSavingsPerUnit,
-      formattedRetailTotal,
-      formattedWholesaleTotal,
-      formattedSavingsTotal,
-      formattedSavingsPercent,
+      formattedRetailRate: formatRatePerUnit(retailUnitRate, targetUnit),
+      formattedWholesaleRate: 'Custom Quote',
+      formattedSavingsPerUnit: '₹0',
+      formattedRetailTotal: `₹${Math.round(retailUnitRate * effectiveQty).toLocaleString('en-IN')}`,
+      formattedWholesaleTotal: 'On Request',
+      formattedSavingsTotal: 'Quote on Request',
+      formattedSavingsPercent: '0%',
       equivalentPackagesLabel: units.equivalentPackagesText(effectiveQty),
     },
   };

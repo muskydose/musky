@@ -100,7 +100,7 @@ export default function ProductDetailClient({
       .then((data) => {
         if (data?.success && Array.isArray(data.rules)) {
           const matching = data.rules.filter(
-            (r: any) => r.isActive && (!r.productId || r.productId === product.id)
+            (r: any) => r.isActive && (!r.productId || r.productId === 'global' || r.productId === product.id)
           );
           setBulkRules(matching);
         }

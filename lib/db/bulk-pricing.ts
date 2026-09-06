@@ -108,8 +108,8 @@ export async function saveBulkPricingRule(ruleData: Partial<BulkPricingRule>): P
   }
 
   const discountVal = Number(ruleData.discountValue);
-  if (isNaN(discountVal) || discountVal <= 0) {
-    throw new Error('Discount value must be greater than 0.');
+  if (isNaN(discountVal) || discountVal < 0) {
+    throw new Error('Discount value must be a non-negative number (at least 0).');
   }
 
   if (ruleData.discountType === 'percentage' && discountVal > 100) {
@@ -167,6 +167,14 @@ export async function saveBulkPricingRule(ruleData: Partial<BulkPricingRule>): P
     throw new Error(`Database error saving bulk pricing rule: ${error.message}`);
   }
 
+  // Revalidate public wholesale and pricing surfaces
+  try {
+    const { revalidateEntitySurfaces } = await import('@/lib/revalidation');
+    await revalidateEntitySurfaces('BULK_PRICING', [productIdTarget]);
+  } catch (revalErr) {
+    console.warn('[saveBulkPricingRule] Revalidation warning:', revalErr);
+  }
+
   return newRule;
 }
 
@@ -176,6 +184,15 @@ export async function deleteBulkPricingRule(id: string): Promise<boolean> {
   if (error) {
     throw new Error(`Database error deleting bulk pricing rule: ${error.message}`);
   }
+
+  // Revalidate public wholesale and pricing surfaces
+  try {
+    const { revalidateEntitySurfaces } = await import('@/lib/revalidation');
+    await revalidateEntitySurfaces('BULK_PRICING');
+  } catch (revalErr) {
+    console.warn('[deleteBulkPricingRule] Revalidation warning:', revalErr);
+  }
+
   return true;
 }
 

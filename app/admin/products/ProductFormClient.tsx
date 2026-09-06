@@ -32,6 +32,7 @@ import {
   UNIT_DISPLAY_LABELS,
   validateCatalogVariants,
 } from '@/lib/growth/product-catalog-governance';
+import { resolveCanonicalWholesalePricing } from '@/lib/wholesale-pricing-resolver';
 import {
   Save,
   ArrowLeft,
@@ -1826,15 +1827,18 @@ export default function ProductFormClient({
                   {productBulkRules.map((rule, rIdx) => {
                     const isConflicting = tierValidationResult.conflictingIndices?.includes(rIdx);
 
-                    // Calculate live effective price preview
-                    let effectiveRate = currentBaseWholesaleRate;
-                    if (rule.discountType === 'percentage') {
-                      effectiveRate = Math.round(currentBaseWholesaleRate * (1 - (rule.discountValue || 0) / 100));
-                    } else if (rule.discountType === 'fixed_amount') {
-                      effectiveRate = Math.max(0, currentBaseWholesaleRate - (rule.discountValue || 0));
-                    } else if (rule.discountType === 'fixed_price') {
-                      effectiveRate = rule.discountValue || 0;
-                    }
+                    // Calculate live effective price preview strictly via Canonical Resolver
+                    const previewResolution = resolveCanonicalWholesalePricing({
+                      product: {
+                        ...(initialProduct || {}),
+                        ...(formData as Product),
+                        id: initialProduct?.id || formData.id || 'preview-prod',
+                      },
+                      quantity: Number(rule.minQuantity) || 1,
+                      rules: [rule],
+                      units: currentWholesaleUnits,
+                    });
+                    const effectiveRate = previewResolution.effectiveWholesaleRate;
 
                     return (
                       <div
@@ -1949,10 +1953,12 @@ export default function ProductFormClient({
                               <input
                                 type="number"
                                 min="0"
+                                max={rule.discountType === 'percentage' ? 100 : undefined}
+                                step="0.01"
                                 required
                                 value={rule.discountValue}
                                 onChange={(e) => handleUpdateBulkRule(rIdx, 'discountValue', Number(e.target.value))}
-                                placeholder={rule.discountType === 'percentage' ? '15' : '100'}
+                                placeholder={rule.discountType === 'percentage' ? 'e.g. 90' : '100'}
                                 className={`w-full p-2 bg-[#fcfbf7] border border-[#e8e2d5] rounded-lg text-xs font-bold text-emerald-800 focus:outline-none focus:border-[#1b4332] ${
                                   rule.discountType === 'percentage' ? 'pr-7' : 'pl-6'
                                 }`}

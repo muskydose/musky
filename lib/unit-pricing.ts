@@ -205,8 +205,10 @@ export function formatRatePerUnit(rate: number, unit: string): string {
   let formattedNumber: string;
 
   if (rate >= 100) {
-    // Large integer rates like ₹796/kg, ₹1990/Litre
-    formattedNumber = Math.round(rate).toLocaleString('en-IN');
+    // Large integer rates like ₹796/kg, ₹1990/Litre; show 2 decimals if fractional
+    formattedNumber = Number.isInteger(rate)
+      ? Math.round(rate).toLocaleString('en-IN')
+      : (Math.round(rate * 100) / 100).toFixed(2);
   } else if (rate >= 1) {
     // Moderate rates like ₹24.92/cone, ₹1.99/ml
     formattedNumber = (Math.round(rate * 100) / 100).toFixed(2);

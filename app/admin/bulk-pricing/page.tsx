@@ -110,8 +110,8 @@ export default function AdminBulkPricingPage() {
       return;
     }
 
-    if (!discountValue || Number(discountValue) <= 0) {
-      setFormError('Discount value must be greater than 0.');
+    if (discountValue === '' || Number(discountValue) < 0) {
+      setFormError('Discount value must be at least 0.');
       return;
     }
 
@@ -382,14 +382,14 @@ export default function AdminBulkPricingPage() {
                   </div>
                 </div>
 
-                {/* Quick 5% - 50% Template Presets */}
+                {/* Quick Universal Template Presets */}
                 <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200/60 space-y-1.5">
                   <div className="flex items-center justify-between text-[11px] font-bold text-[#0f2d22]">
-                    <span>Suggested Wholesale Benefit Templates (Up to 50%):</span>
+                    <span>Suggested Wholesale Benefit Templates:</span>
                     <span className="text-[10px] text-emerald-800">1-Click Auto-Fill</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {[5, 10, 15, 20, 25, 30, 35, 40, 50].map((pct) => (
+                    {[5, 10, 15, 20, 25, 30, 35, 40, 50, 85, 87, 90].map((pct) => (
                       <button
                         key={pct}
                         type="button"
@@ -434,12 +434,13 @@ export default function AdminBulkPricingPage() {
                     <input
                       type="number"
                       step="0.01"
-                      min={0.01}
+                      min={0}
+                      max={discountType === 'percentage' ? 100 : undefined}
                       required
                       value={discountValue}
                       onChange={(e) => setDiscountValue(e.target.value === '' ? '' : Number(e.target.value))}
                       className="w-full px-3 py-2 rounded border border-[#e8e2d5] bg-[#FAF8F5] text-[#1f2421] focus:outline-none focus:border-[#1b4332]"
-                      placeholder={discountType === 'percentage' ? 'e.g. 10 (%)' : 'e.g. 50 (₹)'}
+                      placeholder={discountType === 'percentage' ? 'Enter any % from 0 to 100 (e.g. 90)' : 'e.g. 50 (₹)'}
                     />
                   </div>
                 </div>
