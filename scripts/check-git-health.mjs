@@ -59,7 +59,7 @@ try {
 
 // 4. Test actual git status execution
 try {
-  execSync('git status --porcelain', {
+  execSync('git --no-optional-locks status --porcelain', {
     cwd: rootDir,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],

@@ -12,8 +12,12 @@
     "**/.git/objects/**": true,
     "**/.git/subtree-cache/**": true,
     "**/.git/index*": true,
+    "**/.git/index.lock": true,
     "**/node_modules/**": true,
     "**/.next/**": true
+  },
+  "terminal.integrated.env.windows": {
+    "GIT_OPTIONAL_LOCKS": "0"
   }
 }
 
