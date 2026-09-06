@@ -4,7 +4,8 @@
 // ============================================================
 
 import { GuardianCheckResult } from '../types';
-import { INITIAL_PRODUCTS, INITIAL_PRODUCT_GUIDES } from '@/lib/data-store';
+import { getProducts } from '@/lib/db/products';
+import { getGuides } from '@/lib/db/guides';
 
 const CORE_STATIC_ROUTES = [
   { path: '/', name: 'Storefront Homepage', expectedCode: 200 },
@@ -94,83 +95,97 @@ export async function runSyntheticUrlChecks(baseUrl?: string): Promise<GuardianC
     }
   }
 
-  // 2. Dynamic Route Sampling (1 active product, 1 published guide)
-  const sampleProduct = INITIAL_PRODUCTS[0];
-  if (sampleProduct) {
-    const start = Date.now();
-    const path = `/products/${sampleProduct.slug}`;
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
-      const res = await fetch(`${origin}${path}`, {
-        headers: { 'x-guardian-probe': '1' },
-        signal: controller.signal,
-      }).catch(() => null);
-      clearTimeout(timeoutId);
-
-      const duration = Date.now() - start;
-      results.push({
-        checkId: 'chk_sampled_product',
-        name: `Sample Product: ${sampleProduct.name}`,
-        target: path,
-        type: 'STOREFRONT_URL',
-        status: res?.status === 200 ? 'PASS' : 'FAIL',
-        statusCode: res?.status,
-        durationMs: duration,
-        error: res?.status === 200 ? undefined : `Sample product page returned HTTP ${res?.status ?? 0}`,
-        observedAt: new Date().toISOString(),
-      });
-    } catch (e: any) {
-      results.push({
-        checkId: 'chk_sampled_product',
-        name: `Sample Product: ${sampleProduct.name}`,
-        target: path,
-        type: 'STOREFRONT_URL',
-        status: 'FAIL',
-        durationMs: Date.now() - start,
-        error: e.message,
-        observedAt: new Date().toISOString(),
-      });
+  // 2. Dynamic Route Sampling (1 active product, 1 published guide from DB)
+  let sampleProductSlug = 'sojat-pure-triple-shifted-henna-powder';
+  let sampleProductName = 'Sample Product';
+  try {
+    const products = await getProducts();
+    if (products && products.length > 0) {
+      sampleProductSlug = products[0].slug;
+      sampleProductName = products[0].name;
     }
+  } catch {}
+
+  const prodStart = Date.now();
+  const prodPath = `/products/${sampleProductSlug}`;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const res = await fetch(`${origin}${prodPath}`, {
+      headers: { 'x-guardian-probe': '1' },
+      signal: controller.signal,
+    }).catch(() => null);
+    clearTimeout(timeoutId);
+
+    const duration = Date.now() - prodStart;
+    results.push({
+      checkId: 'chk_sampled_product',
+      name: `Sample Product: ${sampleProductName}`,
+      target: prodPath,
+      type: 'STOREFRONT_URL',
+      status: res?.status === 200 ? 'PASS' : 'FAIL',
+      statusCode: res?.status,
+      durationMs: duration,
+      error: res?.status === 200 ? undefined : `Sample product page returned HTTP ${res?.status ?? 0}`,
+      observedAt: new Date().toISOString(),
+    });
+  } catch (e: any) {
+    results.push({
+      checkId: 'chk_sampled_product',
+      name: `Sample Product: ${sampleProductName}`,
+      target: prodPath,
+      type: 'STOREFRONT_URL',
+      status: 'FAIL',
+      durationMs: Date.now() - prodStart,
+      error: e.message,
+      observedAt: new Date().toISOString(),
+    });
   }
 
-  const sampleGuide = INITIAL_PRODUCT_GUIDES[0];
-  if (sampleGuide) {
-    const start = Date.now();
-    const path = `/guides/${sampleGuide.slug}`;
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
-      const res = await fetch(`${origin}${path}`, {
-        headers: { 'x-guardian-probe': '1' },
-        signal: controller.signal,
-      }).catch(() => null);
-      clearTimeout(timeoutId);
-
-      const duration = Date.now() - start;
-      results.push({
-        checkId: 'chk_sampled_guide',
-        name: `Sample Guide: ${sampleGuide.title}`,
-        target: path,
-        type: 'STOREFRONT_URL',
-        status: res?.status === 200 ? 'PASS' : 'FAIL',
-        statusCode: res?.status,
-        durationMs: duration,
-        error: res?.status === 200 ? undefined : `Sample guide page returned HTTP ${res?.status ?? 0}`,
-        observedAt: new Date().toISOString(),
-      });
-    } catch (e: any) {
-      results.push({
-        checkId: 'chk_sampled_guide',
-        name: `Sample Guide: ${sampleGuide.title}`,
-        target: path,
-        type: 'STOREFRONT_URL',
-        status: 'FAIL',
-        durationMs: Date.now() - start,
-        error: e.message,
-        observedAt: new Date().toISOString(),
-      });
+  let sampleGuideSlug = 'henna-paste-preparation-guide';
+  let sampleGuideTitle = 'Sample Guide';
+  try {
+    const guides = await getGuides();
+    if (guides && guides.length > 0) {
+      sampleGuideSlug = guides[0].slug;
+      sampleGuideTitle = guides[0].title;
     }
+  } catch {}
+
+  const guideStart = Date.now();
+  const path = `/guides/${sampleGuideSlug}`;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const res = await fetch(`${origin}${path}`, {
+      headers: { 'x-guardian-probe': '1' },
+      signal: controller.signal,
+    }).catch(() => null);
+    clearTimeout(timeoutId);
+
+    const duration = Date.now() - guideStart;
+    results.push({
+      checkId: 'chk_sampled_guide',
+      name: `Sample Guide: ${sampleGuideTitle}`,
+      target: path,
+      type: 'STOREFRONT_URL',
+      status: res?.status === 200 ? 'PASS' : 'FAIL',
+      statusCode: res?.status,
+      durationMs: duration,
+      error: res?.status === 200 ? undefined : `Sample guide page returned HTTP ${res?.status ?? 0}`,
+      observedAt: new Date().toISOString(),
+    });
+  } catch (e: any) {
+    results.push({
+      checkId: 'chk_sampled_guide',
+      name: `Sample Guide: ${sampleGuideTitle}`,
+      target: path,
+      type: 'STOREFRONT_URL',
+      status: 'FAIL',
+      durationMs: Date.now() - guideStart,
+      error: e.message,
+      observedAt: new Date().toISOString(),
+    });
   }
 
   return results;

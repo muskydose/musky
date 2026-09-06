@@ -6,11 +6,11 @@ import { sanitizeImageUrl, sanitizeImageUrls } from '@/lib/utils';
 import { getCategories } from './categories';
 import { pruneProductReferencesFromSettings } from './settings';
 import { revalidateCatalogSurfaces } from '@/lib/revalidation';
-import { INITIAL_PRODUCTS } from '@/lib/data-store';
 import { syncProductKeywordUniverse, onProductDeletedLifecycle } from '@/lib/growth/product-keyword-engine';
 import { validateCatalogVariants, getProductTypeUnitRule } from '@/lib/growth/product-catalog-governance';
 import { validateProductTypeClassification } from '@/lib/growth/product-type-governance';
 import { validateProductVariants } from '@/lib/product-variants';
+import { UniversalGovernanceCore } from '@/lib/governance';
 
 function requireSupabaseAdmin(): SupabaseClient {
   const client = getSupabaseAdmin();
@@ -159,7 +159,7 @@ export function mapProductToRow(p: Product) {
 export async function getAllProductsAdmin(): Promise<Product[]> {
   const supabase = getSupabaseAdmin() || getSupabase();
   if (!supabase) {
-    return INITIAL_PRODUCTS;
+    return [];
   }
 
   const { data, error } = await supabase.from('products').select('*');
@@ -169,14 +169,11 @@ export async function getAllProductsAdmin(): Promise<Product[]> {
     if (process.env.NODE_ENV === 'production') {
       throw new Error(`Failed to load admin products from database: ${error.message}`);
     }
-    return INITIAL_PRODUCTS;
+    return [];
   }
 
   if (!data || data.length === 0) {
-    if (process.env.NODE_ENV === 'production') {
-      return [];
-    }
-    return INITIAL_PRODUCTS;
+    return [];
   }
 
   return data.map(mapRowToProduct).sort((a, b) => a.sortOrder - b.sortOrder);
@@ -185,8 +182,7 @@ export async function getAllProductsAdmin(): Promise<Product[]> {
 export const getActiveProductsForStore = cache(async (): Promise<Product[]> => {
   const supabase = getSupabaseAdmin() || getSupabase();
   if (!supabase) {
-    // Offline local development fallback ONLY when database is genuinely unconfigured
-    return INITIAL_PRODUCTS.filter((p) => p.isActive !== false);
+    return [];
   }
 
   const { data, error } = await supabase
@@ -481,6 +477,12 @@ export async function saveProduct(product: Partial<Product>): Promise<Product> {
   const isNew = !product.id;
   const now = new Date().toISOString();
 
+  // Universal Platform Governance Enforcement
+  const govCheck = UniversalGovernanceCore.validateEntity('PRODUCT', product, isNew);
+  if (!govCheck.isValid) {
+    throw new Error(`Governance violation: ${govCheck.errors.join('; ')}`);
+  }
+
   const priceNum = Number(product.price);
   if (isNaN(priceNum) || priceNum < 0) {
     throw new Error('Product price must be a valid non-negative number');
@@ -677,7 +679,10 @@ export async function deleteProduct(id: string): Promise<boolean> {
     throw new Error(`Database error deleting product: ${error.message}`);
   }
 
-  // Cascade prune from site settings
+  // Cascade prune from site settings and universal reference integrity
+  await UniversalGovernanceCore.executeDeletionLifecycle('PRODUCT', id, existing?.slug).catch((govErr) => {
+    console.warn(`[deleteProduct] Universal governance deletion lifecycle notice for ${id}:`, govErr?.message);
+  });
   await pruneProductReferencesFromSettings([id]).catch((err) => {
     console.warn(`[deleteProduct] Settings prune notice for ${id}:`, err?.message);
   });

@@ -1,26 +1,26 @@
 import { ProductGuide } from '@/lib/types';
-import { INITIAL_PRODUCT_GUIDES } from '@/lib/data-store';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { sanitizeSlug } from './custom-pages';
+import { UniversalGovernanceCore } from '@/lib/governance';
+import { revalidateCatalogSurfaces } from '@/lib/revalidation';
 
 let cachedGuidesMemory: ProductGuide[] | null = null;
 
 export async function getGuides(): Promise<ProductGuide[]> {
   const supabase = getSupabaseAdmin();
   if (!supabase) {
-    if (!cachedGuidesMemory) {
-      cachedGuidesMemory = [...INITIAL_PRODUCT_GUIDES];
-    }
-    return cachedGuidesMemory;
+    return cachedGuidesMemory || [];
   }
 
   try {
     const { data, error } = await supabase.from('product_guides').select('*').order('sort_order', { ascending: true });
-    if (error || !data || data.length === 0) {
-      if (!cachedGuidesMemory) {
-        cachedGuidesMemory = [...INITIAL_PRODUCT_GUIDES];
-      }
-      return cachedGuidesMemory;
+    if (error) {
+      console.warn(`Supabase query warning [product_guides]: ${error.message}`);
+      return cachedGuidesMemory || [];
+    }
+    if (!data || data.length === 0) {
+      cachedGuidesMemory = [];
+      return [];
     }
 
     const mapped: ProductGuide[] = data.map((row: any) => ({
@@ -55,11 +55,8 @@ export async function getGuides(): Promise<ProductGuide[]> {
     cachedGuidesMemory = mapped;
     return mapped;
   } catch (err: any) {
-    console.warn('getGuides fallback to memory/initial:', err?.message);
-    if (!cachedGuidesMemory) {
-      cachedGuidesMemory = [...INITIAL_PRODUCT_GUIDES];
-    }
-    return cachedGuidesMemory;
+    console.warn('getGuides error, returning fail-closed empty:', err?.message);
+    return cachedGuidesMemory || [];
   }
 }
 
@@ -90,6 +87,12 @@ export async function getFeaturedGuides(): Promise<ProductGuide[]> {
 }
 
 export async function saveGuide(guide: Partial<ProductGuide> & { title: string }): Promise<ProductGuide> {
+  // Universal Platform Governance Validation
+  const govCheck = UniversalGovernanceCore.validateEntity('GUIDE', guide, !guide.id);
+  if (!govCheck.isValid) {
+    throw new Error(`Governance violation: ${govCheck.errors.join('; ')}`);
+  }
+
   const cleanSlug = sanitizeSlug(guide.slug || guide.title);
   if (!cleanSlug) {
     throw new Error('A valid title or slug is required for the guide.');
@@ -159,10 +162,20 @@ export async function saveGuide(guide: Partial<ProductGuide> & { title: string }
   }
 
   cachedGuidesMemory = guides;
+
+  // Revalidate catalog surfaces
+  await revalidateCatalogSurfaces({
+    guideSlugs: [updatedGuide.slug],
+  }).catch((revErr) => {
+    console.warn(`[saveGuide] Revalidation notice for ${updatedGuide.slug}:`, revErr?.message);
+  });
+
   return updatedGuide;
 }
 
 export async function deleteGuide(id: string): Promise<boolean> {
+  const targetGuide = (await getGuides()).find((g) => g.id === id);
+
   const supabase = getSupabaseAdmin();
   if (supabase) {
     const { error } = await supabase.from('product_guides').delete().eq('id', id);
@@ -175,6 +188,18 @@ export async function deleteGuide(id: string): Promise<boolean> {
   const guides = await getGuides();
   const filtered = guides.filter((g) => g.id !== id);
   cachedGuidesMemory = filtered;
+
+  // Universal deletion lifecycle & reference cleanup
+  await UniversalGovernanceCore.executeDeletionLifecycle('GUIDE', id, targetGuide?.slug).catch((govErr) => {
+    console.warn(`[deleteGuide] Universal governance deletion notice for ${id}:`, govErr?.message);
+  });
+
+  // Revalidate catalog surfaces
+  await revalidateCatalogSurfaces({
+    guideSlugs: [id, targetGuide?.slug],
+  }).catch((revErr) => {
+    console.warn(`[deleteGuide] Revalidation notice for ${id}:`, revErr?.message);
+  });
 
   return true;
 }

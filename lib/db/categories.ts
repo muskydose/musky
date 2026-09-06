@@ -3,6 +3,8 @@ import { Category } from '@/lib/types';
 import { getSupabase, getSupabaseAdmin } from '@/lib/supabase';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { sanitizeImageUrl } from '@/lib/utils';
+import { UniversalGovernanceCore } from '@/lib/governance';
+import { revalidateCatalogSurfaces } from '@/lib/revalidation';
 
 function requireSupabaseAdmin(): SupabaseClient {
   const client = getSupabaseAdmin();
@@ -177,6 +179,13 @@ export async function getCategoryByIdOrSlug(identifier: string): Promise<Categor
 export async function saveCategory(category: Partial<Category>): Promise<Category> {
   const supabase = requireSupabaseAdmin();
   const isNew = !category.id;
+
+  // Universal Platform Governance Validation
+  const govCheck = UniversalGovernanceCore.validateEntity('CATEGORY', category, isNew);
+  if (!govCheck.isValid) {
+    throw new Error(`Governance violation: ${govCheck.errors.join('; ')}`);
+  }
+
   const categoryId = category.id || `cat-${Date.now()}`;
 
   let rawSlug =
@@ -214,15 +223,24 @@ export async function saveCategory(category: Partial<Category>): Promise<Categor
     throw new Error(`Database error saving category: ${error.message}`);
   }
 
-  if (data && data.length > 0) {
-    return mapRowToCategory(data[0]);
-  }
+  const saved = data && data.length > 0 ? mapRowToCategory(data[0]) : fullCategory;
 
-  return fullCategory;
+  // Revalidate category catalog surfaces
+  await revalidateCatalogSurfaces({
+    categorySlugsOrIds: [saved.id, saved.slug],
+  }).catch((revErr) => {
+    console.warn(`[saveCategory] Revalidation notice for ${saved.id}:`, revErr?.message);
+  });
+
+  return saved;
 }
 
 export async function deleteCategory(id: string): Promise<boolean> {
   const supabase = requireSupabaseAdmin();
+
+  // Find existing category to retrieve slug before delete
+  const existingCategory = (await getCategories()).find((c) => c.id === id);
+
   const { data: assignedProducts } = await supabase
     .from('products')
     .select('id, name, category_id')
@@ -239,6 +257,18 @@ export async function deleteCategory(id: string): Promise<boolean> {
   if (error) {
     throw new Error(`Database error deleting category: ${error.message}`);
   }
+
+  // Universal deletion lifecycle & reference cleanup
+  await UniversalGovernanceCore.executeDeletionLifecycle('CATEGORY', id, existingCategory?.slug).catch((govErr) => {
+    console.warn(`[deleteCategory] Universal governance deletion notice for ${id}:`, govErr?.message);
+  });
+
+  // Revalidate catalog surfaces
+  await revalidateCatalogSurfaces({
+    categorySlugsOrIds: [id, existingCategory?.slug],
+  }).catch((revErr) => {
+    console.warn(`[deleteCategory] Revalidation notice for ${id}:`, revErr?.message);
+  });
 
   return true;
 }

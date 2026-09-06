@@ -2,12 +2,14 @@
   "css.lint.unknownAtRules": "ignore",
   "scss.lint.unknownAtRules": "ignore",
   "less.lint.unknownAtRules": "ignore",
+  "git.enabled": false,
   "git.autorefresh": false,
   "git.autofetch": false,
   "git.refreshOnWindowFocus": false,
   "files.watcherExclude": {
     "**/.git/objects/**": true,
     "**/.git/subtree-cache/**": true,
+    "**/.git/index*": true,
     "**/node_modules/**": true,
     "**/.next/**": true
   }

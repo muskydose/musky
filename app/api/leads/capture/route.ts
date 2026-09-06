@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { saveLead } from '@/lib/growth/lead-engine';
 import { CentralLeadType, LeadCaptureSource } from '@/lib/growth/types';
+import { UniversalGovernanceCore } from '@/lib/governance/core';
+import { revalidateEntitySurfaces } from '@/lib/revalidation';
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,6 +35,19 @@ export async function POST(req: NextRequest) {
     const sourceQuery = body.sourceQuery ? String(body.sourceQuery).trim() : undefined;
     const email = body.email ? String(body.email).trim().substring(0, 254) : undefined;
 
+    // Universal Platform Governance: Validate LEAD entity
+    const govResult = UniversalGovernanceCore.validateEntity(
+      'LEAD',
+      { customerName: name, phone: cleanPhone, email, ...body },
+      true
+    );
+    if (!govResult.isValid) {
+      return NextResponse.json(
+        { success: false, error: govResult.errors.join(' '), errors: govResult.errors },
+        { status: 400 }
+      );
+    }
+
     const lead = await saveLead({
       name,
       mobile: cleanPhone,
@@ -48,6 +63,8 @@ export async function POST(req: NextRequest) {
       requirement,
       quantity,
     });
+
+    revalidateEntitySurfaces('LEAD').catch(() => {});
 
     // Generate prefilled WhatsApp deep link
     const waPhone = '919876543210'; // Default support / sales WhatsApp

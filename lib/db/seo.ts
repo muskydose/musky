@@ -1,7 +1,11 @@
 import { SeoKeyword, PageSeoConfig, SeoTargetType } from '@/lib/types';
-import { INITIAL_SEO_KEYWORDS, normalizeKeyword } from '@/lib/data-store';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getSiteSettings, updateSiteSettings } from './settings';
+
+export function normalizeKeyword(kw: string): string {
+  if (!kw) return '';
+  return kw.toLowerCase().trim().replace(/\s+/g, ' ');
+}
 
 export function mapRowToSeoKeyword(row: any): SeoKeyword {
   return {
@@ -35,7 +39,7 @@ export function mapSeoKeywordToRow(kw: SeoKeyword) {
   };
 }
 
-let memorySeoKeywordsStore: SeoKeyword[] = [...INITIAL_SEO_KEYWORDS];
+let memorySeoKeywordsStore: SeoKeyword[] = [];
 let hasSeoKeywordsTableInDb: boolean | null = null;
 
 export async function getSeoKeywords(): Promise<SeoKeyword[]> {
@@ -72,18 +76,8 @@ export async function getSeoKeywords(): Promise<SeoKeyword[]> {
     hasSeoKeywordsTableInDb = true;
 
     if (!data || data.length === 0) {
-      try {
-        const rows = memorySeoKeywordsStore.map(mapSeoKeywordToRow);
-        await supabase.from('seo_keywords').upsert(rows);
-        const { data: seededData } = await supabase.from('seo_keywords').select('*');
-        if (seededData && seededData.length > 0) {
-          memorySeoKeywordsStore = seededData.map(mapRowToSeoKeyword);
-          return memorySeoKeywordsStore;
-        }
-      } catch (seedErr) {
-        console.warn('Initial seo_keywords seed skipped:', seedErr);
-      }
-      return memorySeoKeywordsStore;
+      memorySeoKeywordsStore = [];
+      return [];
     }
 
     memorySeoKeywordsStore = data.map(mapRowToSeoKeyword);

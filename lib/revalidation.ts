@@ -1,6 +1,7 @@
-﻿export interface CatalogRevalidationOptions {
+export interface CatalogRevalidationOptions {
   slugs?: (string | undefined | null)[];
   categorySlugsOrIds?: (string | undefined | null)[];
+  guideSlugs?: (string | undefined | null)[];
 }
 
 /**
@@ -53,14 +54,101 @@ export async function revalidateCatalogSurfaces(options?: CatalogRevalidationOpt
       }
     }
 
+    // 4b. Affected Guide pages
+    if (options?.guideSlugs && Array.isArray(options.guideSlugs)) {
+      for (const guide of options.guideSlugs) {
+        if (guide && typeof guide === 'string' && guide.trim()) {
+          try {
+            revalidatePath(`/guides/${guide.trim()}`, 'page');
+          } catch {}
+        }
+      }
+    }
+
     // 5. Invalidate Next.js cache tags if used
     try {
       revalidateTag('products');
+      revalidateTag('guides');
       revalidateTag('site_settings');
       revalidateTag('business_settings');
     } catch {}
   } catch (err: any) {
     // Graceful fallback when outside Next.js request context (e.g. standalone scripts or tests)
     console.warn('[revalidateCatalogSurfaces] Standalone execution notice:', err?.message);
+  }
+}
+
+/**
+ * Universal entity revalidation helper: Revalidates paths and cache tags
+ * for any governed platform entity type.
+ */
+export async function revalidateEntitySurfaces(
+  entityType: string,
+  slugs?: (string | undefined | null)[]
+): Promise<void> {
+  try {
+    const { revalidatePath, revalidateTag } = await import('next/cache');
+
+    try {
+      revalidatePath('/sitemap.xml');
+    } catch {}
+
+    const cleanSlugs = (slugs || []).filter((s): s is string => Boolean(s && s.trim()));
+
+    switch (entityType) {
+      case 'PRODUCT':
+        await revalidateCatalogSurfaces({ slugs: cleanSlugs });
+        break;
+
+      case 'CATEGORY':
+        await revalidateCatalogSurfaces({ categorySlugsOrIds: cleanSlugs });
+        break;
+
+      case 'GUIDE':
+        try {
+          revalidatePath('/guides', 'page');
+          for (const s of cleanSlugs) {
+            revalidatePath(`/guides/${s}`, 'page');
+          }
+          revalidateTag('guides');
+        } catch {}
+        break;
+
+      case 'PAGE':
+        try {
+          for (const s of cleanSlugs) {
+            revalidatePath(`/${s}`, 'page');
+          }
+          revalidateTag('pages');
+          revalidateTag('site_settings');
+        } catch {}
+        break;
+
+      case 'BUSINESS_DOCUMENT':
+        try {
+          revalidatePath('/documents', 'page');
+          revalidatePath('/about', 'page');
+          revalidatePath('/factory', 'page');
+          revalidateTag('documents');
+          revalidateTag('site_settings');
+        } catch {}
+        break;
+
+      case 'SETTING':
+        try {
+          revalidatePath('/', 'page');
+          revalidateTag('site_settings');
+          revalidateTag('business_settings');
+        } catch {}
+        break;
+
+      default:
+        try {
+          revalidatePath('/', 'page');
+        } catch {}
+        break;
+    }
+  } catch (err: any) {
+    console.warn('[revalidateEntitySurfaces] Standalone execution notice:', err?.message);
   }
 }

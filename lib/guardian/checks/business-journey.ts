@@ -4,7 +4,6 @@
 // ============================================================
 
 import { GuardianCheckResult } from '../types';
-import { INITIAL_PRODUCTS, INITIAL_SITE_SETTINGS } from '@/lib/data-store';
 import { renderWhatsAppTemplate, formatWhatsAppNumber } from '@/lib/whatsapp';
 
 export async function runBusinessJourneyChecks(): Promise<GuardianCheckResult[]> {
@@ -13,7 +12,11 @@ export async function runBusinessJourneyChecks(): Promise<GuardianCheckResult[]>
 
   try {
     // 1. Product Loading Verification
-    const sampleProduct = INITIAL_PRODUCTS[0];
+    const sampleProduct = {
+      id: 'synth-prod-henna',
+      name: 'Sojat Pure Triple Shifted Henna Powder',
+      price: 249,
+    };
     if (!sampleProduct || !sampleProduct.price || sampleProduct.price <= 0) {
       results.push({
         checkId: 'chk_journey_catalog',
@@ -84,10 +87,10 @@ export async function runBusinessJourneyChecks(): Promise<GuardianCheckResult[]>
     });
 
     // 4. WhatsApp CTA Link Generation Simulation
-    const targetPhone = formatWhatsAppNumber(INITIAL_SITE_SETTINGS.whatsappNumber);
+    const targetPhone = formatWhatsAppNumber('919876543210');
     const orderItemsSummary = `${sampleProduct.name} x ${quantity}`;
-    const message = renderWhatsAppTemplate(INITIAL_SITE_SETTINGS.whatsappMessageTemplate || '', {
-      brand_name: INITIAL_SITE_SETTINGS.brandName || 'Musky Dose',
+    const message = renderWhatsAppTemplate('Order for {brand_name}: {items}. Total: {total}', {
+      brand_name: 'Musky Dose',
       items: orderItemsSummary,
       products: orderItemsSummary,
       quantity,

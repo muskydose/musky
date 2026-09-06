@@ -1,6 +1,8 @@
 import { WholesaleEnquiry } from '@/lib/types';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { UniversalGovernanceCore } from '@/lib/governance/core';
+import { revalidateEntitySurfaces } from '@/lib/revalidation';
 
 function requireSupabaseAdmin(): SupabaseClient {
   const client = getSupabaseAdmin();
@@ -153,6 +155,12 @@ export async function saveWholesaleEnquiry(data: Partial<WholesaleEnquiry>): Pro
   const supabase = requireSupabaseAdmin();
   const now = new Date().toISOString();
 
+  // Universal Governance Gate for LEAD
+  const govResult = UniversalGovernanceCore.validateEntity('LEAD', data, !data.id);
+  if (!govResult.isValid) {
+    throw new Error(`Governance validation failed for wholesale enquiry: ${govResult.errors.join(' ')}`);
+  }
+
   if (!data.customerName || !data.customerName.trim()) {
     throw new Error('Full Name is required.');
   }
@@ -193,6 +201,7 @@ export async function saveWholesaleEnquiry(data: Partial<WholesaleEnquiry>): Pro
     throw new Error(`Database error saving wholesale enquiry: ${error.message}`);
   }
 
+  revalidateEntitySurfaces('LEAD').catch(() => {});
   return enquiry;
 }
 
@@ -225,6 +234,7 @@ export async function updateWholesaleEnquiryStatus(
     throw new Error(`Database error updating wholesale enquiry: ${error.message}`);
   }
 
+  revalidateEntitySurfaces('LEAD').catch(() => {});
   return updated;
 }
 
@@ -234,5 +244,7 @@ export async function deleteWholesaleEnquiry(id: string): Promise<boolean> {
   if (error) {
     throw new Error(`Database error deleting wholesale enquiry: ${error.message}`);
   }
+  await UniversalGovernanceCore.executeDeletionLifecycle('LEAD', id);
+  revalidateEntitySurfaces('LEAD').catch(() => {});
   return true;
 }

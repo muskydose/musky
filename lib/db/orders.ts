@@ -4,6 +4,8 @@ import { getSupabaseAdmin } from '../supabase';
 import { getAllProductsAdmin } from './products';
 import { getSiteSettings } from './settings';
 import { calculateCampaignDiscount, recordCampaignUsage, rollbackCampaignUsage } from './campaigns';
+import { UniversalGovernanceCore } from '@/lib/governance/core';
+import { revalidateEntitySurfaces } from '@/lib/revalidation';
 
 function requireSupabaseAdmin(): SupabaseClient {
   const client = getSupabaseAdmin();
@@ -400,6 +402,16 @@ export async function saveOrder(orderData: Partial<Order>): Promise<Order> {
   const supabase = requireSupabaseAdmin();
   const now = new Date().toISOString();
 
+  // Universal Platform Governance: Validate ORDER entity
+  const govResult = UniversalGovernanceCore.validateEntity('ORDER', {
+    customerName: orderData.customerName,
+    phone: orderData.customerPhone,
+    ...orderData,
+  }, true);
+  if (!govResult.isValid) {
+    throw new Error(`Governance validation failed for order: ${govResult.errors.join(' ')}`);
+  }
+
   // Check in-memory idempotency cache FIRST before performing calculations or campaign allocations
   const idempotencyKey = (orderData.idempotencyKey || (orderData as any).idempotency_key || '').toString().trim();
   if (idempotencyKey) {
@@ -645,6 +657,7 @@ export async function saveOrder(orderData: Partial<Order>): Promise<Order> {
     setCachedOrderByIdempotency(idempotencyKey, finalSavedOrder);
   }
 
+  revalidateEntitySurfaces('ORDER').catch(() => {});
   return finalSavedOrder;
 }
 
@@ -675,6 +688,7 @@ export async function updateOrderStatus(
     throw new Error(`Database error updating order status: ${error.message}`);
   }
 
+  revalidateEntitySurfaces('ORDER').catch(() => {});
   return updatedOrder;
 }
 
@@ -684,6 +698,8 @@ export async function deleteOrderAdmin(id: string): Promise<boolean> {
   if (error) {
     throw new Error(`Database error deleting order: ${error.message}`);
   }
+  await UniversalGovernanceCore.executeDeletionLifecycle('ORDER', id);
+  revalidateEntitySurfaces('ORDER').catch(() => {});
   return true;
 }
 
@@ -694,6 +710,8 @@ export async function deleteOrdersBulkAdmin(ids: string[]): Promise<number> {
   if (error) {
     throw new Error(`Database error bulk deleting orders: ${error.message}`);
   }
+  await Promise.all(ids.map((id) => UniversalGovernanceCore.executeDeletionLifecycle('ORDER', id)));
+  revalidateEntitySurfaces('ORDER').catch(() => {});
   return ids.length;
 }
 

@@ -11,6 +11,8 @@ import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limit';
 import { sanitizeAdminError, createSuccessResponse, getRequestId } from '@/lib/api-errors';
 import { saveLead } from '@/lib/growth/lead-engine';
 import { CentralLeadType } from '@/lib/growth/types';
+import { UniversalGovernanceCore } from '@/lib/governance/core';
+import { revalidateEntitySurfaces } from '@/lib/revalidation';
 
 export async function GET(req: NextRequest) {
   const requestId = getRequestId();
@@ -127,7 +129,17 @@ export async function POST(req: NextRequest) {
       status: 'NEW' as const,
     };
 
+    // Universal Platform Governance: Validate LEAD entity
+    const govResult = UniversalGovernanceCore.validateEntity('LEAD', safeEnquiryData, true);
+    if (!govResult.isValid) {
+      return NextResponse.json(
+        { success: false, error: govResult.errors.join(' '), errors: govResult.errors, requestId },
+        { status: 400 }
+      );
+    }
+
     const saved = await saveWholesaleEnquiry(safeEnquiryData);
+    revalidateEntitySurfaces('LEAD').catch(() => {});
 
     // Sync into central Lead Engine
     try {
@@ -226,6 +238,9 @@ export async function DELETE(req: NextRequest) {
     }
 
     await deleteWholesaleEnquiry(id);
+    await UniversalGovernanceCore.executeDeletionLifecycle('LEAD', id);
+    revalidateEntitySurfaces('LEAD').catch(() => {});
+
     await recordAuditLog({
       action: 'WHOLESALE_ENQUIRY_DELETE',
       resource: id,

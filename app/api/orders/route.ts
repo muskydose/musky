@@ -1,6 +1,8 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getOrdersPaginated, saveOrder, deleteOrderAdmin, deleteOrdersBulkAdmin } from '@/lib/db/orders';
 import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
+import { UniversalGovernanceCore, CommerceGovernance } from '@/lib/governance';
+import { revalidateEntitySurfaces } from '@/lib/revalidation';
 import { recordAuditLog } from '@/lib/auth';
 import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limit';
 import { sanitizePublicError, sanitizeAdminError } from '@/lib/api-errors';
@@ -144,6 +146,34 @@ export async function POST(req: NextRequest) {
       paymentMethod: 'WhatsApp' as const,
     };
 
+    // 1. Universal Platform Governance Validation
+    const govCheck = UniversalGovernanceCore.validateEntity('ORDER', safeOrderData, true);
+    if (!govCheck.isValid) {
+      return NextResponse.json(
+        { success: false, error: `Governance validation failed: ${govCheck.errors.join('; ')}` },
+        { status: 400 }
+      );
+    }
+
+    // 2. Commerce Pricing & Totals Invariant Check
+    if (body.subtotal !== undefined && body.totalAmount !== undefined) {
+      const claimedDiscount = body.discountAmount || 0;
+      const claimedShipping = body.shippingFee || 0;
+      const totalsVal = CommerceGovernance.validateOrderTotals(
+        body.items,
+        Number(body.subtotal),
+        Number(claimedDiscount),
+        Number(claimedShipping),
+        Number(body.totalAmount)
+      );
+      if (!totalsVal.isValid) {
+        return NextResponse.json(
+          { success: false, error: `Commerce invariant violation: ${totalsVal.errors.join('; ')}` },
+          { status: 400 }
+        );
+      }
+    }
+
     delete (safeOrderData as any).id;
     delete (safeOrderData as any).orderNumber;
     delete (safeOrderData as any).subtotal;
@@ -152,6 +182,12 @@ export async function POST(req: NextRequest) {
     delete (safeOrderData as any).totalAmount;
 
     const order = await saveOrder(safeOrderData);
+
+    // 3. Centralized Order Surface Revalidation
+    await revalidateEntitySurfaces('ORDER').catch((revErr: any) => {
+      console.warn('[API Orders] Revalidation notice:', revErr?.message);
+    });
+
     return NextResponse.json(
       { success: true, order },
       {

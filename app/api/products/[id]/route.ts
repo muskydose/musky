@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { revalidateCatalogSurfaces } from '@/lib/revalidation';
 import { getProductByIdOrSlug, saveProduct, deleteProduct } from '@/lib/db/products';
 import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
+import { UniversalGovernanceCore } from '@/lib/governance';
 import { recordAuditLog } from '@/lib/auth';
 import { isBase64ImageData } from '@/lib/media-upload';
 import { sanitizeAdminError, createSuccessResponse, getRequestId } from '@/lib/api-errors';
@@ -38,6 +39,15 @@ export async function PUT(
 
     const { id } = await params;
     const body = await req.json();
+
+    // 1. Universal Platform Governance Validation
+    const govCheck = UniversalGovernanceCore.validateEntity('PRODUCT', { ...body, id }, false);
+    if (!govCheck.isValid) {
+      return NextResponse.json(
+        { success: false, error: `Governance validation failed: ${govCheck.errors.join('; ')}`, requestId },
+        { status: 400 }
+      );
+    }
 
     if (Array.isArray(body.images)) {
       const hasBase64 = body.images.some((img: string) => isBase64ImageData(img));
@@ -129,6 +139,7 @@ export async function DELETE(
     const existingProduct = await getProductByIdOrSlug(id, true);
 
     await deleteProduct(id);
+    await UniversalGovernanceCore.executeDeletionLifecycle('PRODUCT', id, existingProduct?.slug);
 
     await recordAuditLog({
       action: 'PRODUCT_DELETE',

@@ -11,6 +11,7 @@ import {
 import { getProducts } from '@/lib/db/products';
 import { getGuides } from '@/lib/db/guides';
 import { sanitizeAdminError } from '@/lib/api-errors';
+import { AiGovernance } from '@/lib/governance/ai-governance';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,9 +76,23 @@ export async function POST(req: NextRequest) {
       draft = deriveProductGuide(targetProduct, products, guides);
     }
 
+    // 6. Wrap with Universal AI Governance Envelope and enforce NEEDS_REVIEW status
+    const envelope = AiGovernance.createSuggestion(
+      draft,
+      'AI_AUTOFILL',
+      0.90,
+      ['Derived from product intelligence & opportunity analysis']
+    );
+
+    if (draft && typeof draft === 'object') {
+      draft.suggestedState = 'NEEDS_REVIEW';
+      draft.aiGenerated = true;
+    }
+
     return NextResponse.json({
       success: true,
       draft,
+      envelope,
       intelligence,
       guideOpportunities,
       keywordUniverse: {

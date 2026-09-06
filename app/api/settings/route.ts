@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSiteSettings, getPublicSiteSettingsProjection, updateSiteSettings, getPaymentSettings, updatePaymentSettings } from '@/lib/db/settings';
 import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
+import { UniversalGovernanceCore } from '@/lib/governance';
+import { revalidateEntitySurfaces } from '@/lib/revalidation';
 import { recordAuditLog } from '@/lib/auth';
 import { isBase64ImageData } from '@/lib/media-upload';
 import { sanitizeAdminError, createSuccessResponse, getRequestId } from '@/lib/api-errors';
@@ -60,6 +62,15 @@ export async function PUT(req: NextRequest) {
     const { siteSettings, paymentSettings } = body;
 
     if (siteSettings) {
+      // 1. Universal Platform Governance Validation
+      const govCheck = UniversalGovernanceCore.validateEntity('SETTING', siteSettings, false);
+      if (!govCheck.isValid) {
+        return NextResponse.json(
+          { success: false, error: `Governance validation failed: ${govCheck.errors.join('; ')}`, requestId },
+          { status: 400 }
+        );
+      }
+
       // Reject direct Base64 image data in settings fields
       const imageFields = ['logoUrl', 'faviconUrl', 'ogImageUrl', 'heroImageUrl', 'factoryImageUrl'];
       for (const field of imageFields) {
@@ -86,21 +97,10 @@ export async function PUT(req: NextRequest) {
       updatedPayment = await updatePaymentSettings(paymentSettings);
     }
 
-    // Invalidate Next.js static cache and revalidate all public routes
-    try {
-      const { revalidatePath, revalidateTag } = await import('next/cache');
-      revalidatePath('/', 'layout');
-      revalidatePath('/contact');
-      revalidatePath('/about');
-      revalidatePath('/factory');
-      revalidatePath('/wholesale');
-      revalidatePath('/faq');
-      revalidatePath('/products');
-      revalidateTag('site_settings');
-      revalidateTag('business_settings');
-    } catch (revErr: any) {
+    // Centralized static cache invalidation across all public routes
+    await revalidateEntitySurfaces('SETTING').catch((revErr: any) => {
       console.warn('[API Settings] Revalidation notice:', revErr?.message);
-    }
+    });
 
     await recordAuditLog({
       action: 'SETTINGS_UPDATE',

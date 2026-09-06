@@ -1,6 +1,8 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getCustomPages, getCustomPageBySlug, saveCustomPage, deleteCustomPage, sanitizeSlug } from '@/lib/db/custom-pages';
 import { requireAdminAuthAndCsrf, isRequestAdminAuthenticated } from '@/lib/admin-middleware';
+import { UniversalGovernanceCore } from '@/lib/governance';
+import { revalidateEntitySurfaces } from '@/lib/revalidation';
 import { recordAuditLog } from '@/lib/auth';
 import { CustomPage } from '@/lib/types';
 import { sanitizeAdminError, createSuccessResponse, getRequestId } from '@/lib/api-errors';
@@ -72,8 +74,23 @@ export async function POST(req: NextRequest) {
       updatedAt: new Date().toISOString(),
     };
 
+    // 1. Universal Platform Governance Validation
+    const govCheck = UniversalGovernanceCore.validateEntity('PAGE', pageToSave, !body.id);
+    if (!govCheck.isValid) {
+      return NextResponse.json(
+        { success: false, error: `Governance validation failed: ${govCheck.errors.join('; ')}`, requestId },
+        { status: 400 }
+      );
+    }
+
     const savedPage = await saveCustomPage(pageToSave);
     await recordAuditLog({ action: 'CUSTOM_PAGE_SAVE', resource: savedPage.title || savedPage.id });
+
+    // 2. Centralized Page Revalidation
+    await revalidateEntitySurfaces('PAGE', [savedPage.slug]).catch((revErr: any) => {
+      console.warn('[API CustomPages] Revalidation notice:', revErr?.message);
+    });
+
     return createSuccessResponse({ page: savedPage }, undefined, requestId);
   } catch (error: any) {
     return sanitizeAdminError(error, 'Failed to save custom page.', 500, requestId);
@@ -95,8 +112,19 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Page ID is required', requestId }, { status: 400 });
     }
 
+    const allPages = await getCustomPages();
+    const existing = allPages.find((p) => p.id === id);
+
     await deleteCustomPage(id);
+    await UniversalGovernanceCore.executeDeletionLifecycle('PAGE', id, existing?.slug);
+
     await recordAuditLog({ action: 'CUSTOM_PAGE_DELETE', resource: id });
+
+    // Centralized Page Revalidation
+    await revalidateEntitySurfaces('PAGE', [existing?.slug]).catch((revErr: any) => {
+      console.warn('[API CustomPages] Revalidation notice:', revErr?.message);
+    });
+
     return createSuccessResponse({ message: 'Custom page deleted successfully' }, undefined, requestId);
   } catch (error: any) {
     return sanitizeAdminError(error, 'Failed to delete custom page.', 500, requestId);

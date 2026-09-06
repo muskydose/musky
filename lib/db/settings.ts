@@ -63,7 +63,7 @@ export function mapRowToSiteSettings(row: any): SiteSettings {
     whatsappStep2Description: base.whatsappStep2Description || row.whatsapp_step_2_desc || INITIAL_SITE_SETTINGS.whatsappStep2Description,
     whatsappStep3Title: base.whatsappStep3Title || row.whatsapp_step_3_title || INITIAL_SITE_SETTINGS.whatsappStep3Title,
     whatsappStep3Description: base.whatsappStep3Description || row.whatsapp_step_3_desc || INITIAL_SITE_SETTINGS.whatsappStep3Description,
-    homepageSections: Array.isArray(base.homepageSections) && base.homepageSections.length > 0 ? base.homepageSections : INITIAL_SITE_SETTINGS.homepageSections,
+    homepageSections: Array.isArray(base.homepageSections) ? base.homepageSections : (INITIAL_SITE_SETTINGS.homepageSections || []),
     homepageProducts: Array.isArray(base.homepageProducts) ? base.homepageProducts : (INITIAL_SITE_SETTINGS.homepageProducts || []),
     homepageCategories: Array.isArray(base.homepageCategories) ? base.homepageCategories : (INITIAL_SITE_SETTINGS.homepageCategories || []),
     homepageVideo: base.homepageVideo ? {
@@ -72,11 +72,11 @@ export function mapRowToSiteSettings(row: any): SiteSettings {
       videoUrl: base.homepageVideo.videoUrl || '',
       posterUrl: sanitizeImageUrl(base.homepageVideo.posterUrl || INITIAL_SITE_SETTINGS.homepageVideo?.posterUrl || '/images/hero-1.webp'),
     } : INITIAL_SITE_SETTINGS.homepageVideo,
-    announcements: Array.isArray(base.announcements) && base.announcements.length > 0 ? base.announcements : INITIAL_SITE_SETTINGS.announcements,
+    announcements: Array.isArray(base.announcements) ? base.announcements : (INITIAL_SITE_SETTINGS.announcements || []),
     announcementTickerEnabled: base.announcementTickerEnabled ?? INITIAL_SITE_SETTINGS.announcementTickerEnabled ?? true,
     announcementTickerSpeed: base.announcementTickerSpeed || INITIAL_SITE_SETTINGS.announcementTickerSpeed || 'normal',
-    navItems: Array.isArray(base.navItems) && base.navItems.length > 0 ? base.navItems : INITIAL_SITE_SETTINGS.navItems,
-    footerSections: Array.isArray(base.footerSections) && base.footerSections.length > 0 ? base.footerSections : INITIAL_SITE_SETTINGS.footerSections,
+    navItems: Array.isArray(base.navItems) ? base.navItems : (INITIAL_SITE_SETTINGS.navItems || []),
+    footerSections: Array.isArray(base.footerSections) ? base.footerSections : (INITIAL_SITE_SETTINGS.footerSections || []),
     cmsText: {
       ...(INITIAL_SITE_SETTINGS.cmsText || {}),
       ...(base.cmsText || {}),

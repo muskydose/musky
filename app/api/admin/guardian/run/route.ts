@@ -4,6 +4,7 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
 import { WebsiteGuardian } from '@/lib/guardian/guardian-core';
 import { guardianStore } from '@/lib/guardian/guardian-store';
 import { sanitizeAdminError } from '@/lib/api-errors';
@@ -12,6 +13,11 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) {
+      return authCheck.errorResponse!;
+    }
+
     const host = req.headers.get('host');
     const protocol = host?.includes('localhost') ? 'http' : 'https';
     const baseUrl = host ? `${protocol}://${host}` : undefined;

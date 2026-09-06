@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { revalidateCatalogSurfaces } from '@/lib/revalidation';
 import { getProducts, getAllProductsAdmin, saveProduct } from '@/lib/db/products';
 import { requireAdminAuthAndCsrf, isRequestAdminAuthenticated } from '@/lib/admin-middleware';
+import { UniversalGovernanceCore } from '@/lib/governance';
 import { recordAuditLog } from '@/lib/auth';
 import { isBase64ImageData } from '@/lib/media-upload';
 import { sanitizeAdminError, createSuccessResponse, getRequestId } from '@/lib/api-errors';
@@ -43,6 +44,16 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+
+    // 1. Universal Platform Governance Validation
+    const govCheck = UniversalGovernanceCore.validateEntity('PRODUCT', body, true);
+    if (!govCheck.isValid) {
+      return NextResponse.json(
+        { success: false, error: `Governance validation failed: ${govCheck.errors.join('; ')}`, requestId },
+        { status: 400 }
+      );
+    }
+
     if (!body.name || body.price === undefined || body.price === null) {
       return NextResponse.json(
         { success: false, error: 'Product name and price are required', requestId },

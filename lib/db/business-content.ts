@@ -1,14 +1,13 @@
 import { BusinessContentItem } from '@/lib/types';
-import { INITIAL_BUSINESS_CONTENT } from '@/lib/data-store';
 import { getSiteSettings, updateSiteSettings } from './settings';
 import { sanitizeSlug } from './custom-pages';
 
 export async function getBusinessContentItems(): Promise<BusinessContentItem[]> {
   const siteSettings = await getSiteSettings();
-  if (siteSettings.businessContentItems && Array.isArray(siteSettings.businessContentItems) && siteSettings.businessContentItems.length > 0) {
+  if (siteSettings.businessContentItems && Array.isArray(siteSettings.businessContentItems)) {
     return siteSettings.businessContentItems.sort((a, b) => a.sortOrder - b.sortOrder);
   }
-  return INITIAL_BUSINESS_CONTENT.sort((a, b) => a.sortOrder - b.sortOrder);
+  return [];
 }
 
 export async function getPublishedBusinessContentItems(): Promise<BusinessContentItem[]> {
@@ -55,7 +54,7 @@ export async function saveBusinessContentItem(data: Partial<BusinessContentItem>
     verificationUrl: data.verificationUrl || '',
     downloadEnabled: data.downloadEnabled ?? true,
     published: data.published ?? true,
-    displayLocations: Array.isArray(data.displayLocations) && data.displayLocations.length > 0 ? data.displayLocations : ['documents_page'],
+    displayLocations: Array.isArray(data.displayLocations) ? data.displayLocations : ['documents_page'],
     sortOrder: data.sortOrder ?? 1,
     createdAt: data.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),

@@ -1,3 +1,18 @@
+/**
+ * ============================================================================
+ * MUSKY DOSE — SEED & MIGRATION FIXTURE DATA STORE
+ *
+ * ARCHITECTURAL CLASSIFICATION: SEED / MIGRATION ONLY
+ *
+ * In accordance with the Musky Dose Universal Platform Governance Contract:
+ * - Runtime database services (lib/db/*) MUST NOT import INITIAL_* arrays as operational fallbacks.
+ * - Empty database states must fail-closed (return [] / 404), never resurrect seed fixtures.
+ * - This file exists strictly for database bootstrapping, tests, and mock migration scripts.
+ * ============================================================================
+ */
+
+export const DATA_STORE_ROLE = 'MIGRATION_SEED_ONLY' as const;
+
 import { Product, Category, Order, SiteSettings, PaymentSettings, Customer, HomepageSectionConfig, HomepageVideoConfig, AnnouncementItem, NavItem, FooterLink, FooterSectionConfig, FAQItem, PolicyContent, MediaItem, WhyCard, TestimonialItem, LayoutControls, ProductGuide, BusinessContentItem, BrandColors, TrustStripItem } from './types';
 
 export const INITIAL_BUSINESS_CONTENT: BusinessContentItem[] = [
