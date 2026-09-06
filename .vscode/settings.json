@@ -6,6 +6,8 @@
   "git.autorefresh": false,
   "git.autofetch": false,
   "git.refreshOnWindowFocus": false,
+  "git.decorations.enabled": false,
+  "git.autoRepositoryDetection": false,
   "files.watcherExclude": {
     "**/.git/objects/**": true,
     "**/.git/subtree-cache/**": true,
