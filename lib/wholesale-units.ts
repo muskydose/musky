@@ -200,3 +200,15 @@ export function calculateProductBaseWholesaleRate(product: Product, units: Resol
   );
   return Math.round(canonical.rate);
 }
+
+/**
+ * Formats canonical wholesale unit for concise tier card display (e.g. 'L' for Litre, 'kg' for kg).
+ */
+export function formatWholesaleTierUnit(unit: string, quantity: number = 1): string {
+  const norm = (unit || '').trim().toLowerCase();
+  if (norm === 'litre' || norm === 'liter' || norm === 'l') return 'L';
+  if (norm === 'kg' || norm === 'kilogram' || norm === 'kilograms') return 'kg';
+  if (norm === 'box' || norm === 'boxes') return quantity > 1 ? 'Boxes' : 'Box';
+  if (norm === 'piece' || norm === 'pieces' || norm === 'pcs') return quantity > 1 ? 'Pieces' : 'Piece';
+  return unit;
+}

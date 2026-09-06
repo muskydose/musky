@@ -38,6 +38,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import WholesaleSavingsCard from '@/components/WholesaleSavingsCard';
+import { resolveProductWholesaleUnits, formatWholesaleTierUnit } from '@/lib/wholesale-units';
+import { resolveCanonicalWholesalePricing } from '@/lib/wholesale-pricing-resolver';
 
 interface ProductDetailClientProps {
   product: Product;
@@ -108,7 +110,14 @@ export default function ProductDetailClient({
       .catch((err) => console.warn('Failed to load bulk pricing rules for product:', err));
   }, [product.id]);
 
-  const [customBulkQuantity, setCustomBulkQuantity] = useState<string>('25 kg');
+  const wholesaleUnits = React.useMemo(() => resolveProductWholesaleUnits(product), [product]);
+  const sortedBulkRules = React.useMemo(() => {
+    return [...bulkRules].sort((a, b) => Number(a.minQuantity || 0) - Number(b.minQuantity || 0));
+  }, [bulkRules]);
+
+  const [customBulkQuantity, setCustomBulkQuantity] = useState<string>(
+    () => `${wholesaleUnits.minWholesaleQuantity || 5} ${wholesaleUnits.wholesaleUnit || 'kg'}`
+  );
   const [faqs, setFaqs] = useState<any[]>(() =>
     Array.isArray(faqItems)
       ? faqItems.filter((f) => f.enabled !== false)
@@ -532,38 +541,52 @@ export default function ProductDetailClient({
           )}
 
           {/* Bulk Tier Discounts Table */}
-          {bulkRules.length > 0 && (
+          {sortedBulkRules.length > 0 && (
             <div className="p-4 rounded-xl bg-emerald-50/80 border border-emerald-200/80 space-y-2.5">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs font-extrabold text-[#0f2d22]">
-                  <Sparkles className="w-4 h-4 text-[#c5a059]" />
-                  <span>Bulk & Wholesale Volume Discounts</span>
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs font-extrabold text-[#0f2d22]">
+                    <Sparkles className="w-4 h-4 text-[#c5a059]" />
+                    <span>Bulk & Wholesale Volume Discounts</span>
+                  </div>
+                  <p className="text-[11px] text-[#626c66] mt-0.5">
+                    Pricing based on total order quantity
+                  </p>
                 </div>
                 <Link
                   href="/wholesale"
-                  className="text-[11px] font-bold text-[#1b4332] hover:underline"
+                  className="text-[11px] font-bold text-[#1b4332] hover:underline shrink-0"
                 >
                   Custom B2B Rates &rarr;
                 </Link>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                {bulkRules.map((rule) => {
-                  const maxLabel = rule.maxQuantity ? `${rule.maxQuantity} packs` : 'or more';
-                  const discountLabel =
-                    rule.discountType === 'percentage'
-                      ? `${rule.discountValue}% OFF`
-                      : rule.discountType === 'fixed_amount'
-                      ? `₹${rule.discountValue} OFF`
-                      : `Fixed ₹${rule.discountValue} / pack`;
+                {sortedBulkRules.map((rule) => {
+                  const unitLabel = formatWholesaleTierUnit(wholesaleUnits.wholesaleUnit, rule.minQuantity);
+
+                  let discountLabel = '';
+                  if (rule.discountType === 'percentage') {
+                    const rawVal = Number(rule.discountValue);
+                    const pctStr = Number.isInteger(rawVal) ? `${rawVal}%` : `${Number(rawVal.toFixed(2))}%`;
+                    discountLabel = `${pctStr} OFF`;
+                  } else {
+                    const tierPricing = resolveCanonicalWholesalePricing({
+                      product,
+                      quantity: rule.minQuantity,
+                      rules: [rule],
+                      units: wholesaleUnits,
+                    });
+                    discountLabel = tierPricing.display.formattedSavingsPercent;
+                  }
 
                   return (
                     <div
                       key={rule.id}
                       className="bg-white p-2.5 rounded-lg border border-emerald-100 flex items-center justify-between shadow-2xs"
                     >
-                      <span className="text-[#0f2d22] font-medium">
-                        Buy {rule.minQuantity} {maxLabel}:
+                      <span className="text-[#0f2d22] font-bold text-xs sm:text-sm">
+                        {rule.minQuantity} {unitLabel}
                       </span>
                       <span className="font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded text-[11px]">
                         {discountLabel}
@@ -663,10 +686,10 @@ export default function ProductDetailClient({
                     selectedVariant
                   );
                 }}
-                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-xs sm:text-sm tracking-wider border transition-all shadow-xs touch-manipulation active:scale-[0.99] ${
+                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-xs sm:text-sm tracking-wider border transition-all shadow-xs cursor-pointer touch-manipulation active:scale-[0.99] ${
                   isOutOfStock
                     ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed pointer-events-none'
-                    : 'bg-[#f5f1e8] hover:bg-[#e8e2d5] text-[#0f2d22] border-[#e8e2d5]'
+                    : 'bg-[#1b4332] hover:bg-[#0f2d22] text-white border-transparent'
                 }`}
               >
                 <span>Buy Now Direct</span>
