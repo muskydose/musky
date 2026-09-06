@@ -2,7 +2,7 @@
   "css.lint.unknownAtRules": "ignore",
   "scss.lint.unknownAtRules": "ignore",
   "less.lint.unknownAtRules": "ignore",
-  "git.enabled": false,
+  "git.enabled": true,
   "git.autorefresh": false,
   "git.autofetch": false,
   "git.refreshOnWindowFocus": false,
