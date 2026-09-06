@@ -110,7 +110,7 @@ export default function ProductDetailClient({
 
   const [customBulkQuantity, setCustomBulkQuantity] = useState<string>('25 kg');
   const [faqs, setFaqs] = useState<any[]>(() =>
-    Array.isArray(faqItems) && faqItems.length > 0
+    Array.isArray(faqItems)
       ? faqItems.filter((f) => f.enabled !== false)
       : INITIAL_FAQ_ITEMS
   );
@@ -274,13 +274,11 @@ export default function ProductDetailClient({
       if (siteSettings?.displayPhone) {
         setDisplayPhone(siteSettings.displayPhone);
       }
-      if (siteSettings?.faqItems) {
+      if (Array.isArray(siteSettings?.faqItems)) {
         const enabledFaqs = siteSettings.faqItems
           .filter((f: any) => f.enabled !== false)
           .sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-        if (enabledFaqs.length > 0) {
-          setFaqs(enabledFaqs);
-        }
+        setFaqs(enabledFaqs);
       }
     });
   }, []);

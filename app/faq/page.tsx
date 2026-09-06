@@ -20,7 +20,7 @@ export async function generateMetadata() {
 
 export default async function FaqPage() {
   const settings = await getSiteSettings();
-  const faqItems: FAQItem[] = settings?.faqItems && settings.faqItems.length > 0 ? settings.faqItems : INITIAL_FAQ_ITEMS;
+  const faqItems: FAQItem[] = Array.isArray(settings?.faqItems) ? settings.faqItems : INITIAL_FAQ_ITEMS;
   const activeFaqs = faqItems
     .filter((item) => item.enabled !== false)
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));

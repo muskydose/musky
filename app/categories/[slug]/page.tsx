@@ -93,7 +93,8 @@ export async function generateMetadata({
   }
 
   const editorial = CATEGORY_EDITORIAL_INTRODUCTIONS[category.slug];
-  const customDesc = editorial ? `${editorial.lead}. ${editorial.body.slice(0, 100)}...` : category.description;
+  const editorialFallback = editorial ? `${editorial.lead}. ${editorial.body.slice(0, 100)}...` : undefined;
+  const customDesc = category.description?.trim() ? category.description.trim() : editorialFallback;
 
   return await resolvePageSeoMetadata({
     targetType: 'category',

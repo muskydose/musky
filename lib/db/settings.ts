@@ -77,6 +77,7 @@ export function mapRowToSiteSettings(row: any): SiteSettings {
     announcementTickerSpeed: base.announcementTickerSpeed || INITIAL_SITE_SETTINGS.announcementTickerSpeed || 'normal',
     navItems: Array.isArray(base.navItems) ? base.navItems : (INITIAL_SITE_SETTINGS.navItems || []),
     footerSections: Array.isArray(base.footerSections) ? base.footerSections : (INITIAL_SITE_SETTINGS.footerSections || []),
+    faqItems: Array.isArray(base.faqItems) ? base.faqItems : (INITIAL_SITE_SETTINGS.faqItems || []),
     cmsText: {
       ...(INITIAL_SITE_SETTINGS.cmsText || {}),
       ...(base.cmsText || {}),

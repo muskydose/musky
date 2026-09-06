@@ -11,7 +11,7 @@ interface FaqBuilderTabProps {
 }
 
 export default function FaqBuilderTab({ settings, setSettings }: FaqBuilderTabProps) {
-  const faqs = settings.faqItems && settings.faqItems.length > 0 ? settings.faqItems : INITIAL_FAQ_ITEMS;
+  const faqs = Array.isArray(settings.faqItems) ? settings.faqItems : INITIAL_FAQ_ITEMS;
 
   const handleAddFaq = () => {
     const newFaq: FAQItem = {
@@ -21,7 +21,7 @@ export default function FaqBuilderTab({ settings, setSettings }: FaqBuilderTabPr
       enabled: true,
       sortOrder: faqs.length + 1,
     };
-    setSettings((prev) => ({ ...prev, faqItems: [...(prev.faqItems || INITIAL_FAQ_ITEMS), newFaq] }));
+    setSettings((prev) => ({ ...prev, faqItems: [...(Array.isArray(prev.faqItems) ? prev.faqItems : INITIAL_FAQ_ITEMS), newFaq] }));
   };
 
   const handleUpdateFaq = (id: string, field: keyof FAQItem, value: any) => {

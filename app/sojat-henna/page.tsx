@@ -9,6 +9,7 @@ import WhatsAppFloat from '@/components/WhatsAppFloat';
 import { getSiteSettings } from '@/lib/db/settings';
 import { getProducts } from '@/lib/db/products';
 import { getPublishedGuides } from '@/lib/db/guides';
+import { resolvePageSeoMetadata } from '@/lib/db/seo';
 import { safeJsonLd } from '@/lib/utils';
 import {
   Sparkles,
@@ -29,51 +30,30 @@ export const revalidate = 60;
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteSettings = await getSiteSettings();
-  const baseUrl = siteSettings?.websiteUrl || 'https://muskydose.in';
-  const title = 'Sojat Henna Powder & Pure Mehndi | Factory Direct from Sojat, Rajasthan';
-  const description =
+  const defaultTitle = 'Sojat Henna Powder & Pure Mehndi | Factory Direct from Sojat, Rajasthan';
+  const defaultDescription =
     'Authentic Lawsonia Inermis henna grown and processed in Sojat City, Rajasthan. Explore genuine Sojat mehndi origin, traditional sifting methods, retail packs, and direct factory bulk supply.';
+  const defaultKeywords = [
+    'Sojat Henna',
+    'Sojat Mehndi',
+    'Pure Henna Powder',
+    'Sojat Henna Manufacturer',
+    'Sojat Henna Supplier',
+    'Natural Henna Powder Rajasthan',
+    'BAQ Henna Powder',
+    'Bridal Mehndi Cones Sojat',
+    'Henna Mandi Sojat',
+    'Lawsonia Inermis India',
+  ];
 
-  return {
-    metadataBase: new URL(baseUrl),
-    title,
-    description,
-    keywords: [
-      'Sojat Henna',
-      'Sojat Mehndi',
-      'Pure Henna Powder',
-      'Sojat Henna Manufacturer',
-      'Sojat Henna Supplier',
-      'Natural Henna Powder Rajasthan',
-      'BAQ Henna Powder',
-      'Bridal Mehndi Cones Sojat',
-      'Henna Mandi Sojat',
-      'Lawsonia Inermis India',
-    ],
-    alternates: {
-      canonical: `${baseUrl}/sojat-henna`,
-    },
-    openGraph: {
-      title,
-      description,
-      url: `${baseUrl}/sojat-henna`,
-      siteName: siteSettings?.brandName || 'Musky Dose',
-      type: 'article',
-      images: [
-        {
-          url: siteSettings?.ogImageUrl || '/images/hero-1.webp',
-          width: 1200,
-          height: 630,
-          alt: 'Authentic Sojat Henna Fields in Rajasthan',
-        },
-      ],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title,
-      description,
-    },
-  };
+  return await resolvePageSeoMetadata({
+    targetType: 'custom_page',
+    targetUrl: '/sojat-henna',
+    defaultTitle,
+    defaultDescription,
+    defaultKeywords,
+    defaultImage: siteSettings?.ogImageUrl || '/images/hero-1.webp',
+  });
 }
 
 export default async function SojatHennaPillarPage() {

@@ -3,6 +3,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { BulkPricingRule, Product } from '@/lib/types';
 import { getProducts, getAllProductsAdmin } from './products';
 import { getSiteSettings } from './settings';
+import { selectMatchingWholesaleTier } from '@/lib/wholesale-pricing-resolver';
 
 let memoryBulkPricingStore: BulkPricingRule[] = [];
 let bulkStoreInitialized = false;
@@ -223,23 +224,8 @@ export async function calculateBulkDiscount(items: { productId: string; quantity
     const itemRegularTotal = unitPrice * qty;
     regularSubtotal += itemRegularTotal;
 
-    // Check product-specific rules first
-    let matchedRule = activeRules.find((r) => {
-      if (r.productId !== prod.id) return false;
-      const minOk = qty >= r.minQuantity;
-      const maxOk = !r.maxQuantity || qty <= r.maxQuantity;
-      return minOk && maxOk;
-    });
-
-    // If no product-specific rule, check global rules
-    if (!matchedRule) {
-      matchedRule = activeRules.find((r) => {
-        if (r.productId && r.productId !== 'global') return false;
-        const minOk = qty >= r.minQuantity;
-        const maxOk = !r.maxQuantity || qty <= r.maxQuantity;
-        return minOk && maxOk;
-      });
-    }
+    // Select matching wholesale tier using canonical resolver logic
+    const matchedRule = selectMatchingWholesaleTier(activeRules, prod.id, qty);
 
     let unitDiscount = 0;
     if (matchedRule) {
