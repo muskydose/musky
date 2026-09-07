@@ -1,0 +1,38 @@
+[
+  {
+    "id": "cat-1",
+    "name": "Henna",
+    "slug": "henna",
+    "description": "100% pure, unadulterated Lawsonia Inermis powder harvested from Sojat, Rajasthan — the Henna City of India.",
+    "image": "/images/fallback.svg",
+    "sortOrder": 1,
+    "isActive": true
+  },
+  {
+    "id": "cat-2",
+    "name": "Hair Care",
+    "slug": "hair-care",
+    "description": "Nourishing herbal hair blends, pure Indigo, Amla, Reetha, Shikakai & natural scalp elixirs.",
+    "image": "/images/fallback.svg",
+    "sortOrder": 2,
+    "isActive": true
+  },
+  {
+    "id": "cat-3",
+    "name": "Face Care",
+    "slug": "face-care",
+    "description": "Authentic Indian herbal face packs, Damask rose waters, wild turmeric & purifying clays.",
+    "image": "/images/fallback.svg",
+    "sortOrder": 3,
+    "isActive": true
+  },
+  {
+    "id": "cat-4",
+    "name": "Herbal Products",
+    "slug": "herbal-products",
+    "description": "Traditional wellness formulations, raw botanical leaves, seeds and cold-pressed botanical oils.",
+    "image": "/images/fallback.svg",
+    "sortOrder": 4,
+    "isActive": true
+  }
+]
