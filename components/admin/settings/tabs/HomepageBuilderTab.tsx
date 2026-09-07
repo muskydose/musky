@@ -170,6 +170,9 @@ export default function HomepageBuilderTab({
   // ---------------------------------------------------------------------------
   // 2. PRODUCT ORDERING & MERCHANDISING
   // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // 2. PRODUCT ORDERING & MERCHANDISING
+  // ---------------------------------------------------------------------------
   const mergedProducts = React.useMemo(() => {
     const configuredMap = new Map<string, HomepageItemConfig>(
       (settings.homepageProducts || []).map((p) => [p.id, p])
@@ -179,31 +182,47 @@ export default function HomepageBuilderTab({
       const config = configuredMap.get(prod.id);
       return {
         product: prod,
-        enabled: config ? config.enabled !== false : true,
-        sortOrder: config ? config.sortOrder : index + 1,
-        isFeatured: config?.isFeatured !== undefined ? config.isFeatured : prod.isFeatured ?? false,
+        enabled: prod.isActive !== false,
+        sortOrder: config?.sortOrder ?? prod.sortOrder ?? (index + 1),
+        isFeatured: prod.isFeatured ?? false,
       };
     }).sort((a, b) => a.sortOrder - b.sortOrder);
   }, [allProducts, settings.homepageProducts]);
 
-  const handleToggleProductVisibility = (prodId: string) => {
-    const updatedConfigs: HomepageItemConfig[] = mergedProducts.map((item) => ({
-      id: item.product.id,
-      enabled: item.product.id === prodId ? !item.enabled : item.enabled,
-      sortOrder: item.sortOrder,
-      isFeatured: item.isFeatured,
-    }));
-    updateField('homepageProducts', updatedConfigs);
+  const handleToggleProductVisibility = async (prodId: string) => {
+    const target = allProducts.find((p) => p.id === prodId);
+    if (!target) return;
+    const newActive = target.isActive === false ? true : false;
+    setAllProducts((prev) =>
+      prev.map((p) => (p.id === prodId ? { ...p, isActive: newActive } : p))
+    );
+    try {
+      await fetch(`/api/products/${prodId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...target, isActive: newActive }),
+      });
+    } catch (err) {
+      console.error('Failed to update product active status:', err);
+    }
   };
 
-  const handleToggleProductFeatured = (prodId: string) => {
-    const updatedConfigs: HomepageItemConfig[] = mergedProducts.map((item) => ({
-      id: item.product.id,
-      enabled: item.enabled,
-      sortOrder: item.sortOrder,
-      isFeatured: item.product.id === prodId ? !item.isFeatured : item.isFeatured,
-    }));
-    updateField('homepageProducts', updatedConfigs);
+  const handleToggleProductFeatured = async (prodId: string) => {
+    const target = allProducts.find((p) => p.id === prodId);
+    if (!target) return;
+    const newFeatured = !target.isFeatured;
+    setAllProducts((prev) =>
+      prev.map((p) => (p.id === prodId ? { ...p, isFeatured: newFeatured } : p))
+    );
+    try {
+      await fetch(`/api/products/${prodId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...target, isFeatured: newFeatured }),
+      });
+    } catch (err) {
+      console.error('Failed to update product featured status:', err);
+    }
   };
 
   const handleMoveProduct = (index: number, direction: 'up' | 'down') => {
@@ -216,9 +235,9 @@ export default function HomepageBuilderTab({
 
     const reorderedConfigs: HomepageItemConfig[] = list.map((item, idx) => ({
       id: item.product.id,
-      enabled: item.enabled,
+      enabled: item.product.isActive !== false,
       sortOrder: idx + 1,
-      isFeatured: item.isFeatured,
+      isFeatured: item.product.isFeatured ?? false,
     }));
 
     updateField('homepageProducts', reorderedConfigs);
@@ -232,9 +251,9 @@ export default function HomepageBuilderTab({
 
     const reorderedConfigs: HomepageItemConfig[] = list.map((item, idx) => ({
       id: item.product.id,
-      enabled: item.enabled,
+      enabled: item.product.isActive !== false,
       sortOrder: idx + 1,
-      isFeatured: item.isFeatured,
+      isFeatured: item.product.isFeatured ?? false,
     }));
 
     updateField('homepageProducts', reorderedConfigs);
@@ -788,7 +807,7 @@ export default function HomepageBuilderTab({
                 onClick={() => {
                   const defaultConfigs: HomepageItemConfig[] = allProducts.map((p, idx) => ({
                     id: p.id,
-                    enabled: true,
+                    enabled: p.isActive !== false,
                     sortOrder: idx + 1,
                     isFeatured: p.isFeatured ?? false,
                   }));

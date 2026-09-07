@@ -532,73 +532,111 @@ export function synchronizeProductRootWithDefaultVariant(product: Product): Prod
 }
 
 /**
- * Centralized Homepage Product Reference Resolver:
- * Enforces authoritative database state across homepage merchandising:
- * 1. Only products present in activeProducts (verified existing and active in DB) can ever be returned.
- * 2. Merchandised references to deleted or inactive products are strictly ignored/pruned.
- * 3. Never falls back to deleted or unverified products.
- * 4. Data-driven: zero hardcoded product IDs.
+ * Canonical product visibility state contract.
+ */
+export interface ProductVisibilityState {
+  isPubliclyVisible: boolean;
+  isHomepageEligible: boolean;
+  sortOrder: number;
+}
+
+/**
+ * Universal Product Visibility Resolver:
+ * Single canonical shared engine for product catalog visibility & homepage featured eligibility.
+ *
+ * CANONICAL RULES:
+ * 1. isPubliclyVisible:
+ *    product.isActive !== false (true unless explicitly marked false / private draft).
+ * 2. isHomepageEligible:
+ *    product.isActive !== false && Boolean(product.isFeatured).
+ *    Admin UI promise: "Display in prominent Featured section on Homepage".
+ *    Admin OFF means OFF. If isFeatured is false, product is NOT eligible.
+ *    If isActive is false, product is NEVER eligible.
+ * 3. sortOrder:
+ *    Canonical sortOrder (defaults to 999 if unspecified).
+ *
+ * Applies universally to all existing, edited, cloned, and future products.
+ */
+export function resolveProductVisibility(
+  product: Partial<Product> | null | undefined
+): ProductVisibilityState {
+  if (!product || !product.id) {
+    return {
+      isPubliclyVisible: false,
+      isHomepageEligible: false,
+      sortOrder: 999,
+    };
+  }
+
+  const isPubliclyVisible = product.isActive !== false;
+  const isHomepageEligible = isPubliclyVisible && Boolean(product.isFeatured);
+  const sortOrder = typeof product.sortOrder === 'number' ? product.sortOrder : 999;
+
+  return {
+    isPubliclyVisible,
+    isHomepageEligible,
+    sortOrder,
+  };
+}
+
+/**
+ * Centralized Homepage Featured Products Resolver:
+ * Enforces authoritative database state across homepage featured merchandising:
+ * 1. Only products that are active in the DB can ever be returned.
+ * 2. Only products with isFeatured === true are eligible for homepage featured section.
+ * 3. Never acts as an exclusive whitelist that blocks canonical featured products.
+ * 4. Admin OFF means OFF: if zero products are featured, returns [] (no fallback to unfeatured products).
+ * 5. Deterministic ordering: respects siteSettings.homepageProducts sortOrder overrides if present,
+ *    falling back to product.sortOrder, and tie-breaking by product.id.
  */
 export function resolveAuthoritativeHomepageProducts(
   activeProducts: Product[],
-  siteSettings: Partial<SiteSettings>
+  siteSettings?: Partial<SiteSettings> | null
 ): Product[] {
   if (!activeProducts || activeProducts.length === 0) {
     return [];
   }
 
-  const activeMap = new Map<string, Product>(
-    activeProducts.filter((p) => p && p.isActive !== false).map((p) => [p.id, p])
-  );
+  // Filter products using canonical visibility resolver (isActive && isFeatured)
+  const eligibleProducts = activeProducts.filter((p) => {
+    const visibility = resolveProductVisibility(p);
+    return visibility.isHomepageEligible;
+  });
 
-  if (activeMap.size === 0) {
+  if (eligibleProducts.length === 0) {
+    // Admin OFF must mean OFF. Zero featured products -> empty collection.
+    // Do NOT silently re-add unfeatured active products.
     return [];
   }
 
-  // 1. Check siteSettings.homepageProducts merchandising configuration
-  if (Array.isArray(siteSettings.homepageProducts) && siteSettings.homepageProducts.length > 0) {
-    const configuredList: Product[] = [];
-
-    // Sort config by sortOrder
-    const sortedConfig = [...siteSettings.homepageProducts]
-      .filter((c) => c && c.enabled !== false && activeMap.has(c.id))
-      .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
-
-    for (const c of sortedConfig) {
-      const prod = activeMap.get(c.id);
-      if (prod && !configuredList.some((p) => p.id === prod.id)) {
-        configuredList.push(prod);
+  // Build optional sortOrder override map from siteSettings.homepageProducts if configured
+  const orderMap = new Map<string, number>();
+  if (Array.isArray(siteSettings?.homepageProducts)) {
+    for (const item of siteSettings.homepageProducts) {
+      if (item && typeof item.sortOrder === 'number') {
+        orderMap.set(item.id, item.sortOrder);
       }
     }
+  }
 
-    if (configuredList.length > 0) {
-      return configuredList;
+  return [...eligibleProducts].sort((a, b) => {
+    const orderA = orderMap.get(a.id) ?? a.sortOrder ?? 999;
+    const orderB = orderMap.get(b.id) ?? b.sortOrder ?? 999;
+    if (orderA !== orderB) {
+      return orderA - orderB;
     }
-  }
-
-  // 2. Fallback: featured / best-seller active products
-  const featured = activeProducts
-    .filter((p) => p.isActive !== false && (p.isFeatured || (p as any).isBestSeller))
-    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-
-  if (featured.length > 0) {
-    return featured;
-  }
-
-  // 3. Fallback: first 6 active products
-  return activeProducts
-    .filter((p) => p.isActive !== false)
-    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-    .slice(0, 6);
+    return (a.id || '').localeCompare(b.id || '');
+  });
 }
 
 /**
  * Resolves and sanitizes products for a specific homepage section (e.g. bestsellers or custom section).
  * Only references pointing to currently active products are accepted.
+ * For featured/bestseller sections, enforces canonical isFeatured state.
  */
 export function resolveAuthoritativeSectionProducts(
   activeProducts: Product[],
-  section: { selectedProductIds?: string[]; itemLimit?: number },
+  section: { id?: string; selectedProductIds?: string[]; itemLimit?: number },
   defaultProducts: Product[] = []
 ): Product[] {
   if (!activeProducts || activeProducts.length === 0) {
@@ -618,6 +656,10 @@ export function resolveAuthoritativeSectionProducts(
     for (const id of section.selectedProductIds) {
       const prod = activeMap.get(id);
       if (prod && !selected.some((p) => p.id === prod.id)) {
+        // For featured sections, verify canonical featured eligibility
+        if (section.id === 'bestsellers' && !prod.isFeatured) {
+          continue;
+        }
         selected.push(prod);
       }
     }
