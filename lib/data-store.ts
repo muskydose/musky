@@ -954,8 +954,3 @@ export const INITIAL_PAYMENT_SETTINGS: PaymentSettings = {
   netbankingEnabled: true,
   gatewayMode: 'sandbox',
 };
-
-export function normalizeKeyword(kw: string): string {
-  if (!kw) return '';
-  return kw.trim().toLowerCase().replace(/\s+/g, ' ');
-}
