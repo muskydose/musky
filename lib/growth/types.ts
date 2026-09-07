@@ -916,6 +916,7 @@ export interface GoogleMerchantFeedItem {
   link: string;
   imageLink: string;
   additionalImageLinks?: string[];
+  videoLinks?: string[];
   availability: 'in_stock' | 'out_of_stock' | 'preorder';
   price: string; // e.g., "499.00 INR"
   salePrice?: string;

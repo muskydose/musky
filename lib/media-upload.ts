@@ -18,10 +18,10 @@ export async function uploadMediaFile(
     return { success: false, url: '', error: 'File must be an image (JPEG, PNG, WEBP, SVG) or video (MP4, WebM).' };
   }
 
-  // File size validation (25MB max for video, 5MB max for image)
-  const maxSize = isVideo ? 25 * 1024 * 1024 : 5 * 1024 * 1024;
+  // File size validation (25MB max for video, 16MB max for image)
+  const maxSize = isVideo ? 25 * 1024 * 1024 : 16 * 1024 * 1024;
   if (file.size > maxSize) {
-    return { success: false, url: '', error: `File size exceeds ${isVideo ? '25MB' : '5MB'} limit.` };
+    return { success: false, url: '', error: `File size exceeds ${isVideo ? '25MB' : '16MB'} limit.` };
   }
 
   try {

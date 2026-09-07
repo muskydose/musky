@@ -15,6 +15,10 @@ import ProductDetailClient from './ProductDetailClient';
 
 import { deriveProductAutoSeo } from '@/lib/growth/product-keyword-engine';
 import { resolveCanonicalProductOffer } from '@/lib/growth/product-catalog-governance';
+import {
+  resolveAuthoritativeProductMedia,
+  generateProductMediaSchema,
+} from '@/lib/growth/product-media-governance';
 
 export const dynamic = 'force-dynamic';
 export const dynamicParams = true;
@@ -25,6 +29,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!product || product.isActive === false) return { title: 'Product Not Found' };
 
   const autoSeo = deriveProductAutoSeo(product);
+  const mediaResolution = resolveAuthoritativeProductMedia(product);
+  const primaryImgUrl = mediaResolution.primaryImage || product.ogImageUrl || product.images?.[0] || '/images/fallback.svg';
 
   return await resolvePageSeoMetadata({
     targetType: 'product',
@@ -32,7 +38,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     targetUrl: `/products/${product.slug}`,
     defaultTitle: product.seoTitle ? product.seoTitle.replace(/\s*\|\s*Musky\s*Dose.*$/i, '').trim() : autoSeo.seoTitle,
     defaultDescription: product.seoDescription || autoSeo.metaDescription,
-    defaultImage: product.ogImageUrl || product.images?.[0] || '/images/fallback.svg',
+    defaultImage: primaryImgUrl,
     defaultKeywords: [
       ...(product.seoKeywords || []),
       autoSeo.primaryKeyword,
@@ -40,7 +46,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     ],
     robotsIndex: product.robotsIndex ?? true,
     robotsFollow: product.robotsFollow ?? true,
-    ogImage: product.ogImageUrl || product.images?.[0],
+    ogImage: primaryImgUrl,
   });
 }
 
@@ -123,6 +129,7 @@ export default async function ProductDetailPage({
 
   const autoSeo = deriveProductAutoSeo(product);
   const canonicalOffer = resolveCanonicalProductOffer(product);
+  const mediaSchema = generateProductMediaSchema(product, baseUrl);
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -131,7 +138,7 @@ export default async function ProductDetailPage({
         '@type': 'Product',
         '@id': `${baseUrl}/products/${product.slug}#product`,
         name: product.name,
-        image: product.images?.[0] ? (product.images[0].startsWith('http') ? product.images[0] : `${baseUrl}${product.images[0]}`) : undefined,
+        image: mediaSchema.images.length > 0 ? mediaSchema.images : undefined,
         description: product.fullDescription && product.fullDescription.length > 50 ? product.fullDescription : autoSeo.metaDescription,
         sku: canonicalOffer.sku,
         brand: {
@@ -187,6 +194,7 @@ export default async function ProductDetailPage({
           },
         },
       },
+      ...mediaSchema.videos,
       {
         '@type': 'BreadcrumbList',
         itemListElement: breadcrumbElements,

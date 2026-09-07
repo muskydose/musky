@@ -6,6 +6,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Product, Category, ProductVariant, BulkPricingRule } from '@/lib/types';
 import MediaSelectModal from '@/components/MediaSelectModal';
+import ProductMediaManager from '@/components/admin/products/ProductMediaManager';
 import ProductAutoFillModal from '@/components/admin/products/ProductAutoFillModal';
 import { ProductAutoFillDraft } from '@/lib/growth/product-autofill-engine';
 import { uploadMediaFile } from '@/lib/media-upload';
@@ -2226,163 +2227,21 @@ export default function ProductFormClient({
         {/* Tab 4: Product Media */}
         {activeTab === 'media' && (
           <div className="p-8 space-y-6 text-xs">
-            {imageUploadError && (
-              <div className="p-3 bg-rose-50 border border-rose-300 text-rose-800 rounded-xl font-medium">
-                {imageUploadError}
-              </div>
-            )}
-
-            {/* Option A: Choose from Media Library */}
-            <div className="p-5 bg-[#0f2d22] text-white rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#1b4332] text-[#c5a059] flex items-center justify-center shrink-0">
-                  <FolderOpen className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-serif-heading font-bold text-sm text-white">Central Media Library</h4>
-                  <p className="text-[11px] text-gray-300">
-                    Select high-resolution botanical images, category photos, or uploaded brand assets.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsMediaModalOpen(true)}
-                className="bg-[#c5a059] text-[#0f2d22] px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-[#d4af37] transition-colors shrink-0"
-              >
-                <ImageIcon className="w-4 h-4" /> Choose from Media Library
-              </button>
-            </div>
-
-            {/* Option B: Direct File Upload */}
-            <div className="space-y-2 pt-2 border-t border-[#f5f1e8]">
-              <label className="block text-[#0f2d22] font-bold">Upload Local Image Files</label>
-              <div className="border-2 border-dashed border-[#e8e2d5] hover:border-[#1b4332] rounded-2xl p-6 text-center bg-[#fcfbf7] transition-colors cursor-pointer relative">
-                <input
-                  type="file"
-                  multiple
-                  accept="image/jpeg,image/png,image/webp,image/svg+xml"
-                  onChange={handleFileUpload}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-                <Upload className="w-8 h-8 text-[#1b4332] mx-auto mb-2" />
-                <p className="font-bold text-[#0f2d22]">Click or Drag & Drop Image Files Here</p>
-                <p className="text-[11px] text-gray-500 mt-1">Supports JPG, PNG, WEBP, SVG (Max 5MB each)</p>
-              </div>
-            </div>
-
-            {/* Option C: Paste Image URL */}
-            <div className="space-y-2 pt-2 border-t border-[#f5f1e8]">
-              <label className="block text-[#0f2d22] font-bold">Or Add External Image URL</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={imageInput}
-                  onChange={(e) => setImageInput(e.target.value)}
-                  placeholder="https://example.com/image.jpg or /uploads/product.webp"
-                  className="flex-1 p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl focus:outline-none focus:border-[#1b4332]"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddImageUrl}
-                  className="bg-[#1b4332] text-white px-5 py-3 rounded-xl font-bold flex items-center gap-1.5"
-                >
-                  <Plus className="w-4 h-4 text-[#c5a059]" /> Add URL
-                </button>
-              </div>
-            </div>
-
-            {/* Gallery Preview & Reorder Manager */}
-            <div className="space-y-3 pt-4 border-t border-[#f5f1e8]">
-              <div className="flex items-center justify-between">
-                <label className="block text-[#0f2d22] font-bold">
-                  Product Gallery Manager ({formData.images?.length || 0})
-                </label>
-                <span className="text-[11px] text-gray-500 font-medium">
-                  The first image (Index 1) is used as the Primary Product Cover.
-                </span>
-              </div>
-
-              {(!formData.images || formData.images.length === 0) ? (
-                <div className="p-8 text-center text-gray-400 bg-gray-50 rounded-2xl border border-dashed border-[#e8e2d5] space-y-2">
-                  <ImageIcon className="w-8 h-8 mx-auto text-gray-300" />
-                  <p className="font-bold text-gray-600">No Product Images Added Yet</p>
-                  <p className="text-[11px]">Select an image from the Media Library, upload a file, or paste a URL.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                  {formData.images.map((img, idx) => (
-                    <div
-                      key={idx}
-                      className="relative group border border-[#e8e2d5] rounded-2xl overflow-hidden bg-gray-50 aspect-square shadow-xs flex flex-col justify-between"
-                    >
-                      <Image src={img} alt={`Gallery Image ${idx + 1}`} fill className="object-cover" unoptimized />
-
-                      {/* Cover Badge */}
-                      <div className="absolute top-2 left-2 z-10">
-                        {idx === 0 ? (
-                          <span className="bg-[#0f2d22] text-[#c5a059] text-[10px] font-bold px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1 border border-[#c5a059]/40">
-                            <Star className="w-3 h-3 fill-[#c5a059]" /> Cover
-                          </span>
-                        ) : (
-                          <span className="bg-[#0f2d22]/80 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
-                            #{idx + 1}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Remove Button */}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveImage(idx)}
-                        className="absolute top-2 right-2 z-10 bg-rose-600 text-white p-1.5 rounded-lg shadow-md hover:bg-rose-700 transition-colors"
-                        title="Remove Image"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-
-                      {/* Hover Reorder Controls */}
-                      <div className="absolute inset-x-0 bottom-0 p-2 bg-[#0f2d22]/80 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-between gap-1 text-white z-10">
-                        {idx > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => handleSetCoverImage(idx)}
-                            className="text-[10px] bg-[#c5a059] text-[#0f2d22] font-bold px-2 py-1 rounded-md hover:bg-[#d4af37]"
-                            title="Set as Primary Cover"
-                          >
-                            Set Cover
-                          </button>
-                        )}
-
-                        <div className="flex items-center gap-1 ml-auto">
-                          {idx > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => handleMoveImage(idx, 'left')}
-                              className="p-1 bg-[#1b4332] hover:bg-[#2d6a4f] rounded-md"
-                              title="Move Left"
-                            >
-                              <ChevronLeft className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {idx < (formData.images?.length || 0) - 1 && (
-                            <button
-                              type="button"
-                              onClick={() => handleMoveImage(idx, 'right')}
-                              className="p-1 bg-[#1b4332] hover:bg-[#2d6a4f] rounded-md"
-                              title="Move Right"
-                            >
-                              <ChevronRight className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <ProductMediaManager
+              media={formData.media || []}
+              images={formData.images || []}
+              productId={formData.id || formData.slug || 'new-product'}
+              productName={formData.name || ''}
+              variants={formData.variants || []}
+              onChange={(updatedMedia, updatedImages) => {
+                setIsDirty(true);
+                setFormData((prev) => ({
+                  ...prev,
+                  media: updatedMedia,
+                  images: updatedImages,
+                }));
+              }}
+            />
           </div>
         )}
 

@@ -4,7 +4,7 @@ import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ShoppingBag, ShieldCheck, Heart, MessageCircle, Loader2 } from 'lucide-react';
+import { ShoppingBag, ShieldCheck, Heart, MessageCircle, Loader2, Play } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { Product, SiteSettings } from '@/lib/types';
 import { getCmsText } from '@/lib/cms';
@@ -15,6 +15,7 @@ import { sanitizeImageUrl } from '@/lib/utils';
 import { SPRINGS, DURATION, EASING } from '@/lib/motion';
 import { startPageTransition } from '@/lib/navigation';
 import { resolveCanonicalProductOffer } from '@/lib/growth/product-catalog-governance';
+import { resolveAuthoritativeProductMedia } from '@/lib/growth/product-media-governance';
 
 interface ProductCardProps {
   product: Product;
@@ -32,7 +33,12 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
   const { addToCart, openCart } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
   const isWishlisted = isInWishlist(product.id);
-  const rawImage = product.images?.[0];
+
+  const mediaResolution = React.useMemo(() => {
+    return resolveAuthoritativeProductMedia(product);
+  }, [product]);
+
+  const rawImage = mediaResolution.primaryImage || product.images?.[0];
   const primaryImage = sanitizeImageUrl(rawImage, BRANDED_FALLBACK_IMAGE);
   const [imgSrc, setImgSrc] = React.useState(primaryImage);
   const [isAddingToCart, setIsAddingToCart] = React.useState(false);
@@ -177,6 +183,14 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
             }`}
           />
         </motion.button>
+
+        {/* Video Indicator Badge */}
+        {mediaResolution.hasVideo && (
+          <div className="absolute bottom-1.5 sm:bottom-2.5 left-1.5 sm:left-2.5 bg-black/75 backdrop-blur-xs text-white text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/20 shadow-2xs flex items-center gap-1 z-10">
+            <Play className="w-2.5 h-2.5 fill-white text-white" />
+            <span>Video</span>
+          </div>
+        )}
 
         {displayWeight && (
           <div className="absolute bottom-1.5 sm:bottom-2.5 right-1.5 sm:right-2.5 bg-white/95 backdrop-blur-xs text-[#0f2d22] text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full border border-[#e8e2d5] shadow-2xs max-w-[85%] truncate">

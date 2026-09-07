@@ -85,6 +85,43 @@ export interface ProductIntelligenceMetadata {
   notes?: string;
 }
 
+export type ProductMediaType = 'image' | 'video';
+
+export type ProductMediaRole =
+  | 'PRIMARY'
+  | 'GALLERY'
+  | 'PACKAGING'
+  | 'DETAIL'
+  | 'LIFESTYLE'
+  | 'USAGE'
+  | 'INGREDIENTS'
+  | 'VARIANT';
+
+export interface ProductMediaItem {
+  id: string;
+  type: ProductMediaType;
+  url: string;
+  role: ProductMediaRole;
+  sortOrder: number;
+  title?: string;
+  altText?: string;
+  caption?: string;
+  thumbnailUrl?: string; // Poster image for videos, thumbnail for images
+  posterUrl?: string; // Explicit video poster URL
+  embedUrl?: string; // Clean iframe embed URL (e.g., YouTube/Vimeo)
+  duration?: number; // Duration in seconds for video
+  provider?: 'upload' | 'youtube' | 'vimeo' | 'external';
+  enabled: boolean;
+  variantId?: string; // Optional variant association
+  metadata?: {
+    width?: number;
+    height?: number;
+    fileSize?: number;
+    format?: string;
+    mimeType?: string;
+  };
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -99,6 +136,7 @@ export interface Product {
   quantityOrWeight: string; // e.g., "100g", "250g", "500g Pack", "500ml", "1 Litre", "Pack of 12 Cones"
   sku: string;
   images: string[];
+  media?: ProductMediaItem[];
   variants?: ProductVariant[];
   ingredients: string[];
   benefits: string[];

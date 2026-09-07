@@ -14,6 +14,7 @@
 
 import { Product } from '@/lib/types';
 import { resolveCanonicalProductOffer } from './product-catalog-governance';
+import { extractMerchantFeedMedia } from './product-media-governance';
 import {
   GoogleMerchantFeedItem,
   MerchantFeedHealthSummary,
@@ -67,20 +68,15 @@ export function validateProductForMerchantFeed(
   }
   const formattedPrice = !isNaN(priceNum) && priceNum > 0 ? `${priceNum.toFixed(2)} INR` : '0.00 INR';
 
-  // 4. Image validation (must not be empty and must not be fallback.svg)
-  const validImages = (product.images || []).filter(
-    (img) => img && typeof img === 'string' && img.trim() !== '' && !img.includes('fallback.svg')
-  );
-  let imageLink = validImages[0] || (product.images?.[0] || '');
+  // 4. Image & Video media validation
+  const mediaFeed = extractMerchantFeedMedia(product, baseUrl);
+  const imageLink = mediaFeed.imageLink;
   if (!imageLink || imageLink.includes('fallback.svg') || imageLink.trim() === '') {
     errors.push('Missing high-resolution product image (fallback images not permitted in Merchant Feed)');
-  } else if (!imageLink.startsWith('http')) {
-    imageLink = `${baseUrl}${imageLink.startsWith('/') ? '' : '/'}${imageLink}`;
   }
 
-  const additionalImageLinks = validImages
-    .slice(1, 10)
-    .map((img) => (img.startsWith('http') ? img : `${baseUrl}${img.startsWith('/') ? '' : '/'}${img}`));
+  const additionalImageLinks = mediaFeed.additionalImageLinks;
+  const videoLinks = mediaFeed.videoLinks;
 
   // 5. URL validation
   const slug = (product.slug || '').trim();
@@ -115,6 +111,7 @@ export function validateProductForMerchantFeed(
     link: productLink,
     imageLink,
     additionalImageLinks: additionalImageLinks.length > 0 ? additionalImageLinks : undefined,
+    videoLinks: videoLinks.length > 0 ? videoLinks : undefined,
     availability,
     price: formattedPrice,
     salePrice:
@@ -162,8 +159,21 @@ export function generateMerchantXmlFeed(
       <g:title>${escapeXml(item.title)}</g:title>
       <g:description>${escapeXml(item.description)}</g:description>
       <g:link>${escapeXml(item.link)}</g:link>
-      <g:image_link>${escapeXml(item.imageLink)}</g:image_link>
-      <g:availability>${escapeXml(item.availability)}</g:availability>
+      <g:image_link>${escapeXml(item.imageLink)}</g:image_link>`;
+
+      if (item.additionalImageLinks && item.additionalImageLinks.length > 0) {
+        item.additionalImageLinks.forEach((img) => {
+          xml += `\n      <g:additional_image_link>${escapeXml(img)}</g:additional_image_link>`;
+        });
+      }
+
+      if (item.videoLinks && item.videoLinks.length > 0) {
+        item.videoLinks.forEach((vid) => {
+          xml += `\n      <g:video_link>${escapeXml(vid)}</g:video_link>`;
+        });
+      }
+
+      xml += `\n      <g:availability>${escapeXml(item.availability)}</g:availability>
       <g:price>${escapeXml(item.price)}</g:price>`;
 
       if (item.salePrice) {

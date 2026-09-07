@@ -1,5 +1,5 @@
 import { cache } from 'react';
-import { Product } from '@/lib/types';
+import { Product, ProductMediaItem } from '@/lib/types';
 import { getSupabase, getSupabaseAdmin } from '@/lib/supabase';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { sanitizeImageUrl, sanitizeImageUrls } from '@/lib/utils';
@@ -45,16 +45,83 @@ export function mapRowToProduct(row: any): Product {
     }
   }
 
-  let imagesArr: string[] = [];
+  let rawImages: any[] = [];
   if (Array.isArray(row.images)) {
-    imagesArr = row.images;
+    rawImages = row.images;
   } else if (typeof row.images === 'string' && row.images) {
     try {
-      imagesArr = JSON.parse(row.images);
+      rawImages = JSON.parse(row.images);
     } catch {
-      imagesArr = [row.images];
+      rawImages = [row.images];
     }
   }
+
+  const cleanImageUrls: string[] = [];
+  const parsedMediaItems: ProductMediaItem[] = [];
+
+  rawImages.forEach((item, index) => {
+    if (typeof item === 'string') {
+      const trimmed = item.trim();
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (parsed && typeof parsed === 'object' && parsed.url) {
+            parsedMediaItems.push({
+              id: parsed.id || `media-${index}-${Date.now()}`,
+              type: parsed.type === 'video' ? 'video' : 'image',
+              url: parsed.url,
+              role: parsed.role || (parsed.type === 'video' ? 'GALLERY' : (index === 0 ? 'PRIMARY' : 'GALLERY')),
+              sortOrder: typeof parsed.sortOrder === 'number' ? parsed.sortOrder : index + 1,
+              title: parsed.title,
+              altText: parsed.altText,
+              caption: parsed.caption,
+              thumbnailUrl: parsed.thumbnailUrl,
+              duration: parsed.duration,
+              provider: parsed.provider,
+              enabled: parsed.enabled !== false,
+              variantId: parsed.variantId,
+              metadata: parsed.metadata,
+            });
+            if (parsed.type !== 'video' && parsed.url) {
+              cleanImageUrls.push(parsed.url);
+            }
+            return;
+          }
+        } catch {
+          // fallback to standard image url
+        }
+      }
+      cleanImageUrls.push(trimmed);
+      parsedMediaItems.push({
+        id: `img-${index}-${Date.now()}`,
+        type: 'image',
+        url: trimmed,
+        role: index === 0 ? 'PRIMARY' : 'GALLERY',
+        sortOrder: index + 1,
+        enabled: true,
+      });
+    } else if (item && typeof item === 'object' && item.url) {
+      parsedMediaItems.push({
+        id: item.id || `media-${index}-${Date.now()}`,
+        type: item.type === 'video' ? 'video' : 'image',
+        url: item.url,
+        role: item.role || (item.type === 'video' ? 'GALLERY' : (index === 0 ? 'PRIMARY' : 'GALLERY')),
+        sortOrder: typeof item.sortOrder === 'number' ? item.sortOrder : index + 1,
+        title: item.title,
+        altText: item.altText,
+        caption: item.caption,
+        thumbnailUrl: item.thumbnailUrl,
+        duration: item.duration,
+        provider: item.provider,
+        enabled: item.enabled !== false,
+        variantId: item.variantId,
+        metadata: item.metadata,
+      });
+      if (item.type !== 'video' && item.url) {
+        cleanImageUrls.push(item.url);
+      }
+    }
+  });
 
   const stockStatusVal =
     row.stock_status ||
@@ -90,7 +157,8 @@ export function mapRowToProduct(row: any): Product {
         : undefined,
     quantityOrWeight: row.quantity || row.quantityOrWeight || '250g',
     sku: row.sku || '',
-    images: sanitizeImageUrls(imagesArr),
+    images: sanitizeImageUrls(cleanImageUrls),
+    media: parsedMediaItems.length > 0 ? parsedMediaItems : undefined,
     variants: validatedVariants,
     ingredients: ingredientsArr,
     benefits: benefitsArr,
@@ -125,6 +193,27 @@ export function mapRowToProduct(row: any): Product {
 }
 
 export function mapProductToRow(p: Product) {
+  let serializedImages: string[] = [];
+  if (Array.isArray(p.media) && p.media.length > 0) {
+    serializedImages = p.media.map((m) => {
+      // If simple image without custom metadata/altText/role, keep as plain URL string for clean DB storage
+      if (
+        m.type === 'image' &&
+        (!m.role || m.role === 'PRIMARY' || m.role === 'GALLERY') &&
+        !m.altText &&
+        !m.caption &&
+        !m.variantId &&
+        m.enabled !== false
+      ) {
+        return m.url;
+      }
+      // Otherwise serialize rich media item (e.g. video, altText, specific role)
+      return JSON.stringify(m);
+    });
+  } else if (Array.isArray(p.images)) {
+    serializedImages = p.images;
+  }
+
   return {
     id: p.id,
     name: p.name,
@@ -137,7 +226,7 @@ export function mapProductToRow(p: Product) {
     compare_at_price: p.compareAtPrice ?? null,
     quantity: p.quantityOrWeight,
     sku: p.sku,
-    images: p.images || [],
+    images: serializedImages,
     variants: p.variants || [],
     ingredients: p.ingredients || [],
     benefits: p.benefits || [],
@@ -600,6 +689,7 @@ export async function saveProduct(product: Partial<Product>): Promise<Product> {
     quantityOrWeight: resolvedWeight,
     sku: product.sku ? product.sku.trim() : `MD-${Date.now().toString().slice(-4)}`,
     images: sanitizeImageUrls(product.images),
+    media: product.media,
     variants: validatedVariants,
     ingredients: product.ingredients || [],
     benefits: product.benefits || [],

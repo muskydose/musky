@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
 import { recordAuditLog } from '@/lib/auth';
 import { sanitizeAdminError } from '@/lib/api-errors';
@@ -187,11 +187,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: 'No file provided in request' }, { status: 400 });
       }
 
-      // Validate size (10MB hard limit)
-      const MAX_SIZE = 10 * 1024 * 1024;
+      // Validate size (25MB for video, 16MB for image)
+      const isVideo = file.type.startsWith('video/');
+      const MAX_SIZE = isVideo ? 25 * 1024 * 1024 : 16 * 1024 * 1024;
       if (file.size > MAX_SIZE) {
         return NextResponse.json(
-          { success: false, error: 'File size exceeds maximum limit of 10MB.' },
+          { success: false, error: `File size exceeds maximum limit of ${isVideo ? '25MB' : '16MB'}.` },
           { status: 413 }
         );
       }

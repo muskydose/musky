@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Product, ProductVariant } from '@/lib/types';
+import { Product, ProductVariant, ProductMediaItem } from '@/lib/types';
 import { filterValidActiveVariants } from '@/lib/growth/product-catalog-governance';
 import { INITIAL_FAQ_ITEMS } from '@/lib/data-store';
 import { getClientSiteSettings } from '@/lib/api-client';
@@ -35,11 +35,16 @@ import {
   Loader2,
   MapPin,
   RotateCcw,
+  Play,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import WholesaleSavingsCard from '@/components/WholesaleSavingsCard';
 import { resolveProductWholesaleUnits, formatWholesaleTierUnit } from '@/lib/wholesale-units';
 import { resolveCanonicalWholesalePricing } from '@/lib/wholesale-pricing-resolver';
+import {
+  resolveAuthoritativeProductMedia,
+  validateExternalVideoUrl,
+} from '@/lib/growth/product-media-governance';
 
 interface ProductDetailClientProps {
   product: Product;
@@ -60,9 +65,25 @@ export default function ProductDetailClient({
 }: ProductDetailClientProps) {
   const router = useRouter();
   const { addToCart, openCart, closeCart } = useCart();
-  const [selectedImage, setSelectedImage] = useState<string>(
-    product.images?.[0] || '/images/fallback.svg'
-  );
+  const mediaResolution = React.useMemo(() => {
+    return resolveAuthoritativeProductMedia(product);
+  }, [product]);
+
+  const allMediaItems: ProductMediaItem[] = React.useMemo(() => {
+    return mediaResolution.allMedia || [];
+  }, [mediaResolution]);
+  const initialMedia = allMediaItems[0] || null;
+  const [selectedMediaId, setSelectedMediaId] = useState<string>(initialMedia?.id || '');
+
+  React.useEffect(() => {
+    if (allMediaItems.length > 0 && (!selectedMediaId || !allMediaItems.some((m: ProductMediaItem) => m.id === selectedMediaId))) {
+      setSelectedMediaId(allMediaItems[0].id);
+    }
+  }, [allMediaItems, selectedMediaId]);
+
+  const activeMedia: ProductMediaItem | null = React.useMemo(() => {
+    return allMediaItems.find((m: ProductMediaItem) => m.id === selectedMediaId) || allMediaItems[0] || null;
+  }, [allMediaItems, selectedMediaId]);
 
   const activeVariants = React.useMemo(() => {
     return filterValidActiveVariants(product);
@@ -359,22 +380,47 @@ export default function ProductDetailClient({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-        {/* Left Column: Image Gallery */}
+        {/* Left Column: Image & Video Media Gallery */}
         <div className="lg:col-span-6 space-y-4">
           <div 
-            onClick={() => setShowLightbox(true)}
-            className="relative aspect-square rounded-2xl overflow-hidden border border-[#e8e2d5] bg-white shadow-sm cursor-zoom-in group"
+            className="relative aspect-square rounded-2xl overflow-hidden border border-[#e8e2d5] bg-black shadow-sm group"
           >
-            <Image
-              src={selectedImage}
-              alt={product.name}
-              fill
-              priority
-              sizes="(max-width: 1024px) 100vw, 50vw"
-              className="object-cover group-hover:scale-105 transition-transform duration-500"
-              referrerPolicy="no-referrer"
-            />
-            <div className="absolute top-4 left-4 z-10 flex flex-col gap-1.5">
+            {activeMedia?.type === 'video' ? (
+              activeMedia.embedUrl ? (
+                <iframe
+                  src={activeMedia.embedUrl}
+                  title={activeMedia.title || activeMedia.altText || product.name}
+                  className="w-full h-full border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              ) : (
+                <video
+                  src={activeMedia.url}
+                  poster={activeMedia.posterUrl}
+                  controls
+                  playsInline
+                  className="w-full h-full object-contain"
+                />
+              )
+            ) : (
+              <div
+                onClick={() => setShowLightbox(true)}
+                className="w-full h-full relative cursor-zoom-in bg-white"
+              >
+                <Image
+                  src={activeMedia?.url || product.images?.[0] || '/images/fallback.svg'}
+                  alt={activeMedia?.altText || product.name}
+                  fill
+                  priority
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  className="object-cover group-hover:scale-105 transition-transform duration-500"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            )}
+
+            <div className="absolute top-4 left-4 z-10 flex flex-col gap-1.5 pointer-events-none">
               <span className="bg-[#1b4332]/95 text-white text-[10px] font-bold px-3 py-1 rounded-md tracking-wider uppercase backdrop-blur-sm shadow flex items-center gap-1">
                 <Shield className="w-3.5 h-3.5 text-[#c5a059]" /> Sojat Original
               </span>
@@ -384,40 +430,52 @@ export default function ProductDetailClient({
                 </span>
               )}
             </div>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowLightbox(true);
-              }}
-              className="absolute bottom-3 right-3 bg-white/90 hover:bg-white text-[#0f2d22] p-2 rounded-xl shadow-xs transition-colors backdrop-blur-xs flex items-center gap-1 text-[11px] font-semibold"
-              title="Click to expand image"
-            >
-              <Maximize2 className="w-3.5 h-3.5 text-[#1b4332]" />
-              <span>Zoom</span>
-            </button>
+
+            {activeMedia?.type !== 'video' && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowLightbox(true);
+                }}
+                className="absolute bottom-3 right-3 bg-white/90 hover:bg-white text-[#0f2d22] p-2 rounded-xl shadow-xs transition-colors backdrop-blur-xs flex items-center gap-1 text-[11px] font-semibold"
+                title="Click to expand image"
+              >
+                <Maximize2 className="w-3.5 h-3.5 text-[#1b4332]" />
+                <span>Zoom</span>
+              </button>
+            )}
           </div>
 
           {/* Thumbnails */}
-          {product.images && product.images.length > 1 && (
+          {allMediaItems.length > 1 && (
             <div className="flex items-center gap-3 overflow-x-auto pb-2">
-              {product.images.map((img, idx) => (
+              {allMediaItems.map((item: ProductMediaItem, idx: number) => (
                 <button
-                  key={idx}
-                  onClick={() => setSelectedImage(img)}
+                  key={item.id || idx}
+                  type="button"
+                  onClick={() => setSelectedMediaId(item.id)}
                   className={`relative w-20 h-20 rounded-xl overflow-hidden border-2 transition-all shrink-0 ${
-                    selectedImage === img
+                    activeMedia?.id === item.id
                       ? 'border-[#1b4332] ring-2 ring-[#c5a059]/40 opacity-100 scale-105'
                       : 'border-[#e8e2d5] opacity-70 hover:opacity-100'
                   }`}
+                  title={item.title || item.altText || `${product.name} item ${idx + 1}`}
                 >
                   <Image
-                    src={img}
-                    alt={`${product.name} preview ${idx + 1}`}
+                    src={item.type === 'video' ? (item.posterUrl || '/images/fallback.svg') : item.url}
+                    alt={item.altText || `${product.name} preview ${idx + 1}`}
                     fill
                     className="object-cover"
                     referrerPolicy="no-referrer"
                   />
+                  {item.type === 'video' && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <div className="w-6 h-6 rounded-full bg-[#1b4332]/90 text-white flex items-center justify-center shadow">
+                        <Play className="w-3 h-3 fill-current ml-0.5" />
+                      </div>
+                    </div>
+                  )}
                 </button>
               ))}
             </div>
@@ -920,7 +978,7 @@ export default function ProductDetailClient({
         </div>
       </div>
 
-      {/* Lightbox Image Modal */}
+      {/* Universal Lightbox Modal (Images & Videos) */}
       <AnimatePresence>
         {showLightbox && (
           <motion.div
@@ -932,16 +990,39 @@ export default function ProductDetailClient({
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="relative max-w-4xl w-full aspect-square max-h-[85vh] bg-white rounded-2xl overflow-hidden shadow-2xl border border-[#e8e2d5]"
+              className="relative max-w-4xl w-full aspect-square max-h-[85vh] bg-black rounded-2xl overflow-hidden shadow-2xl border border-[#e8e2d5]/40 flex items-center justify-center"
             >
-              <Image
-                src={selectedImage}
-                alt={product.name}
-                fill
-                priority
-                className="object-contain p-2"
-                referrerPolicy="no-referrer"
-              />
+              {activeMedia?.type === 'video' ? (
+                activeMedia.embedUrl ? (
+                  <iframe
+                    src={activeMedia.embedUrl}
+                    title={activeMedia.title || activeMedia.altText || product.name}
+                    className="w-full h-full aspect-video max-h-[80vh] border-0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : (
+                  <video
+                    src={activeMedia.url}
+                    poster={activeMedia.posterUrl}
+                    controls
+                    autoPlay
+                    playsInline
+                    className="max-w-full max-h-[80vh] object-contain"
+                  />
+                )
+              ) : (
+                <div className="relative w-full h-full bg-white">
+                  <Image
+                    src={activeMedia?.url || product.images?.[0] || '/images/fallback.svg'}
+                    alt={activeMedia?.altText || product.name}
+                    fill
+                    priority
+                    className="object-contain p-2"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => setShowLightbox(false)}
@@ -1201,6 +1282,7 @@ export default function ProductDetailClient({
           </div>
         </div>
       )}
+
 
       {/* ACCESSIBLE FLOATING SHARE TOAST */}
       <AnimatePresence>
