@@ -44,6 +44,57 @@
     --font-body: var(--font-karla), 'Karla', system-ui, sans-serif;
     --font-sans: var(--font-karla), 'Karla', system-ui, sans-serif;
 
+    /* ==========================================================================
+       MUSKY DOSE PHASE 1 — SEMANTIC DESIGN TOKEN LAYER (--md-*)
+       Single source of truth for all UI colors, shapes, shadows, and heights.
+       Prefer these tokens over raw hex values in new code.
+       ========================================================================== */
+
+    /* Color tokens — Rajasthani botanical palette */
+    --md-forest:      #0f2d22;   /* darkest green — page headers, footer bg */
+    --md-green:       #1b4332;   /* primary green — buttons, active states */
+    --md-leaf:        #2d6a4f;   /* mid green — secondary accents, scrollbar */
+    --md-henna:       #9A4F32;   /* terra cotta — henna accent */
+    --md-gold:        #c5a059;   /* rajasthani gold — badges, borders, highlights */
+    --md-gold-hover:  #b38e46;   /* gold hover state */
+    --md-gold-light:  #faf5e8;   /* very light warm gold tint */
+    --md-canvas:      #fcfbf7;   /* primary page background */
+    --md-canvas-alt:  #f5f1e8;   /* alternate warm background for cards & inputs */
+    --md-surface:     #ffffff;   /* modal/card surface */
+    --md-green-light: #e8f3ed;   /* light green tint for active states, success bg */
+    --md-border:      #e8e2d5;   /* standard neutral border */
+    --md-border-dark: #d4cfc4;   /* slightly darker border for emphasis */
+    --md-text:        #22231F;   /* primary body text */
+    --md-text-body:   #2b302c;   /* body text — descriptions, paragraphs */
+    --md-muted:       #626c66;   /* muted secondary text */
+    --md-muted-light: #8c9891;   /* very muted tertiary text */
+    --md-success:     #1b4332;   /* success = primary green for this brand */
+    --md-error:       #b91c1c;   /* error red */
+    --md-error-bg:    #fef2f2;   /* error background tint */
+    --md-warning:     #c5a059;   /* warning = gold for this brand */
+    --md-whatsapp:    #25D366;   /* WhatsApp brand green */
+    --md-whatsapp-bg: #f0fdf4;   /* WhatsApp action button background */
+
+    /* Shape tokens */
+    --md-radius-sm:   8px;
+    --md-radius-md:   12px;
+    --md-radius-lg:   16px;
+    --md-radius-xl:   20px;
+    --md-radius-full: 9999px;
+
+    /* Shadow tokens — green-tinted botanical depth */
+    --md-shadow-xs: 0 1px 2px 0 rgb(15 45 34 / 0.06);
+    --md-shadow-sm: 0 2px 8px 0 rgb(15 45 34 / 0.08);
+    --md-shadow-md: 0 4px 16px 0 rgb(15 45 34 / 0.10);
+    --md-shadow-lg: 0 8px 24px 0 rgb(15 45 34 / 0.14);
+
+    /* Focus ring — accessible keyboard navigation */
+    --md-focus-ring: 0 0 0 3px rgb(27 67 50 / 0.30);
+
+    /* Mobile layout heights — critical for PDP sticky bar architecture */
+    --md-bottom-nav-h:     56px;   /* MobileBottomNav total height */
+    --md-pdp-sticky-cta-h: 64px;   /* PDP sticky purchase CTA bar height */
+
     /* Compact Mobile Control Boxes & Pocket Heights */
     --m-row-gap: clamp(3px, 1vw, 5px);
     --m-col-gap: clamp(4px, 1.2vw, 6px);
@@ -271,6 +322,137 @@
 .border-green-primary { border-color: #1b4332; }
 .border-gold-accent { border-color: #c5a059; }
 .border-cream-dark { border-color: #e8e2d5; }
+
+/* ==========================================================================
+   PHASE 1 — GLOBAL UI COMPONENT FOUNDATIONS
+   Normalized button, input, card, and focus utilities built on --md-* tokens.
+   Use as base classes; stack Tailwind utilities on top for specifics.
+   ========================================================================== */
+
+/* Focus ring — accessible keyboard focus for all interactive elements */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: var(--md-focus-ring);
+}
+
+/* --- Button base --- */
+.btn-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-body), 'Karla', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  line-height: 1;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 1rem;
+  border-radius: var(--md-radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 180ms ease, border-color 180ms ease,
+              color 180ms ease, transform 120ms ease, box-shadow 180ms ease;
+  white-space: nowrap;
+  text-decoration: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.btn-base:focus-visible { outline: none; box-shadow: var(--md-focus-ring); }
+.btn-base:active { transform: scale(0.97); }
+.btn-base:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+
+/* Primary: dark green background, warm text */
+.btn-primary {
+  background-color: var(--md-green);
+  color: var(--md-gold-light);
+  border-color: var(--md-green);
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--md-forest);
+  border-color: var(--md-forest);
+  color: var(--md-gold);
+}
+
+/* Secondary: warm beige */
+.btn-secondary {
+  background-color: var(--md-canvas-alt);
+  color: var(--md-forest);
+  border-color: var(--md-border);
+}
+.btn-secondary:hover:not(:disabled) { background-color: var(--md-border); }
+
+/* Ghost: transparent with green border */
+.btn-ghost {
+  background-color: transparent;
+  color: var(--md-green);
+  border-color: var(--md-green);
+}
+.btn-ghost:hover:not(:disabled) { background-color: var(--md-green-light); }
+
+/* WhatsApp: soft emerald tint */
+.btn-whatsapp {
+  background-color: var(--md-whatsapp-bg);
+  color: var(--md-green);
+  border-color: rgba(37, 211, 102, 0.40);
+}
+.btn-whatsapp:hover:not(:disabled) { background-color: rgba(37, 211, 102, 0.12); }
+
+/* --- Input base --- */
+.input-base {
+  height: 40px;
+  font-family: var(--font-body), 'Karla', system-ui, sans-serif;
+  font-size: 0.875rem;
+  color: var(--md-text);
+  background-color: var(--md-canvas);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-radius-md);
+  padding: 0 0.875rem;
+  width: 100%;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.input-base::placeholder { color: var(--md-muted-light); }
+.input-base:focus {
+  outline: none;
+  border-color: var(--md-green);
+  box-shadow: var(--md-focus-ring);
+}
+.input-base:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--md-canvas-alt);
+}
+
+/* --- Card base --- */
+.card-base {
+  background-color: var(--md-surface);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-radius-lg);
+  box-shadow: var(--md-shadow-xs);
+  overflow: hidden;
+}
+.card-interactive {
+  transition: box-shadow 220ms ease, border-color 220ms ease, transform 220ms ease;
+}
+.card-interactive:hover {
+  box-shadow: var(--md-shadow-md);
+  border-color: rgba(197, 160, 89, 0.60);
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-interactive:hover { transform: none; }
+}
+
+/* Mobile PDP bottom padding
+   Reserves precise space for both sticky bars (bottom-nav + purchase CTA)
+   so page content is never obscured underneath them on any mobile viewport. */
+.pb-pdp-mobile {
+  padding-bottom: calc(
+    var(--md-bottom-nav-h) +
+    var(--md-pdp-sticky-cta-h) +
+    8px +
+    env(safe-area-inset-bottom, 0px)
+  );
+}
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {

@@ -36,6 +36,7 @@ import {
   MapPin,
   RotateCcw,
   Play,
+  FileText,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import WholesaleSavingsCard from '@/components/WholesaleSavingsCard';
@@ -369,7 +370,7 @@ export default function ProductDetailClient({
   };
 
   return (
-    <div className="space-y-10 pb-36 lg:pb-0">
+    <div className="space-y-10 pb-pdp-mobile lg:pb-0">
       {/* Breadcrumb Navigation */}
       <div className="flex items-center gap-2 text-xs text-[#626c66] font-medium">
         <Link href="/" className="hover:text-[#1b4332]">Home</Link>
@@ -484,6 +485,7 @@ export default function ProductDetailClient({
 
         {/* Right Column: Details & Ordering */}
         <div className="lg:col-span-6 space-y-6">
+          {/* TITLE */}
           <div>
             <div className="flex items-center justify-between gap-2 mb-2">
               <div className="flex items-center gap-2 flex-wrap">
@@ -515,7 +517,14 @@ export default function ProductDetailClient({
             </p>
           </div>
 
-          {/* Pricing Box */}
+          {/* SHORT DESCRIPTION */}
+          {product.shortDescription && (
+            <p className="text-sm text-[#2b302c] leading-relaxed border-l-2 border-[#c5a059]/50 pl-3 py-0.5">
+              {product.shortDescription}
+            </p>
+          )}
+
+          {/* PRICE */}
           <div className="p-4 rounded-xl bg-[#f5f1e8] border border-[#e8e2d5] flex items-baseline justify-between">
             <div>
               <div className="text-xs text-[#626c66] font-medium mb-1">Price per Pack</div>
@@ -526,6 +535,11 @@ export default function ProductDetailClient({
                 {activeComparePrice && activeComparePrice > activePrice && (
                   <span className="text-base text-gray-400 line-through">
                     ₹{activeComparePrice}
+                  </span>
+                )}
+                {discountPercent > 0 && (
+                  <span className="bg-[#c5a059] text-[#0f2d22] text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-2xs">
+                    {discountPercent}% OFF
                   </span>
                 )}
               </div>
@@ -547,7 +561,7 @@ export default function ProductDetailClient({
             </div>
           </div>
 
-          {/* Pack Size / Variant Selector */}
+          {/* PACK / VARIANT */}
           {activeVariants.length > 0 && (
             <div className="space-y-2.5 p-3.5 bg-white rounded-xl border border-[#e8e2d5] shadow-2xs">
               <div className="flex items-center justify-between text-xs">
@@ -598,70 +612,8 @@ export default function ProductDetailClient({
             </div>
           )}
 
-          {/* Bulk Tier Discounts Table */}
-          {sortedBulkRules.length > 0 && (
-            <div className="p-4 rounded-xl bg-emerald-50/80 border border-emerald-200/80 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5 text-xs font-extrabold text-[#0f2d22]">
-                    <Sparkles className="w-4 h-4 text-[#c5a059]" />
-                    <span>Bulk & Wholesale Volume Discounts</span>
-                  </div>
-                  <p className="text-[11px] text-[#626c66] mt-0.5">
-                    Pricing based on total order quantity
-                  </p>
-                </div>
-                <Link
-                  href="/wholesale"
-                  className="text-[11px] font-bold text-[#1b4332] hover:underline shrink-0"
-                >
-                  Custom B2B Rates &rarr;
-                </Link>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                {sortedBulkRules.map((rule) => {
-                  const unitLabel = formatWholesaleTierUnit(wholesaleUnits.wholesaleUnit, rule.minQuantity);
-
-                  let discountLabel = '';
-                  if (rule.discountType === 'percentage') {
-                    const rawVal = Number(rule.discountValue);
-                    const pctStr = Number.isInteger(rawVal) ? `${rawVal}%` : `${Number(rawVal.toFixed(2))}%`;
-                    discountLabel = `${pctStr} OFF`;
-                  } else {
-                    const tierPricing = resolveCanonicalWholesalePricing({
-                      product,
-                      quantity: rule.minQuantity,
-                      rules: [rule],
-                      units: wholesaleUnits,
-                    });
-                    discountLabel = tierPricing.display.formattedSavingsPercent;
-                  }
-
-                  return (
-                    <div
-                      key={rule.id}
-                      className="bg-white p-2.5 rounded-lg border border-emerald-100 flex items-center justify-between shadow-2xs"
-                    >
-                      <span className="text-[#0f2d22] font-bold text-xs sm:text-sm">
-                        {rule.minQuantity} {unitLabel}
-                      </span>
-                      <span className="font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded text-[11px]">
-                        {discountLabel}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <p className="text-sm text-[#2b302c] leading-relaxed">
-            {product.shortDescription}
-          </p>
-
-          {/* Quantity Selector */}
-          <div className="space-y-3 pt-2">
+          {/* QUANTITY */}
+          <div className="space-y-2 pt-1">
             <label className="text-xs font-bold text-[#0f2d22] uppercase tracking-wider block">
               Select Quantity:
             </label>
@@ -694,8 +646,11 @@ export default function ProductDetailClient({
             </div>
           </div>
 
-          <div className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* ┌──────────────┬──────────────┐
+              │     CART     │     BUY      │
+              └──────────────┴──────────────┘ */}
+          <div className="space-y-3 pt-1">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
               <button
                 disabled={isOutOfStock || isAddingToCart}
                 onClick={() => {
@@ -715,20 +670,15 @@ export default function ProductDetailClient({
                   openCart();
                   setTimeout(() => setIsAddingToCart(false), 800);
                 }}
-                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-xs sm:text-sm tracking-wider border transition-all shadow-xs cursor-pointer touch-manipulation active:scale-[0.99] ${
+                className={`w-full h-12 flex items-center justify-center rounded-xl font-extrabold text-xs sm:text-sm tracking-wide border transition-all shadow-xs cursor-pointer touch-manipulation active:scale-[0.98] ${
                   isOutOfStock
                     ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
                     : isAddingToCart
-                    ? 'bg-[#0f2d22] text-[#c5a059] border border-[#0f2d22]'
-                    : 'bg-[#1b4332] hover:bg-[#0f2d22] text-white border-transparent'
+                    ? 'bg-[#1b4332] text-[#c5a059] border-[#1b4332] opacity-70 cursor-wait'
+                    : 'bg-[#1b4332] hover:bg-[#0f2d22] text-[#faf5e8] border-[#1b4332]'
                 }`}
               >
-                {isAddingToCart ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-[#c5a059]" />
-                ) : (
-                  <ShoppingBag className="w-4 h-4 text-[#c5a059]" />
-                )}
-                <span>{isOutOfStock ? 'Out of Stock' : isAddingToCart ? 'Added to Cart!' : 'Add to Order Cart'}</span>
+                <span>CART</span>
               </button>
 
               <Link
@@ -744,13 +694,13 @@ export default function ProductDetailClient({
                     selectedVariant
                   );
                 }}
-                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-xs sm:text-sm tracking-wider border transition-all shadow-xs cursor-pointer touch-manipulation active:scale-[0.99] ${
+                className={`w-full h-12 flex items-center justify-center rounded-xl font-extrabold text-xs sm:text-sm tracking-wide border transition-all shadow-xs cursor-pointer touch-manipulation active:scale-[0.98] ${
                   isOutOfStock
                     ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed pointer-events-none'
-                    : 'bg-[#1b4332] hover:bg-[#0f2d22] text-white border-transparent'
+                    : 'bg-[#c5a059] hover:bg-[#b38e46] text-[#0f2d22] border-[#c5a059]'
                 }`}
               >
-                <span>Buy Now Direct</span>
+                <span>BUY</span>
               </Link>
             </div>
 
@@ -768,37 +718,89 @@ export default function ProductDetailClient({
             </p>
           </div>
 
-          {/* Wholesale Value & Savings Benefit Card */}
-          <WholesaleSavingsCard
-            product={product}
-            bulkRules={bulkRules}
-            onSelectQuote={(s) => {
-              setCustomBulkQuantity(`${s.quantity} ${s.unit}`);
-              setShowBulkModal(true);
-            }}
-          />
-
-          {/* Authentic Sojat Trust Guarantees */}
+          {/* TRUST */}
           <div className="grid grid-cols-2 gap-2.5 pt-4 border-t border-[#e8e2d5] text-xs text-[#626c66]">
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-[#fcfbf7] border border-[#e8e2d5]">
+            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-[#fcfbf7] border border-[#e8e2d5]">
               <Shield className="w-4 h-4 text-[#c5a059] shrink-0" />
               <span className="font-medium text-[11px] text-[#0f2d22]">100% Pure & Unadulterated</span>
             </div>
             <Link
               href="/sojat-henna"
-              className="flex items-center gap-2 p-2 rounded-lg bg-[#fcfbf7] border border-[#e8e2d5] hover:border-[#1b4332] transition-colors group"
+              className="flex items-center gap-2 p-2.5 rounded-lg bg-[#fcfbf7] border border-[#e8e2d5] hover:border-[#1b4332] transition-colors group"
             >
               <MapPin className="w-4 h-4 text-[#1b4332] shrink-0" />
               <span className="font-medium text-[11px] text-[#0f2d22] group-hover:underline">Sojat, Rajasthan Origin &rarr;</span>
             </Link>
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-[#fcfbf7] border border-[#e8e2d5]">
+            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-[#fcfbf7] border border-[#e8e2d5]">
               <Truck className="w-4 h-4 text-[#1b4332] shrink-0" />
               <span className="font-medium text-[11px] text-[#0f2d22]">Pan-India Fast Dispatch</span>
             </div>
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-[#fcfbf7] border border-[#e8e2d5]">
+            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-[#fcfbf7] border border-[#e8e2d5]">
               <MessageCircle className="w-4 h-4 text-[#25D366] shrink-0" />
               <span className="font-medium text-[11px] text-[#0f2d22]">Direct WhatsApp Support</span>
             </div>
+          </div>
+
+          {/* WHOLESALE */}
+          <div className="space-y-3 pt-2">
+            <WholesaleSavingsCard
+              product={product}
+              bulkRules={bulkRules}
+              onSelectQuote={(s) => {
+                setCustomBulkQuantity(`${s.quantity} ${s.unit}`);
+                setShowBulkModal(true);
+              }}
+            />
+
+            {sortedBulkRules.length > 0 && (
+              <div className="p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-200/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-extrabold text-[#0f2d22]">
+                    <Sparkles className="w-4 h-4 text-[#c5a059]" />
+                    <span>Volume Tier Breakdown</span>
+                  </div>
+                  <Link
+                    href="/wholesale"
+                    className="text-[11px] font-bold text-[#1b4332] hover:underline shrink-0"
+                  >
+                    Custom B2B Rates &rarr;
+                  </Link>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {sortedBulkRules.map((rule) => {
+                    const unitLabel = formatWholesaleTierUnit(wholesaleUnits.wholesaleUnit, rule.minQuantity);
+                    let discountLabel = '';
+                    if (rule.discountType === 'percentage') {
+                      const rawVal = Number(rule.discountValue);
+                      const pctStr = Number.isInteger(rawVal) ? `${rawVal}%` : `${Number(rawVal.toFixed(2))}%`;
+                      discountLabel = `${pctStr} OFF`;
+                    } else {
+                      const tierPricing = resolveCanonicalWholesalePricing({
+                        product,
+                        quantity: rule.minQuantity,
+                        rules: [rule],
+                        units: wholesaleUnits,
+                      });
+                      discountLabel = tierPricing.display.formattedSavingsPercent;
+                    }
+                    return (
+                      <div
+                        key={rule.id}
+                        className="bg-white p-2 rounded-lg border border-emerald-100 flex items-center justify-between shadow-2xs"
+                      >
+                        <span className="text-[#0f2d22] font-bold text-xs">
+                          {rule.minQuantity} {unitLabel}
+                        </span>
+                        <span className="font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded text-[11px]">
+                          {discountLabel}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -834,8 +836,20 @@ export default function ProductDetailClient({
           </div>
         </div>
 
-        {/* Ingredients & Benefits */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* HOW TO USE */}
+        {product.usageInstructions && (
+          <div className="space-y-3 pt-4 border-t border-[#f5f1e8]">
+            <h4 className="font-momo-display text-xl font-normal text-[#0f2d22]">
+              How To Use / Application Guide
+            </h4>
+            <div className="bg-[#fcfbf7] p-5 rounded-xl border border-[#e8e2d5] text-xs text-[#2b302c] leading-relaxed whitespace-pre-line">
+              {product.usageInstructions}
+            </div>
+          </div>
+        )}
+
+        {/* INGREDIENTS */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t border-[#f5f1e8]">
           {product.ingredients && product.ingredients.length > 0 && (
             <div className="space-y-3">
               <h4 className="font-momo-display text-xl font-normal text-[#0f2d22] flex items-center gap-2">
@@ -869,17 +883,52 @@ export default function ProductDetailClient({
           )}
         </div>
 
-        {/* Usage Instructions */}
-        {product.usageInstructions && (
-          <div className="space-y-3 pt-4 border-t border-[#f5f1e8]">
-            <h4 className="font-momo-display text-xl font-normal text-[#0f2d22]">
-              How To Use / Application Guide
-            </h4>
-            <div className="bg-[#fcfbf7] p-5 rounded-xl border border-[#e8e2d5] text-xs text-[#2b302c] leading-relaxed">
-              {product.usageInstructions}
+        {/* SPECIFICATIONS */}
+        <div className="space-y-4 pt-4 border-t border-[#f5f1e8]">
+          <h4 className="font-momo-display text-xl font-normal text-[#0f2d22] flex items-center gap-2">
+            <FileText className="w-5 h-5 text-[#1b4332]" /> Product Specifications
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="bg-[#fcfbf7] p-3 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
+              <span className="text-[#626c66] font-medium">SKU / Code</span>
+              <span className="font-mono font-bold text-[#0f2d22]">{activeSku}</span>
+            </div>
+            <div className="bg-[#fcfbf7] p-3 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
+              <span className="text-[#626c66] font-medium">Active Pack Size</span>
+              <span className="font-bold text-[#0f2d22]">{activeWeight}</span>
+            </div>
+            <div className="bg-[#fcfbf7] p-3 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
+              <span className="text-[#626c66] font-medium">Botanical Name</span>
+              <span className="italic font-bold text-[#1b4332]">
+                {(product.name || '').toLowerCase().includes('indigo')
+                  ? 'Indigofera Tinctoria'
+                  : (product.name || '').toLowerCase().includes('amla')
+                  ? 'Phyllanthus Emblica'
+                  : 'Lawsonia Inermis'}
+              </span>
+            </div>
+            <div className="bg-[#fcfbf7] p-3 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
+              <span className="text-[#626c66] font-medium">Geographic Origin</span>
+              <span className="font-bold text-[#0f2d22]">Sojat, Rajasthan, India</span>
+            </div>
+            <div className="bg-[#fcfbf7] p-3 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
+              <span className="text-[#626c66] font-medium">Form / Processing</span>
+              <span className="font-bold text-[#0f2d22]">{product.productType || 'Triple Cloth-Sifted Micro Powder'}</span>
+            </div>
+            <div className="bg-[#fcfbf7] p-3 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
+              <span className="text-[#626c66] font-medium">Chemicals & Purity</span>
+              <span className="font-bold text-emerald-800">100% Pure Plant (0% PPD/Ammonia)</span>
+            </div>
+            <div className="bg-[#fcfbf7] p-3 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
+              <span className="text-[#626c66] font-medium">Shelf Life</span>
+              <span className="font-bold text-[#0f2d22]">24 Months from Packaging</span>
+            </div>
+            <div className="bg-[#fcfbf7] p-3 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
+              <span className="text-[#626c66] font-medium">Storage Advice</span>
+              <span className="font-bold text-[#0f2d22]">Airtight in Cool, Dry, Dark Place</span>
             </div>
           </div>
-        )}
+        </div>
 
         {/* Contextual Botanical Educational Guides */}
         {relevantGuides && relevantGuides.length > 0 && (
@@ -1036,66 +1085,84 @@ export default function ProductDetailClient({
         )}
       </AnimatePresence>
 
-      {/* Sticky Mobile Purchase CTA */}
-      <div className="fixed bottom-[52px] sm:bottom-[54px] left-0 right-0 z-30 bg-white/95 backdrop-blur-md px-3.5 py-2.5 border-t border-[#e8e2d5] shadow-lg lg:hidden flex items-center justify-between gap-2.5">
-        <div className="min-w-0 flex-1">
-          <div className="text-[10px] text-gray-500 uppercase tracking-wider font-bold truncate">
+      {/* Sticky Mobile Purchase CTA — P0/P1/G Fixed
+          - Positioned above MobileBottomNav (which is at bottom-0)
+          - Uses activePrice + activeStockStatus + selectedVariant (P1 fix)
+          - CART | BUY split 50/50, equal height, no icons, no text overflow (G fix)
+      */}
+      <div
+        className="fixed left-0 right-0 z-30 lg:hidden border-t border-[#e8e2d5] bg-[#0f2d22] shadow-lg"
+        style={{ bottom: 'calc(var(--md-bottom-nav-h) + env(safe-area-inset-bottom, 0px))' }}
+      >
+        {/* Price summary row */}
+        <div className="flex items-center justify-between px-4 pt-2 pb-0">
+          <span className="text-[10px] text-[#c5a059]/80 uppercase tracking-widest font-bold truncate max-w-[55%]">
             {product.name}
-          </div>
-          <div className="text-sm font-extrabold text-[#1b4332] flex items-baseline gap-1.5">
-            <span>₹{product.price * quantity}</span>
-            <span className="text-[10px] font-normal text-gray-500">
-              ({quantity} {quantity === 1 ? 'pack' : 'packs'})
-            </span>
-          </div>
+          </span>
+          <span className="text-sm font-extrabold text-[#faf5e8] tabular-nums">
+            ₹{activePrice * quantity}
+            {quantity > 1 && (
+              <span className="text-[10px] font-normal text-[#c5a059]/70 ml-1">×{quantity}</span>
+            )}
+          </span>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        {/* CART | BUY 50/50 row */}
+        <div className="grid grid-cols-2 gap-0 px-3 pb-3 pt-1.5">
+          {/* CART button */}
           <button
             type="button"
-            disabled={product.stockStatus === 'out_of_stock' || isAddingToCart}
+            disabled={isOutOfStock || isAddingToCart}
             onClick={() => {
-              if (product.stockStatus === 'out_of_stock' || isAddingToCart) return;
+              if (isOutOfStock || isAddingToCart) return;
               setIsAddingToCart(true);
-              addToCart(product, quantity);
+              addToCart(
+                selectedVariant
+                  ? { ...product, price: activePrice, compareAtPrice: activeComparePrice, sku: activeSku, stockStatus: activeStockStatus }
+                  : product,
+                quantity,
+                selectedVariant ?? undefined,
+              );
               trackAddToCart({
                 id: product.id,
                 name: product.name,
-                price: product.price,
+                price: activePrice,
                 quantity,
               });
               openCart();
               setTimeout(() => setIsAddingToCart(false), 800);
             }}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs active:scale-95 flex items-center gap-1 cursor-pointer touch-manipulation ${
-              product.stockStatus === 'out_of_stock'
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+            className={`h-11 rounded-l-xl text-xs font-extrabold tracking-wide transition-all active:scale-95 touch-manipulation border border-r-[0.5px] whitespace-nowrap ${
+              isOutOfStock
+                ? 'bg-[#1a3528] text-[#626c66] border-[#2d4a3a] cursor-not-allowed'
                 : isAddingToCart
-                ? 'bg-[#0f2d22] text-[#c5a059]'
-                : 'bg-[#f5f1e8] hover:bg-[#e8e2d5] text-[#0f2d22] border border-[#e8e2d5]'
+                ? 'bg-[#1b4332] text-[#c5a059] border-[#2d5540] opacity-70 cursor-wait'
+                : 'bg-[#1b4332] hover:bg-[#163828] text-[#faf5e8] border-[#2d5540] cursor-pointer'
             }`}
           >
-            {isAddingToCart ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#c5a059]" />
-            ) : (
-              <ShoppingBag className="w-3.5 h-3.5 text-[#c5a059]" />
-            )}
-            <span>{isAddingToCart ? 'Added' : '+ Cart'}</span>
+            CART
           </button>
 
+          {/* BUY button */}
           <Link
             href="/checkout"
             onClick={() => {
-              if (product.stockStatus === 'out_of_stock') return;
-              addToCart(product, quantity);
+              if (isOutOfStock) return;
+              addToCart(
+                selectedVariant
+                  ? { ...product, price: activePrice, compareAtPrice: activeComparePrice, sku: activeSku, stockStatus: activeStockStatus }
+                  : product,
+                quantity,
+                selectedVariant ?? undefined,
+              );
             }}
-            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold shadow-md flex items-center gap-1 transition-transform active:scale-95 touch-manipulation ${
-              product.stockStatus === 'out_of_stock'
-                ? 'bg-gray-200 text-gray-500 cursor-not-allowed pointer-events-none'
-                : 'bg-[#1b4332] hover:bg-[#0f2d22] text-white'
+            className={`h-11 rounded-r-xl text-xs font-extrabold tracking-wide transition-all active:scale-95 touch-manipulation border border-l-[0.5px] whitespace-nowrap flex items-center justify-center ${
+              isOutOfStock
+                ? 'bg-[#c5a059]/30 text-[#626c66] border-[#9a7a3a] pointer-events-none'
+                : 'bg-[#c5a059] hover:bg-[#b38e46] text-[#0f2d22] border-[#b38e46] cursor-pointer'
             }`}
           >
-            <span>Buy Now</span>
+            BUY
           </Link>
         </div>
       </div>

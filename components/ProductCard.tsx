@@ -139,7 +139,7 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
     >
       {/* Product Image Container */}
       <Link href={`/products/${product.slug || product.id}`} className={`relative block ${aspectRatioClass} overflow-hidden bg-[#f4f0e6] p-1.5 sm:p-2.5`}>
-        <div className="relative w-full h-full rounded-lg sm:rounded-xl overflow-hidden">
+        <div className="relative w-full h-full rounded-xl overflow-hidden">
           <Image
             src={imgSrc}
             alt={product.name}
@@ -154,11 +154,11 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
         {/* Badges */}
         <div className="absolute top-1.5 sm:top-2.5 left-1.5 sm:left-2.5 flex items-center gap-1 z-10">
           {product.isFeatured ? (
-            <span className="bg-[#1b4332] text-[#faf5e8] text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1 border border-[#c5a059]/30">
+            <span className="bg-[#1b4332] text-[#faf5e8] text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1 border border-[#c5a059]/30">
               <ShieldCheck className="w-3 h-3 text-[#c5a059]" /> {cms.productCardHeritageBadge}
             </span>
           ) : discountPercent > 0 ? (
-            <span className="bg-[#c5a059] text-[#0f2d22] text-[9px] sm:text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-2xs">
+            <span className="bg-[#c5a059] text-[#0f2d22] text-[10px] sm:text-xs font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-2xs">
               {discountPercent}% OFF
             </span>
           ) : null}
@@ -173,7 +173,7 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
             e.stopPropagation();
             toggleWishlist(product);
           }}
-          className="absolute top-1.5 sm:top-2.5 right-1.5 sm:right-2.5 p-1 sm:p-1.5 bg-white/90 hover:bg-white backdrop-blur-xs rounded-full border border-[#e8e2d5] shadow-2xs z-10 transition-colors w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center cursor-pointer touch-manipulation"
+          className="absolute top-1.5 sm:top-2.5 right-1.5 sm:right-2.5 p-1 sm:p-1.5 bg-white/90 hover:bg-white backdrop-blur-xs rounded-full border border-[#e8e2d5] shadow-2xs z-10 transition-colors w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center cursor-pointer touch-manipulation focus-ring"
           aria-label={isWishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
           title={isWishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
         >
@@ -186,14 +186,14 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
 
         {/* Video Indicator Badge */}
         {mediaResolution.hasVideo && (
-          <div className="absolute bottom-1.5 sm:bottom-2.5 left-1.5 sm:left-2.5 bg-black/75 backdrop-blur-xs text-white text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/20 shadow-2xs flex items-center gap-1 z-10">
+          <div className="absolute bottom-1.5 sm:bottom-2.5 left-1.5 sm:left-2.5 bg-black/75 backdrop-blur-xs text-white text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full border border-white/20 shadow-2xs flex items-center gap-1 z-10">
             <Play className="w-2.5 h-2.5 fill-white text-white" />
             <span>Video</span>
           </div>
         )}
 
         {displayWeight && (
-          <div className="absolute bottom-1.5 sm:bottom-2.5 right-1.5 sm:right-2.5 bg-white/95 backdrop-blur-xs text-[#0f2d22] text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full border border-[#e8e2d5] shadow-2xs max-w-[85%] truncate">
+          <div className="absolute bottom-1.5 sm:bottom-2.5 right-1.5 sm:right-2.5 bg-white/95 backdrop-blur-xs text-[#0f2d22] text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full border border-[#e8e2d5] shadow-2xs max-w-[85%] truncate">
             <span>{displayWeight}</span>
             {canonicalOffer.activeVariants.length > 1 && (
               <span className="text-[#1b4332] ml-1 font-semibold">({canonicalOffer.activeVariants.length} sizes)</span>
@@ -208,7 +208,7 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
           <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-[#8c7b60] font-semibold uppercase tracking-wider mb-1 flex-wrap gap-1">
             <span className="truncate max-w-[120px] sm:max-w-none">{product.categoryName || 'Sojat Henna'}</span>
             {isOutOfStock && (
-              <span className="text-amber-800 text-[9px] sm:text-[10px] font-bold bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200 shrink-0">
+              <span className="text-amber-800 text-[10px] sm:text-xs font-bold bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200 shrink-0">
                 {cms.productCardOutOfStockBadge}
               </span>
             )}
@@ -240,7 +240,7 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
                 </span>
               )}
             </div>
-            <span className="text-[9px] sm:text-[10px] font-bold text-[#1b4332] bg-[#f5f1e8] px-1.5 py-0.5 rounded-md shrink-0">
+            <span className="text-[10px] sm:text-xs font-bold text-[#1b4332] bg-[#f5f1e8] px-1.5 py-0.5 rounded-md shrink-0">
               {isOutOfStock ? cms.productCardOutOfStockBadge : cms.productCardInStockBadge}
             </span>
           </div>
@@ -252,7 +252,7 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
               whileTap={shouldReduceMotion ? undefined : { scale: 0.95 }}
               onClick={handleAddToCart}
               disabled={isOutOfStock || isAddingToCart}
-              className={`w-full min-h-[36px] sm:min-h-[38px] py-1.5 sm:py-2 inline-flex items-center justify-center gap-1.5 text-xs font-bold px-2 rounded-xl transition-all shadow-xs cursor-pointer touch-manipulation ${
+              className={`w-full min-h-[40px] py-1.5 sm:py-2 inline-flex items-center justify-center gap-1.5 text-xs font-bold px-2 rounded-xl transition-all shadow-xs cursor-pointer touch-manipulation ${
                 isOutOfStock
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
                   : isAddingToCart
@@ -281,7 +281,7 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
               whileTap={shouldReduceMotion ? undefined : { scale: 0.95 }}
               onClick={handleWhatsAppOrder}
               disabled={isOutOfStock}
-              className={`w-full min-h-[36px] sm:min-h-[38px] py-1.5 sm:py-2 inline-flex items-center justify-center gap-1.5 text-xs font-bold px-2 rounded-xl transition-all shadow-2xs cursor-pointer touch-manipulation ${
+              className={`w-full min-h-[40px] py-1.5 sm:py-2 inline-flex items-center justify-center gap-1.5 text-xs font-bold px-2 rounded-xl transition-all shadow-2xs cursor-pointer touch-manipulation ${
                 isOutOfStock
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
                   : 'bg-[#f4faf6] hover:bg-[#e6f4ec] text-[#1b4332] border border-[#25D366]/40'
