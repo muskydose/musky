@@ -33,6 +33,21 @@ interface BotanicalEntity {
 }
 
 const BOTANICAL_KNOWLEDGE: Record<string, BotanicalEntity> = {
+  bridal_henna_oil: {
+    key: 'bridal_henna_oil',
+    rootNames: ['bridal henna oil', 'henna oil', 'mehendi oil', 'mehndi oil', 'mehandi oil'],
+    scientificName: ['eucalyptus globulus', 'syzygium aromaticum', 'melaleuca alternifolia'],
+    ayurvedicNames: ['nilgiri taila', 'lavanga taila'],
+    englishNames: ['bridal henna oil', 'henna mehendi oil', 'henna oil for dark stain', 'mehndi essential oil blend', 'bridal mehndi oil'],
+    originRegions: ['Sojat', 'Pali', 'Rajasthan'],
+    standardForms: ['essential oil blend', 'oil', 'liquid'],
+    primaryBenefits: ['dark stain intensification', 'rich mahogany color release', 'aromatic bridal application'],
+    primaryUseCases: ['mehndi cone preparation', 'bridal stain deepening', 'aftercare oil blend'],
+    semanticThemes: ['bridal mehndi darkening', 'pure essential oil blend', 'eucalyptus clove mehndi oil'],
+    primaryScope: 'BODY_ART',
+    suggestedCategorySlug: 'henna',
+    suggestedGuideSlugs: ['how-to-mix-baq-henna-for-dark-bridal-stain'],
+  },
   baq_henna: {
     key: 'baq_henna',
     rootNames: ['baq henna', 'body art quality henna', 'baq mehndi', 'bridal henna powder', 'baq'],
@@ -285,6 +300,14 @@ function detectBotanicalProfile(product: Partial<Product>): BotanicalEntity | nu
     ...(product.benefits || []),
     product.shortDescription || '',
   ].join(' ').toLowerCase();
+
+  // If oil is detected in name/slug/type, prioritize bridal_henna_oil
+  if (
+    (combinedText.includes('oil') || product.productType === 'OIL') &&
+    (combinedText.includes('henna') || combinedText.includes('mehndi') || combinedText.includes('bridal') || combinedText.includes('mehendi'))
+  ) {
+    return BOTANICAL_KNOWLEDGE.bridal_henna_oil;
+  }
 
   for (const [key, profile] of Object.entries(BOTANICAL_KNOWLEDGE)) {
     if (combinedText.includes(key)) return profile;
@@ -744,7 +767,9 @@ export function deriveProductAutoSeo(product: Partial<Product>): AutoSeoResult {
   if (product.seoKeywords && product.seoKeywords.length > 0 && product.seoKeywords[0].trim()) {
     primaryKeyword = normalizeKeywordTerm(product.seoKeywords[0]);
   } else if (botanical) {
-    if (botanical.key === 'baq_henna' || combinedText.includes('baq')) {
+    if (botanical.key === 'bridal_henna_oil' || (combinedText.includes('oil') && (combinedText.includes('henna') || combinedText.includes('bridal')))) {
+      primaryKeyword = 'bridal henna oil';
+    } else if (botanical.key === 'baq_henna' || combinedText.includes('baq')) {
       primaryKeyword = 'BAQ henna powder';
     } else if (botanical.key === 'indigo') {
       primaryKeyword = 'natural indigo powder for hair';
@@ -775,23 +800,37 @@ export function deriveProductAutoSeo(product: Partial<Product>): AutoSeoResult {
   // 4. Secondary Keywords Generation
   const secondarySet = new Set<string>();
   if (botanical) {
-    botanical.englishNames.forEach((en) => secondarySet.add(en.toLowerCase()));
-    if (botanical.rootNames.length > 1) {
-      secondarySet.add(`${botanical.rootNames[1]} powder`);
-    }
-    if (detectedScope === 'HAIR') {
-      secondarySet.add(`herbal ${botanical.rootNames[0]} hair pack`);
-      secondarySet.add(`natural ${botanical.rootNames[0]} for hair`);
-    } else if (detectedScope === 'SKIN') {
-      secondarySet.add(`natural ${botanical.rootNames[0]} face pack`);
-      secondarySet.add(`botanical ${botanical.rootNames[0]} skincare`);
-    } else if (detectedScope === 'BODY_ART') {
-      secondarySet.add('henna powder for mehndi cones');
+    if (botanical.key === 'bridal_henna_oil' || (combinedText.includes('oil') && (combinedText.includes('henna') || combinedText.includes('bridal')))) {
+      secondarySet.add('henna oil');
+      secondarySet.add('henna mehendi oil');
+      secondarySet.add('henna oil for dark stain');
+      secondarySet.add('mehndi essential oil blend');
+      secondarySet.add('bridal mehndi oil');
+    } else if (botanical.key === 'baq_henna' || combinedText.includes('baq')) {
       secondarySet.add('body art quality henna');
       secondarySet.add('sojat henna powder');
-      secondarySet.add('natural henna powder');
+      secondarySet.add('triple sifted henna powder');
+      secondarySet.add('natural henna powder for mehndi');
+      secondarySet.add('henna powder for mehndi cones');
+    } else {
+      botanical.englishNames.forEach((en) => secondarySet.add(en.toLowerCase()));
+      if (botanical.rootNames.length > 1) {
+        secondarySet.add(`${botanical.rootNames[1]} powder`);
+      }
+      if (detectedScope === 'HAIR') {
+        secondarySet.add(`herbal ${botanical.rootNames[0]} hair pack`);
+        secondarySet.add(`natural ${botanical.rootNames[0]} for hair`);
+      } else if (detectedScope === 'SKIN') {
+        secondarySet.add(`natural ${botanical.rootNames[0]} face pack`);
+        secondarySet.add(`botanical ${botanical.rootNames[0]} skincare`);
+      } else if (detectedScope === 'BODY_ART') {
+        secondarySet.add('henna powder for mehndi cones');
+        secondarySet.add('body art quality henna');
+        secondarySet.add('sojat henna powder');
+        secondarySet.add('natural henna powder');
+      }
+      secondarySet.add(`natural ${botanical.rootNames[0]} powder`);
     }
-    secondarySet.add(`natural ${botanical.rootNames[0]} powder`);
   } else {
     secondarySet.add(`natural ${cleanBaseName.toLowerCase()}`);
     secondarySet.add(`pure ${cleanBaseName.toLowerCase()}`);
@@ -807,7 +846,17 @@ export function deriveProductAutoSeo(product: Partial<Product>): AutoSeoResult {
   // 5. Long-Tail Buyer Candidates
   const longTailSet = new Set<string>();
   if (botanical) {
-    if (detectedScope === 'HAIR') {
+    if (botanical.key === 'bridal_henna_oil' || (combinedText.includes('oil') && (combinedText.includes('henna') || combinedText.includes('bridal')))) {
+      longTailSet.add('pure bridal henna oil for dark mehndi stain');
+      longTailSet.add('essential oil blend for henna cones');
+      longTailSet.add('sojat henna oil for mehndi artists');
+      longTailSet.add('natural mehendi oil for deep stain');
+    } else if (botanical.key === 'baq_henna' || combinedText.includes('baq')) {
+      longTailSet.add('pure baq henna powder for bridal cones');
+      longTailSet.add('triple sifted sojat henna powder 250g');
+      longTailSet.add('body art quality henna powder rajasthan');
+      longTailSet.add('chemical free baq mehndi powder');
+    } else if (detectedScope === 'HAIR') {
       longTailSet.add(`chemical free ${botanical.rootNames[0]} hair color in india`);
       longTailSet.add(`pure shade dried ${botanical.rootNames[0]} powder for hair conditioning`);
       longTailSet.add(`ayurvedic ${botanical.rootNames[0]} hair pack with zero additives`);
@@ -838,7 +887,11 @@ export function deriveProductAutoSeo(product: Partial<Product>): AutoSeoResult {
   if (seoTitle) {
     seoTitle = seoTitle.replace(/\s*\|\s*Musky\s*Dose.*$/i, '').trim();
   } else if (name) {
-    if (detectedScope === 'HAIR' && !name.toLowerCase().includes('hair')) {
+    if (botanical?.key === 'bridal_henna_oil' || (combinedText.includes('oil') && (combinedText.includes('henna') || combinedText.includes('bridal')))) {
+      seoTitle = 'Bridal Henna Oil — Pure Botanical Essential Oil Blend';
+    } else if (botanical?.key === 'baq_henna' || combinedText.includes('baq')) {
+      seoTitle = 'BAQ Henna Powder — Triple Sifted Sojat Body Art Quality';
+    } else if (detectedScope === 'HAIR' && !name.toLowerCase().includes('hair')) {
       seoTitle = `${name} — Natural Hair Care & Conditioning`;
     } else if (detectedScope === 'SKIN' && !name.toLowerCase().includes('face') && !name.toLowerCase().includes('skin')) {
       seoTitle = `${name} — Natural Skincare & Face Pack`;
@@ -863,6 +916,10 @@ export function deriveProductAutoSeo(product: Partial<Product>): AutoSeoResult {
       if (metaDescription.length < rawDesc.length) {
         metaDescription = metaDescription.replace(/\s+[^\s]*$/, '') + '.';
       }
+    } else if (botanical?.key === 'bridal_henna_oil' || (combinedText.includes('oil') && (combinedText.includes('henna') || combinedText.includes('bridal')))) {
+      metaDescription = 'Natural botanical essential oil blend infused with eucalyptus and clove bud to intensify and deepen natural mehndi stains. Crafted in Sojat, Rajasthan.';
+    } else if (botanical?.key === 'baq_henna' || combinedText.includes('baq')) {
+      metaDescription = '100% pure triple-sifted Sojat Lawsonia Inermis BAQ henna powder for bridal mehndi artists and hair conditioning. Direct from Sojat, Rajasthan.';
     } else if (botanical) {
       const origin = botanical.originRegions[0] || 'Sojat, Rajasthan';
       const benefit = botanical.primaryBenefits.slice(0, 2).join(' and ');

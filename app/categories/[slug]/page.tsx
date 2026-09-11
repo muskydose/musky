@@ -13,7 +13,7 @@ import { getSiteSettings } from '@/lib/db/settings';
 import { resolvePageSeoMetadata } from '@/lib/db/seo';
 import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
 import { safeJsonLd } from '@/lib/utils';
-import { ArrowLeft, PackageX, Sparkles, CheckCircle2, Leaf } from 'lucide-react';
+import { ArrowLeft, PackageX, Sparkles, CheckCircle2, Leaf, ArrowRight, MessageCircle } from 'lucide-react';
 import { resolveCategoryIntelligence } from '@/lib/growth/category-intelligence';
 import { resolveCategorySlugRedirect } from '@/lib/db/category-redirects';
 
@@ -252,6 +252,42 @@ export default async function CategoryPage({
             </Link>
           </div>
         )}
+
+        {/* B2B / Wholesale Bridge */}
+        <div className="mt-14 bg-gradient-to-r from-[#0f2d22] to-[#1b4332] rounded-2xl p-6 sm:p-8 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-md border border-[#2d5a45]">
+          <div className="space-y-1.5 max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-[#c5a059]/20 text-[#c5a059] text-[11px] font-bold tracking-wide uppercase">
+              <Sparkles className="w-3 h-3 text-[#c5a059]" />
+              Direct Factory Sourcing
+            </div>
+            <h3 className="font-momo-display text-xl sm:text-2xl font-normal text-white">
+              Need {category.name} in Bulk / Wholesale?
+            </h3>
+            <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">
+              Direct Sojat farm & processing tier pricing for mehndi artists, beauty salons, natural cosmetic brands, and wholesale distributors (5kg to 1000kg+).
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
+            <Link
+              href="/wholesale"
+              className="inline-flex items-center justify-center gap-2 bg-[#c5a059] hover:bg-[#b08d46] text-[#0f2d22] px-5 py-2.5 rounded-xl font-bold text-xs shadow transition-colors"
+            >
+              <span>Explore Wholesale Rates</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+            <a
+              href={`https://wa.me/${getConfiguredWhatsAppNumber(siteSettings)}?text=${encodeURIComponent(
+                `Hi Musky Dose, I am looking for wholesale / bulk rates for ${category.name}. Please share your B2B rate card and minimum order quantity.`
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white px-5 py-2.5 rounded-xl font-bold text-xs shadow transition-colors"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span>Bulk WhatsApp Inquiry</span>
+            </a>
+          </div>
+        </div>
 
         {/* Category Botanical Insight & Origin Note */}
         {categoryInsight && (

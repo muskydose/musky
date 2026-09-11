@@ -30,7 +30,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
   const autoSeo = deriveProductAutoSeo(product);
   const mediaResolution = resolveAuthoritativeProductMedia(product);
-  const primaryImgUrl = mediaResolution.primaryImage || product.ogImageUrl || product.images?.[0] || '/images/fallback.svg';
+  const rawPrimary = mediaResolution.primaryImage || product.ogImageUrl || product.images?.[0];
+  const primaryImgUrl = rawPrimary && !rawPrimary.includes('fallback.svg') ? rawPrimary : undefined;
 
   return await resolvePageSeoMetadata({
     targetType: 'product',

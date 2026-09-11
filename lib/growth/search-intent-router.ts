@@ -153,6 +153,19 @@ const WHOLESALE_INTENT_TERMS = [
   'artist supply',
   'rate card',
   'kg price',
+  'bulk henna',
+  'buy henna in bulk',
+  'bulk indigo',
+  'bulk organic indigo',
+  'henna powder manufacturer in sojat',
+  'organic indigo powder in bulk',
+  'wholesale indigo',
+  'wholesale henna',
+  'artist price',
+  'bulk mehendi',
+  'bulk mehndi',
+  'artist bulk',
+  'commercial supply',
 ];
 
 const LOCAL_SOJAT_TERMS = [

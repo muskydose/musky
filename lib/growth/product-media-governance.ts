@@ -363,7 +363,7 @@ export function generateProductMediaSchema(
   }));
 
   return {
-    images: images.length > 0 ? images : [media.primaryImage],
+    images: images,
     videos: videoObjects,
     videoObjects: videoObjects.length > 0 ? videoObjects : undefined,
   };
@@ -390,7 +390,7 @@ export function extractMerchantFeedMedia(
     .filter((url) => url && !url.includes('fallback.svg'))
     .map(formatUrl);
 
-  const imageLink = validImages[0] || formatUrl(media.primaryImage);
+  const imageLink = validImages[0] || '';
   const additionalImageLinks = validImages.slice(1, 10); // Google allows up to 10 additional images
 
   const videoLinks = media.videos

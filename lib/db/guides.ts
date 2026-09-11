@@ -48,6 +48,8 @@ export async function getGuides(): Promise<ProductGuide[]> {
       published: row.published ?? true,
       isFeatured: row.is_featured ?? row.isFeatured ?? false,
       sortOrder: row.sort_order ?? row.sortOrder ?? 1,
+      status: row.status || (row.published === false ? 'NEEDS_REVIEW' : 'PUBLISHED'),
+      source: row.source || 'AUTO',
       createdAt: row.created_at || row.createdAt || new Date().toISOString(),
       updatedAt: row.updated_at || row.updatedAt || new Date().toISOString(),
     }));

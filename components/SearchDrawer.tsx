@@ -264,6 +264,55 @@ export default function SearchDrawer() {
             );
           })()}
 
+          {/* Wholesale & Bulk Sourcing Shortcut Pill */}
+          {(() => {
+            const isWholesale = /bulk|wholesale|manufacturer|supplier|kg|salon|artist|distributor/i.test(query);
+            if (!isWholesale) return null;
+            return (
+              <div className="flex items-center justify-between p-2.5 bg-[#0f2d22] border border-[#1b4332] rounded-xl text-xs text-white shadow-xs">
+                <div className="min-w-0 pr-2">
+                  <span className="font-bold flex items-center gap-1.5 text-[#c5a059]">
+                    <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">Bulk / Wholesale Sourcing</span>
+                  </span>
+                  <p className="text-[10px] text-gray-300 mt-0.5 truncate">
+                    Direct factory tier pricing for salons & distributors
+                  </p>
+                </div>
+                <Link
+                  href="/wholesale"
+                  onClick={closeSearch}
+                  className="font-extrabold text-[11px] bg-[#c5a059] text-[#0f2d22] px-2.5 py-1 rounded-lg hover:bg-[#b08d46] transition-colors shrink-0"
+                >
+                  Wholesale &rarr;
+                </Link>
+              </div>
+            );
+          })()}
+
+          {/* Contextual WhatsApp Bridge for Bulk & Artist Searches */}
+          {(() => {
+            const isWholesale = /bulk|wholesale|manufacturer|supplier|kg|salon|artist|distributor/i.test(query);
+            if (!isWholesale) return null;
+            return (
+              <a
+                href={`https://wa.me/${getConfiguredWhatsAppNumber(siteSettings)}?text=${encodeURIComponent(
+                  `Hi Musky Dose, I am looking for wholesale / bulk rates for "${query.trim()}". Please share your rate card and bulk minimum order quantities.`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => trackWhatsAppClick({ source: 'Search Drawer Bulk WhatsApp Bridge' })}
+                className="flex items-center justify-between p-2 bg-[#25D366]/10 border border-[#25D366]/30 rounded-xl text-xs text-[#0f2d22] hover:bg-[#25D366]/20 transition-all cursor-pointer"
+              >
+                <span className="flex items-center gap-1.5 font-medium text-[11px] text-[#0f2d22]">
+                  <MessageCircle className="w-3.5 h-3.5 text-[#25D366] shrink-0" />
+                  <span className="truncate">Ask about bulk / artist rates on WhatsApp</span>
+                </span>
+                <span className="font-bold text-[11px] text-[#1b4332] shrink-0">&rarr;</span>
+              </a>
+            );
+          })()}
+
           {liveProducts.length > 0 ? (
             <div className="space-y-2">
               {liveProducts.map((prod) => (
@@ -323,7 +372,9 @@ export default function SearchDrawer() {
                 </button>
                 <a
                   href={`https://wa.me/${getConfiguredWhatsAppNumber(siteSettings)}?text=${encodeURIComponent(
-                    `Hi Musky Dose, I am looking for "${query.trim()}" on your website. Please share product availability & prices.`
+                    /bulk|wholesale|manufacturer|supplier|kg|salon|artist/i.test(query)
+                      ? `Hi Musky Dose, I am looking for wholesale / bulk pricing for "${query.trim()}". Please share your catalog and bulk rates.`
+                      : `Hi Musky Dose, I am looking for "${query.trim()}" on your website. Please share product availability & prices.`
                   )}`}
                   target="_blank"
                   rel="noopener noreferrer"
