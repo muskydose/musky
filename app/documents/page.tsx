@@ -10,10 +10,10 @@ export async function generateMetadata() {
   return await resolvePageSeoMetadata({
     targetType: 'other',
     targetUrl: '/documents',
-    defaultTitle: 'Business Certificates, GST, FSSAI & Lab Reports',
+    defaultTitle: 'Official Business Certificates, GST & Enterprise Compliance',
     defaultDescription:
-      'Verified GST registration, FSSAI license, ISO 9001:2015 quality certificate, and NABL lab analysis COA reports for Musky Dose pure Sojat Henna.',
-    defaultKeywords: ['GST Certificate', 'FSSAI License', 'ISO Certificate', 'NABL COA Report', 'Sojat Henna Documents'],
+      'Official GST, MSME Enterprise Registrations & Processing Compliance for Musky Dose pure Sojat Henna.',
+    defaultKeywords: ['GST Certificate', 'MSME Registration', 'Sojat Henna Compliance', 'Business Documents'],
   });
 }
 

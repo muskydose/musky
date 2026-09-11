@@ -149,14 +149,14 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
           </Link>
 
           {/* 2. DESKTOP PRIMARY NAVIGATION (Large Desktop: >= 1024px) */}
-          <nav aria-label="Desktop Navigation" className="hidden lg:flex items-center gap-1 xl:gap-1.5 shrink-0">
+          <nav aria-label="Desktop Navigation" className="hidden lg:flex items-center gap-0.5 xl:gap-1.5 shrink-0">
             {desktopNavLinks.map((item) => {
               const active = isNavActive(item.href);
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`text-xs xl:text-[13px] px-2.5 py-1.5 rounded-xl transition-all flex items-center gap-1 shrink-0 ${
+                  className={`text-[11px] xl:text-[13px] px-1.5 xl:px-2.5 py-1.5 rounded-xl transition-all flex items-center gap-1 shrink-0 ${
                     active
                       ? 'text-[#1b4332] font-bold bg-[#e8f3ed] shadow-2xs border border-[#b7dfcb]/50'
                       : 'text-[#2b302c] hover:text-[#1b4332] hover:bg-[#faf7f0] font-medium'
@@ -173,8 +173,8 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
             })}
           </nav>
 
-          {/* 3. SEARCH TRIGGER (Desktop & Tablet: Wide Search Bar Trigger) */}
-          <div className="hidden sm:flex flex-1 max-w-[200px] md:max-w-xs xl:max-w-sm items-center">
+          {/* 3. SEARCH TRIGGER (Wide on sm/md & xl, compact on lg) */}
+          <div className="hidden sm:flex lg:hidden xl:flex flex-1 max-w-[200px] md:max-w-xs xl:max-w-sm items-center">
             <button
               type="button"
               onClick={openSearch}
@@ -206,6 +206,17 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
             >
               <Menu className="w-4 h-4 text-[#1b4332]" />
               <span>Menu</span>
+            </button>
+
+            {/* Compact Search Button for lg (1024px - 1279px) */}
+            <button
+              type="button"
+              onClick={openSearch}
+              className="hidden lg:flex xl:hidden p-2 bg-white hover:bg-[#faf7f0] border border-[#e8e2d5] hover:border-[#1b4332]/40 rounded-xl text-[#0f2d22] shadow-2xs transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#1b4332]/20"
+              aria-label="Search products"
+              title="Search products"
+            >
+              <Search className="w-4 h-4 text-[#1b4332]" />
             </button>
 
             {/* Wishlist Button with Badge */}

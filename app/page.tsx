@@ -8,6 +8,7 @@ import CategoryCard from '@/components/CategoryCard';
 import HeroCarousel from '@/components/HeroCarousel';
 import TrustStrip from '@/components/TrustStrip';
 import HomepageVideoSection from '@/components/HomepageVideoSection';
+import SojatHeritageStory from '@/components/SojatHeritageStory';
 import WhatsAppFloat from '@/components/WhatsAppFloat';
 import { getProducts } from '@/lib/db/products';
 import { getCategories } from '@/lib/db/categories';
@@ -81,14 +82,81 @@ export default async function HomePage() {
   const displayFeaturedProducts = resolveAuthoritativeHomepageProducts(activeProducts, siteSettings);
 
   // Active Sections Configuration from Settings or Default
-  const configuredSections: HomepageSectionConfig[] =
+  const rawSections: HomepageSectionConfig[] =
     siteSettings.homepageSections && siteSettings.homepageSections.length > 0
       ? siteSettings.homepageSections
       : DEFAULT_HOMEPAGE_SECTIONS;
 
-  const activeSections = configuredSections
-    .filter((sec) => sec.enabled !== false)
-    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  // Phase 3C Canonical Ordering & Deduplication Guarantee:
+  // Enforces exact sequence:
+  // 1. Hero
+  // 2. Trust Strip
+  // 3. Categories
+  // 4. Featured / Bestsellers
+  // 5. Sojat Heritage Story
+  // 6. Behind The Scenes / Processing Video
+  // 7. The Musky Dose Promise / Why Us
+  // 8. Quality Assurance & Customer Proof
+  // 9. Single Wholesale Hub
+  const sectionIds = new Set(rawSections.map((s) => s.id));
+  const missingCanonicalSections = DEFAULT_HOMEPAGE_SECTIONS.filter(
+    (ds) =>
+      !sectionIds.has(ds.id) &&
+      ['trust_strip', 'bestsellers', 'sojat_story', 'video', 'why_musky_dose', 'reviews', 'wholesale_cta'].includes(ds.id)
+  );
+  const completeSections = [...rawSections, ...missingCanonicalSections];
+
+  const configuredSections = completeSections.map((sec) => {
+    if (sec.id === 'hero') {
+      return { ...sec, sortOrder: 1 };
+    }
+    if (sec.id === 'trust_strip') {
+      return { ...sec, enabled: true, sortOrder: 2 };
+    }
+    if (sec.id === 'categories') {
+      return { ...sec, enabled: true, sortOrder: 3 };
+    }
+    if (sec.id === 'bestsellers' || sec.id === 'signature_henna' || sec.id === 'other_products') {
+      return { ...sec, sortOrder: 4 + (sec.sortOrder ? sec.sortOrder * 0.01 : 0) };
+    }
+    if (sec.id === 'sojat_story') {
+      return { ...sec, enabled: true, sortOrder: 5 };
+    }
+    if (sec.id === 'video' || sec.id === 'homepage_video') {
+      return { ...sec, enabled: true, sortOrder: 6 };
+    }
+    if (sec.id === 'why_musky_dose') {
+      return { ...sec, enabled: true, sortOrder: 7 };
+    }
+    if (sec.id === 'reviews' || sec.id === 'testimonials') {
+      return { ...sec, enabled: true, sortOrder: 8 };
+    }
+    if (sec.id === 'wholesale_cta') {
+      return { ...sec, enabled: true, sortOrder: 9 };
+    }
+    if (sec.id === 'factory_story' || sec.id === 'whatsapp_cta' || sec.id === 'whatsapp_guide') {
+      // Deduplicate: SojatHeritageStory handles heritage; wholesale_cta handles B2B; canonical store handles orders
+      return { ...sec, enabled: false };
+    }
+    return { ...sec, sortOrder: (sec.sortOrder || 10) + 10 };
+  });
+
+  // Strict deduplication of section aliases (e.g. video vs homepage_video, reviews vs testimonials)
+  const seenCanonicalKeys = new Set<string>();
+  const deduplicatedSections = configuredSections.filter((sec) => {
+    if (sec.enabled === false) return false;
+    const normalizedKey =
+      sec.id === 'homepage_video' ? 'video' :
+      sec.id === 'testimonials' ? 'reviews' :
+      sec.id;
+    if (seenCanonicalKeys.has(normalizedKey)) return false;
+    seenCanonicalKeys.add(normalizedKey);
+    return true;
+  });
+
+  const activeSections = deduplicatedSections.sort(
+    (a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)
+  );
 
   return (
     <div className="min-h-screen bg-[#fcfbf7] flex flex-col font-sans selection:bg-[#c5a059]/30 selection:text-[#0f2d22]">
@@ -116,100 +184,6 @@ export default async function HomePage() {
               />
             );
 
-          case 'bestsellers':
-          case 'other_products': {
-            const rawSectionProducts = resolveAuthoritativeSectionProducts(activeProducts, sec, displayFeaturedProducts);
-            if (rawSectionProducts.length === 0) return null;
-
-            const displayBestsellers = rawSectionProducts.map((p) => ({
-              id: p.id,
-              name: p.name,
-              slug: p.slug,
-              price: p.price,
-              compareAtPrice: p.compareAtPrice,
-              stockStatus: p.stockStatus,
-              isFeatured: p.isFeatured,
-              images: p.images && p.images.length > 0 ? [p.images[0]] : ['/images/fallback.svg'],
-              categoryName: p.categoryName || '',
-              shortDescription: p.shortDescription || '',
-              quantityOrWeight: p.quantityOrWeight || '',
-            })) as unknown as typeof activeProducts;
-
-            return (
-              <React.Fragment key={sec.id}>
-                <section className="py-8 sm:py-12 bg-[#fcfbf7] border-b border-[#e8e2d5]">
-                  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-5 sm:mb-8 gap-3">
-                      <div>
-                        <span className="text-[11px] font-bold text-[#c5a059] uppercase tracking-widest block mb-1">
-                          {sec.subheading || 'Bestsellers & Featured'}
-                        </span>
-                        <h2 className="font-momo-display text-2xl sm:text-3xl font-normal text-[#0f2d22]">
-                          {sec.heading || 'Most Loved Sojat Henna & Herbal Care'}
-                        </h2>
-                        <p className="text-xs sm:text-sm text-[#626c66] mt-1 font-medium max-w-2xl">
-                          {sec.description || 'Customer favorites chosen for superior dye release, purity, and natural formulation.'}
-                        </p>
-                      </div>
-                      <Link
-                        href={sec.ctaLink || '/products'}
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1b4332] hover:text-[#0f2d22] border-b-2 border-[#c5a059] pb-0.5 shrink-0 transition-all"
-                      >
-                        <span>{sec.ctaText || 'View All Products'}</span>
-                        <ArrowRight className="w-3.5 h-3.5 text-[#c5a059]" />
-                      </Link>
-                    </div>
-
-                    <div className={`grid ${siteSettings?.layoutControls?.mobileGridColumns === 1 ? 'grid-cols-1' : 'grid-cols-2'} sm:grid-cols-3 md:grid-cols-3 ${siteSettings?.layoutControls?.desktopGridColumns === 3 ? 'lg:grid-cols-3' : siteSettings?.layoutControls?.desktopGridColumns === 5 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-2.5 sm:gap-5 lg:gap-6`}>
-                      {displayBestsellers.map((prod) => (
-                        <div key={prod.id} className="h-full flex flex-col">
-                          <ProductCard product={prod} whatsappNumber={whatsappNumber} />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </section>
-
-                {/* RESPONSIVE B2B FACTORY SOURCING STRIP (Accessible on Mobile & Desktop) */}
-                <section className="py-4 sm:py-6 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
-                  <div className="bg-gradient-to-r from-[#0f2d22] via-[#1b4332] to-[#0f2d22] text-white rounded-2xl p-4 sm:p-6 border border-[#c5a059]/30 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
-                    <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#c5a059]/20 border border-[#c5a059]/40 flex items-center justify-center shrink-0 text-[#c5a059] mt-0.5 sm:mt-0">
-                        <Factory className="w-5 h-5 sm:w-6 sm:h-6" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[9px] sm:text-[10px] font-bold tracking-widest text-[#c5a059] uppercase bg-[#c5a059]/15 px-2 py-0.5 rounded">
-                            Factory Direct • Sojat, Rajasthan
-                          </span>
-                          <span className="text-[11px] sm:text-xs text-[#b2c8be] font-medium hidden sm:inline">
-                            Lab Tested & Cloth Sifted
-                          </span>
-                        </div>
-                        <h3 className="text-sm sm:text-lg font-bold text-white mt-1 leading-snug">
-                          Sourcing for Henna Artists, Salons, or Retail Distribution?
-                        </h3>
-                        <p className="text-[11px] sm:text-xs text-[#c2d6cc] mt-0.5 leading-relaxed">
-                          Direct harvest supply in 5kg, 10kg, 25kg & 50kg bulk tiers with tiered wholesale pricing.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0 pt-1 md:pt-0">
-                      <Link
-                        href="/wholesale"
-                        className="w-full md:w-auto inline-flex items-center justify-center gap-2 bg-[#c5a059] hover:bg-[#b38e46] active:scale-95 text-[#0f2d22] px-4 py-2.5 sm:px-5 sm:py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-md touch-manipulation min-h-[42px]"
-                      >
-                        <Building2 className="w-4 h-4 shrink-0" />
-                        <span>Wholesale Rate Card</span>
-                        <ArrowRight className="w-3.5 h-3.5 shrink-0" />
-                      </Link>
-                    </div>
-                  </div>
-                </section>
-              </React.Fragment>
-            );
-          }
-
           case 'categories':
             let displayCategories = activeCategories;
             if (sec.selectedCategoryIds && sec.selectedCategoryIds.length > 0) {
@@ -231,19 +205,19 @@ export default async function HomePage() {
               <section key={sec.id} className="py-8 sm:py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-5 sm:mb-8 gap-3">
                   <div>
-                    <span className="text-[11px] font-bold text-[#c5a059] uppercase tracking-widest block mb-1">
+                    <span className="text-[11px] font-bold text-[#c5a059] uppercase tracking-widest block mb-1 font-sans">
                       {sec.subheading || 'Shop by Category'}
                     </span>
                     <h2 className="font-momo-display text-2xl sm:text-3xl font-normal text-[#0f2d22]">
                       {sec.heading || 'Explore Our Herbal Collections'}
                     </h2>
-                    <p className="text-xs sm:text-sm text-[#626c66] mt-1 font-medium">
+                    <p className="text-xs sm:text-sm text-[#626c66] mt-1 font-sans font-medium">
                       {sec.description || 'Authentic Lawsonia Inermis henna and traditional botanical care from Sojat farms.'}
                     </p>
                   </div>
                   <Link
                     href="/categories"
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1b4332] hover:text-[#0f2d22] border-b-2 border-[#c5a059] pb-0.5 shrink-0 transition-all"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1b4332] hover:text-[#0f2d22] border-b-2 border-[#c5a059] pb-0.5 shrink-0 transition-all font-sans"
                   >
                     <span>View All Categories</span>
                     <ArrowRight className="w-3.5 h-3.5 text-[#c5a059]" />
@@ -268,6 +242,50 @@ export default async function HomePage() {
                 </div>
               </section>
             );
+
+          case 'bestsellers':
+          case 'signature_henna':
+          case 'other_products': {
+            // Canonical complete product objects (preserving variants, media, pricing, and stock)
+            const displayBestsellers = resolveAuthoritativeSectionProducts(activeProducts, sec, displayFeaturedProducts);
+            if (displayBestsellers.length === 0) return null;
+
+            return (
+              <section key={sec.id} className="py-8 sm:py-12 bg-[#fcfbf7] border-b border-[#e8e2d5]">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                  <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-5 sm:mb-8 gap-3">
+                    <div>
+                      <span className="text-[11px] font-bold text-[#c5a059] uppercase tracking-widest block mb-1 font-sans">
+                        {sec.subheading || 'Bestsellers & Featured'}
+                      </span>
+                      <h2 className="font-momo-display text-2xl sm:text-3xl font-normal text-[#0f2d22]">
+                        {sec.heading || 'Most Loved Sojat Henna & Herbal Care'}
+                      </h2>
+                      <p className="text-xs sm:text-sm text-[#626c66] mt-1 font-sans font-medium max-w-2xl">
+                        {sec.description || 'Customer favorites chosen for superior dye release, purity, and natural formulation.'}
+                      </p>
+                    </div>
+                    <Link
+                      href={sec.ctaLink || '/products'}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1b4332] hover:text-[#0f2d22] border-b-2 border-[#c5a059] pb-0.5 shrink-0 transition-all font-sans"
+                    >
+                      <span>{sec.ctaText || 'View All Products'}</span>
+                      <ArrowRight className="w-3.5 h-3.5 text-[#c5a059]" />
+                    </Link>
+                  </div>
+
+                  {/* 2-column mobile grid, 4-column balanced desktop grid */}
+                  <div className={`grid ${siteSettings?.layoutControls?.mobileGridColumns === 1 ? 'grid-cols-1' : 'grid-cols-2'} sm:grid-cols-2 md:grid-cols-3 ${siteSettings?.layoutControls?.desktopGridColumns === 3 ? 'lg:grid-cols-3' : siteSettings?.layoutControls?.desktopGridColumns === 5 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-2.5 sm:gap-5 lg:gap-6`}>
+                    {displayBestsellers.map((prod) => (
+                      <div key={prod.id} className="h-full flex flex-col">
+                        <ProductCard product={prod} whatsappNumber={whatsappNumber} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            );
+          }
 
           case 'video':
           case 'homepage_video':
@@ -321,8 +339,8 @@ export default async function HomePage() {
                         }`}>
                           {card.icon && iconMap[card.icon] ? iconMap[card.icon] : <Leaf className="w-5 h-5 sm:w-6 sm:h-6 text-[#1b4332]" />}
                         </div>
-                        <h3 className="font-momo-display text-sm sm:text-lg font-normal text-[#0f2d22]">{card.title}</h3>
-                        <p className="text-[11px] sm:text-xs text-[#626c66] leading-relaxed line-clamp-3 sm:line-clamp-none">{card.description}</p>
+                        <h3 className="font-momo-display text-sm sm:text-lg font-normal text-[#0f2d22]">{card.title.replace(/Shifted/gi, 'Sifted')}</h3>
+                        <p className="text-[11px] sm:text-xs text-[#626c66] leading-relaxed line-clamp-3 sm:line-clamp-none">{card.description.replace(/Shifted/gi, 'Sifted')}</p>
                       </div>
                     ))}
                   </div>
@@ -339,45 +357,102 @@ export default async function HomePage() {
             ).filter((t) => t.enabled !== false)
             .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
-            if (testimonials.length === 0) return null;
-
             return (
               <section key={sec.id} className="py-8 sm:py-14 lg:py-16 bg-[#faf8f5] border-y border-[#e8e2d5]">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                   <div className="max-w-3xl mx-auto text-center space-y-2 sm:space-y-3 mb-6 sm:mb-10">
-                    <div className="inline-flex items-center gap-2 text-[#c5a059] font-bold text-xs uppercase tracking-widest">
-                      <Quote className="w-4 h-4" />
-                      <span>{sec.subheading || 'Customer Reviews'}</span>
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#e8f3ed] border border-[#2d6a4f]/20 text-[#1b4332] text-[11px] sm:text-xs font-bold tracking-widest uppercase font-sans">
+                      <Sparkles className="w-3.5 h-3.5 text-[#c5a059]" />
+                      <span>{sec.subheading || (testimonials.length > 0 ? 'CUSTOMER REVIEWS' : 'QUALITY & PURITY ASSURANCE')}</span>
                     </div>
-                    <h2 className="font-momo-display text-2xl sm:text-4xl font-normal text-[#0f2d22]">
-                      {sec.heading || 'Loved By Henna Artists & Hair Care Lovers'}
+                    <h2 className="font-momo-display text-2xl sm:text-3xl lg:text-4xl font-normal text-[#0f2d22]">
+                      {sec.heading || (testimonials.length > 0 ? 'Loved By Henna Artists & Hair Care Lovers' : 'Authentic Sojat Henna: Verified Botanical Quality')}
                     </h2>
-                    <p className="text-xs sm:text-base text-[#626c66] leading-relaxed">
-                      {sec.description || 'Read authentic reviews from customers across India who rely on Musky Dose Sojat Henna.'}
+                    <p className="text-xs sm:text-sm lg:text-base text-[#626c66] leading-relaxed max-w-2xl mx-auto font-sans font-medium">
+                      {sec.description || (testimonials.length > 0
+                        ? 'Read authentic reviews from customers across India who rely on Musky Dose Sojat Henna.'
+                        : 'Every batch of Lawsonia Inermis is solar-dried, triple micro-sifted, and dispatched directly from Sojat, Rajasthan without chemical additives.')}
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-                    {testimonials.map((t) => (
-                      <div key={t.id} className="bg-white p-4 sm:p-6 rounded-2xl border border-[#e8e2d5] shadow-xs flex flex-col justify-between space-y-3 sm:space-y-4 hover:shadow-md transition-shadow">
-                        <div className="space-y-2.5">
-                          <div className="flex items-center gap-1 text-[#c5a059]">
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Star
-                                key={i}
-                                className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${i < (t.rating || 5) ? 'fill-[#c5a059] text-[#c5a059]' : 'text-gray-300'}`}
-                              />
-                            ))}
+                  {testimonials.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+                      {testimonials.map((t) => (
+                        <div key={t.id} className="bg-white p-4 sm:p-6 rounded-2xl border border-[#e8e2d5] shadow-xs flex flex-col justify-between space-y-3 sm:space-y-4 hover:shadow-md transition-shadow">
+                          <div className="space-y-2.5">
+                            <div className="flex items-center gap-1 text-[#c5a059]">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${i < (t.rating || 5) ? 'fill-[#c5a059] text-[#c5a059]' : 'text-gray-300'}`}
+                                />
+                              ))}
+                            </div>
+                            <p className="text-xs text-[#2d3a33] leading-relaxed italic font-sans">&quot;{t.reviewText}&quot;</p>
                           </div>
-                          <p className="text-xs text-[#2d3a33] leading-relaxed italic">&quot;{t.reviewText}&quot;</p>
+                          <div className="pt-2 sm:pt-3 border-t border-[#f0ece1]">
+                            <p className="font-bold text-xs sm:text-sm text-[#0f2d22] font-sans">{t.customerName}</p>
+                            {t.location && <p className="text-[10px] sm:text-[11px] text-[#626c66] font-medium font-sans">{t.location}</p>}
+                          </div>
                         </div>
-                        <div className="pt-2 sm:pt-3 border-t border-[#f0ece1]">
-                          <p className="font-bold text-xs sm:text-sm text-[#0f2d22]">{t.customerName}</p>
-                          {t.location && <p className="text-[10px] sm:text-[11px] text-[#626c66] font-medium">{t.location}</p>}
+                      ))}
+                    </div>
+                  ) : (
+                    /* High-Trust Editorial Quality Proof Cards (Zero fabricated reviews, factual processing benchmarks) */
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 lg:gap-6">
+                      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#e8e2d5] shadow-xs space-y-2.5 hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] sm:text-[11px] font-bold tracking-wider text-[#1b4332] bg-[#e8f3ed] px-2.5 py-0.5 rounded-full uppercase border border-[#2d6a4f]/20 font-sans">
+                            High Lawsone
+                          </span>
+                          <Sparkles className="w-4 h-4 text-[#c5a059]" />
                         </div>
+                        <h3 className="font-momo-display text-base sm:text-lg text-[#0f2d22] font-normal">Natural Dye Density</h3>
+                        <p className="text-xs text-[#626c66] leading-relaxed font-sans font-medium">
+                          Sourced strictly from mature Lawsonia Inermis crops in Sojat, yielding deep auburn and rich burgundy stains naturally.
+                        </p>
                       </div>
-                    ))}
-                  </div>
+
+                      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#e8e2d5] shadow-xs space-y-2.5 hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] sm:text-[11px] font-bold tracking-wider text-[#1b4332] bg-[#e8f3ed] px-2.5 py-0.5 rounded-full uppercase border border-[#2d6a4f]/20 font-sans">
+                            Triple Sifted
+                          </span>
+                          <Droplets className="w-4 h-4 text-[#c5a059]" />
+                        </div>
+                        <h3 className="font-momo-display text-base sm:text-lg text-[#0f2d22] font-normal">Micro-Cloth Sifted</h3>
+                        <p className="text-xs text-[#626c66] leading-relaxed font-sans font-medium">
+                          Ultra-fine cloth filtration eliminates coarse stems and fiber, producing silky, clog-free cone application paste.
+                        </p>
+                      </div>
+
+                      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#e8e2d5] shadow-xs space-y-2.5 hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] sm:text-[11px] font-bold tracking-wider text-[#1b4332] bg-[#e8f3ed] px-2.5 py-0.5 rounded-full uppercase border border-[#2d6a4f]/20 font-sans">
+                            Zero Additives
+                          </span>
+                          <ShieldCheck className="w-4 h-4 text-[#c5a059]" />
+                        </div>
+                        <h3 className="font-momo-display text-base sm:text-lg text-[#0f2d22] font-normal">Clean Botanical Care</h3>
+                        <p className="text-xs text-[#626c66] leading-relaxed font-sans font-medium">
+                          Zero PPD, sodium picramate, metallic salts, or synthetic dyes. Suitable for hair and beauty use (patch test recommended).
+                        </p>
+                      </div>
+
+                      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#e8e2d5] shadow-xs space-y-2.5 hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] sm:text-[11px] font-bold tracking-wider text-[#1b4332] bg-[#e8f3ed] px-2.5 py-0.5 rounded-full uppercase border border-[#2d6a4f]/20 font-sans">
+                            Direct Dispatch
+                          </span>
+                          <Package className="w-4 h-4 text-[#c5a059]" />
+                        </div>
+                        <h3 className="font-momo-display text-base sm:text-lg text-[#0f2d22] font-normal">Fresh Farm Origin</h3>
+                        <p className="text-xs text-[#626c66] leading-relaxed font-sans font-medium">
+                          Milled and packed directly at our Sojat facility with airtight moisture-barrier packaging to preserve dye freshness.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </section>
             );
@@ -385,64 +460,55 @@ export default async function HomePage() {
 
           case 'sojat_story':
             return (
-              <section key={sec.id} className="py-8 sm:py-14 lg:py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
-                <div className="bg-[#0f2d22] text-white rounded-3xl overflow-hidden shadow-2xl border border-[#2d6a4f]/40 grid grid-cols-1 lg:grid-cols-12">
-                  <div className="lg:col-span-7 p-5 sm:p-10 lg:p-14 flex flex-col justify-center space-y-3 sm:space-y-5">
-                    <span className="inline-flex items-center gap-2 text-[#c5a059] font-semibold text-xs uppercase tracking-widest">
-                      <Leaf className="w-4 h-4" /> {sec.subheading || 'Regional Heritage'}
-                    </span>
-                    <h2 className="font-momo-display text-2xl sm:text-4xl lg:text-5xl font-normal text-white leading-tight">
-                      {sec.heading || 'From Sojat, Rajasthan — The Henna Capital'}
-                    </h2>
-                    <p className="text-xs sm:text-base text-[#b2c8be] leading-relaxed">
-                      {sec.description || 'Rooted in the heart of Sojat, Rajasthan, Musky Dose brings natural henna and herbal care from our region directly to customers across India. Sourced from traditional solar-dried farms and processed with care, our products carry the rich heritage of Rajasthan.'}
-                    </p>
-                    <div>
-                      <Link
-                        href="/about"
-                        className="inline-flex items-center gap-2 bg-[#c5a059] hover:bg-[#b38e46] text-[#0f2d22] px-5 py-3 sm:px-6 sm:py-3.5 rounded-xl font-bold text-xs tracking-wider uppercase transition-all shadow-md hover:scale-105"
-                      >
-                        <span>Discover Our Story</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </Link>
-                    </div>
-                  </div>
-
-                  <div className="lg:col-span-5 relative min-h-[200px] sm:min-h-[280px] lg:min-h-full overflow-hidden">
-                    <Image
-                      src={sanitizeImageUrl(siteSettings.factoryImageUrl)}
-                      alt="Sojat Rajasthan Henna Sourcing"
-                      fill
-                      className="object-cover hover:scale-105 transition-transform duration-700 ease-out"
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                </div>
-              </section>
+              <SojatHeritageStory
+                key={sec.id}
+                section={sec}
+                siteSettings={siteSettings}
+              />
             );
 
           case 'wholesale_cta':
             return (
-              <section key={sec.id} className="py-8 sm:py-12 lg:py-14 bg-[#1b4332] text-white border-y border-[#2d6a4f]/40">
+              <section key={sec.id} className="py-8 sm:py-12 lg:py-16 bg-[#faf8f5] border-y border-[#e8e2d5]">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                  <div className="max-w-4xl mx-auto text-center space-y-4 sm:space-y-6">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#c5a059]/20 text-[#c5a059] flex items-center justify-center mx-auto border border-[#c5a059]/40">
-                      <Building2 className="w-5 h-5 sm:w-6 sm:h-6" />
-                    </div>
-                    <h2 className="font-momo-display text-2xl sm:text-4xl font-normal text-white">
-                      {sec.heading || 'Looking for Wholesale Henna & Bulk Supply?'}
-                    </h2>
-                    <p className="text-xs sm:text-base text-[#b2c8be] leading-relaxed max-w-2xl mx-auto">
-                      {sec.description || 'Connect with Musky Dose for bulk requirements, 25kg/50kg bags, salon supply, and custom private label packaging directly from Sojat, Rajasthan.'}
-                    </p>
-                    <div className="pt-1 sm:pt-2 flex justify-center">
-                      <Link
-                        href="/wholesale"
-                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 bg-[#c5a059] hover:bg-[#b38e46] text-[#0f2d22] px-8 py-3.5 sm:px-10 sm:py-4 rounded-xl font-extrabold text-xs sm:text-sm tracking-wide uppercase transition-all shadow-lg hover:scale-105"
-                      >
-                        <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#0f2d22]" />
-                        <span>Wholesale & Bulk Enquiries</span>
-                      </Link>
+                  <div className="max-w-4xl mx-auto rounded-3xl bg-gradient-to-b from-[#0f2d22] to-[#1b4332] text-white p-6 sm:p-10 lg:p-12 border border-[#c5a059]/40 shadow-xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-[#c5a059]/10 blur-3xl pointer-events-none" />
+
+                    <div className="relative z-10 text-center space-y-4 sm:space-y-6">
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#c5a059]/20 text-[#c5a059] border border-[#c5a059]/40 text-[11px] sm:text-xs font-bold tracking-widest uppercase font-sans">
+                        <Building2 className="w-3.5 h-3.5" />
+                        <span>B2B & WHOLESALE HUB</span>
+                      </div>
+
+                      <h2 className="font-momo-display text-2xl sm:text-3xl lg:text-4xl font-normal text-white leading-tight">
+                        {sec.heading || 'Wholesale Henna, Indigo & Bulk Botanical Supply'}
+                      </h2>
+
+                      <p className="text-xs sm:text-sm lg:text-base text-[#d3e2da] leading-relaxed max-w-2xl mx-auto font-sans font-medium">
+                        {sec.description || 'Direct factory supply for salons, bridal henna artists, cosmetic brands, and exporters. Available in custom bulk formats and private-label packaging directly from Sojat, Rajasthan.'}
+                      </p>
+
+                      <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 pt-1 text-[11px] sm:text-xs font-semibold text-[#fcfbf7] font-sans">
+                        <span className="px-3 py-1 rounded-lg bg-white/10 border border-white/15">
+                          ✓ Tiered Volume Pricing
+                        </span>
+                        <span className="px-3 py-1 rounded-lg bg-white/10 border border-white/15">
+                          ✓ Direct Sojat Factory Dispatch
+                        </span>
+                        <span className="px-3 py-1 rounded-lg bg-white/10 border border-white/15">
+                          ✓ Commercial & Bulk Packaging Available
+                        </span>
+                      </div>
+
+                      <div className="pt-2 sm:pt-4 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+                        <Link
+                          href="/wholesale"
+                          className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 bg-[#c5a059] hover:bg-[#b38e46] text-[#0f2d22] px-8 py-3.5 sm:px-10 sm:py-4 rounded-xl font-extrabold text-xs sm:text-sm tracking-wider uppercase transition-all shadow-lg hover:scale-105 font-sans"
+                        >
+                          <Building2 className="w-4 h-4 text-[#0f2d22]" />
+                          <span>Wholesale & Bulk Enquiries</span>
+                        </Link>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -451,85 +517,48 @@ export default async function HomePage() {
 
           case 'whatsapp_cta':
           case 'whatsapp_guide':
-            return (
-              <section key={sec.id} className="py-8 sm:py-14 lg:py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
-                <div className="text-center space-y-2 sm:space-y-3 max-w-2xl mx-auto mb-6 sm:mb-10">
-                  <span className="text-xs font-bold text-[#c5a059] uppercase tracking-widest block">
-                    {siteSettings.whatsappGuideSubheading || sec.subheading || 'How Ordering Works'}
-                  </span>
-                  <h2 className="font-momo-display text-2xl sm:text-4xl font-normal text-[#0f2d22]">
-                    {siteSettings.whatsappGuideHeading || sec.heading || 'Simple 3-Step WhatsApp Ordering'}
-                  </h2>
-                  <p className="text-xs sm:text-sm text-[#626c66] leading-relaxed">
-                    {siteSettings.whatsappGuideDescription || sec.description || 'We operate a direct WhatsApp ordering model so you receive personal service and prompt response directly from Sojat.'}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-6">
-                  <div className="bg-white p-4 sm:p-6 lg:p-8 rounded-2xl border border-[#e8e2d5] shadow-xs relative space-y-2 sm:space-y-4 hover:shadow-md transition-shadow">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-[#0f2d22] text-[#c5a059] font-serif-heading font-extrabold text-base sm:text-lg flex items-center justify-center shadow-xs">
-                      1
-                    </div>
-                    <h3 className="font-momo-display text-base sm:text-xl font-normal text-[#0f2d22]">
-                      {siteSettings.whatsappStep1Title || 'Select Your Products'}
-                    </h3>
-                    <p className="text-xs text-[#626c66] leading-relaxed">
-                      {siteSettings.whatsappStep1Description || 'Browse available Musky Dose products and add your required items and quantities to your order cart.'}
-                    </p>
-                  </div>
-
-                  <div className="bg-white p-4 sm:p-6 lg:p-8 rounded-2xl border border-[#e8e2d5] shadow-xs relative space-y-2 sm:space-y-4 hover:shadow-md transition-shadow">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-[#25D366] text-white font-serif-heading font-extrabold text-base sm:text-lg flex items-center justify-center shadow-xs">
-                      2
-                    </div>
-                    <h3 className="font-momo-display text-base sm:text-xl font-normal text-[#0f2d22]">
-                      {siteSettings.whatsappStep2Title || 'Order on WhatsApp'}
-                    </h3>
-                    <p className="text-xs text-[#626c66] leading-relaxed">
-                      {siteSettings.whatsappStep2Description || 'Click "Order on WhatsApp" to open a formatted WhatsApp message with your selected products pre-filled.'}
-                    </p>
-                  </div>
-
-                  <div className="bg-white p-4 sm:p-6 lg:p-8 rounded-2xl border border-[#e8e2d5] shadow-xs relative space-y-2 sm:space-y-4 hover:shadow-md transition-shadow">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-[#0f2d22] text-[#c5a059] font-serif-heading font-extrabold text-base sm:text-lg flex items-center justify-center shadow-xs">
-                      3
-                    </div>
-                    <h3 className="font-momo-display text-base sm:text-xl font-normal text-[#0f2d22]">
-                      {siteSettings.whatsappStep3Title || 'Direct Sojat Dispatch'}
-                    </h3>
-                    <p className="text-xs text-[#626c66] leading-relaxed">
-                      {siteSettings.whatsappStep3Description || 'Confirm delivery address and payment. We package and dispatch directly from Sojat, Rajasthan to your door.'}
-                    </p>
-                  </div>
-                </div>
-              </section>
-            );
+            // Removed duplicate fragmented WhatsApp ordering flow; canonical flow is Cart/Checkout
+            return null;
 
           default:
             return null;
         }
       })}
 
-      {/* 4. FINAL WHATSAPP CALLOUT SECTION */}
-      <section className="py-8 sm:py-12 lg:py-16 bg-[#e8f3ed] border-t border-[#2d6a4f]/20">
+      {/* 4. FINAL STORE CONVERSION CTA */}
+      <section className="py-10 sm:py-14 lg:py-16 bg-[#fcfbf7] border-t border-[#e8e2d5]">
         <div className="max-w-4xl mx-auto px-4 text-center space-y-4 sm:space-y-6">
-          <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-[#25D366] text-white flex items-center justify-center mx-auto shadow-lg border-2 border-white">
-            <MessageCircle className="w-6 h-6 sm:w-8 sm:h-8 fill-white" />
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#e8f3ed] border border-[#2d6a4f]/20 text-[#1b4332] text-[11px] sm:text-xs font-bold tracking-widest uppercase font-sans">
+            <Sparkles className="w-3.5 h-3.5 text-[#c5a059]" />
+            <span>AUTHENTIC SOJAT BOTANICALS</span>
           </div>
-          <h2 className="font-momo-display text-2xl sm:text-4xl font-normal text-[#0f2d22]">
-            {cms.finalCtaHeading || siteSettings.finalCtaHeading || 'Ready To Order Pure Sojat Henna?'}
+          <h2 className="font-momo-display text-2xl sm:text-3xl lg:text-4xl font-normal text-[#0f2d22]">
+            {siteSettings.finalCtaHeading || cms.finalCtaHeading || 'Ready To Experience Pure Sojat Henna?'}
           </h2>
-          <p className="text-xs sm:text-base text-[#2d6a4f] leading-relaxed max-w-2xl mx-auto font-medium">
-            {cms.finalCtaDescription || siteSettings.finalCtaDescription || 'We process retail and wholesale orders directly via WhatsApp. Click below to connect with our Sojat team instantly.'}
+          <p className="text-xs sm:text-sm lg:text-base text-[#626c66] leading-relaxed max-w-2xl mx-auto font-sans font-medium">
+            {siteSettings.finalCtaDescription || cms.finalCtaDescription || 'Shop our ultra-fine sifted Lawsonia Inermis mehendi, natural indigo, and herbal hair care directly from Sojat. Safe online checkout and fast doorstep delivery across India.'}
           </p>
-          <div>
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
             <Link
               href="/products"
-              className="inline-flex items-center justify-center gap-2.5 bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] px-6 py-3.5 sm:px-8 sm:py-4 rounded-xl font-extrabold text-xs sm:text-sm tracking-wider shadow-xl transition-all hover:scale-105 uppercase border border-[#c5a059]/40"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] px-8 py-3.5 sm:px-10 sm:py-4 rounded-xl font-extrabold text-xs sm:text-sm tracking-wider shadow-md hover:shadow-xl transition-all hover:scale-105 uppercase border border-[#c5a059]/40 font-sans"
             >
               <Package className="w-4 h-4 sm:w-5 sm:h-5 text-[#c5a059]" />
-              <span>{cms.finalCtaButtonText || siteSettings.finalCtaButtonText || 'Explore Products & Place Order'}</span>
+              <span>
+                {siteSettings.finalCtaButtonText || cms.finalCtaButtonText || 'Explore All Products'}
+              </span>
             </Link>
+            {whatsappNumber && (
+              <a
+                href={`https://wa.me/${whatsappNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent('Hello Musky Dose! I have a question about your Sojat henna products.')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-white hover:bg-[#f3ede2] text-[#1b4332] font-bold text-xs sm:text-sm border border-[#e8e2d5] shadow-xs transition-all font-sans"
+              >
+                <MessageCircle className="w-4 h-4 text-[#25D366]" />
+                <span>Need Assistance? WhatsApp Us</span>
+              </a>
+            )}
           </div>
         </div>
       </section>

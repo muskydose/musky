@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React from 'react';
 import Image from 'next/image';
@@ -67,15 +67,17 @@ export default function CategoryCard({ category }: CategoryCardProps) {
               <ArrowUpRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
           </div>
-          {category.description ? (
-            <p className="text-[11px] sm:text-xs text-[#d3e2da] line-clamp-2 leading-relaxed font-sans">
-              {category.description}
-            </p>
-          ) : (
-            <p className="text-[11px] sm:text-xs text-[#d3e2da] line-clamp-1 leading-relaxed font-sans opacity-80">
-              Explore authentic Sojat {category.name}
-            </p>
-          )}
+          <div className="min-h-[2rem] sm:min-h-0 flex items-start">
+            {category.description ? (
+              <p className="text-[11px] sm:text-xs text-[#d3e2da] line-clamp-2 leading-relaxed font-sans">
+                {category.description}
+              </p>
+            ) : (
+              <p className="text-[11px] sm:text-xs text-[#d3e2da] line-clamp-1 leading-relaxed font-sans opacity-80">
+                Explore authentic Sojat {category.name}
+              </p>
+            )}
+          </div>
         </div>
       </Link>
     </motion.div>

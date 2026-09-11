@@ -15,8 +15,8 @@ export const DEFAULT_CMS_TEXT: Required<CmsTextConfig> = {
   heroEyebrow: 'Direct from Sojat, Rajasthan, India',
   heroTitle: 'Authentic 100% Pure Sojat Henna & Natural Herbal Care',
   heroSubtitle: 'Ultra-fine sifted natural mehendi, natural indigo, and traditional Rajasthani herbal remedies crafted without chemicals or additives.',
-  heroPrimaryCtaText: 'ORDER ON WHATSAPP',
-  heroSecondaryCtaText: 'EXPLORE PRODUCTS',
+  heroPrimaryCtaText: 'SHOP PRODUCTS',
+  heroSecondaryCtaText: 'WHOLESALE',
   featuredSectionTitle: 'Featured Henna & Herbal Products',
   featuredSectionDescription: 'Bestselling Lawsonia Inermis, natural indigo & botanical formulations.',
   categorySectionTitle: 'Explore Our Product Categories',
@@ -39,9 +39,9 @@ export const DEFAULT_CMS_TEXT: Required<CmsTextConfig> = {
   wholesaleCtaHeading: 'Looking for Bulk Wholesale Henna Supply?',
   wholesaleCtaDescription: 'Direct factory rates for salons, exporters, distributors, and professional mehendi artists nationwide.',
   wholesaleCtaButtonText: 'REQUEST WHOLESALE QUOTE',
-  finalCtaHeading: 'Experience Genuine Sojat Mehendi Today',
-  finalCtaDescription: 'Handpicked henna leaves processed with traditional care. Guaranteed 100% chemical-free purity.',
-  finalCtaButtonText: 'ORDER DIRECTLY ON WHATSAPP',
+  finalCtaHeading: 'Ready To Experience Pure Sojat Henna?',
+  finalCtaDescription: 'Shop our ultra-fine sifted Lawsonia Inermis mehendi, natural indigo, and herbal hair care directly from Sojat. Safe online checkout and fast doorstep delivery across India.',
+  finalCtaButtonText: 'EXPLORE ALL PRODUCTS',
 
   // FAQ Page
   faqHeroBadge: 'Customer Help & Support',
@@ -215,7 +215,7 @@ export const DEFAULT_CMS_TEXT: Required<CmsTextConfig> = {
   // Offers
   offersHeroBadge: 'Special Festival & Promotional Deals',
   offersHeroTitle: 'Musky Dose Offers & Festival Specials',
-  offersHeroSubtitle: 'Enjoy exclusive discounts on Sojat\'s finest 100% natural organic henna powder and premium herbal hair care essentials. Apply festival coupons directly at checkout or on WhatsApp!',
+  offersHeroSubtitle: 'Enjoy exclusive discounts on Sojat\'s finest 100% natural pure henna powder and premium herbal hair care essentials. Apply festival coupons directly at checkout or on WhatsApp!',
   offersEmptyTitle: 'No Active Campaigns Right Now',
   offersEmptyDescription: 'Check back soon for upcoming festival celebrations and special deals! You can still enjoy our everyday wholesale bulk pricing savings storewide.',
 

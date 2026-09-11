@@ -117,6 +117,20 @@ export default function ProductDetailClient({
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [hasPurchasedBefore, setHasPurchasedBefore] = useState(false);
   const [bulkRules, setBulkRules] = useState<any[]>([]);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    description: true,
+    howToUse: false,
+    ingredients: false,
+    specifications: false,
+    faq: false,
+  });
+
+  const toggleSection = (sectionKey: string) => {
+    setExpandedSections((prev) => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey],
+    }));
+  };
 
   React.useEffect(() => {
     fetch('/api/bulk-pricing')
@@ -384,7 +398,9 @@ export default function ProductDetailClient({
         {/* Left Column: Image & Video Media Gallery */}
         <div className="lg:col-span-6 space-y-4">
           <div 
-            className="relative aspect-square rounded-2xl overflow-hidden border border-[#e8e2d5] bg-black shadow-sm group"
+            className={`relative aspect-square rounded-2xl overflow-hidden border border-[#e8e2d5] shadow-xs group ${
+              activeMedia?.type === 'video' ? 'bg-black' : 'bg-[#faf8f5]'
+            }`}
           >
             {activeMedia?.type === 'video' ? (
               activeMedia.embedUrl ? (
@@ -407,7 +423,7 @@ export default function ProductDetailClient({
             ) : (
               <div
                 onClick={() => setShowLightbox(true)}
-                className="w-full h-full relative cursor-zoom-in bg-white"
+                className="w-full h-full relative cursor-zoom-in bg-[#faf8f5]"
               >
                 <Image
                   src={activeMedia?.url || product.images?.[0] || '/images/fallback.svg'}
@@ -421,12 +437,12 @@ export default function ProductDetailClient({
               </div>
             )}
 
-            <div className="absolute top-4 left-4 z-10 flex flex-col gap-1.5 pointer-events-none">
-              <span className="bg-[#1b4332]/95 text-white text-[10px] font-bold px-3 py-1 rounded-md tracking-wider uppercase backdrop-blur-sm shadow flex items-center gap-1">
+            <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5 pointer-events-none">
+              <span className="bg-[#0f2d22]/90 text-[#faf5e8] text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider backdrop-blur-xs border border-[#c5a059]/30 flex items-center gap-1 shadow-xs">
                 <Shield className="w-3.5 h-3.5 text-[#c5a059]" /> Sojat Original
               </span>
               {discountPercent > 0 && (
-                <span className="bg-[#c5a059] text-[#0f2d22] text-[10px] font-extrabold px-2.5 py-1 rounded-md shadow">
+                <span className="bg-[#c5a059] text-[#0f2d22] text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shadow-xs self-start">
                   SAVE {discountPercent}%
                 </span>
               )}
@@ -439,7 +455,7 @@ export default function ProductDetailClient({
                   e.stopPropagation();
                   setShowLightbox(true);
                 }}
-                className="absolute bottom-3 right-3 bg-white/90 hover:bg-white text-[#0f2d22] p-2 rounded-xl shadow-xs transition-colors backdrop-blur-xs flex items-center gap-1 text-[11px] font-semibold"
+                className="absolute bottom-3 right-3 bg-white/95 hover:bg-white text-[#0f2d22] px-2.5 py-1.5 rounded-xl shadow-2xs transition-colors backdrop-blur-xs flex items-center gap-1 text-[11px] font-semibold border border-[#e8e2d5] cursor-pointer touch-manipulation"
                 title="Click to expand image"
               >
                 <Maximize2 className="w-3.5 h-3.5 text-[#1b4332]" />
@@ -450,35 +466,38 @@ export default function ProductDetailClient({
 
           {/* Thumbnails */}
           {allMediaItems.length > 1 && (
-            <div className="flex items-center gap-3 overflow-x-auto pb-2">
-              {allMediaItems.map((item: ProductMediaItem, idx: number) => (
-                <button
-                  key={item.id || idx}
-                  type="button"
-                  onClick={() => setSelectedMediaId(item.id)}
-                  className={`relative w-20 h-20 rounded-xl overflow-hidden border-2 transition-all shrink-0 ${
-                    activeMedia?.id === item.id
-                      ? 'border-[#1b4332] ring-2 ring-[#c5a059]/40 opacity-100 scale-105'
-                      : 'border-[#e8e2d5] opacity-70 hover:opacity-100'
-                  }`}
-                  title={item.title || item.altText || `${product.name} item ${idx + 1}`}
-                >
-                  <Image
-                    src={item.type === 'video' ? (item.posterUrl || '/images/fallback.svg') : item.url}
-                    alt={item.altText || `${product.name} preview ${idx + 1}`}
-                    fill
-                    className="object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                  {item.type === 'video' && (
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                      <div className="w-6 h-6 rounded-full bg-[#1b4332]/90 text-white flex items-center justify-center shadow">
-                        <Play className="w-3 h-3 fill-current ml-0.5" />
+            <div className="flex items-center gap-2.5 overflow-x-auto pb-1 pt-0.5 scrollbar-none">
+              {allMediaItems.map((item: ProductMediaItem, idx: number) => {
+                const isCurrent = activeMedia?.id === item.id;
+                return (
+                  <button
+                    key={item.id || idx}
+                    type="button"
+                    onClick={() => setSelectedMediaId(item.id)}
+                    className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 transition-all shrink-0 cursor-pointer touch-manipulation ${
+                      isCurrent
+                        ? 'border-[#1b4332] ring-2 ring-[#c5a059]/50 opacity-100 scale-102 shadow-xs'
+                        : 'border-[#e8e2d5] opacity-75 hover:opacity-100 hover:border-[#1b4332]/40 bg-[#faf8f5]'
+                    }`}
+                    title={item.title || item.altText || `${product.name} item ${idx + 1}`}
+                  >
+                    <Image
+                      src={item.type === 'video' ? (item.posterUrl || '/images/fallback.svg') : item.url}
+                      alt={item.altText || `${product.name} preview ${idx + 1}`}
+                      fill
+                      className="object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                    {item.type === 'video' && (
+                      <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
+                        <div className="w-6 h-6 rounded-full bg-[#1b4332] text-white flex items-center justify-center shadow-xs">
+                          <Play className="w-3 h-3 fill-current ml-0.5 text-[#c5a059]" />
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </button>
-              ))}
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -719,25 +738,27 @@ export default function ProductDetailClient({
           </div>
 
           {/* TRUST */}
-          <div className="grid grid-cols-2 gap-2.5 pt-4 border-t border-[#e8e2d5] text-xs text-[#626c66]">
-            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-[#fcfbf7] border border-[#e8e2d5]">
-              <Shield className="w-4 h-4 text-[#c5a059] shrink-0" />
-              <span className="font-medium text-[11px] text-[#0f2d22]">100% Pure & Unadulterated</span>
-            </div>
-            <Link
-              href="/sojat-henna"
-              className="flex items-center gap-2 p-2.5 rounded-lg bg-[#fcfbf7] border border-[#e8e2d5] hover:border-[#1b4332] transition-colors group"
-            >
-              <MapPin className="w-4 h-4 text-[#1b4332] shrink-0" />
-              <span className="font-medium text-[11px] text-[#0f2d22] group-hover:underline">Sojat, Rajasthan Origin &rarr;</span>
-            </Link>
-            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-[#fcfbf7] border border-[#e8e2d5]">
-              <Truck className="w-4 h-4 text-[#1b4332] shrink-0" />
-              <span className="font-medium text-[11px] text-[#0f2d22]">Pan-India Fast Dispatch</span>
-            </div>
-            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-[#fcfbf7] border border-[#e8e2d5]">
-              <MessageCircle className="w-4 h-4 text-[#25D366] shrink-0" />
-              <span className="font-medium text-[11px] text-[#0f2d22]">Direct WhatsApp Support</span>
+          <div className="pt-4 border-t border-[#e8e2d5]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-[#faf8f5] border border-[#ede7dc]">
+                <Shield className="w-3.5 h-3.5 text-[#c5a059] shrink-0" />
+                <span className="font-semibold text-[11px] text-[#0f2d22]">100% Pure Henna</span>
+              </div>
+              <Link
+                href="/sojat-henna"
+                className="flex items-center gap-2 p-2.5 rounded-lg bg-[#faf8f5] border border-[#ede7dc] hover:border-[#1b4332] transition-colors group"
+              >
+                <MapPin className="w-3.5 h-3.5 text-[#1b4332] shrink-0" />
+                <span className="font-semibold text-[11px] text-[#0f2d22] group-hover:underline">Sojat Origin &rarr;</span>
+              </Link>
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-[#faf8f5] border border-[#ede7dc]">
+                <Truck className="w-3.5 h-3.5 text-[#1b4332] shrink-0" />
+                <span className="font-semibold text-[11px] text-[#0f2d22]">Fast Dispatch</span>
+              </div>
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-[#faf8f5] border border-[#ede7dc]">
+                <MessageCircle className="w-3.5 h-3.5 text-[#25D366] shrink-0" />
+                <span className="font-semibold text-[11px] text-[#0f2d22]">WhatsApp Help</span>
+              </div>
             </div>
           </div>
 
@@ -805,225 +826,469 @@ export default function ProductDetailClient({
         </div>
       </div>
 
-      {/* Tabs: Description, Ingredients, Benefits, Usage */}
-      <div className="mt-12 bg-white rounded-2xl border border-[#e8e2d5] p-6 sm:p-8 space-y-8 shadow-xs">
+      {/* Editorial Information Sections (Modern Indian Botanical Accordion System) */}
+      <div className="mt-12 bg-white rounded-2xl border border-[#e8e2d5] shadow-xs overflow-hidden divide-y divide-[#f5f1e8]">
+        {/* Section 1: Description & Heritage Story */}
         <div>
-          <h3 className="font-momo-display text-2xl font-normal text-[#0f2d22] border-b border-[#e8e2d5] pb-3 mb-4">
-            Product Details & Description
-          </h3>
-          <div className="text-sm text-[#2b302c] leading-relaxed space-y-4">
-            {product.fullDescription && product.fullDescription.length > 50 ? (
-              <p className="whitespace-pre-line">{product.fullDescription}</p>
-            ) : (
-              <>
-                <p>
-                  <strong>{product.name}</strong> is natural henna leaf powder (<em>Lawsonia Inermis</em>) sourced from Sojat, Rajasthan. It is finely sifted for smooth paste preparation, making it suitable for traditional mehndi body art, bridal henna designs, and natural hair conditioning.
-                </p>
-                <p>
-                  When mixed with water and allowed to rest for dye release, the powder forms a smooth paste suitable for filling into applicator cones or direct hair application.
-                </p>
-                <div className="bg-[#fcfbf7] p-4 rounded-xl border border-[#e8e2d5] text-xs space-y-2 mt-3">
-                  <div className="font-bold text-[#0f2d22] uppercase tracking-wider text-[11px]">Intended Uses & Product Information:</div>
-                  <ul className="list-disc list-inside space-y-1 text-[#556059]">
-                    <li><strong>Mehndi & Body Art:</strong> Finely sifted for smooth cone paste preparation.</li>
-                    <li><strong>Hair Care & Conditioning:</strong> Natural botanical powder for hair application.</li>
-                    <li><strong>Origin:</strong> Sojat, Rajasthan, India.</li>
-                    <li><strong>Packaging:</strong> 250g pack.</li>
-                  </ul>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* HOW TO USE */}
-        {product.usageInstructions && (
-          <div className="space-y-3 pt-4 border-t border-[#f5f1e8]">
-            <h4 className="font-momo-display text-xl font-normal text-[#0f2d22]">
-              How To Use / Application Guide
-            </h4>
-            <div className="bg-[#fcfbf7] p-5 rounded-xl border border-[#e8e2d5] text-xs text-[#2b302c] leading-relaxed whitespace-pre-line">
-              {product.usageInstructions}
-            </div>
-          </div>
-        )}
-
-        {/* INGREDIENTS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t border-[#f5f1e8]">
-          {product.ingredients && product.ingredients.length > 0 && (
-            <div className="space-y-3">
-              <h4 className="font-momo-display text-xl font-normal text-[#0f2d22] flex items-center gap-2">
-                <Leaf className="w-5 h-5 text-[#1b4332]" /> Pure Ingredients
-              </h4>
-              <ul className="space-y-2 text-xs">
-                {product.ingredients.map((ing, idx) => (
-                  <li key={idx} className="flex items-center gap-2 bg-[#f5f1e8] p-2.5 rounded-lg text-[#0f2d22] font-semibold">
-                    <CheckCircle className="w-4 h-4 text-[#1b4332]" />
-                    <span>{ing}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {product.benefits && product.benefits.length > 0 && (
-            <div className="space-y-3">
-              <h4 className="font-momo-display text-xl font-normal text-[#0f2d22] flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-[#c5a059]" /> Key Benefits
-              </h4>
-              <ul className="space-y-2 text-xs text-[#2b302c]">
-                {product.benefits.map((ben, idx) => (
-                  <li key={idx} className="flex items-start gap-2">
-                    <Check className="w-4 h-4 text-[#c5a059] shrink-0 mt-0.5" />
-                    <span>{ben}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-
-        {/* SPECIFICATIONS */}
-        <div className="space-y-4 pt-4 border-t border-[#f5f1e8]">
-          <h4 className="font-momo-display text-xl font-normal text-[#0f2d22] flex items-center gap-2">
-            <FileText className="w-5 h-5 text-[#1b4332]" /> Product Specifications
-          </h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            <div className="bg-[#fcfbf7] p-3 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
-              <span className="text-[#626c66] font-medium">SKU / Code</span>
-              <span className="font-mono font-bold text-[#0f2d22]">{activeSku}</span>
-            </div>
-            <div className="bg-[#fcfbf7] p-3 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
-              <span className="text-[#626c66] font-medium">Active Pack Size</span>
-              <span className="font-bold text-[#0f2d22]">{activeWeight}</span>
-            </div>
-            <div className="bg-[#fcfbf7] p-3 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
-              <span className="text-[#626c66] font-medium">Botanical Name</span>
-              <span className="italic font-bold text-[#1b4332]">
-                {(product.name || '').toLowerCase().includes('indigo')
-                  ? 'Indigofera Tinctoria'
-                  : (product.name || '').toLowerCase().includes('amla')
-                  ? 'Phyllanthus Emblica'
-                  : 'Lawsonia Inermis'}
+          <button
+            type="button"
+            onClick={() => toggleSection('description')}
+            className="w-full flex items-center justify-between p-5 sm:p-6 text-left hover:bg-[#faf8f5] transition-colors group"
+            aria-expanded={expandedSections.description}
+          >
+            <div className="flex items-center gap-3.5 sm:gap-4">
+              <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#f5f1e8] text-[#1b4332] flex items-center justify-center font-bold text-xs shrink-0 group-hover:bg-[#1b4332] group-hover:text-[#faf5e8] transition-colors">
+                01
               </span>
-            </div>
-            <div className="bg-[#fcfbf7] p-3 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
-              <span className="text-[#626c66] font-medium">Geographic Origin</span>
-              <span className="font-bold text-[#0f2d22]">Sojat, Rajasthan, India</span>
-            </div>
-            <div className="bg-[#fcfbf7] p-3 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
-              <span className="text-[#626c66] font-medium">Form / Processing</span>
-              <span className="font-bold text-[#0f2d22]">{product.productType || 'Triple Cloth-Sifted Micro Powder'}</span>
-            </div>
-            <div className="bg-[#fcfbf7] p-3 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
-              <span className="text-[#626c66] font-medium">Chemicals & Purity</span>
-              <span className="font-bold text-emerald-800">100% Pure Plant (0% PPD/Ammonia)</span>
-            </div>
-            <div className="bg-[#fcfbf7] p-3 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
-              <span className="text-[#626c66] font-medium">Shelf Life</span>
-              <span className="font-bold text-[#0f2d22]">24 Months from Packaging</span>
-            </div>
-            <div className="bg-[#fcfbf7] p-3 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
-              <span className="text-[#626c66] font-medium">Storage Advice</span>
-              <span className="font-bold text-[#0f2d22]">Airtight in Cool, Dry, Dark Place</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Contextual Botanical Educational Guides */}
-        {relevantGuides && relevantGuides.length > 0 && (
-          <div className="space-y-3 pt-4 border-t border-[#f5f1e8]">
-            <div className="flex items-center gap-2">
-              <BookOpen className="w-4 h-4 text-[#c5a059]" />
-              <h4 className="font-momo-display text-xl font-normal text-[#0f2d22]">
-                Recommended Botanical Guides & Tutorials
-              </h4>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {relevantGuides.map((guide) => (
-                <Link
-                  key={guide.id || guide.slug}
-                  href={`/guides/${guide.slug}`}
-                  className="group bg-[#fcfbf7] hover:bg-[#f5f1e8] p-4 rounded-xl border border-[#e8e2d5] hover:border-[#1b4332]/40 transition-all flex flex-col justify-between"
-                >
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold text-[#c5a059] uppercase tracking-wider block">
-                      Knowledge Base
-                    </span>
-                    <h5 className="font-serif-heading font-bold text-xs text-[#0f2d22] group-hover:text-[#1b4332] transition-colors line-clamp-2">
-                      {guide.title}
-                    </h5>
-                    {guide.shortIntro && (
-                      <p className="text-[11px] text-gray-600 line-clamp-2 leading-relaxed">
-                        {guide.shortIntro}
-                      </p>
-                    )}
-                  </div>
-                  <div className="mt-3 flex items-center gap-1 text-[11px] font-bold text-[#1b4332]">
-                    <span>Read Step-by-Step Guide</span>
-                    <span className="group-hover:translate-x-0.5 transition-transform">&rarr;</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Verified FAQ & Sojat Assurance Section */}
-      <div className="bg-white rounded-2xl border border-[#e8e2d5] p-6 sm:p-8 space-y-6 shadow-xs">
-        <div className="flex items-center gap-3 border-b border-[#e8e2d5] pb-4">
-          <HelpCircle className="w-6 h-6 text-[#1b4332]" />
-          <div>
-            <h3 className="font-momo-display text-2xl font-normal text-[#0f2d22]">
-              Frequently Asked Questions & Sojat Quality Assurance
-            </h3>
-            <p className="text-xs text-[#626c66] mt-0.5">
-              Verified facts about our origin, pure herbal ingredients, and WhatsApp ordering process.
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          {faqs.map((faq, idx) => {
-            const isOpen = openFaqIndex === idx;
-            const questionText = faq.question || faq.q;
-            const answerText = faq.answer || faq.a;
-            return (
-              <div
-                key={faq.id || idx}
-                className="border border-[#e8e2d5] rounded-xl overflow-hidden bg-[#fcfbf7] transition-all"
-              >
-                <button
-                  type="button"
-                  onClick={() => setOpenFaqIndex(isOpen ? null : idx)}
-                  className="w-full flex items-center justify-between p-4 text-left font-serif-heading font-bold text-sm text-[#0f2d22] hover:bg-[#f5f1e8]/60 transition-colors"
-                >
-                  <span>{questionText}</span>
-                  <ChevronDown
-                    className={`w-4 h-4 text-[#1b4332] transition-transform duration-200 shrink-0 ml-2 ${
-                      isOpen ? 'rotate-180' : ''
-                    }`}
-                  />
-                </button>
-                <AnimatePresence>
-                  {isOpen && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="p-4 pt-0 text-xs text-[#626c66] leading-relaxed border-t border-[#f5f1e8] bg-white">
-                        {answerText}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+              <div>
+                <h3 className="font-momo-display text-lg sm:text-xl font-normal text-[#0f2d22] group-hover:text-[#1b4332] transition-colors">
+                  Description & Heritage Story
+                </h3>
+                <p className="text-[11px] sm:text-xs text-[#626c66] mt-0.5">
+                  Origin, botanical profile, and traditional Sojat cultivation
+                </p>
               </div>
-            );
-          })}
+            </div>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[#faf8f5] border border-[#e8e2d5] text-[#1b4332] group-hover:border-[#1b4332]/40 transition-colors shrink-0 ml-3">
+              <ChevronDown
+                className={`w-4 h-4 transition-transform duration-200 ${
+                  expandedSections.description ? 'rotate-180' : ''
+                }`}
+              />
+            </div>
+          </button>
+          <AnimatePresence initial={false}>
+            {expandedSections.description && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="overflow-hidden"
+              >
+                <div className="px-5 pb-6 sm:px-6 sm:pb-7 pt-2 text-[#2b302c] text-sm leading-relaxed border-t border-[#f5f1e8] space-y-4">
+                  {product.fullDescription && product.fullDescription.length > 50 ? (
+                    <p className="whitespace-pre-line">{product.fullDescription}</p>
+                  ) : (
+                    <>
+                      <p>
+                        <strong>{product.name}</strong> is pure, sun-cured botanical powder harvested from the arid river basins of Sojat, Rajasthan—the global capital of high-lawsone henna. Farmed naturally with zero synthetic additives, our leaves are triple cloth-sifted to ensure microscopic fineness for silky smooth paste formulation.
+                      </p>
+                      <p>
+                        Whether prepared for elaborate bridal mehndi body art or steeped for hair revitalization, our fresh-harvest botanical powder guarantees deep natural color staining and intensive nourishing conditioning.
+                      </p>
+                    </>
+                  )}
+
+                  <div className="bg-[#faf8f5] p-4 rounded-xl border border-[#e8e2d5] text-xs space-y-2 mt-3">
+                    <div className="font-bold text-[#0f2d22] uppercase tracking-wider text-[11px]">
+                      Intended Uses & Botanical Metadata:
+                    </div>
+                    <ul className="list-disc list-inside space-y-1.5 text-[#556059]">
+                      <li>
+                        <strong className="text-[#0f2d22]">Mehndi & Body Art:</strong> Micro-filtered cloth sifting creates stringy, non-clogging cone paste with high lawsone dye release.
+                      </li>
+                      <li>
+                        <strong className="text-[#0f2d22]">Hair Care & Conditioning:</strong> Natural plant tannins coat hair cuticles to deliver natural volume, glossy luster, and rich herbal tint.
+                      </li>
+                      <li>
+                        <strong className="text-[#0f2d22]">Geographic Authenticity:</strong> Certified Sojat origin (Rajasthan, India), famous for arid mineral-rich soil and sunlight.
+                      </li>
+                      <li>
+                        <strong className="text-[#0f2d22]">Active Selected Pack:</strong> {activeWeight} sealed pouch preserving natural freshness and essential phytocompounds.
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Section 2: How To Use / Application Guide */}
+        <div>
+          <button
+            type="button"
+            onClick={() => toggleSection('howToUse')}
+            className="w-full flex items-center justify-between p-5 sm:p-6 text-left hover:bg-[#faf8f5] transition-colors group"
+            aria-expanded={expandedSections.howToUse}
+          >
+            <div className="flex items-center gap-3.5 sm:gap-4">
+              <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#f5f1e8] text-[#1b4332] flex items-center justify-center font-bold text-xs shrink-0 group-hover:bg-[#1b4332] group-hover:text-[#faf5e8] transition-colors">
+                02
+              </span>
+              <div>
+                <h3 className="font-momo-display text-lg sm:text-xl font-normal text-[#0f2d22] group-hover:text-[#1b4332] transition-colors">
+                  How To Use / Application Guide
+                </h3>
+                <p className="text-[11px] sm:text-xs text-[#626c66] mt-0.5">
+                  Step-by-step instructions for cone preparation, hair conditioning, and dye release
+                </p>
+              </div>
+            </div>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[#faf8f5] border border-[#e8e2d5] text-[#1b4332] group-hover:border-[#1b4332]/40 transition-colors shrink-0 ml-3">
+              <ChevronDown
+                className={`w-4 h-4 transition-transform duration-200 ${
+                  expandedSections.howToUse ? 'rotate-180' : ''
+                }`}
+              />
+            </div>
+          </button>
+          <AnimatePresence initial={false}>
+            {expandedSections.howToUse && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="overflow-hidden"
+              >
+                <div className="px-5 pb-6 sm:px-6 sm:pb-7 pt-2 text-[#2b302c] text-sm leading-relaxed border-t border-[#f5f1e8] space-y-4">
+                  {product.usageInstructions ? (
+                    <div className="bg-[#faf8f5] p-5 rounded-xl border border-[#e8e2d5] text-xs text-[#2b302c] leading-relaxed whitespace-pre-line">
+                      {product.usageInstructions}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-[#faf8f5] p-4 sm:p-5 rounded-xl border border-[#e8e2d5] space-y-2">
+                        <div className="font-bold text-[#1b4332] text-xs uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[11px] font-bold">A</span>
+                          Bridal & Body Art Mehndi Paste
+                        </div>
+                        <ol className="text-xs text-[#556059] space-y-2 list-decimal list-inside leading-relaxed">
+                          <li><strong>Mixing:</strong> Combine 100g powder with warm water, 15-20ml eucalyptus or tea tree essential oil, and 2 tsp sugar.</li>
+                          <li><strong>Dye Release:</strong> Cover paste airtight with cling wrap and let sit at room temperature for 8 to 12 hours until surface darkens.</li>
+                          <li><strong>Cone Filling:</strong> Strain paste through stocking cloth if needed, fill into applicator cones, and seal tightly.</li>
+                          <li><strong>Staining:</strong> Leave paste on skin for 4–8 hours. Scrape off without water; keep hands dry for 12 hours for deep maroon stains.</li>
+                        </ol>
+                      </div>
+
+                      <div className="bg-[#faf8f5] p-4 sm:p-5 rounded-xl border border-[#e8e2d5] space-y-2">
+                        <div className="font-bold text-[#1b4332] text-xs uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[11px] font-bold">B</span>
+                          Hair Nourishment & Conditioning Mask
+                        </div>
+                        <ol className="text-xs text-[#556059] space-y-2 list-decimal list-inside leading-relaxed">
+                          <li><strong>Blend:</strong> Mix powder in an iron or glass bowl with warm black tea liquor or curd until yogurt-like consistency.</li>
+                          <li><strong>Resting:</strong> Allow paste to stand for 2 to 4 hours for herbal infusion.</li>
+                          <li><strong>Application:</strong> Section dry, clean hair and apply generously from roots to tips using gloves.</li>
+                          <li><strong>Rinse:</strong> Leave on for 90 to 120 minutes. Rinse thoroughly with plain water; avoid shampoo for 24 hours for maximum color bonding.</li>
+                        </ol>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Section 3: Pure Ingredients & Botanical Benefits */}
+        <div>
+          <button
+            type="button"
+            onClick={() => toggleSection('ingredients')}
+            className="w-full flex items-center justify-between p-5 sm:p-6 text-left hover:bg-[#faf8f5] transition-colors group"
+            aria-expanded={expandedSections.ingredients}
+          >
+            <div className="flex items-center gap-3.5 sm:gap-4">
+              <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#f5f1e8] text-[#1b4332] flex items-center justify-center font-bold text-xs shrink-0 group-hover:bg-[#1b4332] group-hover:text-[#faf5e8] transition-colors">
+                03
+              </span>
+              <div>
+                <h3 className="font-momo-display text-lg sm:text-xl font-normal text-[#0f2d22] group-hover:text-[#1b4332] transition-colors">
+                  Pure Ingredients & Botanical Benefits
+                </h3>
+                <p className="text-[11px] sm:text-xs text-[#626c66] mt-0.5">
+                  100% natural, chemical-free botanical formulation
+                </p>
+              </div>
+            </div>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[#faf8f5] border border-[#e8e2d5] text-[#1b4332] group-hover:border-[#1b4332]/40 transition-colors shrink-0 ml-3">
+              <ChevronDown
+                className={`w-4 h-4 transition-transform duration-200 ${
+                  expandedSections.ingredients ? 'rotate-180' : ''
+                }`}
+              />
+            </div>
+          </button>
+          <AnimatePresence initial={false}>
+            {expandedSections.ingredients && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="overflow-hidden"
+              >
+                <div className="px-5 pb-6 sm:px-6 sm:pb-7 pt-2 text-[#2b302c] border-t border-[#f5f1e8]">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+                    {/* Ingredients Column */}
+                    <div className="space-y-3">
+                      <h4 className="font-momo-display text-lg font-normal text-[#0f2d22] flex items-center gap-2">
+                        <Leaf className="w-4 h-4 text-[#1b4332]" />
+                        Pure Botanical Composition
+                      </h4>
+                      <ul className="space-y-2 text-xs">
+                        {(product.ingredients && product.ingredients.length > 0
+                          ? product.ingredients
+                          : [
+                              '100% Pure Lawsonia Inermis (Natural Henna Leaf Powder)',
+                              'Zero Paraphenylenediamine (0% PPD)',
+                              'Zero Ammonia & Synthetic Bleaches',
+                              'Zero Heavy Metals & Artificial Preservatives',
+                            ]
+                        ).map((ing, idx) => (
+                          <li
+                            key={idx}
+                            className="flex items-center gap-2.5 bg-[#faf8f5] p-2.5 rounded-lg text-[#0f2d22] font-semibold border border-[#e8e2d5]"
+                          >
+                            <CheckCircle className="w-4 h-4 text-[#1b4332] shrink-0" />
+                            <span>{ing}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Benefits Column */}
+                    <div className="space-y-3">
+                      <h4 className="font-momo-display text-lg font-normal text-[#0f2d22] flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-[#c5a059]" />
+                        Key Botanical Benefits
+                      </h4>
+                      <ul className="space-y-2.5 text-xs text-[#2b302c]">
+                        {(product.benefits && product.benefits.length > 0
+                          ? product.benefits
+                          : [
+                              'Deep Cooling Effect: Natural herbal astringent providing scalp relaxation and cooling comfort.',
+                              'Intensive Conditioning: Binds with keratin to strengthen hair shafts and minimize split ends.',
+                              'Vibrant Natural Color: Delivers deep, rich natural color stains that mature safely over 48 hours.',
+                              'Microscopic Cloth Sift: Silky smooth texture that mixes effortlessly without gritty lumps.',
+                            ]
+                        ).map((ben, idx) => (
+                          <li key={idx} className="flex items-start gap-2 bg-[#faf8f5] p-2.5 rounded-lg border border-[#e8e2d5]">
+                            <Check className="w-4 h-4 text-[#c5a059] shrink-0 mt-0.5" />
+                            <span>{ben}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Section 4: Product Specifications */}
+        <div>
+          <button
+            type="button"
+            onClick={() => toggleSection('specifications')}
+            className="w-full flex items-center justify-between p-5 sm:p-6 text-left hover:bg-[#faf8f5] transition-colors group"
+            aria-expanded={expandedSections.specifications}
+          >
+            <div className="flex items-center gap-3.5 sm:gap-4">
+              <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#f5f1e8] text-[#1b4332] flex items-center justify-center font-bold text-xs shrink-0 group-hover:bg-[#1b4332] group-hover:text-[#faf5e8] transition-colors">
+                04
+              </span>
+              <div>
+                <h3 className="font-momo-display text-lg sm:text-xl font-normal text-[#0f2d22] group-hover:text-[#1b4332] transition-colors">
+                  Product Specifications
+                </h3>
+                <p className="text-[11px] sm:text-xs text-[#626c66] mt-0.5">
+                  Verified batch metadata, origin certification, and shelf life
+                </p>
+              </div>
+            </div>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[#faf8f5] border border-[#e8e2d5] text-[#1b4332] group-hover:border-[#1b4332]/40 transition-colors shrink-0 ml-3">
+              <ChevronDown
+                className={`w-4 h-4 transition-transform duration-200 ${
+                  expandedSections.specifications ? 'rotate-180' : ''
+                }`}
+              />
+            </div>
+          </button>
+          <AnimatePresence initial={false}>
+            {expandedSections.specifications && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="overflow-hidden"
+              >
+                <div className="px-5 pb-6 sm:px-6 sm:pb-7 pt-2 text-[#2b302c] border-t border-[#f5f1e8]">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="bg-[#faf8f5] p-3.5 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
+                      <span className="text-[#626c66] font-medium">SKU / Batch Code</span>
+                      <span className="font-mono font-bold text-[#0f2d22]">{activeSku}</span>
+                    </div>
+                    <div className="bg-[#faf8f5] p-3.5 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
+                      <span className="text-[#626c66] font-medium">Active Pack Size</span>
+                      <span className="font-bold text-[#0f2d22]">{activeWeight}</span>
+                    </div>
+                    <div className="bg-[#faf8f5] p-3.5 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
+                      <span className="text-[#626c66] font-medium">Botanical Name</span>
+                      <span className="italic font-bold text-[#1b4332]">
+                        {(product.name || '').toLowerCase().includes('indigo')
+                          ? 'Indigofera Tinctoria'
+                          : (product.name || '').toLowerCase().includes('amla')
+                          ? 'Phyllanthus Emblica'
+                          : 'Lawsonia Inermis'}
+                      </span>
+                    </div>
+                    <div className="bg-[#faf8f5] p-3.5 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
+                      <span className="text-[#626c66] font-medium">Geographic Origin</span>
+                      <span className="font-bold text-[#0f2d22]">Sojat, Rajasthan, India</span>
+                    </div>
+                    <div className="bg-[#faf8f5] p-3.5 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
+                      <span className="text-[#626c66] font-medium">Form / Processing</span>
+                      <span className="font-bold text-[#0f2d22]">{product.productType || 'Triple Cloth-Sifted Micro Powder'}</span>
+                    </div>
+                    <div className="bg-[#faf8f5] p-3.5 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
+                      <span className="text-[#626c66] font-medium">Chemicals & Purity</span>
+                      <span className="font-bold text-emerald-800">100% Pure Plant (0% PPD/Ammonia)</span>
+                    </div>
+                    <div className="bg-[#faf8f5] p-3.5 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
+                      <span className="text-[#626c66] font-medium">Shelf Life</span>
+                      <span className="font-bold text-[#0f2d22]">24 Months from Packaging</span>
+                    </div>
+                    <div className="bg-[#faf8f5] p-3.5 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
+                      <span className="text-[#626c66] font-medium">Storage Advice</span>
+                      <span className="font-bold text-[#0f2d22]">Airtight in Cool, Dry, Dark Place</span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Section 5: FAQ & Sojat Quality Assurance */}
+        <div>
+          <button
+            type="button"
+            onClick={() => toggleSection('faq')}
+            className="w-full flex items-center justify-between p-5 sm:p-6 text-left hover:bg-[#faf8f5] transition-colors group"
+            aria-expanded={expandedSections.faq}
+          >
+            <div className="flex items-center gap-3.5 sm:gap-4">
+              <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#f5f1e8] text-[#1b4332] flex items-center justify-center font-bold text-xs shrink-0 group-hover:bg-[#1b4332] group-hover:text-[#faf5e8] transition-colors">
+                05
+              </span>
+              <div>
+                <h3 className="font-momo-display text-lg sm:text-xl font-normal text-[#0f2d22] group-hover:text-[#1b4332] transition-colors">
+                  Frequently Asked Questions & Sojat Assurance
+                </h3>
+                <p className="text-[11px] sm:text-xs text-[#626c66] mt-0.5">
+                  Authenticity, fresh batch testing, WhatsApp ordering, and delivery
+                </p>
+              </div>
+            </div>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[#faf8f5] border border-[#e8e2d5] text-[#1b4332] group-hover:border-[#1b4332]/40 transition-colors shrink-0 ml-3">
+              <ChevronDown
+                className={`w-4 h-4 transition-transform duration-200 ${
+                  expandedSections.faq ? 'rotate-180' : ''
+                }`}
+              />
+            </div>
+          </button>
+          <AnimatePresence initial={false}>
+            {expandedSections.faq && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="overflow-hidden"
+              >
+                <div className="px-5 pb-6 sm:px-6 sm:pb-7 pt-2 text-[#2b302c] border-t border-[#f5f1e8] space-y-6">
+                  {/* FAQ Accordion List */}
+                  <div className="space-y-2.5">
+                    {faqs.map((faq, idx) => {
+                      const isOpen = openFaqIndex === idx;
+                      const questionText = faq.question || faq.q;
+                      const answerText = faq.answer || faq.a;
+                      return (
+                        <div
+                          key={faq.id || idx}
+                          className="border border-[#e8e2d5] rounded-xl overflow-hidden bg-[#faf8f5] transition-all"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setOpenFaqIndex(isOpen ? null : idx)}
+                            className="w-full flex items-center justify-between p-3.5 sm:p-4 text-left font-bold text-xs sm:text-sm text-[#0f2d22] hover:bg-[#f5f1e8]/60 transition-colors"
+                          >
+                            <span>{questionText}</span>
+                            <ChevronDown
+                              className={`w-4 h-4 text-[#1b4332] transition-transform duration-200 shrink-0 ml-2 ${
+                                isOpen ? 'rotate-180' : ''
+                              }`}
+                            />
+                          </button>
+                          <AnimatePresence>
+                            {isOpen && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="p-4 pt-2 text-xs text-[#626c66] leading-relaxed border-t border-[#f5f1e8] bg-white">
+                                  {answerText}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Contextual Botanical Educational Guides */}
+                  {relevantGuides && relevantGuides.length > 0 && (
+                    <div className="space-y-3 pt-4 border-t border-[#f5f1e8]">
+                      <div className="flex items-center gap-2">
+                        <BookOpen className="w-4 h-4 text-[#c5a059]" />
+                        <h4 className="font-momo-display text-lg font-normal text-[#0f2d22]">
+                          Botanical Guides & Tutorials
+                        </h4>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {relevantGuides.map((guide) => (
+                          <Link
+                            key={guide.id || guide.slug}
+                            href={`/guides/${guide.slug}`}
+                            className="group bg-[#faf8f5] hover:bg-[#f5f1e8] p-4 rounded-xl border border-[#e8e2d5] hover:border-[#1b4332]/40 transition-all flex flex-col justify-between"
+                          >
+                            <div className="space-y-1">
+                              <span className="text-[10px] font-bold text-[#c5a059] uppercase tracking-wider block">
+                                Knowledge Base
+                              </span>
+                              <h5 className="font-bold text-xs text-[#0f2d22] group-hover:text-[#1b4332] transition-colors line-clamp-2">
+                                {guide.title}
+                              </h5>
+                              {guide.shortIntro && (
+                                <p className="text-[11px] text-gray-600 line-clamp-2 leading-relaxed">
+                                  {guide.shortIntro}
+                                </p>
+                              )}
+                            </div>
+                            <div className="mt-3 flex items-center gap-1 text-[11px] font-bold text-[#1b4332]">
+                              <span>Read Step-by-Step Guide</span>
+                              <span className="group-hover:translate-x-0.5 transition-transform">&rarr;</span>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 

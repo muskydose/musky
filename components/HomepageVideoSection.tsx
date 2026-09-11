@@ -20,9 +20,10 @@ export default function HomepageVideoSection({
   const videoConfig: HomepageVideoConfig =
     siteSettings?.homepageVideo || DEFAULT_HOMEPAGE_VIDEO;
 
-  const [isPlaying, setIsPlaying] = useState<boolean>(Boolean(videoConfig.autoplay));
+  // Always poster-first: require user interaction before video stream loads
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(videoConfig.muted !== false);
-  const [hasUserInteracted, setHasUserInteracted] = useState<boolean>(Boolean(videoConfig.autoplay));
+  const [hasUserInteracted, setHasUserInteracted] = useState<boolean>(false);
   const [videoError, setVideoError] = useState<boolean>(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -43,10 +44,9 @@ export default function HomepageVideoSection({
   const ctaText = section?.ctaText || videoConfig.ctaText || 'Explore Henna Collection';
   const ctaUrl = section?.ctaLink || videoConfig.ctaUrl || '/categories/henna';
 
-  const posterUrl = sanitizeImageUrl(
-    videoConfig.posterUrl || section?.imageUrl || section?.image,
-    '/images/hero-1.webp'
-  );
+  const rawPoster = videoConfig.posterUrl || section?.imageUrl || section?.image || siteSettings?.factoryImageUrl;
+  const isCustomPoster = Boolean(rawPoster && !rawPoster.endsWith('.svg') && !rawPoster.includes('fallback.svg') && !rawPoster.includes('hero-1.webp'));
+  const posterUrl = sanitizeImageUrl(rawPoster, '/images/fallback.svg');
   const videoUrl = videoConfig.videoUrl?.trim() || '';
 
   const handlePlayClick = () => {
@@ -77,11 +77,11 @@ export default function HomepageVideoSection({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="max-w-3xl mx-auto text-center space-y-2 sm:space-y-3 mb-6 sm:mb-10">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#e8f3ed] border border-[#2d6a4f]/20 text-[#1b4332] text-[11px] sm:text-xs font-bold tracking-widest uppercase">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#e8f3ed] border border-[#2d6a4f]/20 text-[#1b4332] text-[11px] sm:text-xs font-bold tracking-widest uppercase font-sans">
             <Sparkles className="w-3.5 h-3.5 text-[#c5a059]" />
             <span>{subheading}</span>
           </div>
-          <h2 className="font-serif-heading text-2xl sm:text-3xl lg:text-4xl font-normal text-[#0f2d22] leading-tight">
+          <h2 className="font-momo-display text-2xl sm:text-3xl lg:text-4xl font-normal text-[#0f2d22] leading-tight">
             {heading}
           </h2>
           <p className="text-xs sm:text-sm lg:text-base text-[#626c66] leading-relaxed max-w-2xl mx-auto">
@@ -137,14 +137,21 @@ export default function HomepageVideoSection({
             ) : (
               /* Lightweight Deferred Poster Layer (Zero Video Byte Transfer on Initial Page Load) */
               <div className="relative w-full h-full">
-                <Image
-                  src={posterUrl}
-                  alt={heading}
-                  fill
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 90vw, 1024px"
-                  className="object-cover transition-transform duration-700 group-hover:scale-105"
-                  priority={false}
-                />
+                {isCustomPoster ? (
+                  <Image
+                    src={posterUrl}
+                    alt={heading}
+                    fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 90vw, 1024px"
+                    className="object-cover transition-transform duration-700 group-hover:scale-105"
+                    priority={false}
+                  />
+                ) : (
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#0f2d22] via-[#1b4332] to-[#0a1f17] flex items-center justify-center">
+                    <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#c5a059_1px,transparent_1px)] [background-size:20px_20px]" />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(197,160,89,0.15),transparent_70%)]" />
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0a1f17]/85 via-[#0a1f17]/40 to-transparent" />
 
                 {/* Center Play Button Overlay */}

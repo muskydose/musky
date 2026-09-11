@@ -666,7 +666,7 @@ function WholesaleContent() {
                 Sojat Wholesale Henna & Botanical Powder Specifications
               </h2>
               <p className="text-xs text-[#626c66] mt-1 leading-relaxed max-w-3xl">
-                Direct factory manufacturing and wholesale supply from Sojat City, Rajasthan. We supply certified cosmetic grade Lawsonia Inermis, organic Indigo, and Ayurvedic hair-care botanicals in bulk commercial formats.
+                Direct factory manufacturing and wholesale supply from Sojat City, Rajasthan. We supply pure cosmetic grade Lawsonia Inermis, natural Indigo, and Ayurvedic hair-care botanicals in bulk commercial formats.
               </p>
               <div className="pt-2">
                 <Link

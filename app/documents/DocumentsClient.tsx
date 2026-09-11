@@ -149,11 +149,11 @@ export default function DocumentsClient({ initialItems, siteSettings }: Document
           </div>
 
           <h1 className="text-3xl md:text-5xl font-momo-display font-normal text-white tracking-tight">
-            Official Business Certificates & Lab Reports
+            Official Business Certificates & Enterprise Compliance
           </h1>
 
           <p className="max-w-2xl mx-auto text-sm md:text-base text-[#e8f3ed]/90 leading-relaxed font-light">
-            Review official GST registrations, FSSAI compliance licenses, ISO 9001 quality certificates, and NABL lab analysis COA reports for Musky Dose pure Sojat Henna.
+            Official GST, MSME Enterprise Registrations & Processing Compliance for Musky Dose pure Sojat Henna.
           </p>
 
           <div className="pt-2 flex flex-wrap justify-center gap-6 text-xs text-[#c5a059] font-medium">
@@ -161,10 +161,10 @@ export default function DocumentsClient({ initialItems, siteSettings }: Document
               <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Government GST & MSME Registered
             </span>
             <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> FSSAI Approved Process Facility
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Direct Sojat Processing Facility
             </span>
             <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> 100% Zero PPD / Chemical Dyes
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> 100% Zero PPD / Synthetic Dyes
             </span>
           </div>
         </div>
@@ -201,7 +201,7 @@ export default function DocumentsClient({ initialItems, siteSettings }: Document
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by title, GST, ISO..."
+              placeholder="Search by title, GST, registration..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/40"
