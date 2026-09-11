@@ -18,8 +18,8 @@ import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
 import { sanitizeImageUrl } from '@/lib/utils';
 import { getCmsText } from '@/lib/cms';
 import { DEFAULT_HOMEPAGE_SECTIONS, DEFAULT_WHY_CARDS, DEFAULT_TESTIMONIALS } from '@/lib/data-store';
-import { HomepageSectionConfig } from '@/lib/types';
-import { resolveAuthoritativeHomepageProducts, resolveAuthoritativeSectionProducts } from '@/lib/growth/product-catalog-governance';
+import { HomepageSectionConfig, Product } from '@/lib/types';
+import { resolveAuthoritativeHomepageProducts } from '@/lib/growth/product-catalog-governance';
 import {
   MessageCircle,
   ShieldCheck,
@@ -87,12 +87,12 @@ export default async function HomePage() {
       ? siteSettings.homepageSections
       : DEFAULT_HOMEPAGE_SECTIONS;
 
-  // Phase 3C Canonical Ordering & Deduplication Guarantee:
+  // Homepage Curated Ordering & Deduplication Guarantee:
   // Enforces exact sequence:
   // 1. Hero
   // 2. Trust Strip
-  // 3. Categories
-  // 4. Featured / Bestsellers
+  // 3. Our Best Sellers & Featured Range (Position #1 among discovery sections)
+  // 4. Explore Our Product Categories (Immediately after Featured)
   // 5. Sojat Heritage Story
   // 6. Behind The Scenes / Processing Video
   // 7. The Musky Dose Promise / Why Us
@@ -102,7 +102,7 @@ export default async function HomePage() {
   const missingCanonicalSections = DEFAULT_HOMEPAGE_SECTIONS.filter(
     (ds) =>
       !sectionIds.has(ds.id) &&
-      ['trust_strip', 'bestsellers', 'sojat_story', 'video', 'why_musky_dose', 'reviews', 'wholesale_cta'].includes(ds.id)
+      ['trust_strip', 'bestsellers', 'categories', 'sojat_story', 'video', 'why_musky_dose', 'reviews', 'wholesale_cta'].includes(ds.id)
   );
   const completeSections = [...rawSections, ...missingCanonicalSections];
 
@@ -113,11 +113,11 @@ export default async function HomePage() {
     if (sec.id === 'trust_strip') {
       return { ...sec, enabled: true, sortOrder: 2 };
     }
-    if (sec.id === 'categories') {
+    if (sec.id === 'bestsellers') {
       return { ...sec, enabled: true, sortOrder: 3 };
     }
-    if (sec.id === 'bestsellers' || sec.id === 'signature_henna' || sec.id === 'other_products') {
-      return { ...sec, sortOrder: 4 + (sec.sortOrder ? sec.sortOrder * 0.01 : 0) };
+    if (sec.id === 'categories') {
+      return { ...sec, enabled: true, sortOrder: 4 };
     }
     if (sec.id === 'sojat_story') {
       return { ...sec, enabled: true, sortOrder: 5 };
@@ -134,8 +134,15 @@ export default async function HomePage() {
     if (sec.id === 'wholesale_cta') {
       return { ...sec, enabled: true, sortOrder: 9 };
     }
-    if (sec.id === 'factory_story' || sec.id === 'whatsapp_cta' || sec.id === 'whatsapp_guide') {
-      // Deduplicate: SojatHeritageStory handles heritage; wholesale_cta handles B2B; canonical store handles orders
+    if (
+      sec.id === 'signature_henna' ||
+      sec.id === 'other_products' ||
+      sec.id === 'new_arrivals' ||
+      sec.id === 'factory_story' ||
+      sec.id === 'whatsapp_cta' ||
+      sec.id === 'whatsapp_guide'
+    ) {
+      // Deduplicate: 'bestsellers' is the SINGLE curated product showcase; SojatHeritageStory handles heritage; wholesale_cta handles B2B; canonical store handles orders
       return { ...sec, enabled: false };
     }
     return { ...sec, sortOrder: (sec.sortOrder || 10) + 10 };
@@ -243,11 +250,20 @@ export default async function HomePage() {
               </section>
             );
 
-          case 'bestsellers':
-          case 'signature_henna':
-          case 'other_products': {
-            // Canonical complete product objects (preserving variants, media, pricing, and stock)
-            const displayBestsellers = resolveAuthoritativeSectionProducts(activeProducts, sec, displayFeaturedProducts);
+          case 'bestsellers': {
+            // Canonical authoritative curated products (enforcing isFeatured && isActive)
+            const curatedProducts = sec.selectedProductIds && sec.selectedProductIds.length > 0
+              ? sec.selectedProductIds
+                  .map((id) => displayFeaturedProducts.find((p) => p.id === id))
+                  .filter((p): p is Product => Boolean(p))
+              : displayFeaturedProducts;
+
+            const displayBestsellers = curatedProducts.slice(
+              0,
+              sec.itemLimit && sec.itemLimit > 0 ? sec.itemLimit : undefined
+            );
+
+            // Never show empty or auto-filled unfeatured products
             if (displayBestsellers.length === 0) return null;
 
             return (
@@ -256,13 +272,13 @@ export default async function HomePage() {
                   <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-5 sm:mb-8 gap-3">
                     <div>
                       <span className="text-[11px] font-bold text-[#c5a059] uppercase tracking-widest block mb-1 font-sans">
-                        {sec.subheading || 'Bestsellers & Featured'}
+                        {sec.subheading || 'POPULAR CHOICE'}
                       </span>
                       <h2 className="font-momo-display text-2xl sm:text-3xl font-normal text-[#0f2d22]">
-                        {sec.heading || 'Most Loved Sojat Henna & Herbal Care'}
+                        {sec.heading || 'Our Best Sellers & Featured Range'}
                       </h2>
                       <p className="text-xs sm:text-sm text-[#626c66] mt-1 font-sans font-medium max-w-2xl">
-                        {sec.description || 'Customer favorites chosen for superior dye release, purity, and natural formulation.'}
+                        {sec.description || 'Handpicked, high-lawsone Sojat henna and customer-favorite herbal remedies.'}
                       </p>
                     </div>
                     <Link
@@ -286,6 +302,12 @@ export default async function HomePage() {
               </section>
             );
           }
+
+          case 'signature_henna':
+          case 'other_products':
+          case 'new_arrivals':
+            // Removed duplicate product-grid showcases; 'bestsellers' is the single curated showcase
+            return null;
 
           case 'video':
           case 'homepage_video':
