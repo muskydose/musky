@@ -62,7 +62,8 @@ registerGovernedEntity({
       errors.push('Product commercial name is required.');
     }
 
-    const pricingVal = CommerceGovernance.validateProductPricing(Number(product.price), product.comparePrice);
+    const rawComparePrice = product.compareAtPrice !== undefined ? product.compareAtPrice : product.comparePrice;
+    const pricingVal = CommerceGovernance.validateProductPricing(Number(product.price), rawComparePrice);
     errors.push(...pricingVal.errors);
     warnings.push(...pricingVal.warnings);
 
@@ -207,7 +208,8 @@ registerGovernedEntity({
   validate: (order: any): GovernanceValidationResult => {
     const errors: string[] = [];
     if (!order?.customerName?.trim()) errors.push('Customer name is required.');
-    if (!order?.phone?.trim()) errors.push('Contact phone is required.');
+    const contactPhone = order?.customerPhone?.trim() || order?.phone?.trim();
+    if (!contactPhone) errors.push('Contact phone is required.');
     return { isValid: errors.length === 0, errors, warnings: [] };
   },
   getRevalidationTags: () => ['orders'],

@@ -403,11 +403,7 @@ export async function saveOrder(orderData: Partial<Order>): Promise<Order> {
   const now = new Date().toISOString();
 
   // Universal Platform Governance: Validate ORDER entity
-  const govResult = UniversalGovernanceCore.validateEntity('ORDER', {
-    customerName: orderData.customerName,
-    phone: orderData.customerPhone,
-    ...orderData,
-  }, true);
+  const govResult = UniversalGovernanceCore.validateEntity('ORDER', orderData, true);
   if (!govResult.isValid) {
     throw new Error(`Governance validation failed for order: ${govResult.errors.join(' ')}`);
   }

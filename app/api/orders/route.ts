@@ -6,6 +6,7 @@ import { revalidateEntitySurfaces } from '@/lib/revalidation';
 import { recordAuditLog } from '@/lib/auth';
 import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limit';
 import { sanitizePublicError, sanitizeAdminError } from '@/lib/api-errors';
+import { normalizeOrderInput } from '@/lib/orders/order-contract';
 
 export async function GET(req: NextRequest) {
   try {
@@ -54,99 +55,18 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
-    if (!body || typeof body !== 'object') {
-      return NextResponse.json({ success: false, error: 'Invalid request body' }, { status: 400 });
+    // 1. Central Canonical Order Input Normalization (Single Boundary Adapter)
+    const normalization = normalizeOrderInput(body);
+    if (!normalization.isValid || !normalization.canonical) {
+      return NextResponse.json(
+        { success: false, error: normalization.errors[0] || 'Invalid order data.', errors: normalization.errors },
+        { status: 400 }
+      );
     }
 
-    if (!body.customerName || !String(body.customerName).trim()) {
-      return NextResponse.json({ success: false, error: 'Customer name is required' }, { status: 400 });
-    }
+    const safeOrderData = normalization.canonical;
 
-    const customerName = String(body.customerName).trim();
-    if (customerName.length > 100) {
-      return NextResponse.json({ success: false, error: 'Customer name must be 100 characters or less' }, { status: 400 });
-    }
-
-    const cleanPhone = String(body.customerPhone || '').replace(/\D/g, '');
-    if (!cleanPhone || cleanPhone.length !== 10) {
-      return NextResponse.json({ success: false, error: 'Valid 10-digit mobile number is required' }, { status: 400 });
-    }
-
-    if (body.customerEmail && String(body.customerEmail).trim().length > 254) {
-      return NextResponse.json({ success: false, error: 'Email address must be 254 characters or less' }, { status: 400 });
-    }
-
-    if (!body.customerHouseShop || !String(body.customerHouseShop).trim()) {
-      return NextResponse.json({ success: false, error: 'House/Shop number is required' }, { status: 400 });
-    }
-
-    const houseShop = String(body.customerHouseShop).trim();
-    if (houseShop.length > 100) {
-      return NextResponse.json({ success: false, error: 'House/Shop number must be 100 characters or less' }, { status: 400 });
-    }
-
-    if (!body.customerAddress || !String(body.customerAddress).trim()) {
-      return NextResponse.json({ success: false, error: 'Complete street address is required' }, { status: 400 });
-    }
-
-    const customerAddress = String(body.customerAddress).trim();
-    if (customerAddress.length > 500) {
-      return NextResponse.json({ success: false, error: 'Address must be 500 characters or less' }, { status: 400 });
-    }
-
-    if (!body.customerCity || !String(body.customerCity).trim()) {
-      return NextResponse.json({ success: false, error: 'City is required' }, { status: 400 });
-    }
-
-    if (!body.customerState || !String(body.customerState).trim()) {
-      return NextResponse.json({ success: false, error: 'State is required' }, { status: 400 });
-    }
-
-    const cleanPincode = String(body.customerPincode || '').replace(/\D/g, '');
-    if (!cleanPincode || cleanPincode.length !== 6) {
-      return NextResponse.json({ success: false, error: 'Valid 6-digit Indian PIN code is required' }, { status: 400 });
-    }
-
-    if (!Array.isArray(body.items) || body.items.length === 0) {
-      return NextResponse.json({ success: false, error: 'Order must contain at least one item' }, { status: 400 });
-    }
-
-    if (body.items.length > 50) {
-      return NextResponse.json({ success: false, error: 'Orders cannot contain more than 50 distinct items' }, { status: 400 });
-    }
-
-    const notes = body.notes ? String(body.notes).trim() : '';
-    if (notes.length > 2000) {
-      return NextResponse.json({ success: false, error: 'Order notes cannot exceed 2000 characters' }, { status: 400 });
-    }
-
-    const couponCode = body.couponCode ? String(body.couponCode).trim() : undefined;
-    if (couponCode && couponCode.length > 50) {
-      return NextResponse.json({ success: false, error: 'Coupon code cannot exceed 50 characters' }, { status: 400 });
-    }
-
-    const safeOrderData = {
-      ...body,
-      customerName,
-      customerPhone: cleanPhone,
-      customerWhatsapp: body.customerWhatsapp ? String(body.customerWhatsapp).trim() : cleanPhone,
-      customerEmail: body.customerEmail ? String(body.customerEmail).trim() : '',
-      customerHouseShop: houseShop,
-      customerAddress,
-      customerArea: body.customerArea ? String(body.customerArea).trim() : '',
-      customerLandmark: body.customerLandmark ? String(body.customerLandmark).trim() : '',
-      customerCity: String(body.customerCity).trim(),
-      customerState: String(body.customerState).trim(),
-      customerPincode: cleanPincode,
-      notes,
-      couponCode,
-      idempotencyKey: body.idempotencyKey || body.idempotency_key || req.headers.get('x-idempotency-key') || req.headers.get('idempotency-key') || undefined,
-      orderStatus: 'NEW' as const,
-      paymentStatus: 'UNPAID' as const,
-      paymentMethod: 'WhatsApp' as const,
-    };
-
-    // 1. Universal Platform Governance Validation
+    // 2. Universal Platform Governance Validation
     const govCheck = UniversalGovernanceCore.validateEntity('ORDER', safeOrderData, true);
     if (!govCheck.isValid) {
       return NextResponse.json(
@@ -155,16 +75,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Commerce Pricing & Totals Invariant Check
-    if (body.subtotal !== undefined && body.totalAmount !== undefined) {
-      const claimedDiscount = body.discountAmount || 0;
-      const claimedShipping = body.shippingFee || 0;
+    // 3. Commerce Pricing & Totals Invariant Check
+    if (safeOrderData.subtotal !== undefined && safeOrderData.totalAmount !== undefined) {
+      const claimedDiscount = safeOrderData.discountAmount || 0;
+      const claimedShipping = safeOrderData.shippingFee || 0;
       const totalsVal = CommerceGovernance.validateOrderTotals(
-        body.items,
-        Number(body.subtotal),
+        safeOrderData.items,
+        Number(safeOrderData.subtotal),
         Number(claimedDiscount),
         Number(claimedShipping),
-        Number(body.totalAmount)
+        Number(safeOrderData.totalAmount)
       );
       if (!totalsVal.isValid) {
         return NextResponse.json(

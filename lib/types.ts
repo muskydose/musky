@@ -194,6 +194,11 @@ export interface OrderItem {
   quantity: number;
   price: number;
   weight?: string;
+  variantId?: string;
+  variantSku?: string;
+  packSize?: string;
+  packQuantity?: number;
+  packUnit?: string;
 }
 
 export type OrderStatus =
