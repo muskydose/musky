@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Product, ProductVariant } from '@/lib/types';
 import { getCartItemId, getEffectiveVariantPrice } from '@/lib/product-variants';
 
@@ -24,6 +24,9 @@ interface CartContextType {
   setIsCartOpen: (open: boolean) => void;
   openCart: () => void;
   closeCart: () => void;
+  validateCart: () => Promise<void>;
+  removedNotice: string[] | null;
+  dismissRemovedNotice: () => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -34,6 +37,74 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [removedNotice, setRemovedNotice] = useState<string[] | null>(null);
+
+  const dismissRemovedNotice = () => setRemovedNotice(null);
+
+  const validateCart = useCallback(async (itemsToValidate?: CartItem[]) => {
+    setCart((currentCart) => {
+      const items = itemsToValidate || currentCart;
+      if (!items || items.length === 0) return currentCart;
+
+      fetch('/api/cart/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: items.map((i) => ({
+            productId: i.product.id,
+            variantId: i.selectedVariant?.id,
+            quantity: i.quantity,
+            name: i.product.name,
+          })),
+        }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.success) {
+            if (Array.isArray(data.removedItems) && data.removedItems.length > 0) {
+              const removedNames = data.removedItems.map((r: any) => r.name);
+              setRemovedNotice((prev) => (prev ? [...prev, ...removedNames] : removedNames));
+
+              setCart((prev) =>
+                prev.filter((item) => {
+                  const wasRemoved = data.removedItems.some((r: any) => {
+                    if (r.variantId && item.selectedVariant?.id) {
+                      return r.productId === item.product.id && r.variantId === item.selectedVariant.id;
+                    }
+                    return r.productId === item.product.id;
+                  });
+                  return !wasRemoved;
+                })
+              );
+            }
+
+            if (Array.isArray(data.validItems) && data.validItems.length > 0) {
+              const freshMap = new Map(data.validItems.map((v: any) => [v.productId, v]));
+              setCart((prev) =>
+                prev.map((item) => {
+                  const fresh: any = freshMap.get(item.product.id);
+                  if (fresh && fresh.product) {
+                    return {
+                      ...item,
+                      product: {
+                        ...item.product,
+                        ...fresh.product,
+                        price: fresh.authoritativePrice ?? fresh.product.price,
+                      },
+                      selectedVariant: fresh.selectedVariant || item.selectedVariant,
+                    };
+                  }
+                  return item;
+                })
+              );
+            }
+          }
+        })
+        .catch((e) => console.warn('[validateCart] Non-blocking validation notice:', e));
+
+      return currentCart;
+    });
+  }, []);
 
   // Load cart from localStorage after mount (prevents SSR hydration mismatch)
   // Safely normalizes legacy cart items lacking an 'id' or 'selectedVariant'
@@ -53,6 +124,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                 quantity: typeof item.quantity === 'number' && item.quantity > 0 ? item.quantity : 1,
               }));
             setCart(normalized);
+
+            // Asynchronously validate against authoritative product state on hydration
+            if (normalized.length > 0) {
+              validateCart(normalized);
+            }
           }
         }
       } catch (e) {
@@ -62,7 +138,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
     }, 0);
     return () => clearTimeout(timer);
-  }, []);
+  }, [validateCart]);
+
+  // Validate cart on cart drawer open
+  useEffect(() => {
+    if (isCartOpen) {
+      validateCart();
+    }
+  }, [isCartOpen, validateCart]);
 
   // Save cart to localStorage on changes after initial load
   useEffect(() => {
@@ -167,6 +250,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setIsCartOpen,
         openCart: () => setIsCartOpen(true),
         closeCart: () => setIsCartOpen(false),
+        validateCart,
+        removedNotice,
+        dismissRemovedNotice,
       }}
     >
       {children}
@@ -187,6 +273,9 @@ const defaultCartContext: CartContextType = {
   setIsCartOpen: () => {},
   openCart: () => {},
   closeCart: () => {},
+  validateCart: async () => {},
+  removedNotice: null,
+  dismissRemovedNotice: () => {},
 };
 
 export function useCart() {

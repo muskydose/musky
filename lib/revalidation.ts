@@ -72,6 +72,32 @@ export async function revalidateCatalogSurfaces(options?: CatalogRevalidationOpt
       revalidateTag('site_settings');
       revalidateTag('business_settings');
     } catch {}
+
+    // 6. Safe post-mutation search engine indexing notification (non-blocking)
+    try {
+      const { notifySearchEngines } = await import('@/lib/indexing/indexing-service');
+      const candidateUrls: string[] = [];
+      if (options?.slugs) {
+        for (const s of options.slugs) {
+          if (s && typeof s === 'string') candidateUrls.push(`/products/${s.trim()}`);
+        }
+      }
+      if (options?.categorySlugsOrIds) {
+        for (const c of options.categorySlugsOrIds) {
+          if (c && typeof c === 'string') candidateUrls.push(`/categories/${c.trim()}`);
+        }
+      }
+      if (options?.guideSlugs) {
+        for (const g of options.guideSlugs) {
+          if (g && typeof g === 'string') candidateUrls.push(`/guides/${g.trim()}`);
+        }
+      }
+      if (candidateUrls.length > 0) {
+        notifySearchEngines(candidateUrls, { entityType: 'CATALOG', action: 'UPDATE' });
+      }
+    } catch (indexingErr: any) {
+      console.warn('[revalidateCatalogSurfaces] Indexing notification notice:', indexingErr?.message);
+    }
   } catch (err: any) {
     // Graceful fallback when outside Next.js request context (e.g. standalone scripts or tests)
     console.warn('[revalidateCatalogSurfaces] Standalone execution notice:', err?.message);
@@ -165,6 +191,15 @@ export async function revalidateEntitySurfaces(
           revalidatePath('/', 'page');
         } catch {}
         break;
+    }
+
+    // Safe indexing notification for content/guide updates
+    if (['GUIDE', 'PAGE'].includes(entityType) && cleanSlugs.length > 0) {
+      try {
+        const { notifySearchEngines } = await import('@/lib/indexing/indexing-service');
+        const urls = cleanSlugs.map((s) => (entityType === 'GUIDE' ? `/guides/${s}` : `/${s}`));
+        notifySearchEngines(urls, { entityType, action: 'UPDATE' });
+      } catch {}
     }
   } catch (err: any) {
     console.warn('[revalidateEntitySurfaces] Standalone execution notice:', err?.message);

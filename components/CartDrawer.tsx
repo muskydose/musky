@@ -34,6 +34,8 @@ export default function CartDrawer({ siteSettings: initialSettings }: CartDrawer
     totalAmount,
     isCartOpen,
     closeCart,
+    removedNotice,
+    dismissRemovedNotice,
   } = useCart();
 
   const [settings, setSettings] = useState<Partial<SiteSettings> | undefined>(initialSettings);
@@ -160,6 +162,28 @@ export default function CartDrawer({ siteSettings: initialSettings }: CartDrawer
         ) : null
       }
     >
+      {/* Stale Items Removed Notice */}
+      {removedNotice && removedNotice.length > 0 && (
+        <div className="mb-3 p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start justify-between gap-2">
+          <div className="flex-1">
+            <span className="font-bold block text-[11px] text-amber-800">Cart Updated</span>
+            <span className="text-[10.5px] leading-tight text-amber-700">
+              {removedNotice.length === 1
+                ? `"${removedNotice[0]}" was removed as it is no longer available.`
+                : `${removedNotice.length} items were removed as they are no longer available.`}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={dismissRemovedNotice}
+            className="text-amber-600 hover:text-amber-800 font-bold text-xs p-0.5 cursor-pointer"
+            aria-label="Dismiss notice"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Free Shipping Progress Alert */}
       {cart.length > 0 && (
         <div className="mb-3.5 p-2.5 bg-[#e8f3ed] border border-[#b7dfcb] rounded-xl">

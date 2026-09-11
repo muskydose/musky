@@ -194,6 +194,7 @@ export async function saveCategory(category: Partial<Category>): Promise<Categor
   if (!cleanSlug) cleanSlug = `cat-${Date.now()}`;
 
   const allCategories = await getCategories();
+  const previousCategory = !isNew ? allCategories.find((c) => c.id === categoryId) : null;
   const existingWithSlug = allCategories.find((c) => c.slug === cleanSlug && c.id !== categoryId);
   if (existingWithSlug) {
     if (isNew) {
@@ -221,6 +222,16 @@ export async function saveCategory(category: Partial<Category>): Promise<Categor
 
   if (error) {
     throw new Error(`Database error saving category: ${error.message}`);
+  }
+
+  // Preserve legacy category slug history and enable HTTP 301 redirects if slug changed
+  if (previousCategory && previousCategory.slug && previousCategory.slug !== cleanSlug) {
+    try {
+      const { recordCategorySlugChange } = await import('@/lib/db/category-redirects');
+      await recordCategorySlugChange(categoryId, previousCategory.slug, cleanSlug);
+    } catch (slugErr: any) {
+      console.warn(`[saveCategory] Slug redirect recording notice for ${categoryId}:`, slugErr?.message);
+    }
   }
 
   const saved = data && data.length > 0 ? mapRowToCategory(data[0]) : fullCategory;

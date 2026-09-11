@@ -1,5 +1,5 @@
 import React from 'react';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import Navbar from '@/components/Navbar';
@@ -15,6 +15,7 @@ import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
 import { safeJsonLd } from '@/lib/utils';
 import { ArrowLeft, PackageX, Sparkles, CheckCircle2, Leaf } from 'lucide-react';
 import { resolveCategoryIntelligence } from '@/lib/growth/category-intelligence';
+import { resolveCategorySlugRedirect } from '@/lib/db/category-redirects';
 
 export const dynamic = 'force-dynamic';
 export const dynamicParams = true;
@@ -52,10 +53,18 @@ export async function generateMetadata({
   const category = categories.find((c) => c.slug === slug || c.id === slug);
 
   if (!category || category.isActive === false) {
+    const targetSlug = await resolveCategorySlugRedirect(slug);
+    if (targetSlug && targetSlug !== slug) {
+      permanentRedirect(`/categories/${targetSlug}`);
+    }
     return {
       title: 'Category Not Found',
       description: 'The requested product category could not be found.',
     };
+  }
+
+  if (category.slug && slug !== category.slug) {
+    permanentRedirect(`/categories/${category.slug}`);
   }
 
   const editorial = CATEGORY_EDITORIAL_INTRODUCTIONS[category.slug];
@@ -86,7 +95,15 @@ export default async function CategoryPage({
   const category = categories.find((c) => c.slug === slug || c.id === slug);
 
   if (!category || category.isActive === false) {
+    const targetSlug = await resolveCategorySlugRedirect(slug);
+    if (targetSlug && targetSlug !== slug) {
+      permanentRedirect(`/categories/${targetSlug}`);
+    }
     notFound();
+  }
+
+  if (category.slug && slug !== category.slug) {
+    permanentRedirect(`/categories/${category.slug}`);
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
