@@ -8,6 +8,7 @@ import ProductCard from '@/components/ProductCard';
 import WhatsAppFloat from '@/components/WhatsAppFloat';
 import { getSiteSettings } from '@/lib/db/settings';
 import { getProducts } from '@/lib/db/products';
+import { getCategories } from '@/lib/db/categories';
 import { getPublishedGuides } from '@/lib/db/guides';
 import { resolvePageSeoMetadata } from '@/lib/db/seo';
 import { safeJsonLd } from '@/lib/utils';
@@ -57,13 +58,23 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function SojatHennaPillarPage() {
-  const [siteSettings, allProducts, allGuides] = await Promise.all([
+  const [siteSettings, allProducts, allGuides, categories] = await Promise.all([
     getSiteSettings(),
     getProducts(),
     getPublishedGuides(),
+    getCategories(),
   ]);
 
   const baseUrl = siteSettings?.websiteUrl || 'https://muskydose.in';
+
+  const hennaCategory = categories.find(
+    (c) =>
+      c.slug === 'henna' ||
+      c.slug === 'henna-mehndi' ||
+      c.name.toLowerCase().includes('henna') ||
+      c.id.toLowerCase().includes('henna')
+  );
+  const hennaCategoryUrl = hennaCategory?.slug ? `/categories/${hennaCategory.slug}` : '/categories';
 
   // Filter Henna-related catalog items
   const hennaProducts = allProducts
@@ -333,7 +344,7 @@ export default async function SojatHennaPillarPage() {
               </h2>
             </div>
             <Link
-              href="/categories/henna"
+              href={hennaCategoryUrl}
               className="text-xs font-bold text-[#1b4332] hover:underline flex items-center gap-1"
             >
               <span>View Complete Henna Range</span>
@@ -343,7 +354,7 @@ export default async function SojatHennaPillarPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {hennaProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard key={product.id} product={product} categories={categories} />
             ))}
           </div>
         </section>

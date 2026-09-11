@@ -284,7 +284,7 @@ export const DEFAULT_HOMEPAGE_VIDEO: HomepageVideoConfig = {
   subheading: 'SOJAT HERITAGE IN MOTION',
   description: 'Experience the traditional harvest, solar drying, and fine micro-sifting of authentic Rajasthani Lawsonia Inermis henna in Sojat City.',
   ctaText: 'Explore Henna Collection',
-  ctaUrl: '/categories/henna',
+  ctaUrl: '/categories',
   badgeText: 'DIRECT FROM SOJAT FARMS',
   autoplay: false,
   muted: true,

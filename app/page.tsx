@@ -294,7 +294,7 @@ export default async function HomePage() {
                   <div className={`grid ${siteSettings?.layoutControls?.mobileGridColumns === 1 ? 'grid-cols-1' : 'grid-cols-2'} sm:grid-cols-2 md:grid-cols-3 ${siteSettings?.layoutControls?.desktopGridColumns === 3 ? 'lg:grid-cols-3' : siteSettings?.layoutControls?.desktopGridColumns === 5 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-2.5 sm:gap-5 lg:gap-6`}>
                     {displayBestsellers.map((prod) => (
                       <div key={prod.id} className="h-full flex flex-col">
-                        <ProductCard product={prod} whatsappNumber={whatsappNumber} />
+                        <ProductCard product={prod} categories={categories} whatsappNumber={whatsappNumber} />
                       </div>
                     ))}
                   </div>

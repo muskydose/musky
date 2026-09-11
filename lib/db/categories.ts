@@ -225,6 +225,18 @@ export async function saveCategory(category: Partial<Category>): Promise<Categor
 
   const saved = data && data.length > 0 ? mapRowToCategory(data[0]) : fullCategory;
 
+  // Cascade category name synchronization to products table
+  if (!isNew && saved.id && saved.name) {
+    try {
+      await supabase
+        .from('products')
+        .update({ category_name: saved.name })
+        .eq('category_id', saved.id);
+    } catch (cascadeErr: any) {
+      console.warn(`[saveCategory] Product cascade category_name update notice for ${saved.id}:`, cascadeErr?.message);
+    }
+  }
+
   // Revalidate category catalog surfaces
   await revalidateCatalogSurfaces({
     categorySlugsOrIds: [saved.id, saved.slug],

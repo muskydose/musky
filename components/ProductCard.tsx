@@ -16,17 +16,28 @@ import { SPRINGS } from '@/lib/motion';
 import { startPageTransition } from '@/lib/navigation';
 import { resolveCanonicalProductOffer } from '@/lib/growth/product-catalog-governance';
 import { resolveAuthoritativeProductMedia } from '@/lib/growth/product-media-governance';
+import { resolveCanonicalCategoryName } from '@/lib/category-resolver';
+import { Category } from '@/lib/types';
 
 interface ProductCardProps {
   product: Product;
   siteSettings?: SiteSettings;
   whatsappNumber?: string;
   isFeaturedSpotlight?: boolean;
+  categoryName?: string;
+  categories?: Category[];
 }
 
 const BRANDED_FALLBACK_IMAGE = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800"><rect width="100%" height="100%" fill="%23f4f0e6"/><path d="M400 240 C300 340 300 490 400 540 C500 490 500 340 400 240 Z" fill="%231b4332" opacity="0.15"/><text x="50%" y="48%" font-family="serif" font-size="32" font-weight="bold" fill="%230f2d22" text-anchor="middle">MUSKY DOSE</text><text x="50%" y="54%" font-family="sans-serif" font-size="16" font-weight="bold" fill="%23c5a059" letter-spacing="2" text-anchor="middle">SOJAT BOTANICAL</text></svg>';
 
-export default function ProductCard({ product, siteSettings, whatsappNumber, isFeaturedSpotlight = false }: ProductCardProps) {
+export default function ProductCard({
+  product,
+  siteSettings,
+  whatsappNumber,
+  isFeaturedSpotlight = false,
+  categoryName,
+  categories,
+}: ProductCardProps) {
   const router = useRouter();
   const shouldReduceMotion = useReducedMotion();
   const cms = getCmsText(siteSettings);
@@ -201,7 +212,9 @@ export default function ProductCard({ product, siteSettings, whatsappNumber, isF
         <div className="flex-1 flex flex-col justify-start">
           {/* CATEGORY & STOCK */}
           <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-[#8c7b60] font-semibold uppercase tracking-wider mb-1 flex-wrap gap-1">
-            <span className="truncate max-w-[120px] sm:max-w-none">{product.categoryName || 'Sojat Henna'}</span>
+            <span className="truncate max-w-[120px] sm:max-w-none">
+              {resolveCanonicalCategoryName(product, categories, categoryName)}
+            </span>
             {isOutOfStock && (
               <span className="text-amber-800 text-[9px] sm:text-[10px] font-bold bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200 shrink-0">
                 {cms.productCardOutOfStockBadge || 'Out of Stock'}

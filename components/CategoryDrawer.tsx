@@ -17,56 +17,18 @@ import {
   Droplets,
   Flower2,
   Package,
+  Loader2,
 } from 'lucide-react';
-
-const FALLBACK_CATEGORIES: Array<Partial<Category> & { icon: React.ElementType; badge?: string }> = [
-  {
-    id: 'cat-henna',
-    name: 'Sojat Henna & Mehndi',
-    slug: 'henna-mehndi',
-    description: 'Triple-sifted Rajasthani bridal henna powder & fresh cones.',
-    icon: Leaf,
-    badge: 'Popular',
-  },
-  {
-    id: 'cat-herbal',
-    name: 'Herbal Hair Care Packs',
-    slug: 'hair-care',
-    description: 'Indigo, Amla, Reetha, Shikakai, Bhringraj & Brahmi.',
-    icon: Layers,
-    badge: '100% Pure',
-  },
-  {
-    id: 'cat-face',
-    name: 'Face Packs & Natural Clays',
-    slug: 'face-packs',
-    description: 'Multani Mitti, Beetroot powder, Sandalwood & Rose Petal.',
-    icon: Flower2,
-  },
-  {
-    id: 'cat-oils',
-    name: 'Botanical Herbal Oils',
-    slug: 'herbal-oils',
-    description: 'Pure cold-pressed carrier & herbal infused wellness oils.',
-    icon: Droplets,
-  },
-  {
-    id: 'cat-wholesale',
-    name: 'Bulk Supply & Wholesale',
-    slug: 'wholesale',
-    description: 'Direct factory pricing for salons, artists & distributors (5kg - 1000kg+).',
-    icon: Package,
-    badge: 'B2B Tier',
-  },
-];
 
 export default function CategoryDrawer() {
   const { isCategoryOpen, closeCategory } = useUI();
   const pathname = usePathname();
   const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (isCategoryOpen && categories.length === 0) {
+      setIsLoading(true);
       fetch('/api/categories')
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
@@ -74,7 +36,8 @@ export default function CategoryDrawer() {
             setCategories(data.categories.filter((c: Category) => c.isActive !== false));
           }
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => setIsLoading(false));
     }
   }, [isCategoryOpen, categories.length]);
 
@@ -87,7 +50,7 @@ export default function CategoryDrawer() {
     return Leaf;
   };
 
-  const displayList = categories.length > 0 ? categories : (FALLBACK_CATEGORIES as Category[]);
+  const displayList = categories;
 
   return (
     <SideDrawer
@@ -160,10 +123,16 @@ export default function CategoryDrawer() {
           <ChevronRight className={`w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5 ${pathname === '/products' ? 'text-[#c5a059]' : 'text-gray-400'}`} />
         </Link>
 
+        {isLoading && categories.length === 0 && (
+          <div className="flex items-center justify-center py-12 text-[#1b4332]">
+            <Loader2 className="w-6 h-6 animate-spin text-[#c5a059]" />
+          </div>
+        )}
+
         {/* Dynamic Category List */}
         {displayList.map((cat) => {
           const Icon = getCategoryIcon(cat.slug, cat.name);
-          const targetUrl = cat.slug === 'wholesale' ? '/wholesale' : `/products?category=${encodeURIComponent(cat.slug || cat.id)}`;
+          const targetUrl = cat.slug === 'wholesale' ? '/wholesale' : `/categories/${cat.slug || cat.id}`;
           const isSelected = pathname.includes(cat.slug);
 
           return (

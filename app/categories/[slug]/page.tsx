@@ -211,6 +211,8 @@ export default async function CategoryPage({
               <ProductCard
                 key={product.id}
                 product={product}
+                categoryName={category.name}
+                categories={categories}
                 siteSettings={siteSettings}
                 whatsappNumber={getConfiguredWhatsAppNumber(siteSettings)}
               />

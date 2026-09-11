@@ -54,6 +54,7 @@ interface ProductDetailClientProps {
   brandName?: string;
   faqItems?: any[];
   relevantGuides?: any[];
+  categoryName?: string;
 }
 
 export default function ProductDetailClient({
@@ -63,6 +64,7 @@ export default function ProductDetailClient({
   brandName = 'Musky Dose',
   faqItems,
   relevantGuides = [],
+  categoryName,
 }: ProductDetailClientProps) {
   const router = useRouter();
   const { addToCart, openCart, closeCart } = useCart();
@@ -509,7 +511,7 @@ export default function ProductDetailClient({
             <div className="flex items-center justify-between gap-2 mb-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="bg-[#e8f3ed] text-[#1b4332] text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-                  {product.categoryName || 'Sojat Henna'}
+                  {categoryName || product.categoryName || 'Sojat Henna'}
                 </span>
                 {hasPurchasedBefore && (
                   <span className="inline-flex items-center gap-1 bg-[#faf5e8] text-[#c5a059] border border-[#c5a059]/40 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full shadow-2xs">

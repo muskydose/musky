@@ -3,7 +3,8 @@ import { Product, ProductMediaItem } from '@/lib/types';
 import { getSupabase, getSupabaseAdmin } from '@/lib/supabase';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { sanitizeImageUrl, sanitizeImageUrls } from '@/lib/utils';
-import { getCategories } from './categories';
+import { getCategories, getAllCategoriesAdmin } from './categories';
+import { resolveCanonicalCategoryName } from '@/lib/category-resolver';
 import { pruneProductReferencesFromSettings } from './settings';
 import { revalidateCatalogSurfaces } from '@/lib/revalidation';
 import { syncProductKeywordUniverse, onProductDeletedLifecycle } from '@/lib/growth/product-keyword-engine';
@@ -265,7 +266,14 @@ export async function getAllProductsAdmin(): Promise<Product[]> {
     return [];
   }
 
-  return data.map(mapRowToProduct).sort((a, b) => a.sortOrder - b.sortOrder);
+  const categories = await getAllCategoriesAdmin();
+  return data
+    .map((row) => {
+      const p = mapRowToProduct(row);
+      p.categoryName = resolveCanonicalCategoryName(p, categories);
+      return p;
+    })
+    .sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 export const getActiveProductsForStore = cache(async (): Promise<Product[]> => {
@@ -289,7 +297,12 @@ export const getActiveProductsForStore = cache(async (): Promise<Product[]> => {
     return [];
   }
 
-  return data.map(mapRowToProduct);
+  const categories = await getCategories();
+  return data.map((row) => {
+    const p = mapRowToProduct(row);
+    p.categoryName = resolveCanonicalCategoryName(p, categories);
+    return p;
+  });
 });
 
 export async function getProducts(): Promise<Product[]> {
@@ -530,6 +543,8 @@ export const getProductByIdOrSlug = cache(async (
         if (!includeInactive && product.isActive === false) {
           return null;
         }
+        const categories = await getCategories();
+        product.categoryName = resolveCanonicalCategoryName(product, categories);
         return product;
       }
     } catch (err: any) {
@@ -555,6 +570,8 @@ export const getProductByIdOrSlug = cache(async (
     if (!includeInactive && found.isActive === false) {
       return null;
     }
+    const categories = await getCategories();
+    found.categoryName = resolveCanonicalCategoryName(found, categories);
     return found;
   }
 

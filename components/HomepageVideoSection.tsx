@@ -42,7 +42,11 @@ export default function HomepageVideoSection({
     'Experience the traditional harvest, solar drying, and fine micro-sifting of authentic Rajasthani Lawsonia Inermis henna in Sojat City.';
   const badgeText = videoConfig.badgeText || 'DIRECT FROM SOJAT FARMS';
   const ctaText = section?.ctaText || videoConfig.ctaText || 'Explore Henna Collection';
-  const ctaUrl = section?.ctaLink || videoConfig.ctaUrl || '/categories/henna';
+  const ctaUrl =
+    section?.ctaLink ||
+    (videoConfig.ctaUrl && videoConfig.ctaUrl !== '/categories/henna'
+      ? videoConfig.ctaUrl
+      : '/categories');
 
   const rawPoster = videoConfig.posterUrl || section?.imageUrl || section?.image || siteSettings?.factoryImageUrl;
   const isCustomPoster = Boolean(rawPoster && !rawPoster.endsWith('.svg') && !rawPoster.includes('fallback.svg') && !rawPoster.includes('hero-1.webp'));

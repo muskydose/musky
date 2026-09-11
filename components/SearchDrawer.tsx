@@ -6,7 +6,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useUI } from '@/context/UIContext';
 import SideDrawer from '@/components/ui/SideDrawer';
-import { Product } from '@/lib/types';
+import { Product, Category } from '@/lib/types';
 import { sanitizeImageUrl } from '@/lib/utils';
 import { trackSearchOpen, trackSearchSubmit } from '@/lib/analytics';
 import { unifiedSearchProducts } from '@/lib/search/unified-search';
@@ -42,18 +42,20 @@ const TRENDING_SEARCHES = [
   { label: 'Wholesale Henna Bulks', query: 'wholesale henna', tag: 'B2B 20kg+' },
 ];
 
-const POPULAR_CATEGORIES = [
-  { name: 'Henna & Mehndi', href: '/categories/henna', icon: '🌿' },
-  { name: 'Herbal Powders', href: '/categories/herbal-products', icon: '✨' },
-  { name: 'Hair Care Packs', href: '/categories/hair-care', icon: '💇‍♀️' },
-  { name: 'Face Packs & Clay', href: '/categories/face-care', icon: '🌸' },
-  { name: 'Wholesale & B2B', href: '/wholesale', icon: '📦' },
-];
+function getCategoryIconEmoji(slug: string, name: string): string {
+  const s = (slug + ' ' + name).toLowerCase();
+  if (s.includes('oil')) return '💧';
+  if (s.includes('face') || s.includes('clay') || s.includes('skin')) return '🌸';
+  if (s.includes('hair') || s.includes('amla') || s.includes('shikakai')) return '💇‍♀️';
+  if (s.includes('henna') || s.includes('mehndi')) return '🌿';
+  return '✨';
+}
 
 export default function SearchDrawer() {
   const { isSearchOpen, closeSearch } = useUI();
   const router = useRouter();
   const [siteSettings, setSiteSettings] = useState<any>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [query, setQuery] = useState('');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [liveProducts, setLiveProducts] = useState<Product[]>([]);
@@ -67,6 +69,16 @@ export default function SearchDrawer() {
       getClientSiteSettings().then((s) => {
         if (s) setSiteSettings(s);
       });
+      if (categories.length === 0) {
+        fetch('/api/categories')
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data?.success && Array.isArray(data.categories)) {
+              setCategories(data.categories.filter((c: Category) => c.isActive !== false));
+            }
+          })
+          .catch(() => {});
+      }
       setTimeout(() => {
         inputRef.current?.focus();
       }, 150);
@@ -78,7 +90,7 @@ export default function SearchDrawer() {
         }
       } catch {}
     }
-  }, [isSearchOpen]);
+  }, [isSearchOpen, categories.length]);
 
   // Debounced live search with Unified Search Engine
   useEffect(() => {
@@ -394,19 +406,29 @@ export default function SearchDrawer() {
             <span>Browse Categories</span>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            {POPULAR_CATEGORIES.map((cat) => (
+            {categories.map((cat) => (
               <Link
-                key={cat.href}
-                href={cat.href}
+                key={cat.id}
+                href={`/categories/${cat.slug}`}
                 onClick={closeSearch}
                 className="flex items-center gap-2 p-2.5 bg-white hover:bg-[#f5f1e8] border border-[#e8e2d5] rounded-xl transition-all shadow-2xs group"
               >
-                <span className="text-base shrink-0">{cat.icon}</span>
+                <span className="text-base shrink-0">{getCategoryIconEmoji(cat.slug, cat.name)}</span>
                 <span className="text-xs font-bold text-[#0f2d22] group-hover:text-[#1b4332] truncate">
                   {cat.name}
                 </span>
               </Link>
             ))}
+            <Link
+              href="/wholesale"
+              onClick={closeSearch}
+              className="flex items-center gap-2 p-2.5 bg-white hover:bg-[#f5f1e8] border border-[#e8e2d5] rounded-xl transition-all shadow-2xs group"
+            >
+              <span className="text-base shrink-0">📦</span>
+              <span className="text-xs font-bold text-[#0f2d22] group-hover:text-[#1b4332] truncate">
+                Wholesale & B2B
+              </span>
+            </Link>
           </div>
         </div>
 

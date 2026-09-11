@@ -224,7 +224,7 @@ export function generateProductInternalLinks(
       sourceProductName: product.name,
       targetType: 'CATEGORY',
       targetTitle: `${cat.name} Collection`,
-      targetUrl: `/categories`,
+      targetUrl: cat.slug ? `/categories/${cat.slug}` : `/categories`,
       anchorText: `Explore our 100% Pure ${cat.name} Collection`,
       relevanceReason: `Category authority link to full ${cat.name} line`,
       relevanceScore: 95,
@@ -240,9 +240,21 @@ export function generateProductInternalLinks(
   for (const other of allProducts) {
     if (other.id === product.id || other.isActive === false) continue;
     const otherNameLower = other.name.toLowerCase();
+    const otherCatLower = (other.categoryName || '').toLowerCase();
+    const otherRawIng: any = other.ingredients;
+    const otherIngStr = Array.isArray(otherRawIng)
+      ? otherRawIng.join(' ').toLowerCase()
+      : typeof otherRawIng === 'string'
+      ? otherRawIng.toLowerCase()
+      : '';
+
+    const otherIsHenna = otherNameLower.includes('henna') || otherCatLower.includes('henna') || otherIngStr.includes('lawsonia');
+    const otherIsIndigo = otherNameLower.includes('indigo') || otherCatLower.includes('indigo') || otherIngStr.includes('indigo');
+    const otherIsHairPack = otherNameLower.includes('hair pack') || otherNameLower.includes('amla') || otherNameLower.includes('shikakai') || otherCatLower.includes('hair');
+    const otherIsRoseWater = otherNameLower.includes('rose') || otherCatLower.includes('rose') || otherIngStr.includes('rose');
 
     // Henna + Indigo synergy (2-step natural black dye)
-    if (isHenna && (otherNameLower.includes('indigo') || other.id === 'prod-2')) {
+    if (isHenna && otherIsIndigo) {
       suggestions.push({
         id: `link_pair_${product.id}_${other.id}`,
         sourceProductId: product.id,
@@ -256,7 +268,7 @@ export function generateProductInternalLinks(
       });
     }
 
-    if (isIndigo && (otherNameLower.includes('henna') || other.id === 'prod-1')) {
+    if (isIndigo && otherIsHenna) {
       suggestions.push({
         id: `link_pair_${product.id}_${other.id}`,
         sourceProductId: product.id,
@@ -271,7 +283,7 @@ export function generateProductInternalLinks(
     }
 
     // Henna/Hair Pack + Rose Water synergy (Mixing liquid)
-    if ((isHenna || isHairPack) && (otherNameLower.includes('rose') || other.id === 'prod-5')) {
+    if ((isHenna || isHairPack) && otherIsRoseWater) {
       suggestions.push({
         id: `link_pair_${product.id}_${other.id}`,
         sourceProductId: product.id,
@@ -286,7 +298,7 @@ export function generateProductInternalLinks(
     }
 
     // Hair Pack + Henna synergy
-    if (isHairPack && otherNameLower.includes('henna') && !suggestions.some((s) => s.targetUrl.includes(other.slug))) {
+    if (isHairPack && otherIsHenna && !suggestions.some((s) => s.targetUrl.includes(other.slug))) {
       suggestions.push({
         id: `link_pair_${product.id}_${other.id}`,
         sourceProductId: product.id,

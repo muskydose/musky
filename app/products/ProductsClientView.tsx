@@ -490,6 +490,7 @@ export default function ProductsClientView({
                     >
                       <ProductCard
                         product={product}
+                        categories={categories}
                         whatsappNumber={activeWhatsAppNumber}
                         siteSettings={siteSettings}
                       />

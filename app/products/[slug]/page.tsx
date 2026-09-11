@@ -218,6 +218,7 @@ export default async function ProductDetailPage({
           brandName={siteSettings.brandName || 'Musky Dose'}
           faqItems={siteSettings.faqItems}
           relevantGuides={relevantGuides}
+          categoryName={matchedCategory?.name || product.categoryName}
         />
 
         {/* Related Products Section */}
@@ -236,6 +237,7 @@ export default async function ProductDetailPage({
                 <ProductCard
                   key={rel.id}
                   product={rel}
+                  categories={categories}
                   siteSettings={siteSettings}
                   whatsappNumber={getConfiguredWhatsAppNumber(siteSettings)}
                 />
