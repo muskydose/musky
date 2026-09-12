@@ -446,7 +446,7 @@ export default function ProductDetailClient({
               </span>
               {discountPercent > 0 && (
                 <span className="bg-[#c5a059] text-[#0f2d22] text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shadow-xs self-start">
-                  SAVE {discountPercent}%
+                  SAVE {formatPercent(discountPercent)}
                 </span>
               )}
             </div>

@@ -74,16 +74,16 @@ export function formatNumber(amount: number | null | undefined): string {
 /**
  * Canonical Percentage Formatter
  * Rules:
- * - Maximum 2 decimal places with standard numeric rounding
- * - Trims unnecessary trailing zeros (73.737373 -> 73.74%, 15.00 -> 15%, 15.5 -> 15.5%)
+ * - ALL DISPLAYED PERCENTAGES MUST BE ROUNDED TO THE NEAREST WHOLE NUMBER.
+ * - Standard nearest whole number rounding: Math.round(value)
+ * - Examples: 45.65% -> 46%, 45.45% -> 45%, 15.5% -> 16%, 15.49% -> 15%, 73.737373% -> 74%, 99.999% -> 100%
+ * - No decimal percentage output.
  * - Safe against null/undefined/NaN (returns 0%)
  */
-export function formatPercent(value: number | null | undefined, options?: { maxDecimals?: number }): string {
+export function formatPercent(value: number | null | undefined): string {
   const num = Number(value);
   if (isNaN(num)) return '0%';
-  const maxDecimals = options?.maxDecimals ?? 2;
-  const factor = Math.pow(10, maxDecimals);
-  const rounded = Math.round(num * factor) / factor;
+  const rounded = Math.round(num);
   return `${rounded}%`;
 }
 

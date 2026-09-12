@@ -3,6 +3,7 @@ import AdminLayout from '@/components/AdminLayout';
 import Link from 'next/link';
 import { Tag, AlertTriangle, TrendingUp, Info } from 'lucide-react';
 import { getCampaignAnalytics } from '@/lib/growth/analytics';
+import { formatPrice, formatPercent } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,11 +74,11 @@ export default async function GrowthCampaignsPage() {
                       <td className="p-3 font-bold text-[#0f2d22]">{c.name}</td>
                       <td className="p-3 font-mono font-bold text-[#1b4332]">{c.code || 'N/A'}</td>
                       <td className="p-3 text-gray-600">
-                        {c.discountType === 'PERCENTAGE' ? `${c.discountValue}% OFF` : `₹${c.discountValue} OFF`}
+                        {c.discountType === 'PERCENTAGE' ? `${formatPercent(c.discountValue)} OFF` : `${formatPrice(c.discountValue)} OFF`}
                       </td>
                       <td className="p-3 text-right font-bold text-[#0f2d22]">{c.ordersCount}</td>
-                      <td className="p-3 text-right font-extrabold text-[#1b4332]">₹{c.revenue.toLocaleString()}</td>
-                      <td className="p-3 text-right text-gray-700">₹{Math.round(c.avgOrderValue).toLocaleString()}</td>
+                      <td className="p-3 text-right font-extrabold text-[#1b4332]">{formatPrice(c.revenue)}</td>
+                      <td className="p-3 text-right text-gray-700">{formatPrice(c.avgOrderValue)}</td>
                       <td className="p-3">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-amber-50 text-amber-900 border border-amber-200">
                           <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
