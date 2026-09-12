@@ -319,9 +319,9 @@ export default function WholesaleInquiryForm({
   }
 
   return (
-    <div className="bg-white border border-[#e8e2d5] rounded-2xl p-6 sm:p-7 shadow-xs space-y-5">
+    <div className="bg-white border border-[#e8e2d5] rounded-2xl p-4 sm:p-7 shadow-xs space-y-5">
       {/* Form Header */}
-      <div className="border-b border-[#e8e2d5] pb-3.5 flex items-center justify-between">
+      <div className="border-b border-[#e8e2d5] pb-3.5">
         <div>
           <h3 className="font-momo-display text-xl sm:text-2xl font-normal text-[#0f2d22]">
             Get Your Factory Quote
@@ -329,17 +329,6 @@ export default function WholesaleInquiryForm({
           <p className="text-xs text-[#626c66] mt-0.5">
             Tell us what you need and we’ll prepare your commercial enquiry.
           </p>
-        </div>
-
-        {/* Step Indicator */}
-        <div className="flex items-center gap-1 text-[11px] font-bold text-[#88908a]">
-          <span className={`px-2.5 py-0.5 rounded-full ${step === 1 ? 'bg-[#1b4332] text-[#c5a059]' : 'bg-[#FAF8F5]'}`}>
-            Step 1
-          </span>
-          <span>/</span>
-          <span className={`px-2.5 py-0.5 rounded-full ${step === 2 ? 'bg-[#1b4332] text-[#c5a059]' : 'bg-[#FAF8F5]'}`}>
-            Step 2
-          </span>
         </div>
       </div>
 

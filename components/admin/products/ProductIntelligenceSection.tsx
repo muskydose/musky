@@ -323,7 +323,7 @@ export default function ProductIntelligenceSection({
             <div className="space-y-1">
               <p className="font-bold">Strict Attribute Governance Policy:</p>
               <p className="text-blue-800">
-                Only select an attribute when you have verified business or production evidence (e.g. milling records, lab COA, or license). Normal commercial text in product titles is strictly separated from verified attributes.
+                Only select an attribute when you have verified business or production evidence (e.g. processing records, lab COA, or license). Normal commercial text in product titles is strictly separated from verified attributes.
               </p>
             </div>
           </div>

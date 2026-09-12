@@ -123,7 +123,7 @@ export function generateProductOmnichannelLaunch(
 
   // WhatsApp Broadcast & Response Drafts
   const waPromotional = `Namaste! 🌿 Discover fresh harvest *${product.name}* direct from our Sojat unit. 100% pure, chemical-free triple-sifted powder for ₹${product.price}. Reply *ORDER* to get instant dispatch details!`;
-  const waWholesale = `Namaste! Special B2B wholesale rate card available for *${product.name}* (25kg - 500kg commercial lots). Direct mill dispatch with GST invoice & lab certificate. Reply *QUOTE* with your requirement volume.`;
+  const waWholesale = `Namaste! Special B2B wholesale rate card available for *${product.name}* (25kg - 500kg commercial lots). Direct factory dispatch with GST invoice & lab certificate. Reply *QUOTE* with your requirement volume.`;
   const waArtist = `Namaste Bridal Artist! Inquiring about our 5-sieve micro-filtered *${product.name}* for deep burgundy color release? Reply *ARTIST* for professional salon pricing.`;
 
   // Google Business Post

@@ -2,8 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Product } from '@/lib/types';
-import { resolveProductWholesaleUnits, calculateProductBaseWholesaleRate } from '@/lib/wholesale-units';
-import { formatPrice, sanitizeImageUrl } from '@/lib/utils';
+import { sanitizeImageUrl } from '@/lib/utils';
 import { Search, CheckCircle2, Package, Layers } from 'lucide-react';
 
 interface ProductCardPickerProps {
@@ -71,7 +70,7 @@ export default function ProductCardPicker({
           </span>
         </label>
 
-        <div className="relative min-w-[200px]">
+        <div className="relative w-full sm:w-auto sm:min-w-[200px]">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#88908a]" />
           <input
             type="text"
@@ -116,10 +115,6 @@ export default function ProductCardPicker({
         >
           {filteredProducts.map((p) => {
             const isSelected = selectedProduct?.id === p.id;
-            const unitInfo = resolveProductWholesaleUnits(p);
-            const unitLabel = unitInfo.wholesaleUnit;
-            const baseWholesaleRate = calculateProductBaseWholesaleRate(p, unitInfo);
-            const packSize = p.quantityOrWeight || `${unitInfo.packQuantity}${unitInfo.packUnit}`;
             const rawImg = p.images?.[0] || p.media?.find((m) => m.type === 'image')?.url || null;
             const imgUrl = rawImg ? sanitizeImageUrl(rawImg) : null;
 
@@ -130,7 +125,7 @@ export default function ProductCardPicker({
                 role="radio"
                 aria-checked={isSelected}
                 onClick={() => onSelectProduct(p)}
-                className={`p-2.5 rounded-xl border text-left transition-all relative flex flex-col justify-between cursor-pointer min-h-[114px] ${
+                className={`p-2.5 rounded-xl border text-left transition-all relative flex flex-col justify-center cursor-pointer min-h-[76px] ${
                   isSelected
                     ? 'border-[#1b4332] bg-[#f4f7f4] ring-2 ring-[#1b4332]/40 shadow-xs'
                     : 'border-[#e8e2d5] bg-white hover:border-[#b2c8be] hover:bg-[#fafaf7]'
@@ -168,20 +163,6 @@ export default function ProductCardPicker({
                     <div className="text-xs font-semibold text-[#0f2d22] line-clamp-2 leading-tight">
                       {p.name}
                     </div>
-                  </div>
-                </div>
-
-                {/* Pricing & Unit Info */}
-                <div className="mt-2 pt-1.5 border-t border-[#e8e2d5]/60 flex flex-col gap-0.5 text-[11px] w-full">
-                  <div className="flex items-center justify-between text-[#626c66]">
-                    <span>Pack:</span>
-                    <span className="font-medium text-[#1f2421]">
-                      {formatPrice(p.price)} <span className="text-[10px] text-[#88908a]">({packSize})</span>
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-[#1b4332]">
-                    <span className="font-medium">Wholesale:</span>
-                    <span className="font-bold">{formatPrice(baseWholesaleRate)}/{unitLabel}</span>
                   </div>
                 </div>
               </button>

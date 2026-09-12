@@ -94,7 +94,7 @@ export default async function FactoryPage() {
                   <span className="w-6 h-6 rounded-full bg-[#1b4332] text-white flex items-center justify-center text-xs">2</span>
                   <span>{siteSettings.factoryStep2Title || 'Micro Pulverization'}</span>
                 </div>
-                <p className="text-xs text-[#626c66]">{siteSettings.factoryStep2Description || 'Heavy-duty food-grade stainless steel mills grind leaves into uniform fine particles without heat buildup.'}</p>
+                <p className="text-xs text-[#626c66]">{siteSettings.factoryStep2Description || 'Heavy-duty food-grade stainless steel pulverizers grind leaves into uniform fine particles without heat buildup.'}</p>
               </StaggerItem>
 
               <StaggerItem className="p-4 rounded-xl bg-[#f5f1e8] space-y-2 border border-[#e8e2d5] hover:shadow-md transition-shadow">
@@ -102,7 +102,7 @@ export default async function FactoryPage() {
                   <span className="w-6 h-6 rounded-full bg-[#1b4332] text-white flex items-center justify-center text-xs">3</span>
                   <span>{siteSettings.factoryStep3Title || 'Ultra-Fine Cloth Sifting'}</span>
                 </div>
-                <p className="text-xs text-[#626c66]">{siteSettings.factoryStep3Description || 'Milled powder passes ultra-fine micro cloth filters to eliminate any stem fibers or coarse residue.'}</p>
+                <p className="text-xs text-[#626c66]">{siteSettings.factoryStep3Description || 'Pulverized powder passes ultra-fine micro cloth filters to eliminate any stem fibers or coarse residue.'}</p>
               </StaggerItem>
 
               <StaggerItem className="p-4 rounded-xl bg-[#f5f1e8] space-y-2 border border-[#e8e2d5] hover:shadow-md transition-shadow">

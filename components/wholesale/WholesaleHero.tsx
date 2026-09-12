@@ -49,10 +49,10 @@ export default function WholesaleHero({
 
       <div className="max-w-4xl mx-auto relative z-10 text-center space-y-4">
         {/* Origin Badge */}
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#1b4332]/90 text-[#c5a059] border border-[#2d6a4f] text-[11px] font-bold uppercase tracking-wider shadow-xs">
-          <MapPin className="w-3.5 h-3.5 text-[#c5a059]" />
+        <div className="inline-flex items-center justify-center flex-wrap gap-1.5 px-3 py-1.5 rounded-full bg-[#1b4332]/90 text-[#c5a059] border border-[#2d6a4f] text-[10px] sm:text-[11px] font-bold uppercase tracking-wider shadow-xs max-w-full">
+          <MapPin className="w-3.5 h-3.5 text-[#c5a059] shrink-0" />
           <span>Sojat Factory Direct Operation • Pincode: 306104</span>
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
         </div>
 
         {/* Primary High-Impact B2B Headline */}
@@ -67,7 +67,7 @@ export default function WholesaleHero({
 
         {/* Supporting Copy */}
         <p className="text-xs sm:text-sm text-[#b2c8be] max-w-2xl mx-auto leading-relaxed">
-          Wholesale botanical supply from our Sojat, Rajasthan operation for salons, mehndi professionals, resellers and bulk buyers. Fresh batch milling with verified B2B freight dispatch pan-India.
+          Wholesale botanical supply from our Sojat, Rajasthan operation for salons, mehndi professionals, resellers and bulk buyers. Fresh batch processing with verified B2B freight dispatch pan-India.
         </p>
 
         {/* Dual Primary & Secondary CTAs */}
@@ -100,11 +100,11 @@ export default function WholesaleHero({
         <div className="pt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-left max-w-3xl mx-auto text-[11px] text-[#b2c8be]">
           <div className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1.5 rounded-lg border border-white/10">
             <ShieldCheck className="w-3.5 h-3.5 text-[#c5a059] shrink-0" />
-            <span className="truncate">100% Pure Botanicals</span>
+            <span className="truncate">Sojat Factory</span>
           </div>
           <div className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1.5 rounded-lg border border-white/10">
             <Building2 className="w-3.5 h-3.5 text-[#c5a059] shrink-0" />
-            <span className="truncate">Direct Mill Rates</span>
+            <span className="truncate">Direct Factory Rates</span>
           </div>
           <div className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1.5 rounded-lg border border-white/10">
             <Truck className="w-3.5 h-3.5 text-[#c5a059] shrink-0" />

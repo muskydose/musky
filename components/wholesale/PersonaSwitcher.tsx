@@ -65,7 +65,7 @@ export default function PersonaSwitcher({
       <div
         role="tablist"
         aria-label="Buyer Persona Selection"
-        className="p-1 bg-[#0b241b]/80 border border-[#2d6a4f]/60 rounded-2xl flex items-center gap-1.5 backdrop-blur-sm"
+        className="p-1.5 bg-[#0b241b]/80 border border-[#2d6a4f]/60 rounded-2xl grid grid-cols-1 sm:grid-cols-3 gap-1.5 backdrop-blur-sm"
       >
         {personas.map((pKey) => {
           const cfg = PERSONA_CONFIGS[pKey];
@@ -81,14 +81,14 @@ export default function PersonaSwitcher({
               aria-controls={`persona-panel-${cfg.id}`}
               id={`persona-tab-${cfg.id}`}
               onClick={() => onPersonaChange(cfg.id)}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 cursor-pointer min-h-[44px] ${
+              className={`w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 cursor-pointer min-h-[44px] ${
                 isActive
                   ? 'bg-[#c5a059] text-[#0f2d22] shadow-md font-bold'
                   : 'text-[#b2c8be] hover:text-white hover:bg-white/5'
               }`}
             >
               <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#0f2d22]' : 'text-[#c5a059]'}`} />
-              <span className="truncate">{cfg.label}</span>
+              <span className="truncate sm:whitespace-nowrap">{cfg.label}</span>
             </button>
           );
         })}

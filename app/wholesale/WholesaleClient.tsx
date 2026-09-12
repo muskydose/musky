@@ -223,7 +223,7 @@ Please provide commercial terms and dispatch schedule. Thank you!`;
             </div>
           </section>
 
-          {/* 6. Why Source Direct From Sojat Mills? (5 Manufacturer Advantages) */}
+          {/* 6. Why Source Direct From Our Sojat Factory? (5 Manufacturer Advantages) */}
           <WhyBuyDirectStrip />
 
           {/* 7. Universal Commercial Specifications */}

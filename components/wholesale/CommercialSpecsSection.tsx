@@ -14,7 +14,7 @@ export default function CommercialSpecsSection() {
               Commercial Standards & Logistics
             </span>
             <h2 id="specs-heading" className="font-momo-display text-xl sm:text-2xl font-normal text-[#0f2d22] mt-0.5">
-              Direct Mill Supply Standards & Specifications
+              Direct Factory Supply Standards & Specifications
             </h2>
             <p className="text-xs text-[#626c66] mt-1 max-w-2xl leading-relaxed">
               Factory processing and commercial dispatch from Sojat City, Rajasthan. We supply natural botanical powders, cold-pressed plant extracts, and ready applicators in standardized B2B trade formats.

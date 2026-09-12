@@ -50,7 +50,7 @@ export default function SmartMobileCtaBar({
     <div
       role="complementary"
       aria-label="Mobile quick quotation actions"
-      className="fixed bottom-0 left-0 right-0 z-40 p-2.5 bg-[#0f2d22]/95 backdrop-blur-md border-t border-[#2d6a4f] shadow-lg md:hidden transition-transform duration-300 pb-[max(0.625rem,env(safe-area-inset-bottom))]"
+      className="fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] left-0 right-0 z-40 p-2.5 bg-[#0f2d22]/95 backdrop-blur-md border-t border-[#2d6a4f] shadow-lg md:hidden transition-transform duration-300"
     >
       <div className="flex items-center gap-2 max-w-md mx-auto">
         <button

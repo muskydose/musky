@@ -3,7 +3,7 @@
 import React from 'react';
 import { formatPrice, formatPercent } from '@/lib/utils';
 import { CanonicalWholesaleResolution } from '@/lib/wholesale-pricing-resolver';
-import { TrendingDown, ShieldCheck, ArrowDownCircle, MessageCircle, AlertCircle, Sparkles } from 'lucide-react';
+import { TrendingDown, ShieldCheck, ArrowDownCircle, MessageCircle, AlertCircle, Sparkles, Minus, Plus } from 'lucide-react';
 
 interface CommercialEstimateCardProps {
   pricingResult: CanonicalWholesaleResolution;
@@ -15,6 +15,8 @@ interface CommercialEstimateCardProps {
   onApplyToForm: () => void;
   onDirectWhatsApp: () => void;
   ctaLabel?: string;
+  onQuantityChange?: (qty: number) => void;
+  presetQuantities?: number[];
 }
 
 export default function CommercialEstimateCard({
@@ -26,6 +28,8 @@ export default function CommercialEstimateCard({
   onApplyToForm,
   onDirectWhatsApp,
   ctaLabel = 'Lock Estimate & Populate Form Below ↓',
+  onQuantityChange,
+  presetQuantities,
 }: CommercialEstimateCardProps) {
   const {
     baseWholesaleRate,
@@ -43,10 +47,30 @@ export default function CommercialEstimateCard({
   const isCustomQuote = status === 'CUSTOM_QUOTE';
   const isBelowMoq = quantity < minWholesaleQuantity;
 
+  const handleDecrement = () => {
+    if (!onQuantityChange) return;
+    onQuantityChange(Math.max(1, quantity - 1));
+  };
+
+  const handleIncrement = () => {
+    if (!onQuantityChange) return;
+    onQuantityChange(quantity + 1);
+  };
+
+  const handleManualInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!onQuantityChange) return;
+    const val = parseInt(e.target.value, 10);
+    if (isNaN(val)) {
+      onQuantityChange(1);
+    } else {
+      onQuantityChange(Math.max(1, val));
+    }
+  };
+
   return (
     <div
       aria-live="polite"
-      className="bg-white border-2 border-[#1b4332]/20 rounded-2xl p-5 sm:p-6 shadow-md space-y-4 relative overflow-hidden"
+      className="bg-white border-2 border-[#1b4332]/20 rounded-2xl p-4 sm:p-6 shadow-md space-y-4 relative overflow-hidden"
     >
       {/* Decorative top accent strip */}
       <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#1b4332] via-[#c5a059] to-[#1b4332]" />
@@ -96,6 +120,86 @@ export default function CommercialEstimateCard({
           </span>
         </div>
       </div>
+
+      {/* Interactive Order Volume Selection */}
+      {onQuantityChange && (
+        <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#e8e2d5] space-y-2">
+          <div className="flex items-center justify-between text-[11px]">
+            <label htmlFor="estimate-qty-input" className="font-bold text-[#0f2d22] uppercase tracking-wider">
+              Order Volume
+            </label>
+            <span className="text-[#626c66] font-medium">
+              Packaging Unit: <strong className="text-[#0f2d22]">{unit}</strong>
+            </span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            {/* Stepper Controls */}
+            <div className="inline-flex items-center justify-between rounded-lg border border-[#e8e2d5] bg-white p-0.5 shadow-2xs shrink-0">
+              <button
+                type="button"
+                onClick={handleDecrement}
+                disabled={quantity <= 1}
+                aria-label={`Decrease volume by 1 ${unit}`}
+                className="w-8 h-8 rounded flex items-center justify-center text-[#0f2d22] hover:bg-[#FAF8F5] disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
+              >
+                <Minus className="w-3.5 h-3.5" />
+              </button>
+
+              <div className="flex items-center justify-center px-1.5">
+                <input
+                  id="estimate-qty-input"
+                  type="number"
+                  min={1}
+                  value={quantity}
+                  onChange={handleManualInput}
+                  aria-label={`Order quantity in ${unit}`}
+                  className="w-14 text-center font-mono font-bold text-sm text-[#0f2d22] bg-transparent focus:outline-none"
+                />
+                <span className="text-xs font-semibold text-[#626c66] ml-0.5 select-none">
+                  {unit}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleIncrement}
+                aria-label={`Increase volume by 1 ${unit}`}
+                className="w-8 h-8 rounded flex items-center justify-center text-[#0f2d22] hover:bg-[#FAF8F5] transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Quick Presets */}
+            {presetQuantities && presetQuantities.length > 0 && (
+              <div
+                role="group"
+                aria-label="Quick volume presets"
+                className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:pb-0 scrollbar-none flex-1"
+              >
+                {presetQuantities.map((preset) => {
+                  const isSelected = quantity === preset;
+                  return (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => onQuantityChange(preset)}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-mono font-bold transition-all min-h-[34px] shrink-0 cursor-pointer ${
+                        isSelected
+                          ? 'bg-[#1b4332] text-[#c5a059] shadow-xs ring-1 ring-[#1b4332]'
+                          : 'bg-white text-[#0f2d22] border border-[#e8e2d5] hover:bg-gray-50'
+                      }`}
+                    >
+                      {preset} {unit}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Centerpiece Rate Display */}
       <div className="bg-[#FAF8F5] border border-[#e8e2d5] rounded-xl p-4 space-y-2 text-center relative">
@@ -159,7 +263,7 @@ export default function CommercialEstimateCard({
         <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] leading-relaxed flex items-start gap-2">
           <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
           <span>
-            <strong>Dedicated High-Volume Tier:</strong> For orders exceeding standard volume tiers, our Sojat mill desk provides mandi-linked commercial freight terms.
+            <strong>Dedicated High-Volume Tier:</strong> For orders exceeding standard volume tiers, our Sojat factory desk provides mandi-linked commercial freight terms.
           </span>
         </div>
       )}

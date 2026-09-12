@@ -64,7 +64,7 @@ export const INITIAL_BUSINESS_CONTENT: BusinessContentItem[] = [
     title: 'ISO 9001:2015 Quality Management Certificate',
     slug: 'iso-9001-2015-quality-certificate',
     type: 'CERTIFICATE',
-    shortDescription: 'Internationally recognized Quality Management System certification for harvesting, milling, micro-sifting, and packaging Sojat Henna.',
+    shortDescription: 'Internationally recognized Quality Management System certification for harvesting, processing, micro-sifting, and packaging Sojat Henna.',
     longDescription: 'ISO 9001:2015 standard verification certifying that our Sojat manufacturing and quality control processes adhere to strict international quality standards.',
     fileUrl: '',
     thumbnailUrl: '/images/fallback.svg',
@@ -294,7 +294,7 @@ export const DEFAULT_HOMEPAGE_VIDEO: HomepageVideoConfig = {
 export const DEFAULT_ANNOUNCEMENTS: AnnouncementItem[] = [
   {
     id: 'ann-1',
-    text: 'Direct Farm Dispatch from Sojat, Rajasthan • 100% Pure Lawsonia Inermis',
+    text: 'Direct Farm Dispatch from Sojat, Rajasthan • Authentic Lawsonia Inermis',
     link: '/about',
     enabled: true,
     sortOrder: 1,
@@ -830,9 +830,9 @@ export const INITIAL_SITE_SETTINGS: SiteSettings = {
   factoryStep1Title: 'Solar Shade Drying',
   factoryStep1Description: 'Leaves are shade-dried under controlled solar chambers to protect chlorophyll and lawsone pigments from degradation.',
   factoryStep2Title: 'Micro Pulverization',
-  factoryStep2Description: 'Heavy-duty food-grade stainless steel mills grind leaves into uniform fine particles without heat buildup.',
+  factoryStep2Description: 'Heavy-duty food-grade stainless steel pulverizers grind leaves into uniform fine particles without heat buildup.',
   factoryStep3Title: 'Ultra-Fine Cloth Sifting',
-  factoryStep3Description: 'Milled powder passes ultra-fine micro cloth filters to eliminate any stem fibers or coarse residue.',
+  factoryStep3Description: 'Pulverized powder passes ultra-fine micro cloth filters to eliminate any stem fibers or coarse residue.',
   factoryStep4Title: 'Vacuum Pouch Sealing',
   factoryStep4Description: 'Packed in nitrogen-flushed, multi-layer aluminum barrier pouches to prevent moisture ingress and oxidation.',
 

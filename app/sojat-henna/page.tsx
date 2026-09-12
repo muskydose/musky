@@ -152,7 +152,7 @@ export default async function SojatHennaPillarPage() {
             name: 'How is authentic Sojat henna powder processed?',
             acceptedAnswer: {
               '@type': 'Answer',
-              text: 'Mature henna leaves are harvested in autumn, solar shade-dried to preserve pigment, pulverized in mechanical stone mills, and cloth-sifted up to three times to produce an ultra-fine, silky powder.',
+              text: 'Mature henna leaves are harvested in autumn, solar shade-dried to preserve pigment, pulverized in mechanical stone pulverizers, and cloth-sifted up to three times to produce an ultra-fine, silky powder.',
             },
           },
           {
@@ -160,7 +160,7 @@ export default async function SojatHennaPillarPage() {
             name: 'What is the difference between hair-grade henna and BAQ bridal henna?',
             acceptedAnswer: {
               '@type': 'Answer',
-              text: 'Hair-grade henna is finely milled for hair pack blending and conditioning. Body Art Quality (BAQ) henna is micro-cloth-sifted to remove all plant fiber, ensuring smooth flow through fine cone nozzles without clogging.',
+              text: 'Hair-grade henna is finely ground for hair pack blending and conditioning. Body Art Quality (BAQ) henna is micro-cloth-sifted to remove all plant fiber, ensuring smooth flow through fine cone nozzles without clogging.',
             },
           },
           {
@@ -284,7 +284,7 @@ export default async function SojatHennaPillarPage() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
             <div className="text-center max-w-2xl mx-auto space-y-2">
               <span className="text-xs font-bold text-[#c5a059] uppercase tracking-wider">
-                Harvesting & Milling Precision
+                Harvesting & Processing Precision
               </span>
               <h2 className="font-momo-display text-2xl sm:text-3xl text-[#0f2d22]">
                 From Sun-Dried Leaf to Silk-Smooth Powder
@@ -337,7 +337,7 @@ export default async function SojatHennaPillarPage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-3 border-b border-[#e8e2d5] pb-4">
             <div>
               <span className="text-xs font-bold text-[#c5a059] uppercase tracking-wider block">
-                Direct From Mill
+                Direct From Factory
               </span>
               <h2 className="font-momo-display text-2xl sm:text-3xl text-[#0f2d22] mt-1">
                 Authentic Sojat Henna Formulations
@@ -488,7 +488,7 @@ export default async function SojatHennaPillarPage() {
               </h3>
               <p className="text-gray-600 leading-relaxed">
                 All commercial and wholesale consignments are packaged in moisture-barrier HDPE liners and dispatched 
-                directly from our Sojat mill with pan-India road freight or express air cargo options.
+                directly from our Sojat factory with pan-India road freight or express air cargo options.
               </p>
             </div>
           </div>

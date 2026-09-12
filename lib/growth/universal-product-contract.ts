@@ -60,7 +60,7 @@ export type AudienceType =
 export type AttributeVerificationSource =
   | 'ADMIN_EXPLICIT'     // Admin explicitly checked/confirmed the attribute in Admin UI
   | 'LAB_CERTIFICATE'     // Backed by a verified Certificate of Analysis (COA) / Lab test document
-  | 'BATCH_SPECIFICATION' // Stored in confirmed batch production/milling record
+  | 'BATCH_SPECIFICATION' // Stored in confirmed batch production/processing record
   | 'LEGAL_REGISTRATION'; // Licensed certification (e.g. Ayush license, Organic NPOP)
 
 export type VerifiedAttributeSlug =

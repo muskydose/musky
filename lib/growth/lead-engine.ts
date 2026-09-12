@@ -712,7 +712,7 @@ export function getLeadFollowUpRecommendation(lead: LeadRecord): LeadFollowUpRec
         priority: 'HIGH',
         channel: 'WHATSAPP',
         reason: 'Prior customer detected with high probability of repeat batch replenishment.',
-        suggestedMessage: `Namaste ${lead.name}, checking in from Musky Dose Sojat. We are scheduling our upcoming harvest milling and wanted to ensure your studio/store has adequate ${prodName} stock before the rush. Shall we reserve your usual batch?`,
+        suggestedMessage: `Namaste ${lead.name}, checking in from Musky Dose Sojat. We are scheduling our upcoming harvest processing and wanted to ensure your studio/store has adequate ${prodName} stock before the rush. Shall we reserve your usual batch?`,
       };
 
     case 'NURTURE':

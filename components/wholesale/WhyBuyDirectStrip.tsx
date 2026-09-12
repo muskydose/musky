@@ -7,7 +7,7 @@ export default function WhyBuyDirectStrip() {
   const benefits = [
     {
       title: 'Direct Factory Origin',
-      desc: 'Processed directly at our Sojat City mill in Rajasthan (Pincode: 306104).',
+      desc: 'Processed directly at our Sojat City factory in Rajasthan (Pincode: 306104).',
       icon: Factory,
     },
     {
@@ -40,7 +40,7 @@ export default function WhyBuyDirectStrip() {
             Manufacturer Advantage
           </span>
           <h2 id="why-buy-direct-heading" className="font-momo-display text-xl sm:text-2xl font-normal text-[#0f2d22]">
-            Why Source Direct From Sojat Mills?
+            Why Source Direct From Our Sojat Factory?
           </h2>
           <p className="text-xs text-[#626c66] leading-relaxed">
             Eliminate middleman markups and secure fresh batch consistency direct from the global capital of natural henna.

@@ -68,7 +68,7 @@ export default function Footer({ siteSettings: initialSettings }: FooterProps) {
             </p>
             <div className="pt-1 flex items-center gap-2 text-xs text-[#c5a059] font-medium">
               <ShieldCheck className="w-4 h-4 shrink-0 text-[#c5a059]" />
-              <span>100% Pure Lawsonia Inermis & Herbal Care</span>
+              <span>Authentic Sojat Lawsonia Inermis & Botanical Care</span>
             </div>
 
             {/* Social Links */}

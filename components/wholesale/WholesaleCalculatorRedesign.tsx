@@ -7,7 +7,7 @@ import { resolveCanonicalWholesalePricing } from '@/lib/wholesale-pricing-resolv
 import { trackWholesaleInquiryStarted } from '@/lib/analytics';
 import { BuyerPersona, PERSONA_CONFIGS } from './PersonaSwitcher';
 import ProductCardPicker from './ProductCardPicker';
-import QuantityStepper from './QuantityStepper';
+import WholesaleTierSelector from './WholesaleTierSelector';
 import CommercialEstimateCard from './CommercialEstimateCard';
 import { Calculator } from 'lucide-react';
 
@@ -79,8 +79,6 @@ export default function WholesaleCalculatorRedesign({
     if (!selectedProduct) return null;
     return resolveProductWholesaleUnits(selectedProduct);
   }, [selectedProduct]);
-
-  const unitLabel = unitInfo?.wholesaleUnit || 'kg';
 
   // Persona-aware preset quantities
   const presetQuantities = useMemo(() => {
@@ -180,9 +178,8 @@ export default function WholesaleCalculatorRedesign({
 
       {/* Two-Column Responsive Calculator Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Left Column: Product Selection & Quantity Controls (7 Cols) */}
-        <div className="lg:col-span-7 bg-white border border-[#e8e2d5] rounded-2xl p-5 shadow-2xs space-y-5">
-          {/* Step 1: Product Selection */}
+        {/* Left Column: Product Selection & Direct Bulk Buy Slabs (7 Cols) */}
+        <div className="lg:col-span-7 bg-white border border-[#e8e2d5] rounded-2xl p-4 sm:p-6 shadow-2xs space-y-5">
           <ProductCardPicker
             products={products}
             selectedProduct={selectedProduct}
@@ -192,14 +189,13 @@ export default function WholesaleCalculatorRedesign({
 
           <hr className="border-[#e8e2d5]" />
 
-          {/* Step 2: Quantity Controls */}
-          <QuantityStepper
-            quantity={quantity}
-            unitLabel={unitLabel}
-            presetQuantities={presetQuantities}
-            onChange={(q) => setQuantity(q)}
-            min={1}
-            step={1}
+          {/* Direct Bulk Buy Wholesale Tier Slabs */}
+          <WholesaleTierSelector
+            product={selectedProduct}
+            pricingRules={pricingRules}
+            activePersona={activePersona}
+            selectedQuantity={quantity}
+            onSelectQuantity={(q) => setQuantity(q)}
           />
         </div>
 
@@ -214,17 +210,19 @@ export default function WholesaleCalculatorRedesign({
             onApplyToForm={handleApplyToForm}
             onDirectWhatsApp={handleWhatsAppQuote}
             ctaLabel={personaConfig?.ctaLabel || 'Lock Estimate & Populate Form Below ↓'}
+            onQuantityChange={setQuantity}
+            presetQuantities={presetQuantities}
           />
 
           {/* Compact Commercial Confidence Card */}
           <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#e8e2d5] text-[11px] text-[#626c66] space-y-1.5 shadow-2xs">
             <div className="text-[10px] font-bold text-[#0f2d22] uppercase tracking-wider flex items-center justify-between">
               <span>Factory Direct Supply Signals</span>
-              <span className="text-emerald-700 font-extrabold font-mono">100% Verified</span>
+              <span className="text-emerald-700 font-extrabold font-mono">Factory Verified</span>
             </div>
             <div className="grid grid-cols-2 gap-1.5 text-[10px] pt-1 border-t border-[#e8e2d5]/60">
               <span className="flex items-center gap-1 text-[#0f2d22]">
-                ✓ Sojat Mill Origin
+                ✓ Sojat Factory Origin
               </span>
               <span className="flex items-center gap-1 text-[#0f2d22]">
                 ✓ B2B GST Invoicing

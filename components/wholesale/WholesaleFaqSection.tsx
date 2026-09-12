@@ -45,7 +45,7 @@ export default function WholesaleFaqSection() {
 
   return (
     <section id="wholesale-faq" aria-labelledby="faq-heading" className="space-y-4">
-      <div className="bg-white rounded-2xl border border-[#e8e2d5] p-6 sm:p-7 space-y-5 shadow-2xs">
+      <div className="bg-white rounded-2xl border border-[#e8e2d5] p-4 sm:p-7 space-y-5 shadow-2xs">
         <div className="border-b border-[#e8e2d5] pb-3">
           <div className="flex items-center gap-2">
             <HelpCircle className="w-5 h-5 text-[#c5a059]" />
@@ -54,7 +54,7 @@ export default function WholesaleFaqSection() {
             </h2>
           </div>
           <p className="text-xs text-[#626c66] mt-0.5">
-            Key operational details on minimum order quantities, Sojat milling origin, and pan-India commercial logistics.
+            Key operational details on minimum order quantities, Sojat factory origin, and pan-India commercial logistics.
           </p>
         </div>
 

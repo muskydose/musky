@@ -334,7 +334,7 @@ export function generateActionRecord(
         recommendedRestockUnits: 50,
         warehouse: 'Sojat Processing Unit, Pali, Rajasthan',
       };
-      markdownContent = `### Inventory Replenishment Order\n\n- **Product**: ${product?.name || opportunity.productName}\n- **Recommended Batch**: 50 Units (250g packs)\n- **Origin Mill**: Sojat Processing Unit, Rajasthan\n- **Target Stock Status**: In Stock`;
+      markdownContent = `### Inventory Replenishment Order\n\n- **Product**: ${product?.name || opportunity.productName}\n- **Recommended Batch**: 50 Units (250g packs)\n- **Origin Factory**: Sojat Processing Unit, Rajasthan\n- **Target Stock Status**: In Stock`;
       draftText = markdownContent;
       copyableText = markdownContent;
       break;
