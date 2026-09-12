@@ -145,14 +145,20 @@ export default function WholesaleClient({
     estimatedTotal: number;
     effectivePricePerUnit: number;
     pricingUnit: string;
+    savingsAmount?: number;
+    savingsPercent?: number;
   }) => {
     const destNum = getConfiguredWhatsAppNumber(siteSettings);
+    const savingsLine =
+      data.savingsAmount && data.savingsAmount > 0
+        ? `\nEstimated Savings: ~₹${Math.round(data.savingsAmount)} (${Math.round(data.savingsPercent || 0)}% OFF)`
+        : '';
     const text = `MUSKY DOSE WHOLESALE / BULK ESTIMATE
 
 Product: ${data.productName}
 Quantity: ${data.quantity} ${data.quantityUnit}
 Estimated Rate: ₹${Math.round(data.effectivePricePerUnit)}/${data.quantityUnit || data.pricingUnit}
-Estimated Total: ~₹${Math.round(data.estimatedTotal)}
+Estimated Total: ~₹${Math.round(data.estimatedTotal)}${savingsLine}
 
 Please provide commercial terms and dispatch schedule. Thank you!`;
 

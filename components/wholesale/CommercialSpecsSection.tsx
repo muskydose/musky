@@ -45,7 +45,7 @@ export default function CommercialSpecsSection() {
                 <strong className="text-[#0f2d22]">Body Art Quality (BAQ):</strong> Micro-sifted for smooth, clog-free cone and applicator flow.
               </li>
               <li>
-                <strong className="text-[#0f2d22]">Pure Botanical Extracts:</strong> Cold-pressed oils and steam-distilled hydrosols without adulterants.
+                <strong className="text-[#0f2d22]">Botanical Extracts:</strong> Cold-pressed plant oils and steam-distilled botanical hydrosols.
               </li>
             </ul>
           </div>

@@ -36,6 +36,8 @@ interface WholesaleCalculatorRedesignProps {
     estimatedTotal: number;
     effectivePricePerUnit: number;
     pricingUnit: string;
+    savingsAmount?: number;
+    savingsPercent?: number;
   }) => void;
 }
 
@@ -140,6 +142,8 @@ export default function WholesaleCalculatorRedesign({
       estimatedTotal: pricingResult.effectiveTotal,
       effectivePricePerUnit: pricingResult.effectiveWholesaleRate,
       pricingUnit: pricingResult.unit,
+      savingsAmount: pricingResult.savingsAmount,
+      savingsPercent: pricingResult.savingsPercent,
     });
   };
 

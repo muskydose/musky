@@ -322,10 +322,12 @@ export function generateWholesaleWhatsAppMessage(
     productsRequired: string;
     approxQuantity: string;
     notes?: string;
+    referenceId?: string;
   },
   customTemplate?: string
 ): string {
   const businessTypeLine = enquiry.businessType ? `Business Type: ${enquiry.businessType}\n` : '';
+  const refLine = enquiry.referenceId ? `Enquiry Reference: ${enquiry.referenceId}\n` : '';
 
   if (customTemplate && customTemplate.trim()) {
     const vars: Record<string, string | number> = {
@@ -345,13 +347,17 @@ export function generateWholesaleWhatsAppMessage(
       quantity: enquiry.approxQuantity,
       approxQuantity: enquiry.approxQuantity,
       notes: enquiry.notes || 'None',
+      referenceId: enquiry.referenceId || 'N/A',
+      reference_id: enquiry.referenceId || 'N/A',
+      enquiryId: enquiry.referenceId || 'N/A',
+      enquiry_id: enquiry.referenceId || 'N/A',
     };
     return renderWhatsAppTemplate(customTemplate, vars);
   }
 
   return `MUSKY DOSE WHOLESALE / BULK ENQUIRY
 
-Name: ${enquiry.customerName}
+${refLine}Name: ${enquiry.customerName}
 Business Name: ${enquiry.businessName || 'N/A'}
 ${businessTypeLine}Phone: ${enquiry.phone}
 WhatsApp: ${enquiry.whatsapp || enquiry.phone}

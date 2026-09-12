@@ -49,7 +49,6 @@ export function mapWholesaleEnquiryToRow(e: WholesaleEnquiry) {
     quantity: e.approxQuantity,
     requested_quantity: e.approxQuantity,
     enquiry_type: e.enquiryType || 'wholesale',
-    buyer_type: e.buyerType || null,
     notes: e.notes || null,
     status: e.status,
     created_at: e.createdAt,

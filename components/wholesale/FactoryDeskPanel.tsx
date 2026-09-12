@@ -48,9 +48,9 @@ export default function FactoryDeskPanel({ siteSettings }: FactoryDeskPanelProps
         <div className="flex items-start gap-3">
           <ShieldCheck className="w-4 h-4 text-[#c5a059] shrink-0 mt-0.5" />
           <div>
-            <strong className="text-white">Botanical Purity Standard:</strong>
+            <strong className="text-white">Botanical Processing:</strong>
             <div className="text-[#b2c8be] text-[11px]">
-              100% natural dried plant leaves. Zero synthetic dyes, zero PPD, zero chemical additives.
+              Whole-leaf milling and mechanical sifting without synthetic dye additives.
             </div>
           </div>
         </div>

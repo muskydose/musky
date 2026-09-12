@@ -87,13 +87,18 @@ export default function WholesaleInquiryForm({
         if (prev.customerName && prev.phone.replace(/\D/g, '').length >= 10) {
           setStep(2);
         }
+        const savingsText = externalQuoteData.savingsAmount && externalQuoteData.savingsAmount > 0
+          ? ` (You Save: ₹${Math.round(externalQuoteData.savingsAmount)} / ${Math.round(externalQuoteData.savingsPercent || 0)}% OFF)`
+          : '';
+        const quoteNote = `Quote: ₹${Math.round(externalQuoteData.effectivePricePerUnit)}/${externalQuoteData.quantityUnit || externalQuoteData.pricingUnit} (Est. Total: ~₹${Math.round(externalQuoteData.estimatedTotal)})${savingsText}`;
+        const finalNotes = prev.notes
+          ? (prev.notes.includes('Quote:') ? prev.notes : `${quoteNote} | ${prev.notes}`)
+          : quoteNote;
         return {
           ...prev,
           productsRequired: `${externalQuoteData.productName} (${externalQuoteData.tierName})`,
           approxQuantity: `${externalQuoteData.quantity} ${externalQuoteData.quantityUnit}`,
-          notes: prev.notes
-            ? prev.notes
-            : `Quote generated via Calculator. Estimated tier rate: ₹${Math.round(externalQuoteData.effectivePricePerUnit)}/${externalQuoteData.quantityUnit || externalQuoteData.pricingUnit} (Est. Total: ~₹${Math.round(externalQuoteData.estimatedTotal)})`,
+          notes: finalNotes,
         };
       });
     }
@@ -115,6 +120,10 @@ export default function WholesaleInquiryForm({
       setError('Please enter a valid 10-digit mobile or WhatsApp number.');
       return false;
     }
+    if (formData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      setError('Please enter a valid email address or leave blank.');
+      return false;
+    }
     setError('');
     return true;
   };
@@ -132,6 +141,18 @@ export default function WholesaleInquiryForm({
     if (!formData.approxQuantity.trim()) {
       setError('Please specify approximate volume / quantity.');
       setStep(2);
+      return false;
+    }
+    if (formData.pincode.trim() && !/^\d{6}$/.test(formData.pincode.trim())) {
+      setError('Please enter a valid 6-digit Indian PIN code or leave blank.');
+      setStep(2);
+      setShowTaxDetails(true);
+      return false;
+    }
+    if (formData.gstin.trim() && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(formData.gstin.trim())) {
+      setError('Please enter a valid 15-character GSTIN or leave blank.');
+      setStep(2);
+      setShowTaxDetails(true);
       return false;
     }
     return true;
@@ -197,7 +218,7 @@ export default function WholesaleInquiryForm({
         approxQuantity: payload.approxQuantity,
       });
 
-      // Build WhatsApp URL
+      // Build WhatsApp URL with registered reference ID
       const msg = generateWholesaleWhatsAppMessage(
         {
           customerName: payload.customerName,
@@ -211,6 +232,7 @@ export default function WholesaleInquiryForm({
           productsRequired: payload.productsRequired,
           approxQuantity: payload.approxQuantity,
           notes: payload.notes,
+          referenceId: savedEnquiry.id,
         },
         siteSettings?.whatsappWholesaleMessageTemplate
       );
@@ -243,7 +265,7 @@ export default function WholesaleInquiryForm({
         approxQuantity: payload.approxQuantity,
       });
 
-      // Build WhatsApp URL
+      // Build WhatsApp URL with registered reference ID
       const msg = generateWholesaleWhatsAppMessage(
         {
           customerName: payload.customerName,
@@ -257,6 +279,7 @@ export default function WholesaleInquiryForm({
           productsRequired: payload.productsRequired,
           approxQuantity: payload.approxQuantity,
           notes: payload.notes,
+          referenceId: savedEnquiry.id,
         },
         siteSettings?.whatsappWholesaleMessageTemplate
       );
