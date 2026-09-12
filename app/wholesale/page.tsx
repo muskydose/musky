@@ -2,6 +2,8 @@ import React from 'react';
 import WholesaleClient from './WholesaleClient';
 import { resolvePageSeoMetadata } from '@/lib/db/seo';
 import { getSiteSettings } from '@/lib/db/settings';
+import { getProducts } from '@/lib/db/products';
+import { getBulkPricingRules } from '@/lib/db/bulk-pricing';
 import { safeJsonLd } from '@/lib/utils';
 
 export async function generateMetadata() {
@@ -27,7 +29,12 @@ export async function generateMetadata() {
 }
 
 export default async function WholesalePage() {
-  const siteSettings = await getSiteSettings();
+  const [siteSettings, products, pricingRules] = await Promise.all([
+    getSiteSettings().catch(() => null),
+    getProducts().catch(() => []),
+    getBulkPricingRules().catch(() => []),
+  ]);
+
   const baseUrl = siteSettings?.websiteUrl || 'https://muskydose.in';
 
   const jsonLd = {
@@ -115,7 +122,11 @@ export default async function WholesalePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
-      <WholesaleClient />
+      <WholesaleClient
+        initialSiteSettings={siteSettings}
+        initialProducts={products}
+        initialPricingRules={pricingRules}
+      />
     </>
   );
 }
