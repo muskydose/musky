@@ -991,6 +991,109 @@ export default function OpportunitiesClient() {
                         </div>
                       )}
 
+                      {/* Live GSC Signal Strip */}
+                      {opp.gscPerformance && (
+                        <div className="bg-blue-50/70 p-3 rounded-lg border border-blue-200 text-xs space-y-2">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-700 text-white uppercase tracking-wider">
+                                LIVE GSC SIGNAL
+                              </span>
+                              {opp.coldStartTier && (
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
+                                  opp.coldStartTier === 'ACTIONABLE'
+                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                    : opp.coldStartTier === 'EMERGING'
+                                    ? 'bg-cyan-100 text-cyan-800 border-cyan-300'
+                                    : 'bg-stone-100 text-stone-700 border-stone-300'
+                                }`}>
+                                  Cold Start: {opp.coldStartTier}
+                                </span>
+                              )}
+                            </div>
+                            {opp.gscPerformance.landingPage && (
+                              <span className="text-[11px] text-blue-900 font-mono truncate max-w-xs" title={opp.gscPerformance.landingPage}>
+                                Target: {opp.gscPerformance.landingPage}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-blue-200/60 text-stone-700">
+                            <div>
+                              <span className="text-[10px] text-stone-500 uppercase block">Impressions</span>
+                              <span className="font-bold text-stone-900">{opp.gscPerformance.impressions ?? 0}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-stone-500 uppercase block">Clicks</span>
+                              <span className="font-bold text-stone-900">{opp.gscPerformance.clicks ?? 0}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-stone-500 uppercase block">CTR</span>
+                              <span className="font-bold text-stone-900">
+                                {((opp.gscPerformance.ctr ?? 0) * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-stone-500 uppercase block">Avg Position</span>
+                              <span className="font-bold text-stone-900">
+                                {opp.gscPerformance.position ? opp.gscPerformance.position.toFixed(1) : '—'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {opp.trendData && opp.trendData.appearancesCount >= 2 && (
+                            <div className="text-[11px] text-blue-950 bg-blue-100/60 px-2.5 py-1 rounded border border-blue-200 flex items-center gap-3 flex-wrap font-medium">
+                              <span>History: {opp.trendData.appearancesCount} sync snapshots</span>
+                              {opp.trendData.impressionDelta !== null && opp.trendData.impressionDelta !== undefined && (
+                                <span>
+                                  Impr &Delta;: {opp.trendData.impressionDelta >= 0 ? `+${opp.trendData.impressionDelta}` : opp.trendData.impressionDelta}
+                                </span>
+                              )}
+                              {opp.trendData.clickDelta !== null && opp.trendData.clickDelta !== undefined && (
+                                <span>
+                                  Click &Delta;: {opp.trendData.clickDelta >= 0 ? `+${opp.trendData.clickDelta}` : opp.trendData.clickDelta}
+                                </span>
+                              )}
+                              {opp.trendData.positionDelta !== null && opp.trendData.positionDelta !== undefined && (
+                                <span>
+                                  Pos &Delta;: {opp.trendData.positionDelta >= 0 ? `+${opp.trendData.positionDelta}` : opp.trendData.positionDelta}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Market Demand Estimate Strip */}
+                      {opp.marketDemand && (
+                        <div className="bg-amber-50/70 p-2.5 rounded-lg border border-amber-200 text-xs space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-700 text-white uppercase tracking-wider">
+                              MARKET DEMAND ESTIMATE
+                            </span>
+                            {opp.marketDemand.sourceName && (
+                              <span className="text-[11px] text-amber-900 font-medium">
+                                Source: {opp.marketDemand.sourceName}
+                              </span>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 pt-1 border-t border-amber-200 text-stone-700">
+                            <div>
+                              <span className="text-[10px] text-stone-500 uppercase block">Search Volume</span>
+                              <span className="font-bold text-stone-900">{opp.marketDemand.searchVolume?.toLocaleString() ?? '—'}/mo</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-stone-500 uppercase block">Est. CPC</span>
+                              <span className="font-bold text-stone-900">{opp.marketDemand.cpc ? `₹${opp.marketDemand.cpc}` : '—'}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-stone-500 uppercase block">Competition</span>
+                              <span className="font-bold text-stone-900">{opp.marketDemand.competition ?? '—'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Performance / Expected Impact Tags */}
                       <div className="flex items-center gap-3 text-[11px] text-stone-500 pt-1 flex-wrap">
                         {opp.expectedBusinessImpact && (

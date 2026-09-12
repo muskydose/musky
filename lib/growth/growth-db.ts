@@ -3,6 +3,8 @@ import {
   GrowthMarketMetric,
   GrowthKeyword,
   GrowthKeywordSnapshot,
+  GrowthGscSnapshot,
+  GscQueryTrend,
   GrowthLead,
   GrowthCompetitor,
   GrowthCompetitorObservation,
@@ -23,6 +25,7 @@ const memoryMarkets = new Map<string, GrowthMarket>();
 const memoryMarketMetrics = new Map<string, GrowthMarketMetric>();
 const memoryKeywords = new Map<string, GrowthKeyword>();
 const memoryKeywordSnapshots: GrowthKeywordSnapshot[] = [];
+const memoryGscSnapshots = new Map<string, GrowthGscSnapshot>();
 const memoryLeads = new Map<string, GrowthLead>();
 const memoryCompetitors = new Map<string, GrowthCompetitor>();
 const memoryObservations: GrowthCompetitorObservation[] = [];
@@ -578,6 +581,146 @@ export async function getKeywordSnapshots(keywordId?: string): Promise<GrowthKey
     }
   }
   return keywordId ? memoryKeywordSnapshots.filter((s) => s.keywordId === keywordId) : memoryKeywordSnapshots;
+}
+
+// ==========================================
+// 3B. GOOGLE SEARCH CONSOLE DEDICATED SNAPSHOTS
+// ==========================================
+export async function saveGscSnapshots(snapshots: GrowthGscSnapshot[]): Promise<void> {
+  if (!snapshots || snapshots.length === 0) return;
+
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    try {
+      const records = snapshots.map((s) => ({
+        id: s.id,
+        query: s.query,
+        canonical_page: s.canonicalPage,
+        country: s.country || 'IND',
+        impressions: s.impressions,
+        clicks: s.clicks,
+        ctr: s.ctr,
+        average_position: s.averagePosition,
+        snapshot_date: s.snapshotDate,
+        source: s.source,
+        keyword_id: s.keywordId || null,
+        created_at: s.createdAt || new Date().toISOString(),
+      }));
+
+      const { error } = await supabase
+        .from('growth_gsc_snapshots')
+        .upsert(records, { onConflict: 'id' });
+
+      if (error) {
+        console.warn('[Growth DB] Notice: Supabase growth_gsc_snapshots table unmigrated or unavailable:', error.message);
+      }
+    } catch (e: any) {
+      console.warn('[Growth DB] Notice: growth_gsc_snapshots storage exception:', e?.message);
+    }
+  }
+
+  // Always update memory store as safe fallback
+  for (const s of snapshots) {
+    memoryGscSnapshots.set(s.id, s);
+  }
+}
+
+export async function getGscSnapshots(query?: string, limit: number = 100): Promise<GrowthGscSnapshot[]> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    try {
+      let q = supabase
+        .from('growth_gsc_snapshots')
+        .select('*')
+        .order('snapshot_date', { ascending: false })
+        .limit(limit);
+
+      if (query) {
+        q = q.ilike('query', `%${query.trim()}%`);
+      }
+
+      const { data, error } = await q;
+      if (!error && data) {
+        return data.map((r: any): GrowthGscSnapshot => ({
+          id: r.id,
+          query: r.query,
+          canonicalPage: r.canonical_page,
+          country: r.country,
+          impressions: r.impressions,
+          clicks: r.clicks,
+          ctr: Number(r.ctr || 0),
+          averagePosition: Number(r.average_position || 0),
+          snapshotDate: r.snapshot_date,
+          source: r.source || 'GOOGLE_SEARCH_CONSOLE',
+          keywordId: r.keyword_id,
+          createdAt: r.created_at || new Date().toISOString(),
+        }));
+      }
+    } catch (e) {
+      console.warn('[Growth DB] Notice: Error querying growth_gsc_snapshots:', e);
+    }
+  }
+
+  const all = Array.from(memoryGscSnapshots.values());
+  const filtered = query
+    ? all.filter((s) => s.query.toLowerCase().includes(query.toLowerCase()))
+    : all;
+  return filtered
+    .sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate))
+    .slice(0, limit);
+}
+
+export async function getGscQueryTrends(targetQueries?: string[]): Promise<Map<string, GscQueryTrend>> {
+  const trends = new Map<string, GscQueryTrend>();
+  const snapshots = await getGscSnapshots(undefined, 2000);
+  if (!snapshots || snapshots.length === 0) return trends;
+
+  // Group by normalized query
+  const queryMap = new Map<string, GrowthGscSnapshot[]>();
+  for (const s of snapshots) {
+    const qNorm = s.query.trim().toLowerCase();
+    if (targetQueries && targetQueries.length > 0) {
+      const match = targetQueries.some((t) => t.trim().toLowerCase() === qNorm);
+      if (!match) continue;
+    }
+    const list = queryMap.get(qNorm) || [];
+    list.push(s);
+    queryMap.set(qNorm, list);
+  }
+
+  for (const [qNorm, list] of queryMap.entries()) {
+    // Sort descending by snapshotDate
+    const sorted = [...list].sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate));
+    // Deduplicate to distinct dates
+    const dateMap = new Map<string, GrowthGscSnapshot>();
+    for (const item of sorted) {
+      if (!dateMap.has(item.snapshotDate)) {
+        dateMap.set(item.snapshotDate, item);
+      }
+    }
+    const distinctDateRows = Array.from(dateMap.values()).sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate));
+
+    const latest = distinctDateRows[0];
+    const earliest = distinctDateRows[distinctDateRows.length - 1];
+    const previous = distinctDateRows.length >= 2 ? distinctDateRows[1] : null;
+
+    const trend: GscQueryTrend = {
+      query: latest.query,
+      firstSeen: earliest.snapshotDate,
+      lastSeen: latest.snapshotDate,
+      appearancesCount: distinctDateRows.length,
+      latestImpressions: latest.impressions,
+      latestPosition: latest.averagePosition,
+      impressionDelta: previous ? latest.impressions - previous.impressions : null,
+      clickDelta: previous ? latest.clicks - previous.clicks : null,
+      positionDelta: previous ? Number((previous.averagePosition - latest.averagePosition).toFixed(1)) : null,
+      isEmerging: distinctDateRows.length >= 2,
+    };
+
+    trends.set(qNorm, trend);
+  }
+
+  return trends;
 }
 
 // ==========================================

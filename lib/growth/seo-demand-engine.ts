@@ -10,7 +10,7 @@
  */
 
 import { Product, Category, ProductGuide } from '@/lib/types';
-import { SearchConsoleQuery, GrowthOpportunityPriority } from './types';
+import { SearchConsoleQuery, GrowthOpportunityPriority, ColdStartConfidenceTier, GscQueryTrend } from './types';
 import { getSiteSettings, updateSiteSettings } from '@/lib/db/settings';
 
 // ============================================================
@@ -166,6 +166,8 @@ export interface SeoDemandOpportunity {
     landingPage?: string;
   };
   recommendation: SeoAcquisitionRecommendation;
+  coldStartTier?: ColdStartConfidenceTier;
+  trendData?: GscQueryTrend;
   status: 'NEW' | 'REVIEW' | 'APPROVED' | 'APPLIED' | 'VERIFIED' | 'DISMISSED';
   createdAt: string;
   updatedAt: string;
@@ -396,8 +398,17 @@ export function clusterSearchQuery(params: {
   let matchedEntityId: string | undefined;
   let matchedEntityName: string | undefined;
 
+  const isBrand = tokens.some((t) => ['musky', 'muskydose'].includes(t)) || rawQuery.includes('मुस्की');
+
+  // 0. Brand Navigational Intent
+  if (isBrand) {
+    recommendedDestination = '/';
+    destinationType = 'HOMEPAGE';
+    acquisitionPriority = 'P1_NOW';
+    matchedEntityName = 'Musky Dose Brand Homepage';
+  }
   // 1. Strong B2B Wholesale
-  if (intent === 'B2B') {
+  else if (intent === 'B2B') {
     recommendedDestination = '/wholesale';
     destinationType = 'WHOLESALE';
     acquisitionPriority = 'P1_NOW';
@@ -546,7 +557,81 @@ export function calculateDemandOpportunityScore(params: {
 }
 
 // ============================================================
-// 6. OPPORTUNITY DETECTION FROM REAL GSC QUERIES
+// 6. COLD-START DETECTION & NORMALIZATION HELPERS
+// ============================================================
+
+/**
+ * Normalizes equivalent www and non-www URLs under authoritative https://muskydose.in for internal reporting equivalence.
+ * Preserves public routing and canonical tags.
+ */
+export function normalizeGscCanonicalUrl(rawUrl: string): string {
+  if (!rawUrl) return '';
+  let url = rawUrl.trim();
+  if (url.startsWith('/')) {
+    url = `https://muskydose.in${url}`;
+  }
+  url = url.replace(/^https?:\/\/(www\.)?muskydose\.in/i, 'https://muskydose.in');
+  if (url.endsWith('/') && url.length > 'https://muskydose.in'.length) {
+    url = url.slice(0, -1);
+  }
+  if (url === 'https://muskydose.in/') {
+    url = 'https://muskydose.in';
+  }
+  return url;
+}
+
+/**
+ * Detects whether the site is in COLD-START mode (low volume, new site stage).
+ * Condition: total site impressions < 500 across the GSC query set.
+ */
+export function detectColdStartMode(gscQueries: SearchConsoleQuery[]): boolean {
+  if (!gscQueries || gscQueries.length === 0) return true;
+  const totalImpressions = gscQueries.reduce((acc, q) => acc + (q.impressions || 0), 0);
+  return totalImpressions < 500;
+}
+
+/**
+ * Classifies a GSC query into one of three Cold-Start confidence tiers:
+ * - OBSERVED: Single sync appearance, low volume (1-3 impressions), no persistent confirmation.
+ * - EMERGING: Multi-sync appearance (appearancesCount >= 2) OR striking distance position (4-20) with commercial intent.
+ * - ACTIONABLE: Repeated multi-sync confirmation OR verified commercial B2B query with landing page mismatch.
+ */
+export function classifyColdStartTier(params: {
+  impressions: number;
+  clicks: number;
+  position: number;
+  intent: QueryIntentFamily;
+  commercialSignal: CommercialSignalLevel;
+  appearancesCount: number;
+  hasDestinationMismatch: boolean;
+}): ColdStartConfidenceTier {
+  const { impressions, clicks, position, intent, commercialSignal, appearancesCount, hasDestinationMismatch } = params;
+
+  // Tier 3: Actionable (Strong commercial mismatch or multi-sync striking)
+  if (
+    hasDestinationMismatch ||
+    (intent === 'B2B' && commercialSignal === 'HIGH') ||
+    (appearancesCount >= 2 && position <= 20 && commercialSignal !== 'LOW') ||
+    clicks > 0
+  ) {
+    return 'ACTIONABLE';
+  }
+
+  // Tier 2: Emerging (Multi-sync or striking distance commercial, or solid rank pos 20-50 high intent)
+  if (
+    appearancesCount >= 2 ||
+    (position >= 4.0 && position <= 20.0 && commercialSignal !== 'LOW') ||
+    (position <= 50.0 && commercialSignal === 'HIGH')
+  ) {
+    return 'EMERGING';
+  }
+
+  // Tier 1: Observed (Single impression / low volume monitoring only)
+  return 'OBSERVED';
+}
+
+// ============================================================
+// 7. OPPORTUNITY DETECTION FROM REAL GSC QUERIES
 // ============================================================
 
 export function detectDemandOpportunities(params: {
@@ -554,12 +639,14 @@ export function detectDemandOpportunities(params: {
   products: Product[];
   categories?: Category[];
   guides?: ProductGuide[];
+  trendsMap?: Map<string, GscQueryTrend>;
 }): SeoDemandOpportunity[] {
-  const { gscQueries, products, categories = [], guides = [] } = params;
+  const { gscQueries, products, categories = [], guides = [], trendsMap } = params;
   const opportunities: SeoDemandOpportunity[] = [];
   const seenQueryMap = new Map<string, SearchConsoleQuery[]>();
+  const isColdStart = detectColdStartMode(gscQueries);
 
-  // Group queries to check for cannibalization
+  // Group queries to check for cannibalization and merge www/non-www reporting
   for (const g of gscQueries) {
     const qNorm = normalizeQueryString(g.query);
     if (!qNorm) continue;
@@ -583,7 +670,23 @@ export function detectDemandOpportunities(params: {
     });
 
     const hasDestination = cluster.destinationType !== 'SEARCH';
-    const landingPage = primaryRow.page || '';
+    const landingPage = normalizeGscCanonicalUrl(primaryRow.page || '');
+    const distinctUrls = Array.from(new Set(queryRows.map((r) => normalizeGscCanonicalUrl(r.page || '')).filter(Boolean)));
+
+    // Trend lookup from historical snapshots
+    const trend = trendsMap?.get(normQ);
+    const appearancesCount = trend?.appearancesCount || 1;
+
+    const hasMismatch = cluster.intent === 'B2B' && Boolean(landingPage && !landingPage.includes('/wholesale'));
+    const coldStartTier = classifyColdStartTier({
+      impressions: totalImpressions,
+      clicks: totalClicks,
+      position: avgPosition,
+      intent: cluster.intent,
+      commercialSignal: cluster.commercialSignal,
+      appearancesCount,
+      hasDestinationMismatch: hasMismatch,
+    });
 
     const { growthScore, scoreBreakdown } = calculateDemandOpportunityScore({
       impressions: totalImpressions,
@@ -599,18 +702,20 @@ export function detectDemandOpportunities(params: {
     // ------------------------------------------------------------
     // A. CANNIBALIZATION DETECTION (Multiple distinct ranking URLs)
     // ------------------------------------------------------------
-    const distinctUrls = Array.from(new Set(queryRows.map((r) => r.page).filter(Boolean)));
-    if (distinctUrls.length >= 2 && totalImpressions >= 20) {
+    const minCannibalImpr = isColdStart ? 5 : 20;
+    if (distinctUrls.length >= 2 && totalImpressions >= minCannibalImpr) {
       opportunities.push({
         id: `opp_cannibal_${normQ.replace(/[^a-z0-9]/g, '_')}`,
         type: 'CANNIBALIZATION',
         title: `Search Cannibalization: "${primaryRow.query}" across ${distinctUrls.length} URLs`,
-        description: `The query "${primaryRow.query}" is currently splitting Google impressions across multiple pages (${distinctUrls.join(', ')}). Consolidating canonical intent to ${cluster.recommendedDestination} will strengthen organic ranking.`,
+        description: `The query "${primaryRow.query}" is splitting Google impressions across multiple pages (${distinctUrls.join(', ')}). Consolidating canonical intent to ${cluster.recommendedDestination} will strengthen organic ranking.`,
         priority: 'P1_NOW',
         growthScore,
         scoreBreakdown,
         query: primaryRow.query,
         cluster,
+        coldStartTier: 'ACTIONABLE',
+        trendData: trend,
         gscMetrics: {
           impressions: totalImpressions,
           clicks: totalClicks,
@@ -637,7 +742,7 @@ export function detectDemandOpportunities(params: {
     // ------------------------------------------------------------
     // B. QUERY-DESTINATION MISMATCH (B2B query landing on retail PDP)
     // ------------------------------------------------------------
-    if (cluster.intent === 'B2B' && landingPage && !landingPage.includes('/wholesale')) {
+    if (hasMismatch) {
       opportunities.push({
         id: `opp_mismatch_${normQ.replace(/[^a-z0-9]/g, '_')}`,
         type: 'QUERY_DESTINATION_MISMATCH',
@@ -648,6 +753,8 @@ export function detectDemandOpportunities(params: {
         scoreBreakdown,
         query: primaryRow.query,
         cluster,
+        coldStartTier: 'ACTIONABLE',
+        trendData: trend,
         gscMetrics: {
           impressions: totalImpressions,
           clicks: totalClicks,
@@ -674,7 +781,9 @@ export function detectDemandOpportunities(params: {
     // ------------------------------------------------------------
     // C. HIGH IMPRESSION + LOW CTR
     // ------------------------------------------------------------
-    if (totalImpressions >= 50 && avgCtr < 0.03) {
+    const minLowCtrImpr = isColdStart ? 30 : 50;
+    const maxLowCtrThreshold = isColdStart ? 0.02 : 0.03;
+    if (totalImpressions >= minLowCtrImpr && avgCtr < maxLowCtrThreshold) {
       opportunities.push({
         id: `opp_low_ctr_${normQ.replace(/[^a-z0-9]/g, '_')}`,
         type: 'HIGH_IMPRESSION_LOW_CTR',
@@ -685,6 +794,8 @@ export function detectDemandOpportunities(params: {
         scoreBreakdown,
         query: primaryRow.query,
         cluster,
+        coldStartTier,
+        trendData: trend,
         gscMetrics: {
           impressions: totalImpressions,
           clicks: totalClicks,
@@ -709,46 +820,96 @@ export function detectDemandOpportunities(params: {
     }
 
     // ------------------------------------------------------------
-    // D. STRIKING DISTANCE (Position 4 - 20 with >= 20 impressions)
+    // D. STRIKING DISTANCE (Position 4 - 20)
     // ------------------------------------------------------------
-    if (avgPosition >= 4.0 && avgPosition <= 20.0 && totalImpressions >= 20) {
-      opportunities.push({
-        id: `opp_strike_${normQ.replace(/[^a-z0-9]/g, '_')}`,
-        type: 'STRIKING_DISTANCE',
-        title: `Striking Distance #${avgPosition}: "${primaryRow.query}" (${totalImpressions} Impr)`,
-        description: `Query ranks on Google at position #${avgPosition}. Optimizing primary keywords, adding contextual internal links, and answering related FAQs will elevate this query to top 3 positions.`,
-        priority: avgPosition <= 10 ? 'P1_NOW' : 'P2_NEXT',
-        growthScore,
-        scoreBreakdown,
-        query: primaryRow.query,
-        cluster,
-        gscMetrics: {
-          impressions: totalImpressions,
-          clicks: totalClicks,
-          ctr: avgCtr,
-          position: avgPosition,
-          landingPage,
-        },
-        recommendation: {
+    const minStrikingImpr = isColdStart ? 1 : 20;
+    if (avgPosition >= 4.0 && avgPosition <= 20.0 && totalImpressions >= minStrikingImpr) {
+      // In cold start mode, avoid noise: surface only if emerging or actionable
+      if (!isColdStart || coldStartTier === 'ACTIONABLE' || coldStartTier === 'EMERGING') {
+        const priority: GrowthOpportunityPriority = (coldStartTier === 'ACTIONABLE' || avgPosition <= 10) ? 'P1_NOW' : 'P2_NEXT';
+        const prefix = isColdStart ? '[Cold Start] ' : '';
+        opportunities.push({
+          id: `opp_strike_${normQ.replace(/[^a-z0-9]/g, '_')}`,
+          type: 'STRIKING_DISTANCE',
+          title: `${prefix}Striking Distance #${avgPosition}: "${primaryRow.query}" (${totalImpressions} Impr)`,
+          description: `Query ranks on Google at position #${avgPosition}. Optimizing primary keywords, adding contextual internal links, and answering related FAQs will elevate this query to top 3 positions.`,
+          priority,
+          growthScore,
+          scoreBreakdown,
           query: primaryRow.query,
-          intent: cluster.intent,
-          currentUrl: landingPage || cluster.recommendedDestination,
-          recommendedAction: 'IMPROVE_META',
-          targetUrl: cluster.recommendedDestination,
-          reason: `Google position #${avgPosition} with ${totalImpressions} impressions demonstrates high algorithm affinity close to page 1 top ranking.`,
-          expectedOutcome: 'Hypothesis: Adding targeted botanical entity keywords and internal link anchors could lift rank into top 3 positions.',
-        },
-        status: 'NEW',
-        createdAt: now,
-        updatedAt: now,
-      });
-      continue;
+          cluster,
+          coldStartTier,
+          trendData: trend,
+          gscMetrics: {
+            impressions: totalImpressions,
+            clicks: totalClicks,
+            ctr: avgCtr,
+            position: avgPosition,
+            landingPage,
+          },
+          recommendation: {
+            query: primaryRow.query,
+            intent: cluster.intent,
+            currentUrl: landingPage || cluster.recommendedDestination,
+            recommendedAction: 'IMPROVE_META',
+            targetUrl: cluster.recommendedDestination,
+            reason: `Google position #${avgPosition} with ${totalImpressions} impressions demonstrates high algorithm affinity close to page 1 top ranking.`,
+            expectedOutcome: 'Hypothesis: Adding targeted botanical entity keywords and internal link anchors could lift rank into top 3 positions.',
+          },
+          status: 'NEW',
+          createdAt: now,
+          updatedAt: now,
+        });
+        continue;
+      }
     }
 
     // ------------------------------------------------------------
-    // E. NO STRONG DESTINATION / CONTENT GAP
+    // E. COLD-START COMMERCIAL SEARCH AFFINITY (Position 20 - 50)
     // ------------------------------------------------------------
-    if (!hasDestination && totalImpressions >= 15) {
+    if (isColdStart && avgPosition > 20.0 && avgPosition <= 50.0 && totalImpressions >= 1) {
+      if (cluster.commercialSignal === 'HIGH' || cluster.intent === 'B2B' || appearancesCount >= 2) {
+        opportunities.push({
+          id: `opp_comm_aff_${normQ.replace(/[^a-z0-9]/g, '_')}`,
+          type: 'HIGH_COMMERCIAL_INTENT',
+          title: `[Cold Start] Commercial Search Affinity #${avgPosition}: "${primaryRow.query}" (${totalImpressions} Impr)`,
+          description: `Query exhibits verified commercial buying intent ("${primaryRow.query}") ranking at position #${avgPosition}. Optimizing target product/category meta tags and internal links can lift this into striking distance.`,
+          priority: 'P2_NEXT',
+          growthScore,
+          scoreBreakdown,
+          query: primaryRow.query,
+          cluster,
+          coldStartTier,
+          trendData: trend,
+          gscMetrics: {
+            impressions: totalImpressions,
+            clicks: totalClicks,
+            ctr: avgCtr,
+            position: avgPosition,
+            landingPage,
+          },
+          recommendation: {
+            query: primaryRow.query,
+            intent: cluster.intent,
+            currentUrl: landingPage || cluster.recommendedDestination,
+            recommendedAction: 'OPTIMIZE_TITLE',
+            targetUrl: cluster.recommendedDestination,
+            reason: `Google ranks this high-intent commercial query at position #${avgPosition}. Early optimization will accelerate climb to page 1.`,
+            expectedOutcome: 'Hypothesis: Enhancing product title and snippet will improve ranking momentum toward top 20.',
+          },
+          status: 'NEW',
+          createdAt: now,
+          updatedAt: now,
+        });
+        continue;
+      }
+    }
+
+    // ------------------------------------------------------------
+    // F. NO STRONG DESTINATION / CONTENT GAP
+    // ------------------------------------------------------------
+    const minContentGapImpr = isColdStart ? 5 : 15;
+    if (!hasDestination && totalImpressions >= minContentGapImpr && coldStartTier !== 'OBSERVED') {
       opportunities.push({
         id: `opp_content_gap_${normQ.replace(/[^a-z0-9]/g, '_')}`,
         type: 'CONTENT_GAP',
@@ -759,6 +920,8 @@ export function detectDemandOpportunities(params: {
         scoreBreakdown,
         query: primaryRow.query,
         cluster,
+        coldStartTier,
+        trendData: trend,
         gscMetrics: {
           impressions: totalImpressions,
           clicks: totalClicks,

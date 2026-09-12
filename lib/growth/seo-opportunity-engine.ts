@@ -12,6 +12,7 @@ import {
   InternalLinkSuggestion,
   MarketProductMapping,
   OpportunityDashboardStats,
+  GscQueryTrend,
 } from './types';
 import { generateProductKeywordUniverse } from './product-keyword-engine';
 import { getOrdersForAnalytics } from '@/lib/db/orders';
@@ -645,7 +646,8 @@ export function generateGrowthOpportunities(
   guides: any[] = [],
   searchInsights?: { topSearches?: any[]; zeroResultSearches?: any[]; totalSearches?: number },
   productFunnels?: any[],
-  wholesaleEnquiries?: any[]
+  wholesaleEnquiries?: any[],
+  trendsMap?: Map<string, GscQueryTrend>
 ): GrowthOpportunity[] {
   const opportunities: GrowthOpportunity[] = [];
   const seenKeys = new Set<string>();
@@ -672,6 +674,7 @@ export function generateGrowthOpportunities(
       gscQueries,
       products,
       guides,
+      trendsMap,
     });
 
     for (const dOpp of demandOpps) {
@@ -695,6 +698,8 @@ export function generateGrowthOpportunities(
         evidence: dOpp.recommendation.reason,
         expectedBusinessImpact: dOpp.recommendation.expectedOutcome,
         gscPerformance: dOpp.gscMetrics,
+        coldStartTier: dOpp.coldStartTier,
+        trendData: dOpp.trendData,
         suggestedAction: dOpp.recommendation.recommendedAction === 'ROUTE_TO_WHOLESALE' ? 'PRIORITIZE_WHOLESALE_LEAD' : 'OPTIMIZE_PRODUCT',
         actionLabel: dOpp.recommendation.recommendedAction.replace(/_/g, ' '),
         actionLink: dOpp.recommendation.targetUrl,
@@ -1550,6 +1555,7 @@ export async function getGrowthOpportunitiesDashboard(
     productId?: string;
     search?: string;
     category?: string;
+    trendsMap?: Map<string, GscQueryTrend>;
   } = {}
 ): Promise<{
   opportunities: GrowthOpportunity[];
@@ -1574,7 +1580,8 @@ export async function getGrowthOpportunitiesDashboard(
     guides,
     searchInsights,
     productFunnels,
-    wholesaleEnquiries
+    wholesaleEnquiries,
+    params.trendsMap
   );
 
   // Compute overall stats

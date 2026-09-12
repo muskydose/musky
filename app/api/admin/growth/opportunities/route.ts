@@ -4,7 +4,7 @@ import { sanitizeAdminError } from '@/lib/api-errors';
 import { getAllProductsAdmin } from '@/lib/db/products';
 import { getCategories } from '@/lib/db/categories';
 import { getGuides } from '@/lib/db/guides';
-import { getKeywords } from '@/lib/growth/growth-db';
+import { getKeywords, getGscQueryTrends } from '@/lib/growth/growth-db';
 import { getOrdersForAnalytics } from '@/lib/db/orders';
 import { getSearchConsoleQueries, isSearchConsoleConfigured } from '@/lib/growth/sources/search-console-adapter';
 import {
@@ -42,13 +42,14 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get('search') || searchParams.get('q') || undefined;
     const category = searchParams.get('category') || undefined;
 
-    const [products, keywords, categories, guides, orders, gscResult] = await Promise.all([
+    const [products, keywords, categories, guides, orders, gscResult, trendsMap] = await Promise.all([
       getAllProductsAdmin(),
       getKeywords(),
       getCategories(),
       getGuides(),
       getOrdersForAnalytics(90),
       getSearchConsoleQueries(),
+      getGscQueryTrends().catch(() => new Map()),
     ]);
 
     const dashboard = await getGrowthOpportunitiesDashboard(
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
       gscResult.queries,
       orders,
       guides,
-      { page, limit, type, priority, productId, search, category }
+      { page, limit, type, priority, productId, search, category, trendsMap }
     );
 
     const guideAttribution = await getGuideAttributionSummary(30, guides);

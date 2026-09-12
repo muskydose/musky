@@ -1,8 +1,9 @@
 import crypto from 'crypto';
 import { GrowthDataSourceAdapter, SyncResult } from './source-interface';
-import { FreshnessStatus, SearchConsoleQuery, GrowthKeyword } from '../types';
+import { FreshnessStatus, SearchConsoleQuery, GrowthKeyword, GrowthGscSnapshot } from '../types';
 import { getSiteSettings } from '@/lib/db/settings';
-import { saveGrowthKeywords, saveDataSourceRecord } from '../growth-db';
+import { saveGscSnapshots, saveDataSourceRecord, logSyncEvent } from '../growth-db';
+import { normalizeGscCanonicalUrl } from '../seo-demand-engine';
 
 export type SearchConsoleStatusCode =
   | 'NOT_CONFIGURED'
@@ -306,22 +307,32 @@ export class SearchConsoleDataSourceAdapter implements GrowthDataSourceAdapter {
     const startTime = Date.now();
     try {
       const res = await getSearchConsoleQueries(undefined, true);
+      const today = new Date().toISOString().split('T')[0];
+
       if (res.queries.length > 0) {
-        const growthKeywords: GrowthKeyword[] = res.queries.map((q) => ({
-          id: q.id,
-          keyword: q.query,
-          language: 'en',
-          country: q.country || 'IND',
-          searchVolume: q.impressions,
-          competition: q.position <= 5 ? 'HIGH' : q.position <= 15 ? 'MEDIUM' : 'LOW',
-          cpc: 0,
-          trend: q.clicks > 0 ? 'RISING' : 'STABLE',
-          sourceTier: 'VERIFIED',
-          sourceName: 'Google Search Console',
-          collectedAt: q.collectedAt,
-          updatedAt: new Date().toISOString(),
-        }));
-        await saveGrowthKeywords(growthKeywords).catch(() => {});
+        const gscSnapshots: GrowthGscSnapshot[] = res.queries.map((q) => {
+          const canonicalPage = normalizeGscCanonicalUrl(q.page || '');
+          const normQ = q.query.trim().toLowerCase();
+          const country = q.country || 'IND';
+          const naturalKey = `${normQ}|${canonicalPage}|${country}|${today}`;
+          const hash = crypto.createHash('sha256').update(naturalKey).digest('hex').slice(0, 32);
+          return {
+            id: `gsc_${hash}`,
+            query: q.query.trim(),
+            canonicalPage,
+            country,
+            impressions: q.impressions,
+            clicks: q.clicks,
+            ctr: q.ctr,
+            averagePosition: q.position,
+            snapshotDate: today,
+            source: 'GOOGLE_SEARCH_CONSOLE',
+            keywordId: q.id,
+            createdAt: new Date().toISOString(),
+          };
+        });
+
+        await saveGscSnapshots(gscSnapshots).catch(() => {});
       }
 
       await saveDataSourceRecord({
@@ -335,6 +346,19 @@ export class SearchConsoleDataSourceAdapter implements GrowthDataSourceAdapter {
         errorMessage: res.status !== 'CONNECTED' ? res.message : undefined,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+      }).catch(() => {});
+
+      await logSyncEvent({
+        id: `sync_gsc_${Date.now()}`,
+        sourceId: 'ds_google_search_console',
+        providerKey: 'google_search_console',
+        status: res.status === 'CONNECTED' ? 'SUCCESS' : 'FAILED',
+        recordsImported: res.queries.length,
+        recordsUpdated: 0,
+        durationMs: Date.now() - startTime,
+        startedAt: new Date(startTime).toISOString(),
+        completedAt: new Date().toISOString(),
+        errorDetails: res.status !== 'CONNECTED' ? res.message : undefined,
       }).catch(() => {});
 
       return {

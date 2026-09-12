@@ -152,6 +152,37 @@ export interface GrowthKeywordSnapshot {
   createdAt: string;
 }
 
+export interface GrowthGscSnapshot {
+  id: string;
+  query: string;
+  canonicalPage: string;
+  country: string;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  averagePosition: number;
+  snapshotDate: string;
+  source: 'GOOGLE_SEARCH_CONSOLE';
+  keywordId?: string;
+  createdAt?: string;
+}
+
+export type ColdStartConfidenceTier = 'OBSERVED' | 'EMERGING' | 'ACTIONABLE';
+
+export interface GscQueryTrend {
+  query: string;
+  firstSeen: string;
+  lastSeen: string;
+  appearancesCount: number;
+  latestImpressions: number;
+  latestPosition: number;
+  impressionDelta?: number | null;
+  clickDelta?: number | null;
+  positionDelta?: number | null;
+  isEmerging: boolean;
+}
+
+
 export interface GrowthLead {
   id: string;
   businessName: string;
@@ -518,7 +549,10 @@ export interface GrowthOpportunity {
     clicks?: number;
     ctr?: number;
     position?: number;
+    landingPage?: string;
   };
+  coldStartTier?: ColdStartConfidenceTier;
+  trendData?: GscQueryTrend;
   storeDemand?: {
     ordersCount?: number;
     revenue?: number;
