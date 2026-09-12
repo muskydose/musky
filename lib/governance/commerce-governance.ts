@@ -12,6 +12,7 @@
 
 import { ProductVariant, OrderItem } from '@/lib/types';
 import { GovernanceValidationResult } from './types';
+import { normalizeUnitString, getUnitFamily, UnitFamily } from '@/lib/unit-pricing';
 
 export class CommerceGovernance {
   /**
@@ -41,47 +42,132 @@ export class CommerceGovernance {
   }
 
   /**
-   * Validates variant pricing and weight monotonicity.
+   * Validates variant pricing and weight/volume/count monotonicity.
+   * UNIVERSAL ARCHITECTURE:
+   * 1. Evaluates active variants only.
+   * 2. Resolves structured packQuantity and packUnit into canonical base quantities (g, ml, count).
+   * 3. Rejects incompatible mixed unit families (e.g. weight mixed with volume).
+   * 4. Pre-sorts variants by normalized quantity to eliminate array order sensitivity.
+   * 5. Detects duplicate pack sizes.
+   * 6. Strictly enforces monotonic pricing: larger pack sizes must cost more than smaller pack sizes.
    */
   public static validateVariantMonotonicity(variants: ProductVariant[]): GovernanceValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
 
-    if (!Array.isArray(variants) || variants.length <= 1) {
+    if (!Array.isArray(variants)) {
       return { isValid: true, errors: [], warnings: [] };
     }
 
-    // Parse weights into numeric grams/milliliters where possible
-    const parseUnit = (weightStr: string): number => {
-      const clean = (weightStr || '').toLowerCase().trim();
-      const num = parseFloat(clean.replace(/[^\d.]/g, '')) || 0;
-      if (clean.includes('kg')) return num * 1000;
-      if (clean.includes('l') && !clean.includes('ml')) return num * 1000;
-      return num;
-    };
+    const activeVariants = variants.filter((v) => v.isActive !== false);
+    if (activeVariants.length <= 1) {
+      return { isValid: true, errors: [], warnings: [] };
+    }
 
-    const parsed = variants.map((v, index) => {
-      const label = (v as any).name || v.weight || `Variant ${index + 1}`;
-      const weightVal = parseUnit(v.weight || (v as any).name);
+    // Helper: extract base normalized numeric quantity and unit family
+    const parseVariantQuantity = (v: ProductVariant, index: number) => {
+      const label = v.weight || (v as any).name || (v.packQuantity && v.packUnit ? `${v.packQuantity}${v.packUnit}` : `Variant #${index + 1}`);
+      const rawQty = v.packQuantity !== undefined && v.packQuantity !== null ? Number(v.packQuantity) : NaN;
+      const rawUnit = v.packUnit ? normalizeUnitString(v.packUnit) : '';
+      let family: UnitFamily = rawUnit ? getUnitFamily(rawUnit) : 'custom';
+      let normalizedQty = !isNaN(rawQty) && rawQty > 0 ? rawQty : 0;
+
+      // If packQuantity or packUnit is missing, parse from display string (v.weight or name)
+      if (normalizedQty === 0 || !rawUnit) {
+        const clean = (v.weight || (v as any).name || '').toLowerCase().trim();
+        const num = parseFloat(clean.replace(/[^\d.]/g, '')) || 0;
+        if (clean.includes('kg') || clean.includes('kilo')) {
+          family = 'weight';
+          normalizedQty = num * 1000;
+        } else if (clean.includes('g') && !clean.includes('kg')) {
+          family = 'weight';
+          normalizedQty = num;
+        } else if (clean.includes('l') && !clean.includes('ml')) {
+          family = 'volume';
+          normalizedQty = num * 1000;
+        } else if (clean.includes('ml')) {
+          family = 'volume';
+          normalizedQty = num;
+        } else if (clean.includes('cone')) {
+          family = 'count';
+          normalizedQty = num;
+        } else if (clean.includes('box') || clean.includes('pack') || clean.includes('piece')) {
+          family = 'count';
+          normalizedQty = num;
+        } else {
+          normalizedQty = num;
+        }
+      } else {
+        // Normalize structured quantity to canonical base units (grams for weight, ml for volume)
+        const unitLower = rawUnit.toLowerCase();
+        if (family === 'weight') {
+          if (unitLower === 'kg') normalizedQty = rawQty * 1000;
+          else if (unitLower === 'mg') normalizedQty = rawQty * 0.001;
+          else if (unitLower === 'quintal') normalizedQty = rawQty * 100000;
+          else if (unitLower === 'ton') normalizedQty = rawQty * 1000000;
+          else normalizedQty = rawQty; // grams
+        } else if (family === 'volume') {
+          if (unitLower === 'litre' || unitLower === 'liter' || unitLower === 'l') {
+            normalizedQty = rawQty * 1000;
+          } else {
+            normalizedQty = rawQty; // ml
+          }
+        }
+      }
+
       const priceVal = Number(v.price) || 0;
       return {
-        index,
+        id: v.id,
         name: label,
-        weight: weightVal,
+        displayWeight: v.weight || `${normalizedQty}${rawUnit || ''}`,
+        rawUnit,
+        family,
+        normalizedQty,
         price: priceVal,
-        unitPrice: weightVal > 0 ? priceVal / weightVal : 0,
+        unitPrice: normalizedQty > 0 ? priceVal / normalizedQty : 0,
       };
-    });
+    };
 
-    // Check price monotonicity: as weight increases, total price must increase
-    for (let i = 0; i < parsed.length - 1; i++) {
-      const current = parsed[i];
-      const next = parsed[i + 1];
+    const parsed = activeVariants.map((v, index) => parseVariantQuantity(v, index));
 
-      if (current.weight > 0 && next.weight > 0 && next.weight > current.weight) {
+    // 1. Incompatible Mixed Unit Families Check (Fail-closed)
+    const distinctFamilies = Array.from(
+      new Set(parsed.map((p) => p.family).filter((f) => f === 'weight' || f === 'volume' || f === 'count'))
+    );
+    if (distinctFamilies.length > 1) {
+      errors.push(
+        `Variant unit family mismatch: Cannot mix incompatible unit families (${distinctFamilies.join(' and ')}) within product variations.`
+      );
+      return { isValid: false, errors, warnings };
+    }
+
+    // 2. Duplicate Pack Size Detection
+    const seenQuantities = new Map<number, string>();
+    for (const item of parsed) {
+      if (item.normalizedQty > 0) {
+        const existing = seenQuantities.get(item.normalizedQty);
+        if (existing) {
+          errors.push(
+            `Duplicate variant pack size detected: "${item.name}" and "${existing}" have the same quantity. Each variation must represent a distinct pack size.`
+          );
+        } else {
+          seenQuantities.set(item.normalizedQty, item.name);
+        }
+      }
+    }
+
+    // 3. Pre-sort by normalized quantity to eliminate array order sensitivity
+    const sorted = [...parsed].sort((a, b) => a.normalizedQty - b.normalizedQty);
+
+    // 4. Strict Monotonicity Validation on Sorted Ladder
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const current = sorted[i];
+      const next = sorted[i + 1];
+
+      if (current.normalizedQty > 0 && next.normalizedQty > current.normalizedQty) {
         if (next.price <= current.price) {
           errors.push(
-            `Variant pricing inversion: "${next.name}" (${next.weight}g) costs ₹${next.price}, which is not greater than "${current.name}" (${current.weight}g) at ₹${current.price}.`
+            `Variant pricing inversion: Larger pack "${next.name}" (${next.displayWeight}) costs ₹${next.price}, which is not greater than smaller pack "${current.name}" (${current.displayWeight}) at ₹${current.price}.`
           );
         }
 

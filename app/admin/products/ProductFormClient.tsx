@@ -289,6 +289,13 @@ export default function ProductFormClient({
     }
   }, [initialProduct?.id, loadBulkRulesForProduct]);
 
+  // Synchronize variants from initialProduct on navigation or external prop updates
+  useEffect(() => {
+    if (initialProduct && Array.isArray(initialProduct.variants)) {
+      setProductVariants(initialProduct.variants);
+    }
+  }, [initialProduct]);
+
   // Derived live validation for wholesale tier overlaps
   const tierValidationResult = useMemo(() => {
     if (productBulkRules.length === 0) return { valid: true };
@@ -315,9 +322,49 @@ export default function ProductFormClient({
     const defaultPackUnit = suggestion.packUnit;
     const nextQty = suggestion.packQuantity;
     const newWeight = suggestion.weight;
+
+    // Collision-free SKU derivation
     const baseSku = formData.sku ? formData.sku.trim() : 'MD-PRD';
-    const newSku = `${baseSku}-${nextQty}${defaultPackUnit}`;
+    let newSku = `${baseSku}-${nextQty}${defaultPackUnit}`;
+    let skuCounter = 1;
+    while (productVariants.some((v) => v.sku?.toLowerCase() === newSku.toLowerCase())) {
+      newSku = `${baseSku}-${nextQty}${defaultPackUnit}-${skuCounter++}`;
+    }
+
     const newVarId = `var_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+
+    // Derive an intelligent, monotonically sound default price
+    let defaultPrice = Number(formData.price) || 199;
+    let defaultCompareAt = formData.compareAtPrice ? Number(formData.compareAtPrice) : undefined;
+
+    const activeExisting = productVariants.filter((v) => v.isActive !== false);
+    if (activeExisting.length > 0) {
+      // Find the variant with the closest/largest pack quantity in the same unit family
+      const sortedByQty = [...activeExisting].sort((a, b) => (Number(a.packQuantity) || 0) - (Number(b.packQuantity) || 0));
+      const refVar = sortedByQty[sortedByQty.length - 1];
+      const refQty = Number(refVar.packQuantity) || 100;
+      const refPrice = Number(refVar.price) || defaultPrice;
+
+      if (nextQty > refQty && refQty > 0) {
+        // Proportional price with a standard 5% volume discount, guaranteed > refPrice
+        const scaledPrice = Math.round(refPrice * (nextQty / refQty) * 0.95);
+        defaultPrice = Math.max(refPrice + 10, scaledPrice);
+        if (refVar.compareAtPrice) {
+          defaultCompareAt = Math.round(Number(refVar.compareAtPrice) * (nextQty / refQty));
+        }
+      } else if (nextQty < refQty && refQty > 0) {
+        const scaledPrice = Math.round(refPrice * (nextQty / refQty) * 1.05);
+        defaultPrice = Math.max(1, Math.min(refPrice - 5, scaledPrice));
+        if (refVar.compareAtPrice) {
+          defaultCompareAt = Math.round(Number(refVar.compareAtPrice) * (nextQty / refQty));
+        }
+      }
+    }
+
+    // Ensure compareAtPrice > price if compareAtPrice is specified
+    if (defaultCompareAt !== undefined && defaultCompareAt <= defaultPrice) {
+      defaultCompareAt = Math.round(defaultPrice * 1.25);
+    }
 
     const newVariant: ProductVariant = {
       id: newVarId,
@@ -325,8 +372,8 @@ export default function ProductFormClient({
       weight: newWeight,
       packQuantity: nextQty,
       packUnit: defaultPackUnit,
-      price: Number(formData.price) || 199,
-      compareAtPrice: formData.compareAtPrice ? Number(formData.compareAtPrice) : undefined,
+      price: defaultPrice,
+      compareAtPrice: defaultCompareAt,
       stockStatus: 'in_stock',
       isDefault: productVariants.length === 0,
       isActive: true,
@@ -930,13 +977,20 @@ export default function ProductFormClient({
       const savedProduct = data.product;
       productSaveSucceeded = true;
       savedProductId = savedProduct.id;
+
+      // Authoritative state reconciliation directly from server response
+      const cleanSavedImages = (savedProduct.images || []).filter(
+        (img: string) => typeof img === 'string' && Boolean(img.trim()) && !img.includes('fallback.svg')
+      );
+      const updatedVariants = Array.isArray(savedProduct.variants) ? savedProduct.variants : [];
+
       setFormData((prev) => ({
         ...prev,
-        id: savedProduct.id,
-        images: (savedProduct.images || []).filter(
-          (img: string) => typeof img === 'string' && Boolean(img.trim()) && !img.includes('fallback.svg')
-        ),
+        ...savedProduct,
+        images: cleanSavedImages,
+        variants: updatedVariants,
       }));
+      setProductVariants(updatedVariants);
 
       // Phase 3H: Atomically persist wholesale rules
       if (productBulkRules.length > 0 || deletedRuleIds.length > 0) {
@@ -975,10 +1029,17 @@ export default function ProductFormClient({
 
       setIsDirty(false);
       setPartialSaveStatus(null);
-      setSuccessMsg('Product and pricing configurations saved successfully!');
-      setTimeout(() => {
-        router.push('/admin/products');
-      }, 1000);
+      const varCount = updatedVariants.length;
+      setSuccessMsg(
+        varCount > 0
+          ? `Product and ${varCount} variation${varCount === 1 ? '' : 's'} saved successfully!`
+          : 'Product configurations saved successfully!'
+      );
+
+      // If this was a new product creation, update the browser URL to the edit route without a full reload
+      if (!formData.id && savedProduct.id) {
+        router.replace(`/admin/products/${savedProduct.id}`);
+      }
     } catch (err: any) {
       if (productSaveSucceeded) {
         const rawMsg = err.message || '';
@@ -1169,6 +1230,11 @@ export default function ProductFormClient({
           >
             <DollarSign className="w-4 h-4" />
             <span>Pricing & Stock</span>
+            {productVariants.length > 0 && (
+              <span className="bg-[#e8f3ed] text-[#1b4332] text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-[#d8ece0]">
+                {productVariants.length}
+              </span>
+            )}
           </button>
 
           <button

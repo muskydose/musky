@@ -359,7 +359,9 @@ export function filterValidActiveVariants(product: Partial<Product>): ProductVar
     return [];
   }
 
-  const rule = getProductTypeUnitRule(product.productType);
+  const rule = product.productType
+    ? getProductTypeUnitRule(product.productType)
+    : { family: 'custom' as UnitFamily, allowedUnits: [], defaultUnit: 'g', suggestedQuantities: [] };
 
   const valid = product.variants.filter((v) => {
     if (!v || v.isActive === false) return false;
