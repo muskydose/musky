@@ -79,7 +79,6 @@ export default function WholesaleCalculatorRedesign({
   }, [selectedProduct]);
 
   const unitLabel = unitInfo?.wholesaleUnit || 'kg';
-  const pricingUnit = unitInfo?.pricingUnit || 'kg';
 
   // Persona-aware preset quantities
   const presetQuantities = useMemo(() => {
@@ -121,10 +120,10 @@ export default function WholesaleCalculatorRedesign({
     onSelectQuote({
       productName: selectedProduct.name,
       quantity,
-      quantityUnit: unitLabel,
+      quantityUnit: pricingResult.unit,
       estimatedTotal: pricingResult.effectiveTotal,
       effectivePricePerUnit: pricingResult.effectiveWholesaleRate,
-      pricingUnit: pricingUnit,
+      pricingUnit: pricingResult.unit,
       tierName: pricingResult.tierName || 'Standard Tier',
       savingsAmount: pricingResult.savingsAmount,
       savingsPercent: pricingResult.savingsPercent,
@@ -137,10 +136,10 @@ export default function WholesaleCalculatorRedesign({
     onDirectWhatsApp({
       productName: selectedProduct.name,
       quantity,
-      quantityUnit: unitLabel,
+      quantityUnit: pricingResult.unit,
       estimatedTotal: pricingResult.effectiveTotal,
       effectivePricePerUnit: pricingResult.effectiveWholesaleRate,
-      pricingUnit: pricingUnit,
+      pricingUnit: pricingResult.unit,
     });
   };
 
@@ -201,8 +200,7 @@ export default function WholesaleCalculatorRedesign({
             pricingResult={pricingResult}
             productName={selectedProduct.name}
             quantity={quantity}
-            unitLabel={unitLabel}
-            pricingUnit={pricingUnit}
+            unitLabel={pricingResult.unit}
             onApplyToForm={handleApplyToForm}
             onDirectWhatsApp={handleWhatsAppQuote}
             ctaLabel={personaConfig?.ctaLabel || 'Lock Estimate & Populate Form Below ↓'}

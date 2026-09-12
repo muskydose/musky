@@ -92,7 +92,7 @@ export default function WholesaleInquiryForm({
           approxQuantity: `${externalQuoteData.quantity} ${externalQuoteData.quantityUnit}`,
           notes: prev.notes
             ? prev.notes
-            : `Quote generated via Calculator. Estimated tier rate: ₹${Math.round(externalQuoteData.effectivePricePerUnit)}/${externalQuoteData.pricingUnit} (Est. Total: ~₹${Math.round(externalQuoteData.estimatedTotal)})`,
+            : `Quote generated via Calculator. Estimated tier rate: ₹${Math.round(externalQuoteData.effectivePricePerUnit)}/${externalQuoteData.quantityUnit || externalQuoteData.pricingUnit} (Est. Total: ~₹${Math.round(externalQuoteData.estimatedTotal)})`,
         };
       });
     }

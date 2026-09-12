@@ -10,7 +10,7 @@ interface CommercialEstimateCardProps {
   productName: string;
   quantity: number;
   unitLabel: string;
-  pricingUnit: string;
+  pricingUnit?: string;
   onApplyToForm: () => void;
   onDirectWhatsApp: () => void;
   ctaLabel?: string;
@@ -21,7 +21,6 @@ export default function CommercialEstimateCard({
   productName,
   quantity,
   unitLabel,
-  pricingUnit,
   onApplyToForm,
   onDirectWhatsApp,
   ctaLabel = 'Lock Estimate & Populate Form Below ↓',
@@ -86,12 +85,12 @@ export default function CommercialEstimateCard({
           <div className="text-[#626c66] text-[11px]">Catalog Retail Rate</div>
           <div className="text-sm font-semibold text-[#88908a] line-through">
             {formatPrice(baseWholesaleRate)}
-            <span className="text-[10px] font-normal text-[#88908a]"> / {pricingUnit}</span>
+            <span className="text-[10px] font-normal text-[#88908a]"> / {pricingResult.unit}</span>
           </div>
           <div className="text-[#0f2d22] text-[11px] pt-1 font-medium">Factory Wholesale Rate</div>
           <div className="text-base font-mono font-bold text-[#1b4332]">
             {formatPrice(effectiveWholesaleRate)}
-            <span className="text-xs font-normal text-[#626c66]"> / {pricingUnit}</span>
+            <span className="text-xs font-normal text-[#626c66]"> / {pricingResult.unit}</span>
           </div>
         </div>
 

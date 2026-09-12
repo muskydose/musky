@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Product } from '@/lib/types';
-import { resolveProductWholesaleUnits } from '@/lib/wholesale-units';
+import { resolveProductWholesaleUnits, calculateProductBaseWholesaleRate } from '@/lib/wholesale-units';
 import { formatPrice } from '@/lib/utils';
 import { Search, CheckCircle2, Package, Layers } from 'lucide-react';
 
@@ -104,6 +104,8 @@ export default function ProductCardPicker({
             const isSelected = selectedProduct?.id === p.id;
             const unitInfo = resolveProductWholesaleUnits(p);
             const unitLabel = unitInfo.wholesaleUnit;
+            const baseWholesaleRate = calculateProductBaseWholesaleRate(p, unitInfo);
+            const packSize = p.quantityOrWeight || `${unitInfo.packQuantity}${unitInfo.packUnit}`;
 
             return (
               <button
@@ -112,7 +114,7 @@ export default function ProductCardPicker({
                 role="radio"
                 aria-checked={isSelected}
                 onClick={() => onSelectProduct(p)}
-                className={`p-2.5 rounded-xl border text-left transition-all relative flex flex-col justify-between cursor-pointer min-h-[96px] ${
+                className={`p-2.5 rounded-xl border text-left transition-all relative flex flex-col justify-between cursor-pointer min-h-[108px] ${
                   isSelected
                     ? 'border-[#1b4332] bg-[#f4f7f4] ring-2 ring-[#1b4332]/40 shadow-xs'
                     : 'border-[#e8e2d5] bg-white hover:border-[#b2c8be] hover:bg-[#fafaf7]'
@@ -139,13 +141,17 @@ export default function ProductCardPicker({
                 </div>
 
                 {/* Pricing & Unit Info */}
-                <div className="mt-2 pt-1.5 border-t border-[#e8e2d5]/60 flex items-center justify-between text-[11px]">
-                  <span className="text-[#626c66]">
-                    Unit: <strong className="text-[#0f2d22]">{unitLabel}</strong>
-                  </span>
-                  <span className="font-bold text-[#1b4332]">
-                    {formatPrice(p.price)}
-                  </span>
+                <div className="mt-2 pt-1.5 border-t border-[#e8e2d5]/60 flex flex-col gap-0.5 text-[11px]">
+                  <div className="flex items-center justify-between text-[#626c66]">
+                    <span>Pack:</span>
+                    <span className="font-medium text-[#1f2421]">
+                      {formatPrice(p.price)} <span className="text-[10px] text-[#88908a]">({packSize})</span>
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[#1b4332]">
+                    <span className="font-medium">Wholesale:</span>
+                    <span className="font-bold">{formatPrice(baseWholesaleRate)}/{unitLabel}</span>
+                  </div>
                 </div>
               </button>
             );

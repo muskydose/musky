@@ -139,7 +139,7 @@ export default function WholesaleClient({
 
 Product: ${data.productName}
 Quantity: ${data.quantity} ${data.quantityUnit}
-Estimated Rate: ₹${Math.round(data.effectivePricePerUnit)}/${data.pricingUnit}
+Estimated Rate: ₹${Math.round(data.effectivePricePerUnit)}/${data.quantityUnit || data.pricingUnit}
 Estimated Total: ~₹${Math.round(data.estimatedTotal)}
 
 Please provide commercial terms and dispatch schedule. Thank you!`;
