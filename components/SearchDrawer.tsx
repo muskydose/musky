@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useUI } from '@/context/UIContext';
 import SideDrawer from '@/components/ui/SideDrawer';
 import { Product, Category } from '@/lib/types';
-import { sanitizeImageUrl } from '@/lib/utils';
+import { sanitizeImageUrl, formatPrice } from '@/lib/utils';
 import { trackSearchOpen, trackSearchSubmit } from '@/lib/analytics';
 import { unifiedSearchProducts } from '@/lib/search/unified-search';
 import { resolveEntityFromQuery } from '@/lib/growth/entities';
@@ -338,9 +338,9 @@ export default function SearchDrawer() {
                         {prod.name}
                       </div>
                       <div className="text-[10px] text-gray-500 flex items-center gap-1.5 mt-0.5">
-                        <span className="font-bold text-[#1b4332]">₹{prod.price}</span>
+                        <span className="font-bold text-[#1b4332]">{formatPrice(prod.price)}</span>
                         {prod.compareAtPrice && prod.compareAtPrice > prod.price && (
-                          <span className="line-through text-gray-400">₹{prod.compareAtPrice}</span>
+                          <span className="line-through text-gray-400">{formatPrice(prod.compareAtPrice)}</span>
                         )}
                         <span>• {prod.categoryName || 'Sojat Henna'}</span>
                       </div>

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
-import { sanitizeImageUrl } from '@/lib/utils';
+import { sanitizeImageUrl, formatPrice } from '@/lib/utils';
 import { SiteSettings } from '@/lib/types';
 import { getCmsText } from '@/lib/cms';
 import { getClientSiteSettings } from '@/lib/api-client';
@@ -113,7 +113,7 @@ export default function CartDrawer({ siteSettings: initialSettings }: CartDrawer
               <div className="flex justify-between text-gray-600 font-medium">
                 <span>{cms.cartSubtotalLabel || 'Subtotal'}:</span>
                 <span className="font-bold text-[#0f2d22]">
-                  ₹{discountInfo ? discountInfo.regularSubtotal : totalAmount}
+                  {formatPrice(discountInfo ? discountInfo.regularSubtotal : totalAmount)}
                 </span>
               </div>
 
@@ -123,7 +123,7 @@ export default function CartDrawer({ siteSettings: initialSettings }: CartDrawer
                     <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                     {cms.cartBulkDiscountLabel || 'Wholesale Bulk Savings'}:
                   </span>
-                  <span>-₹{discountInfo.totalDiscountAmount}</span>
+                  <span>-{formatPrice(discountInfo.totalDiscountAmount)}</span>
                 </div>
               )}
 
@@ -137,7 +137,7 @@ export default function CartDrawer({ siteSettings: initialSettings }: CartDrawer
               <div className="pt-2 border-t border-[#e8e2d5] flex items-center justify-between">
                 <span className="font-bold text-sm text-[#0f2d22]">{cms.cartTotalLabel || 'Total Payable'}:</span>
                 <span className="text-[#1b4332] text-lg font-extrabold">
-                  ₹{discountInfo ? discountInfo.netSubtotal : totalAmount}
+                  {formatPrice(discountInfo ? discountInfo.netSubtotal : totalAmount)}
                 </span>
               </div>
             </div>
@@ -148,7 +148,7 @@ export default function CartDrawer({ siteSettings: initialSettings }: CartDrawer
               className="w-full flex items-center justify-center gap-2 bg-[#1b4332] hover:bg-[#0f2d22] text-[#c5a059] py-3 rounded-xl font-bold text-xs sm:text-sm tracking-wide shadow-md active:scale-[0.99] transition-all"
             >
               <ShoppingBag className="w-4 h-4 text-[#c5a059]" />
-              <span>{cms.cartCheckoutButtonText || 'PROCEED TO CHECKOUT'} (₹{discountInfo ? discountInfo.netSubtotal : totalAmount})</span>
+              <span>{cms.cartCheckoutButtonText || 'PROCEED TO CHECKOUT'} ({formatPrice(discountInfo ? discountInfo.netSubtotal : totalAmount)})</span>
               <ArrowRight className="w-4 h-4 text-[#c5a059]" />
             </Link>
 
@@ -192,7 +192,7 @@ export default function CartDrawer({ siteSettings: initialSettings }: CartDrawer
               <Truck className="w-3.5 h-3.5 text-[#1b4332]" />
               {amountNeededForFreeShipping === 0
                 ? '🎉 You unlocked FREE Shipping!'
-                : `Add ₹${amountNeededForFreeShipping} more for FREE Shipping`}
+                : `Add ${formatPrice(amountNeededForFreeShipping)} more for FREE Shipping`}
             </span>
             <span className="text-[10px] font-extrabold text-[#1b4332]">
               {Math.round(progressToFreeShipping)}%
@@ -264,7 +264,7 @@ export default function CartDrawer({ siteSettings: initialSettings }: CartDrawer
                       <span className="font-mono text-gray-400">({item.selectedVariant.sku})</span>
                     )}
                     <span>•</span>
-                    <span>₹{linePrice} each</span>
+                    <span>{formatPrice(linePrice)} each</span>
                   </p>
 
                   <div className="flex items-center justify-between mt-2">
@@ -291,7 +291,7 @@ export default function CartDrawer({ siteSettings: initialSettings }: CartDrawer
                     </div>
 
                     <div className="font-extrabold text-xs text-[#1b4332]">
-                      ₹{itemTotal}
+                      {formatPrice(itemTotal)}
                     </div>
                   </div>
                 </div>

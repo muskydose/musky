@@ -24,6 +24,7 @@ import {
   resolveCanonicalWholesalePricing,
   CanonicalWholesaleResolution,
 } from './wholesale-pricing-resolver';
+import { formatPrice, formatPercent } from './utils';
 
 export * from './wholesale-pricing-resolver';
 
@@ -144,9 +145,7 @@ export function deriveWholesaleSavings({
         formattedRetailTotal: canonical.display.formattedRegularTotal,
         formattedWholesaleTotal: canonical.display.formattedEffectiveTotal,
         formattedSavingsTotal: canonical.display.formattedSavingsTotal,
-        formattedSavingsPercent: Number.isInteger(canonical.savingsPercent)
-          ? `${canonical.savingsPercent}%`
-          : `${Number(canonical.savingsPercent.toFixed(2))}%`,
+        formattedSavingsPercent: formatPercent(canonical.savingsPercent),
         equivalentPackagesLabel: canonical.display.equivalentPackagesLabel,
       },
     };
@@ -181,12 +180,10 @@ export function deriveWholesaleSavings({
         formattedRetailRate: formatRatePerUnit(retailUnitRate, targetUnit),
         formattedWholesaleRate: formatRatePerUnit(wholesaleUnitRate, targetUnit),
         formattedSavingsPerUnit: savingsAmount > 0 ? formatRatePerUnit(savingsPerUnit, targetUnit) : '₹0',
-        formattedRetailTotal: `₹${Math.round(retailTotal).toLocaleString('en-IN')}`,
-        formattedWholesaleTotal: `₹${Math.round(wholesaleTotal).toLocaleString('en-IN')}`,
-        formattedSavingsTotal: savingsAmount > 0 ? `₹${Math.round(savingsAmount).toLocaleString('en-IN')}` : 'Quote on Request',
-        formattedSavingsPercent: Number.isInteger(savingsPercent)
-          ? `${savingsPercent}%`
-          : `${Number(savingsPercent.toFixed(2))}%`,
+        formattedRetailTotal: formatPrice(retailTotal),
+        formattedWholesaleTotal: formatPrice(wholesaleTotal),
+        formattedSavingsTotal: savingsAmount > 0 ? formatPrice(savingsAmount) : 'Quote on Request',
+        formattedSavingsPercent: formatPercent(savingsPercent),
         equivalentPackagesLabel: units.equivalentPackagesText(effectiveQty),
       },
     };

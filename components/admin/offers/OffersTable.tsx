@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Campaign, Category, Product } from '@/lib/types';
+import { formatPrice, formatPercent } from '@/lib/utils';
 import {
   Tag,
   Search,
@@ -99,10 +100,10 @@ export default function OffersTable({
 
   const formatDiscount = (camp: Campaign) => {
     if (camp.discountType === 'percentage') {
-      return `${camp.discountValue}% OFF`;
+      return `${formatPercent(camp.discountValue)} OFF`;
     }
     if (camp.discountType === 'fixed_amount') {
-      return `₹${camp.discountValue} FLAT OFF`;
+      return `${formatPrice(camp.discountValue)} FLAT OFF`;
     }
     if (camp.discountType === 'free_shipping') {
       return 'FREE SHIPPING';
@@ -178,7 +179,7 @@ export default function OffersTable({
                       {formatDiscount(camp)}
                     </span>
                     {camp.minOrderValue ? (
-                      <div className="text-[10px] text-[#626c66]">Min order: ₹{camp.minOrderValue}</div>
+                      <div className="text-[10px] text-[#626c66]">Min order: {formatPrice(camp.minOrderValue)}</div>
                     ) : null}
                   </td>
 

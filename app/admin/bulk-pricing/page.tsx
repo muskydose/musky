@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '@/components/AdminLayout';
 import { BulkPricingRule, Product } from '@/lib/types';
+import { formatPrice, formatPercent } from '@/lib/utils';
 import {
   Percent,
   Plus,
@@ -260,9 +261,9 @@ export default function AdminBulkPricingPage() {
                           </span>
                         </td>
                         <td className="p-3.5 font-bold text-emerald-800 text-sm">
-                          {rule.discountType === 'percentage' && `${rule.discountValue}% OFF`}
-                          {rule.discountType === 'fixed_amount' && `₹${rule.discountValue} OFF / unit`}
-                          {rule.discountType === 'fixed_price' && `₹${rule.discountValue} fixed unit price`}
+                          {rule.discountType === 'percentage' && `${formatPercent(rule.discountValue)} OFF`}
+                          {rule.discountType === 'fixed_amount' && `${formatPrice(rule.discountValue)} OFF / unit`}
+                          {rule.discountType === 'fixed_price' && `${formatPrice(rule.discountValue)} fixed unit price`}
                         </td>
                         <td className="p-3.5 text-[#626c66] capitalize">
                           {rule.discountType.replace('_', ' ')}
@@ -341,7 +342,7 @@ export default function AdminBulkPricingPage() {
                     <optgroup label="Specific Products">
                       {products.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name} (₹{p.price})
+                          {p.name} ({formatPrice(p.price)})
                         </option>
                       ))}
                     </optgroup>

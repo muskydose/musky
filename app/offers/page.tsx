@@ -10,6 +10,7 @@ import { Campaign, Product, SiteSettings } from '@/lib/types';
 import { getCmsText } from '@/lib/cms';
 import { getClientSiteSettings } from '@/lib/api-client';
 import { Sparkles, Tag, Copy, Check, Clock, ShoppingBag, ArrowRight } from 'lucide-react';
+import { formatPrice, formatPercent } from '@/lib/utils';
 
 export default function OffersPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -129,9 +130,9 @@ export default function OffersPage() {
                           </span>
                         )}
                         <span className="px-3 py-1 bg-emerald-100 text-emerald-800 font-bold text-xs rounded-full uppercase">
-                          {camp.discountType === 'percentage' && `${camp.discountValue}% OFF`}
-                          {camp.discountType === 'fixed_amount' && `₹${camp.discountValue} OFF`}
-                          {camp.discountType === 'fixed_price' && `Flat ₹${camp.discountValue}`}
+                          {camp.discountType === 'percentage' && `${formatPercent(camp.discountValue)} OFF`}
+                          {camp.discountType === 'fixed_amount' && `${formatPrice(camp.discountValue)} OFF`}
+                          {camp.discountType === 'fixed_price' && `Flat ${formatPrice(camp.discountValue)}`}
                           {camp.discountType === 'free_shipping' && 'Free Shipping'}
                         </span>
                       </div>
@@ -189,7 +190,7 @@ export default function OffersPage() {
 
                       {camp.minOrderValue ? (
                         <p className="text-[11px] text-stone-500 italic">
-                          * Minimum order value ₹{camp.minOrderValue}
+                          * Minimum order value {formatPrice(camp.minOrderValue)}
                         </p>
                       ) : null}
                     </div>

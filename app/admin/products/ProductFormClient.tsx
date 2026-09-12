@@ -34,6 +34,7 @@ import {
   validateCatalogVariants,
 } from '@/lib/growth/product-catalog-governance';
 import { resolveCanonicalWholesalePricing } from '@/lib/wholesale-pricing-resolver';
+import { formatPrice, formatPercent } from '@/lib/utils';
 import {
   Save,
   ArrowLeft,
@@ -2045,8 +2046,8 @@ export default function ProductFormClient({
                             Effective Wholesale Rate for this tier:
                           </span>
                           <span className="font-extrabold text-xs text-emerald-800">
-                            ₹{effectiveRate} / {currentWholesaleUnits.wholesaleUnit}
-                            {rule.discountType === 'percentage' && ` (${rule.discountValue}% Savings)`}
+                            {formatPrice(effectiveRate)} / {currentWholesaleUnits.wholesaleUnit}
+                            {rule.discountType === 'percentage' && ` (${formatPercent(rule.discountValue)} Savings)`}
                           </span>
                         </div>
                       </div>
@@ -2078,10 +2079,10 @@ export default function ProductFormClient({
                   {productVariants.length === 0 ? (
                     <div className="p-3 bg-[#fcfbf7] rounded-lg text-[11px] text-gray-600">
                       Standard Pack: <strong>{formData.quantityOrWeight || 'Standard'}</strong> —{' '}
-                      <strong className="text-emerald-800">₹{formData.price}</strong>
+                      <strong className="text-emerald-800">{formatPrice(formData.price)}</strong>
                       {formData.compareAtPrice && formData.compareAtPrice > (formData.price || 0) && (
                         <span className="text-gray-400 line-through ml-1.5">
-                          ₹{formData.compareAtPrice}
+                          {formatPrice(formData.compareAtPrice)}
                         </span>
                       )}
                     </div>
@@ -2116,11 +2117,11 @@ export default function ProductFormClient({
                             <div className="flex items-center gap-2">
                               {v.compareAtPrice && v.compareAtPrice > v.price && (
                                 <span className="text-[11px] text-gray-400 line-through">
-                                  ₹{v.compareAtPrice}
+                                  {formatPrice(v.compareAtPrice)}
                                 </span>
                               )}
                               <span className="font-bold text-emerald-800">
-                                ₹{v.price}
+                                {formatPrice(v.price)}
                               </span>
                             </div>
                           </div>
@@ -2141,7 +2142,7 @@ export default function ProductFormClient({
                   <div className="p-2.5 bg-[#fcfbf7] rounded-lg border border-[#e8e2d5] flex items-center justify-between text-xs">
                     <span className="text-gray-600">Commercial Base Rate:</span>
                     <strong className="text-emerald-800 font-bold">
-                      ₹{currentBaseWholesaleRate} / {currentWholesaleUnits.wholesaleUnit}
+                      {formatPrice(currentBaseWholesaleRate)} / {currentWholesaleUnits.wholesaleUnit}
                     </strong>
                   </div>
 

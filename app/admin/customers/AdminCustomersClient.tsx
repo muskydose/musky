@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Customer } from '@/lib/types';
 import { Search, Trash2, Users } from 'lucide-react';
+import { formatPrice } from '@/lib/utils';
 
 interface AdminCustomersClientProps {
   initialCustomers: Customer[];
@@ -183,7 +184,7 @@ export default function AdminCustomersClient({
                       )}
                     </td>
                     <td className="p-4 font-bold text-center text-sm">{cust.totalOrders}</td>
-                    <td className="p-4 font-extrabold text-[#1b4332] text-sm">₹{cust.totalSpent}</td>
+                    <td className="p-4 font-extrabold text-[#1b4332] text-sm">{formatPrice(cust.totalSpent)}</td>
                     <td className="p-4 text-gray-500 text-[11px]">
                       {cust.lastOrderAt ? new Date(cust.lastOrderAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'Recent'}
                     </td>

@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useWishlist } from '@/context/WishlistContext';
 import { useCart } from '@/context/CartContext';
-import { sanitizeImageUrl } from '@/lib/utils';
+import { sanitizeImageUrl, formatPrice } from '@/lib/utils';
 import { SiteSettings } from '@/lib/types';
 import { getCmsText } from '@/lib/cms';
 import { getClientSiteSettings } from '@/lib/api-client';
@@ -132,11 +132,11 @@ export default function WishlistDrawer({ siteSettings: initialSettings }: Wishli
                 </Link>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="font-extrabold text-xs text-[#1b4332]">
-                    ₹{product.price}
+                    {formatPrice(product.price)}
                   </span>
                   {product.compareAtPrice && product.compareAtPrice > product.price && (
                     <span className="text-[10px] text-gray-400 line-through">
-                      ₹{product.compareAtPrice}
+                      {formatPrice(product.compareAtPrice)}
                     </span>
                   )}
                   {product.quantityOrWeight && (

@@ -47,8 +47,44 @@ export function sanitizeImageUrls(urls?: (string | null | undefined)[], fallback
   return sanitized;
 }
 
-export function formatPrice(amount: number): string {
-  return `₹${amount.toLocaleString('en-IN')}`;
+/**
+ * Canonical INR Money Formatter
+ * Rules:
+ * - Standard nearest-integer rounding for display (₹18,250.6666 -> ₹18,251, ₹999.49 -> ₹999)
+ * - Indian number grouping (en-IN: ₹1,000, ₹10,000, ₹1,00,000, ₹10,00,000)
+ * - Safe against null/undefined/NaN (returns ₹0)
+ */
+export function formatPrice(amount: number | null | undefined): string {
+  const num = Number(amount);
+  if (isNaN(num)) return '₹0';
+  const rounded = Math.round(num);
+  return `₹${rounded.toLocaleString('en-IN')}`;
+}
+
+/**
+ * Canonical Numeric Formatter with Indian grouping (without currency symbol)
+ */
+export function formatNumber(amount: number | null | undefined): string {
+  const num = Number(amount);
+  if (isNaN(num)) return '0';
+  const rounded = Math.round(num);
+  return rounded.toLocaleString('en-IN');
+}
+
+/**
+ * Canonical Percentage Formatter
+ * Rules:
+ * - Maximum 2 decimal places with standard numeric rounding
+ * - Trims unnecessary trailing zeros (73.737373 -> 73.74%, 15.00 -> 15%, 15.5 -> 15.5%)
+ * - Safe against null/undefined/NaN (returns 0%)
+ */
+export function formatPercent(value: number | null | undefined, options?: { maxDecimals?: number }): string {
+  const num = Number(value);
+  if (isNaN(num)) return '0%';
+  const maxDecimals = options?.maxDecimals ?? 2;
+  const factor = Math.pow(10, maxDecimals);
+  const rounded = Math.round(num * factor) / factor;
+  return `${rounded}%`;
 }
 
 export function generateWhatsAppLink(phone: string, message: string): string {

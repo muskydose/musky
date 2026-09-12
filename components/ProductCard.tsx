@@ -11,7 +11,7 @@ import { getCmsText } from '@/lib/cms';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
 import { trackAddToCart, trackWhatsAppClick } from '@/lib/analytics';
-import { sanitizeImageUrl } from '@/lib/utils';
+import { sanitizeImageUrl, formatPrice, formatPercent } from '@/lib/utils';
 import { SPRINGS } from '@/lib/motion';
 import { startPageTransition } from '@/lib/navigation';
 import { resolveCanonicalProductOffer } from '@/lib/growth/product-catalog-governance';
@@ -173,7 +173,7 @@ export default function ProductCard({
             </span>
           ) : discountPercent > 0 ? (
             <span className="bg-[#c5a059] text-[#0f2d22] text-[9px] sm:text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-2xs">
-              {discountPercent}% OFF
+              {formatPercent(discountPercent)} OFF
             </span>
           ) : null}
         </div>
@@ -243,17 +243,17 @@ export default function ProductCard({
           <div className="flex items-baseline justify-between gap-1">
             <div className="flex items-baseline gap-1.5">
               <span className="text-sm sm:text-base font-extrabold text-[#0f2d22] tabular-nums">
-                ₹{displayPrice}
+                {formatPrice(displayPrice)}
               </span>
               {displayCompareAt && displayCompareAt > displayPrice && (
                 <span className="text-[10px] sm:text-xs text-gray-400 line-through tabular-nums">
-                  ₹{displayCompareAt}
+                  {formatPrice(displayCompareAt)}
                 </span>
               )}
             </div>
             {discountPercent > 0 ? (
               <span className="text-[9px] sm:text-[10px] font-extrabold text-[#c5a059] bg-[#faf5e8] px-1.5 py-0.5 rounded border border-[#c5a059]/30">
-                {discountPercent}% OFF
+                {formatPercent(discountPercent)} OFF
               </span>
             ) : (
               <span className="text-[10px] font-semibold text-[#1b4332] bg-[#f5f1e8] px-1.5 py-0.5 rounded">

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { formatProductTypeDisplay } from '@/lib/growth/product-type-governance';
 import { formatProductPackDisplay } from '@/lib/growth/product-catalog-governance';
+import { formatPrice } from '@/lib/utils';
 
 interface AdminProductsClientProps {
   initialProducts: Product[];
@@ -595,10 +596,10 @@ export default function AdminProductsClient({
                       </td>
 
                       <td className="p-4 font-extrabold text-[#1b4332]">
-                        ₹{p.price}
+                        {formatPrice(p.price)}
                         {p.compareAtPrice && (
                           <span className="text-[10px] text-gray-400 line-through ml-1 font-normal">
-                            ₹{p.compareAtPrice}
+                            {formatPrice(p.compareAtPrice)}
                           </span>
                         )}
                       </td>

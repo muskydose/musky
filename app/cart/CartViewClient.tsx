@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
-import { sanitizeImageUrl } from '@/lib/utils';
+import { sanitizeImageUrl, formatPrice } from '@/lib/utils';
 import { SiteSettings } from '@/lib/types';
 import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
 import { trackViewCart, trackRemoveFromCart, trackWhatsAppClick } from '@/lib/analytics';
@@ -132,7 +132,7 @@ export default function CartViewClient({ siteSettings }: CartViewClientProps) {
                         {item.product.name}
                       </Link>
                       <p className="text-xs text-[#626c66] mt-0.5">
-                        Pack: <strong className="text-[#0f2d22]">{item.product.quantityOrWeight || 'Standard'}</strong> | ₹{item.product.price} each
+                        Pack: <strong className="text-[#0f2d22]">{item.product.quantityOrWeight || 'Standard'}</strong> | {formatPrice(item.product.price)} each
                       </p>
                     </div>
                   </div>
@@ -158,7 +158,7 @@ export default function CartViewClient({ siteSettings }: CartViewClientProps) {
                     </div>
 
                     <div className="font-extrabold text-sm text-[#1b4332]">
-                      ₹{itemTotal}
+                      {formatPrice(itemTotal)}
                     </div>
 
                     <button
@@ -193,7 +193,7 @@ export default function CartViewClient({ siteSettings }: CartViewClientProps) {
           <div className="space-y-2.5 text-xs text-[#626c66]">
             <div className="flex justify-between font-medium">
               <span>Items Subtotal ({totalItems} packs):</span>
-              <span className="font-bold text-[#0f2d22]">₹{discountInfo ? discountInfo.regularSubtotal : totalAmount}</span>
+              <span className="font-bold text-[#0f2d22]">{formatPrice(discountInfo ? discountInfo.regularSubtotal : totalAmount)}</span>
             </div>
 
             {discountInfo && discountInfo.totalDiscountAmount > 0 && (
@@ -201,7 +201,7 @@ export default function CartViewClient({ siteSettings }: CartViewClientProps) {
                 <span className="flex items-center gap-1">
                   <Sparkles className="w-3.5 h-3.5 text-[#c5a059]" /> Bulk Volume Discount:
                 </span>
-                <span>-₹{discountInfo.totalDiscountAmount}</span>
+                <span>-{formatPrice(discountInfo.totalDiscountAmount)}</span>
               </div>
             )}
 
@@ -213,7 +213,7 @@ export default function CartViewClient({ siteSettings }: CartViewClientProps) {
             <div className="pt-3 border-t border-[#f5f1e8] flex justify-between items-baseline text-base font-extrabold text-[#0f2d22]">
               <span>Product Subtotal:</span>
               <span className="text-[#1b4332] text-2xl font-extrabold">
-                ₹{discountInfo ? discountInfo.netSubtotal : totalAmount}
+                {formatPrice(discountInfo ? discountInfo.netSubtotal : totalAmount)}
               </span>
             </div>
             <p className="text-[10px] text-gray-400 italic text-center">
@@ -227,7 +227,7 @@ export default function CartViewClient({ siteSettings }: CartViewClientProps) {
               className="w-full flex items-center justify-center gap-2 bg-[#1b4332] hover:bg-[#0f2d22] text-white py-4 rounded-xl font-extrabold text-xs tracking-wider shadow-md hover:shadow-lg transition-all"
             >
               <ShoppingBag className="w-4 h-4" />
-              <span>PROCEED TO CHECKOUT (₹{discountInfo ? discountInfo.netSubtotal : totalAmount})</span>
+              <span>PROCEED TO CHECKOUT ({formatPrice(discountInfo ? discountInfo.netSubtotal : totalAmount)})</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>

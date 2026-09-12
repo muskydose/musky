@@ -21,6 +21,7 @@ import { SPRINGS } from '@/lib/motion';
 import { trackWholesaleInquiryStarted } from '@/lib/analytics';
 import { resolveProductWholesaleUnits, calculateProductBaseWholesaleRate } from '@/lib/wholesale-units';
 import { resolveCanonicalWholesalePricing } from '@/lib/wholesale-pricing-resolver';
+import { formatPrice, formatPercent } from '@/lib/utils';
 
 interface WholesaleCalculatorProps {
   siteSettings?: SiteSettings;
@@ -373,7 +374,7 @@ export default function WholesaleCalculator({
               </span>
               <div className="flex items-baseline gap-1.5">
                 <span className="text-base sm:text-lg font-extrabold text-[#0f2d22]">
-                  ₹{calculation.effectivePrice}
+                  {formatPrice(calculation.effectivePrice)}
                 </span>
                 <span className="text-[10px] text-gray-400">{units.pricePerUnitLabel}</span>
               </div>
@@ -387,7 +388,7 @@ export default function WholesaleCalculator({
                 }`}
               >
                 {calculation.totalSavings > 0
-                  ? `₹${calculation.totalSavings} (${calculation.discountPercent}%)`
+                  ? `${formatPrice(calculation.totalSavings)} (${formatPercent(calculation.discountPercent)} benefit)`
                   : 'Quote on Request'}
               </span>
             </div>
@@ -395,7 +396,7 @@ export default function WholesaleCalculator({
             <div className="p-3 bg-white rounded-xl border border-[#1b4332]/30 bg-emerald-50/40">
               <span className="text-[10px] text-[#0f2d22] uppercase font-bold block">Estimated Total</span>
               <span className="text-base sm:text-lg font-extrabold text-[#1b4332]">
-                ₹{calculation.estimatedTotal.toLocaleString('en-IN')}
+                {formatPrice(calculation.estimatedTotal)}
               </span>
             </div>
           </div>
@@ -408,11 +409,11 @@ export default function WholesaleCalculator({
                 <span>Wholesale Value vs. Normal Retail Value</span>
               </div>
               <div className="text-xs text-gray-700">
-                Retail Equivalent: <span className="font-bold text-gray-800 line-through font-mono">{units.rates.wholesaleRate.formattedRate}</span> • Wholesale Sourcing: <span className="font-extrabold text-[#1b4332] font-mono">₹{calculation.effectivePrice} / {units.wholesaleUnit}</span>
+                Retail Equivalent: <span className="font-bold text-gray-800 line-through font-mono">{units.rates.wholesaleRate.formattedRate}</span> • Wholesale Sourcing: <span className="font-extrabold text-[#1b4332] font-mono">{formatPrice(calculation.effectivePrice)} / {units.wholesaleUnit}</span>
               </div>
               {calculation.totalSavings > 0 ? (
                 <p className="text-xs font-extrabold text-emerald-800">
-                  🎉 Buying {quantity} {units.wholesaleUnit} saves you ₹{calculation.totalSavings.toLocaleString('en-IN')} ({calculation.discountPercent}% benefit over retail)
+                  🎉 Buying {quantity} {units.wholesaleUnit} saves you {formatPrice(calculation.totalSavings)} ({formatPercent(calculation.discountPercent)} benefit over retail)
                 </p>
               ) : (
                 <p className="text-xs text-gray-500 font-medium">
@@ -423,7 +424,7 @@ export default function WholesaleCalculator({
             <div className="text-left md:text-right shrink-0">
               <span className="text-[10px] text-gray-500 block uppercase font-bold">Wholesale Sourcing Benefit</span>
               <span className="text-base sm:text-lg font-black text-emerald-700 font-mono">
-                {calculation.totalSavings > 0 ? `Save ₹${calculation.totalSavings.toLocaleString('en-IN')}` : 'Direct Factory Rate'}
+                {calculation.totalSavings > 0 ? `Save ${formatPrice(calculation.totalSavings)}` : 'Direct Factory Rate'}
               </span>
             </div>
           </div>

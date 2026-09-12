@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Order } from '@/lib/types';
 import { Search, ShoppingBag, MessageCircle, Phone, MapPin, Trash2, CheckSquare, Square } from 'lucide-react';
+import { formatPrice } from '@/lib/utils';
 
 interface AdminOrdersClientProps {
   initialOrders: Order[];
@@ -402,9 +403,9 @@ export default function AdminOrdersClient({
                         <li key={idx} className="flex justify-between font-medium text-gray-800 bg-[#fcfbf7] p-2 rounded-lg border border-gray-100">
                           <div>
                             <div className="font-bold text-[#0f2d22]">{item.productName}</div>
-                            <div className="text-[10px] text-gray-500">Qty: {item.quantity} x ₹{item.price}</div>
+                            <div className="text-[10px] text-gray-500">Qty: {item.quantity} x {formatPrice(item.price)}</div>
                           </div>
-                          <span className="font-bold text-[#1b4332] text-xs">₹{item.price * item.quantity}</span>
+                          <span className="font-bold text-[#1b4332] text-xs">{formatPrice(item.price * item.quantity)}</span>
                         </li>
                       ))}
                     </ul>
@@ -412,15 +413,15 @@ export default function AdminOrdersClient({
                     <div className="pt-2 border-t border-[#f5f1e8] space-y-1 text-xs">
                       <div className="flex justify-between text-gray-500">
                         <span>Subtotal:</span>
-                        <span>₹{ord.subtotal || ord.totalAmount}</span>
+                        <span>{formatPrice(ord.subtotal || ord.totalAmount)}</span>
                       </div>
                       <div className="flex justify-between text-gray-500">
                         <span>Shipping:</span>
-                        <span className="text-emerald-700 font-semibold">₹{ord.shippingFee || 0}</span>
+                        <span className="text-emerald-700 font-semibold">{formatPrice(ord.shippingFee || 0)}</span>
                       </div>
                       <div className="flex justify-between font-extrabold text-sm text-[#0f2d22] pt-1 border-t border-gray-200">
                         <span>Total Amount:</span>
-                        <span className="text-[#1b4332]">₹{ord.totalAmount}</span>
+                        <span className="text-[#1b4332]">{formatPrice(ord.totalAmount)}</span>
                       </div>
                     </div>
                   </div>

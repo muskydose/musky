@@ -46,6 +46,7 @@ import {
   resolveAuthoritativeProductMedia,
   validateExternalVideoUrl,
 } from '@/lib/growth/product-media-governance';
+import { formatPrice, formatPercent } from '@/lib/utils';
 
 interface ProductDetailClientProps {
   product: Product;
@@ -551,16 +552,16 @@ export default function ProductDetailClient({
               <div className="text-xs text-[#626c66] font-medium mb-1">Price per Pack</div>
               <div className="flex items-baseline gap-3">
                 <span className="text-3xl font-extrabold text-[#1b4332]">
-                  ₹{activePrice}
+                  {formatPrice(activePrice)}
                 </span>
                 {activeComparePrice && activeComparePrice > activePrice && (
                   <span className="text-base text-gray-400 line-through">
-                    ₹{activeComparePrice}
+                    {formatPrice(activeComparePrice)}
                   </span>
                 )}
                 {discountPercent > 0 && (
                   <span className="bg-[#c5a059] text-[#0f2d22] text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-2xs">
-                    {discountPercent}% OFF
+                    {formatPercent(discountPercent)} OFF
                   </span>
                 )}
               </div>
@@ -614,11 +615,11 @@ export default function ProductDetailClient({
                     >
                       <span>{v.weight}</span>
                       <span className={isSelected ? 'text-[#c5a059]' : 'text-emerald-800'}>
-                        ₹{v.price}
+                        {formatPrice(v.price)}
                       </span>
                       {v.compareAtPrice && v.compareAtPrice > v.price && (
                         <span className={`text-[10px] line-through ${isSelected ? 'text-white/60' : 'text-gray-400'}`}>
-                          ₹{v.compareAtPrice}
+                          {formatPrice(v.compareAtPrice)}
                         </span>
                       )}
                       {isVarSoldOut && (
@@ -662,7 +663,7 @@ export default function ProductDetailClient({
               </div>
 
               <div className="text-xs text-[#626c66]">
-                Subtotal: <strong className="text-lg font-bold text-[#1b4332]">₹{activePrice * quantity}</strong>
+                Subtotal: <strong className="text-lg font-bold text-[#1b4332]">{formatPrice(activePrice * quantity)}</strong>
               </div>
             </div>
           </div>
@@ -795,9 +796,7 @@ export default function ProductDetailClient({
                     const unitLabel = formatWholesaleTierUnit(wholesaleUnits.wholesaleUnit, rule.minQuantity);
                     let discountLabel = '';
                     if (rule.discountType === 'percentage') {
-                      const rawVal = Number(rule.discountValue);
-                      const pctStr = Number.isInteger(rawVal) ? `${rawVal}%` : `${Number(rawVal.toFixed(2))}%`;
-                      discountLabel = `${pctStr} OFF`;
+                      discountLabel = `${formatPercent(rule.discountValue)} OFF`;
                     } else {
                       const tierPricing = resolveCanonicalWholesalePricing({
                         product,
@@ -1367,7 +1366,7 @@ export default function ProductDetailClient({
             {product.name}
           </span>
           <span className="text-sm font-extrabold text-[#faf5e8] tabular-nums">
-            ₹{activePrice * quantity}
+            {formatPrice(activePrice * quantity)}
             {quantity > 1 && (
               <span className="text-[10px] font-normal text-[#c5a059]/70 ml-1">×{quantity}</span>
             )}

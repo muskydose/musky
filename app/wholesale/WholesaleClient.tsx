@@ -26,6 +26,7 @@ import { DEFAULT_TRUST_STRIP_ITEMS } from '@/lib/data-store';
 import { getClientSiteSettings } from '@/lib/api-client';
 import WholesaleCalculator from '@/components/WholesaleCalculator';
 import { trackWholesaleInquiryStarted, trackWholesaleInquirySubmitted } from '@/lib/analytics';
+import { formatPrice, formatPercent } from '@/lib/utils';
 
 function WholesaleContent() {
   const searchParams = useSearchParams();
@@ -242,7 +243,7 @@ function WholesaleContent() {
     const pUnit = data.pricingUnit || qUnit;
     const savingsText =
       data.savingsAmount && data.savingsAmount > 0
-        ? ` • Retail Equivalent: ${data.retailEquivalent || ''} • Estimated Savings: ₹${data.savingsAmount.toLocaleString('en-IN')} (${data.savingsPercent}% benefit)`
+        ? ` • Retail Equivalent: ${data.retailEquivalent || ''} • Estimated Savings: ${formatPrice(data.savingsAmount)} (${formatPercent(data.savingsPercent)} benefit)`
         : '';
 
     setFormData((prev) => ({
@@ -251,7 +252,7 @@ function WholesaleContent() {
       approxQuantity: `${data.quantity} ${qUnit}`,
       notes: prev.notes
         ? prev.notes
-        : `Inquiry generated via Wholesale Calculator. Estimated tier rate: ₹${data.effectivePricePerUnit}/${pUnit} (Est. Total: ~₹${data.estimatedTotal.toLocaleString('en-IN')}${savingsText})`,
+        : `Inquiry generated via Wholesale Calculator. Estimated tier rate: ${formatPrice(data.effectivePricePerUnit)}/${pUnit} (Est. Total: ~${formatPrice(data.estimatedTotal)}${savingsText})`,
     }));
 
     if (typeof document !== 'undefined') {

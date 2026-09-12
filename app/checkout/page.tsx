@@ -8,7 +8,7 @@ import { generateStructuredWhatsAppOrderMessage, getWhatsAppDirectUrl, getConfig
 import { Order, SiteSettings, CheckoutFieldConfig, CouponValidationResult } from '@/lib/types';
 import { DEFAULT_CHECKOUT_FIELD_CONFIG } from '@/lib/data-store';
 import { getClientSiteSettings } from '@/lib/api-client';
-import { sanitizeImageUrl } from '@/lib/utils';
+import { sanitizeImageUrl, formatPrice } from '@/lib/utils';
 import CouponInput from '@/components/CouponInput';
 import Navbar from '@/components/Navbar';
 import { trackCheckoutStarted, trackCheckoutValidationError, trackOrderCreated, trackWhatsAppClick } from '@/lib/analytics';
@@ -401,17 +401,17 @@ export default function CheckoutPage() {
           <div className="bg-[#FAF8F5] p-5 rounded-xl text-left border border-amber-900/10 space-y-3">
             <div className="flex justify-between items-center text-sm text-gray-600 border-b border-gray-200 pb-2">
               <span>Items Subtotal:</span>
-              <span className="font-semibold text-gray-900">₹{createdOrder.subtotal}</span>
+              <span className="font-semibold text-gray-900">{formatPrice(createdOrder.subtotal)}</span>
             </div>
             <div className="flex justify-between items-center text-sm text-gray-600 border-b border-gray-200 pb-2">
               <span>Shipping (Sojat Direct):</span>
               <span className="font-semibold text-amber-800">
-                {createdOrder.shippingFee > 0 ? `₹${createdOrder.shippingFee}` : 'Charges Extra'}
+                {createdOrder.shippingFee > 0 ? formatPrice(createdOrder.shippingFee) : 'Charges Extra'}
               </span>
             </div>
             <div className="flex justify-between items-center text-base font-bold text-gray-900 pt-1">
               <span>Total Payable:</span>
-              <span className="text-xl text-emerald-700">₹{createdOrder.totalAmount}</span>
+              <span className="text-xl text-emerald-700">{formatPrice(createdOrder.totalAmount)}</span>
             </div>
           </div>
 
@@ -899,7 +899,7 @@ export default function CheckoutPage() {
                       <div className="flex-1 min-w-0">
                         <h4 className="font-semibold text-gray-900 truncate">{item.product.name}</h4>
                         <p className="text-xs text-gray-500">
-                          Pack: {packSize} {item.selectedVariant?.sku ? `(${item.selectedVariant.sku}) ` : ''}| ₹{linePrice} each
+                          Pack: {packSize} {item.selectedVariant?.sku ? `(${item.selectedVariant.sku}) ` : ''}| {formatPrice(linePrice)} each
                         </p>
 
                         <div className="flex items-center justify-between mt-2">
@@ -922,7 +922,7 @@ export default function CheckoutPage() {
                           </div>
 
                           <span className="font-bold text-gray-900">
-                            ₹{linePrice * item.quantity}
+                            {formatPrice(linePrice * item.quantity)}
                           </span>
                         </div>
                       </div>
@@ -946,21 +946,21 @@ export default function CheckoutPage() {
                 <div className="flex justify-between text-gray-600">
                   <span>Subtotal:</span>
                   <span className="font-semibold text-gray-900">
-                    ₹{discountInfo ? discountInfo.regularSubtotal : totalAmount}
+                    {formatPrice(discountInfo ? discountInfo.regularSubtotal : totalAmount)}
                   </span>
                 </div>
 
                 {discountInfo && discountInfo.totalDiscountAmount > 0 && (
                   <div className="flex justify-between font-bold text-emerald-800 bg-emerald-50 p-2.5 rounded-lg border border-emerald-200 text-xs">
                     <span>Bulk Tier Discount:</span>
-                    <span>-₹{discountInfo.totalDiscountAmount}</span>
+                    <span>-{formatPrice(discountInfo.totalDiscountAmount)}</span>
                   </div>
                 )}
 
                 {appliedCoupon?.valid && appliedCoupon.calculatedDiscount ? (
                   <div className="flex justify-between font-bold text-emerald-900 bg-emerald-100/70 p-2.5 rounded-lg border border-emerald-300 text-xs">
                     <span>Festival Coupon ({appliedCoupon.campaign?.couponCode}):</span>
-                    <span>-₹{appliedCoupon.calculatedDiscount}</span>
+                    <span>-{formatPrice(appliedCoupon.calculatedDiscount)}</span>
                   </div>
                 ) : null}
 
@@ -972,7 +972,7 @@ export default function CheckoutPage() {
                     {appliedCoupon?.valid && appliedCoupon.shippingDiscount ? (
                       <span className="text-emerald-700 font-bold">FREE (Promo)</span>
                     ) : siteSettings?.shippingFee && siteSettings.shippingFee > 0 ? (
-                      `₹${siteSettings.shippingFee}`
+                      formatPrice(siteSettings.shippingFee)
                     ) : (
                       'Charges Extra'
                     )}
@@ -982,7 +982,7 @@ export default function CheckoutPage() {
                 <div className="flex justify-between text-lg font-bold text-gray-900 pt-2 border-t border-gray-100">
                   <span>Total Amount:</span>
                   <span className="text-emerald-800">
-                    ₹{Math.max(
+                    {formatPrice(Math.max(
                       0,
                       (discountInfo ? discountInfo.netSubtotal : totalAmount) -
                         (appliedCoupon?.valid && appliedCoupon.calculatedDiscount
@@ -991,7 +991,7 @@ export default function CheckoutPage() {
                         (appliedCoupon?.valid && appliedCoupon.shippingDiscount
                           ? 0
                           : siteSettings?.shippingFee || 0)
-                    )}
+                    ))}
                   </span>
                 </div>
               </div>

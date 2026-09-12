@@ -23,6 +23,7 @@
 import { Product, BulkPricingRule } from './types';
 import { resolveProductWholesaleUnits, calculateProductBaseWholesaleRate, ResolvedWholesaleUnits } from './wholesale-units';
 import { formatRatePerUnit } from './unit-pricing';
+import { formatPrice, formatPercent } from './utils';
 
 export type WholesaleResolutionStatus = 'CONFIRMED' | 'CUSTOM_QUOTE' | 'NO_TIER';
 
@@ -214,18 +215,16 @@ export function resolveCanonicalWholesalePricing({
       : 'Custom Quote';
   const formattedSavingsPerUnit =
     savingsAmount > 0 ? formatRatePerUnit(savingsPerUnit, targetUnit) : '₹0';
-  const formattedRegularTotal = `₹${Math.round(regularTotal).toLocaleString('en-IN')}`;
+  const formattedRegularTotal = formatPrice(regularTotal);
   const formattedEffectiveTotal =
     hasConfiguredTier
-      ? `₹${Math.round(effectiveTotal).toLocaleString('en-IN')}`
+      ? formatPrice(effectiveTotal)
       : 'On Request';
   const formattedSavingsTotal =
-    savingsAmount > 0 ? `₹${Math.round(savingsAmount).toLocaleString('en-IN')}` : 'Quote on Request';
+    savingsAmount > 0 ? formatPrice(savingsAmount) : 'Quote on Request';
 
   // Format percentage display: integer percentage if whole (e.g. "85% OFF"), up to 2 decimal places if fractional (e.g. "73.25% OFF")
-  const pctString = Number.isInteger(savingsPercent)
-    ? `${savingsPercent}%`
-    : `${Number(savingsPercent.toFixed(2))}%`;
+  const pctString = formatPercent(savingsPercent);
   const formattedSavingsPercent = hasConfiguredTier ? `${pctString} OFF` : 'Custom Quote';
 
   return {

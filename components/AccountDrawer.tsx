@@ -6,6 +6,7 @@ import { useUI } from '@/context/UIContext';
 import { useCart } from '@/context/CartContext';
 import SideDrawer from '@/components/ui/SideDrawer';
 import { Order, Product, SiteSettings } from '@/lib/types';
+import { formatPrice } from '@/lib/utils';
 import {
   User,
   Package,
@@ -340,7 +341,7 @@ export default function AccountDrawer() {
               <div>
                 <span className="text-[10px] text-gray-400 block">Total Amount</span>
                 <span className="font-bold text-emerald-800 text-sm">
-                  ₹{selectedOrder.totalAmount?.toLocaleString('en-IN') || 0}
+                  {formatPrice(selectedOrder.totalAmount)}
                 </span>
               </div>
             </div>
@@ -363,7 +364,7 @@ export default function AccountDrawer() {
                     <div className="min-w-0 flex-1">
                       <p className="font-bold text-[#0f2d22] truncate">{item.productName}</p>
                       <p className="text-[11px] text-gray-500 font-mono">
-                        Qty: {item.quantity} • ₹{item.price}/unit
+                        Qty: {item.quantity} • {formatPrice(item.price)}/unit
                       </p>
                     </div>
 
@@ -506,7 +507,7 @@ export default function AccountDrawer() {
                       <div className="min-w-0 flex-1">
                         <p className="font-bold text-[#0f2d22] truncate">{p.productName}</p>
                         <p className="text-[10px] text-emerald-800 font-mono font-semibold">
-                          ₹{liveProd ? liveProd.price : p.price}/unit
+                          {formatPrice(liveProd ? liveProd.price : p.price)}/unit
                         </p>
                       </div>
 
@@ -581,7 +582,7 @@ export default function AccountDrawer() {
 
                       <div className="pt-1 border-t border-gray-200/60 flex items-center justify-between">
                         <span className="text-[11px] font-bold text-emerald-800">
-                          ₹{order.totalAmount?.toLocaleString('en-IN') || 0}
+                          {formatPrice(order.totalAmount)}
                         </span>
 
                         <div className="flex items-center gap-1.5">
