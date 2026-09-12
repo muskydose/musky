@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { SiteSettings, WholesaleEnquiry } from '@/lib/types';
+import { formatPrice } from '@/lib/utils';
 import { trackWholesaleInquirySubmitted } from '@/lib/analytics';
 import { generateWholesaleWhatsAppMessage, getConfiguredWhatsAppNumber, getWhatsAppDirectUrl } from '@/lib/whatsapp';
 import { BuyerPersona, PERSONA_CONFIGS } from './PersonaSwitcher';
@@ -300,24 +301,47 @@ export default function WholesaleInquiryForm({
       <div className="border-b border-[#e8e2d5] pb-3.5 flex items-center justify-between">
         <div>
           <h3 className="font-momo-display text-xl sm:text-2xl font-normal text-[#0f2d22]">
-            Request Factory Direct Quotation
+            Get Your Factory Quote
           </h3>
           <p className="text-xs text-[#626c66] mt-0.5">
-            Submit your volume requirements to receive commercial terms directly from our Sojat desk.
+            Tell us what you need and we’ll prepare your commercial enquiry.
           </p>
         </div>
 
         {/* Step Indicator */}
         <div className="flex items-center gap-1 text-[11px] font-bold text-[#88908a]">
-          <span className={`px-2 py-0.5 rounded-full ${step === 1 ? 'bg-[#1b4332] text-[#c5a059]' : 'bg-[#FAF8F5]'}`}>
-            1
+          <span className={`px-2.5 py-0.5 rounded-full ${step === 1 ? 'bg-[#1b4332] text-[#c5a059]' : 'bg-[#FAF8F5]'}`}>
+            Step 1
           </span>
           <span>/</span>
-          <span className={`px-2 py-0.5 rounded-full ${step === 2 ? 'bg-[#1b4332] text-[#c5a059]' : 'bg-[#FAF8F5]'}`}>
-            2
+          <span className={`px-2.5 py-0.5 rounded-full ${step === 2 ? 'bg-[#1b4332] text-[#c5a059]' : 'bg-[#FAF8F5]'}`}>
+            Step 2
           </span>
         </div>
       </div>
+
+      {/* Calculator-Selected Quotation Capsule */}
+      {externalQuoteData && (
+        <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#e8e2d5] flex flex-wrap items-center justify-between gap-3 text-xs shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#1b4332] text-[#c5a059] flex items-center justify-center font-bold text-xs shrink-0">
+              ✓
+            </div>
+            <div>
+              <div className="font-bold text-[#0f2d22]">{externalQuoteData.productName}</div>
+              <div className="text-[11px] text-[#626c66]">
+                Volume: <strong>{externalQuoteData.quantity} {externalQuoteData.quantityUnit}</strong> • Rate: <strong>₹{Math.round(externalQuoteData.effectivePricePerUnit)}/{externalQuoteData.quantityUnit || externalQuoteData.pricingUnit}</strong>
+              </div>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] text-[#88908a] uppercase font-bold tracking-wider">Estimated Total</div>
+            <div className="font-mono text-sm font-extrabold text-[#1b4332]">
+              ~{formatPrice(externalQuoteData.estimatedTotal)}
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div

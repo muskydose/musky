@@ -10,6 +10,8 @@ interface WholesaleHeroProps {
   activePersona: BuyerPersona;
   onPersonaChange: (p: BuyerPersona) => void;
   isBulkMode?: boolean;
+  onScrollToForm?: () => void;
+  onScrollToCalculator?: () => void;
 }
 
 export default function WholesaleHero({
@@ -17,8 +19,28 @@ export default function WholesaleHero({
   activePersona,
   onPersonaChange,
   isBulkMode,
+  onScrollToForm,
+  onScrollToCalculator,
 }: WholesaleHeroProps) {
   const currentPersona = PERSONA_CONFIGS[activePersona];
+
+  const handleScrollToForm = () => {
+    if (onScrollToForm) {
+      onScrollToForm();
+    } else if (typeof document !== 'undefined') {
+      const el = document.getElementById('wholesale-inquiry-form');
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handleScrollToCalculator = () => {
+    if (onScrollToCalculator) {
+      onScrollToCalculator();
+    } else if (typeof document !== 'undefined') {
+      const el = document.getElementById('wholesale-calculator');
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   return (
     <section className="bg-[#0f2d22] text-white pt-10 pb-12 px-4 relative overflow-hidden border-b border-[#2d6a4f]/50">
@@ -27,27 +49,47 @@ export default function WholesaleHero({
 
       <div className="max-w-4xl mx-auto relative z-10 text-center space-y-4">
         {/* Origin Badge */}
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#1b4332] text-[#c5a059] border border-[#2d6a4f] text-[11px] font-bold uppercase tracking-wider">
-          <MapPin className="w-3.5 h-3.5" />
-          <span>Sojat City Factory Direct Sourcing • Pincode: 306104</span>
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#1b4332]/90 text-[#c5a059] border border-[#2d6a4f] text-[11px] font-bold uppercase tracking-wider shadow-xs">
+          <MapPin className="w-3.5 h-3.5 text-[#c5a059]" />
+          <span>Sojat Factory Direct Operation • Pincode: 306104</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
         </div>
 
-        {/* Dynamic Heading */}
-        <h1 className="font-momo-display text-2xl sm:text-4xl md:text-5xl font-normal tracking-tight text-white max-w-3xl mx-auto leading-tight">
-          {isBulkMode
-            ? 'Commercial Sacks & Custom Botanical Packs Direct From Sojat'
-            : siteSettings?.wholesaleHeroTitle || 'Wholesale & Commercial Botanical Supply Direct From Sojat Mills'}
-        </h1>
+        {/* Primary High-Impact B2B Headline */}
+        <div className="space-y-1.5 max-w-3xl mx-auto">
+          <h1 className="font-momo-display text-3xl sm:text-5xl md:text-6xl font-normal tracking-tight text-white leading-tight">
+            Buy Direct. Scale With Confidence.
+          </h1>
+          <p className="text-xs sm:text-sm text-[#c5a059] font-medium tracking-wide">
+            {currentPersona?.tagline || 'Direct factory supply from our Sojat, Rajasthan operation.'}
+          </p>
+        </div>
 
-        {/* Dynamic Subtitle */}
+        {/* Supporting Copy */}
         <p className="text-xs sm:text-sm text-[#b2c8be] max-w-2xl mx-auto leading-relaxed">
-          {isBulkMode
-            ? 'Order custom commercial weight packs (5kg to 100kg+), raw sifted powders, pure botanical extracts, and ready applicators with direct factory logistics.'
-            : siteSettings?.wholesaleHeroSubtitle || 'Direct factory partner for salons, bridal mehndi artists, natural cosmetics retailers, and bulk commercial distributors across India.'}
+          Wholesale botanical supply from our Sojat, Rajasthan operation for salons, mehndi professionals, resellers and bulk buyers. Fresh batch milling with verified B2B freight dispatch pan-India.
         </p>
 
+        {/* Dual Primary & Secondary CTAs */}
+        <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={handleScrollToForm}
+            className="px-6 py-3 rounded-xl bg-[#c5a059] hover:bg-[#d4b068] text-[#0f2d22] font-bold text-xs sm:text-sm transition-all shadow-md active:scale-95 cursor-pointer min-h-[44px]"
+          >
+            Get Wholesale Quote
+          </button>
+          <button
+            type="button"
+            onClick={handleScrollToCalculator}
+            className="px-5 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white border border-white/20 font-semibold text-xs sm:text-sm transition-all active:scale-95 cursor-pointer min-h-[44px]"
+          >
+            Calculate Bulk Price ↓
+          </button>
+        </div>
+
         {/* Buyer Persona Selector Switcher */}
-        <div className="pt-2">
+        <div className="pt-3">
           <PersonaSwitcher
             activePersona={activePersona}
             onPersonaChange={onPersonaChange}

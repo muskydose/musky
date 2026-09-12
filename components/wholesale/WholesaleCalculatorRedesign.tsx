@@ -154,13 +154,17 @@ export default function WholesaleCalculatorRedesign({
   const personaConfig = PERSONA_CONFIGS[activePersona];
 
   return (
-    <section aria-labelledby="calculator-heading" className="space-y-4">
+    <section
+      id="wholesale-calculator"
+      aria-labelledby="calculator-heading"
+      className="scroll-mt-20 space-y-4"
+    >
       {/* Section Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
             <Calculator className="w-5 h-5 text-[#c5a059]" />
-            <h2 id="calculator-heading" className="font-momo-display text-2xl font-normal text-[#0f2d22]">
+            <h2 id="calculator-heading" className="font-momo-display text-2xl sm:text-3xl font-normal text-[#0f2d22]">
               Interactive B2B Tier Calculator
             </h2>
           </div>
@@ -179,6 +183,7 @@ export default function WholesaleCalculatorRedesign({
             products={products}
             selectedProduct={selectedProduct}
             onSelectProduct={(p) => setSelectedProduct(p)}
+            preferredCategories={personaConfig?.preferredCategories}
           />
 
           <hr className="border-[#e8e2d5]" />
@@ -194,17 +199,40 @@ export default function WholesaleCalculatorRedesign({
           />
         </div>
 
-        {/* Right Column: Sticky Estimate Card (5 Cols) */}
-        <div className="lg:col-span-5 lg:sticky lg:top-24">
+        {/* Right Column: Sticky Estimate Card & Confidence Panel (5 Cols) */}
+        <div className="lg:col-span-5 lg:sticky lg:top-24 space-y-3">
           <CommercialEstimateCard
             pricingResult={pricingResult}
             productName={selectedProduct.name}
             quantity={quantity}
             unitLabel={pricingResult.unit}
+            minWholesaleQuantity={unitInfo?.minWholesaleQuantity || 1}
             onApplyToForm={handleApplyToForm}
             onDirectWhatsApp={handleWhatsAppQuote}
             ctaLabel={personaConfig?.ctaLabel || 'Lock Estimate & Populate Form Below ↓'}
           />
+
+          {/* Compact Commercial Confidence Card */}
+          <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#e8e2d5] text-[11px] text-[#626c66] space-y-1.5 shadow-2xs">
+            <div className="text-[10px] font-bold text-[#0f2d22] uppercase tracking-wider flex items-center justify-between">
+              <span>Factory Direct Supply Signals</span>
+              <span className="text-emerald-700 font-extrabold font-mono">100% Verified</span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 text-[10px] pt-1 border-t border-[#e8e2d5]/60">
+              <span className="flex items-center gap-1 text-[#0f2d22]">
+                ✓ Sojat Mill Origin
+              </span>
+              <span className="flex items-center gap-1 text-[#0f2d22]">
+                ✓ B2B GST Invoicing
+              </span>
+              <span className="flex items-center gap-1 text-[#0f2d22]">
+                ✓ Pan-India Dispatch
+              </span>
+              <span className="flex items-center gap-1 text-[#0f2d22]">
+                ✓ Fresh Batch Sifted
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </section>

@@ -9,9 +9,11 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import WhatsAppFloat from '@/components/WhatsAppFloat';
 import WholesaleHero from '@/components/wholesale/WholesaleHero';
+import CommercialProcessStrip from '@/components/wholesale/CommercialProcessStrip';
 import WholesaleCalculatorRedesign from '@/components/wholesale/WholesaleCalculatorRedesign';
 import WholesaleInquiryForm from '@/components/wholesale/WholesaleInquiryForm';
 import FactoryDeskPanel from '@/components/wholesale/FactoryDeskPanel';
+import WhyBuyDirectStrip from '@/components/wholesale/WhyBuyDirectStrip';
 import CommercialSpecsSection from '@/components/wholesale/CommercialSpecsSection';
 import WholesaleFaqSection from '@/components/wholesale/WholesaleFaqSection';
 import SmartMobileCtaBar from '@/components/wholesale/SmartMobileCtaBar';
@@ -98,6 +100,16 @@ export default function WholesaleClient({
     }
   }, []);
 
+  // Scroll to calculator smoothly
+  const scrollToCalculator = useCallback(() => {
+    if (typeof document !== 'undefined') {
+      const target = document.getElementById('wholesale-calculator');
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  }, []);
+
   // Direct WhatsApp launch
   const handleOpenWhatsAppDirect = useCallback(() => {
     const destNum = getConfiguredWhatsAppNumber(siteSettings);
@@ -162,11 +174,16 @@ Please provide commercial terms and dispatch schedule. Thank you!`;
           activePersona={activePersona}
           onPersonaChange={handlePersonaChange}
           isBulkMode={isBulkMode}
+          onScrollToForm={scrollToForm}
+          onScrollToCalculator={scrollToCalculator}
         />
 
         {/* Main Content Container */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
-          {/* 3. Universal Wholesale Calculator */}
+          {/* 3. Commercial Wholesale Process Strip (3 Steps) */}
+          <CommercialProcessStrip />
+
+          {/* 4. Universal Wholesale Calculator */}
           <WholesaleCalculatorRedesign
             products={products}
             pricingRules={pricingRules}
@@ -178,7 +195,7 @@ Please provide commercial terms and dispatch schedule. Thank you!`;
             onDirectWhatsApp={handleDirectWhatsAppFromCalc}
           />
 
-          {/* 4. B2B Action Grid: Form (7 cols) + Factory Desk (5 cols) */}
+          {/* 5. B2B Action Grid: Form (7 cols) + Factory Desk (5 cols) */}
           <section
             id="wholesale-inquiry-form"
             aria-labelledby="inquiry-form-heading"
@@ -201,10 +218,13 @@ Please provide commercial terms and dispatch schedule. Thank you!`;
             </div>
           </section>
 
-          {/* 5. Universal Commercial Specifications */}
+          {/* 6. Why Source Direct From Sojat Mills? (5 Manufacturer Advantages) */}
+          <WhyBuyDirectStrip />
+
+          {/* 7. Universal Commercial Specifications */}
           <CommercialSpecsSection />
 
-          {/* 6. Visible Schema-Synchronized FAQ */}
+          {/* 8. Visible Schema-Synchronized FAQ */}
           <WholesaleFaqSection />
         </div>
       </main>

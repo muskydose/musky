@@ -3,32 +3,46 @@
 import React, { useMemo, useState } from 'react';
 import { Product } from '@/lib/types';
 import { resolveProductWholesaleUnits, calculateProductBaseWholesaleRate } from '@/lib/wholesale-units';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, sanitizeImageUrl } from '@/lib/utils';
 import { Search, CheckCircle2, Package, Layers } from 'lucide-react';
 
 interface ProductCardPickerProps {
   products: Product[];
   selectedProduct: Product | null;
   onSelectProduct: (product: Product) => void;
+  preferredCategories?: string[];
 }
 
 export default function ProductCardPicker({
   products,
   selectedProduct,
   onSelectProduct,
+  preferredCategories,
 }: ProductCardPickerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
 
-  // Extract dynamic categories from products
+  // Extract dynamic categories from products, placing preferred categories first
   const categories = useMemo(() => {
     const set = new Set<string>();
     products.forEach((p) => {
       const cat = p.categoryName || p.categoryId;
       if (cat) set.add(cat);
     });
-    return ['ALL', ...Array.from(set)];
-  }, [products]);
+    const allCats = Array.from(set);
+
+    if (preferredCategories && preferredCategories.length > 0) {
+      allCats.sort((a, b) => {
+        const aPref = preferredCategories.some((pc) => a.toLowerCase().includes(pc.toLowerCase()));
+        const bPref = preferredCategories.some((pc) => b.toLowerCase().includes(pc.toLowerCase()));
+        if (aPref && !bPref) return -1;
+        if (!aPref && bPref) return 1;
+        return a.localeCompare(b);
+      });
+    }
+
+    return ['ALL', ...allCats];
+  }, [products, preferredCategories]);
 
   // Filter products by category and search
   const filteredProducts = useMemo(() => {
@@ -106,6 +120,8 @@ export default function ProductCardPicker({
             const unitLabel = unitInfo.wholesaleUnit;
             const baseWholesaleRate = calculateProductBaseWholesaleRate(p, unitInfo);
             const packSize = p.quantityOrWeight || `${unitInfo.packQuantity}${unitInfo.packUnit}`;
+            const rawImg = p.images?.[0] || p.media?.find((m) => m.type === 'image')?.url || null;
+            const imgUrl = rawImg ? sanitizeImageUrl(rawImg) : null;
 
             return (
               <button
@@ -114,7 +130,7 @@ export default function ProductCardPicker({
                 role="radio"
                 aria-checked={isSelected}
                 onClick={() => onSelectProduct(p)}
-                className={`p-2.5 rounded-xl border text-left transition-all relative flex flex-col justify-between cursor-pointer min-h-[108px] ${
+                className={`p-2.5 rounded-xl border text-left transition-all relative flex flex-col justify-between cursor-pointer min-h-[114px] ${
                   isSelected
                     ? 'border-[#1b4332] bg-[#f4f7f4] ring-2 ring-[#1b4332]/40 shadow-xs'
                     : 'border-[#e8e2d5] bg-white hover:border-[#b2c8be] hover:bg-[#fafaf7]'
@@ -122,26 +138,41 @@ export default function ProductCardPicker({
               >
                 {/* Active checkmark */}
                 {isSelected && (
-                  <div className="absolute top-2 right-2 text-[#1b4332]">
+                  <div className="absolute top-2 right-2 text-[#1b4332] z-10">
                     <CheckCircle2 className="w-4 h-4 fill-[#1b4332] text-white" />
                   </div>
                 )}
 
-                <div className="space-y-1">
-                  {/* Category / Unit badge */}
-                  <div className="flex items-center gap-1 text-[10px] font-bold text-[#88908a] uppercase tracking-wider">
-                    <Package className="w-3 h-3 text-[#c5a059]" />
-                    <span className="truncate">{p.categoryName || p.categoryId || 'Botanical'}</span>
-                  </div>
+                <div className="flex items-start gap-2.5 w-full pr-4">
+                  {imgUrl ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={imgUrl}
+                      alt={p.name}
+                      className="w-10 h-10 rounded-lg object-cover border border-[#e8e2d5] shrink-0 bg-[#FAF8F5]"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg bg-[#FAF8F5] border border-[#e8e2d5] flex items-center justify-center shrink-0 text-[#1b4332]">
+                      <Package className="w-5 h-5 text-[#c5a059]" />
+                    </div>
+                  )}
 
-                  {/* Product Title */}
-                  <div className="text-xs font-semibold text-[#0f2d22] line-clamp-2 leading-tight pr-4">
-                    {p.name}
+                  <div className="space-y-0.5 min-w-0 flex-1">
+                    {/* Category badge */}
+                    <div className="text-[10px] font-bold text-[#88908a] uppercase tracking-wider truncate">
+                      {p.categoryName || p.categoryId || 'Botanical'}
+                    </div>
+
+                    {/* Product Title */}
+                    <div className="text-xs font-semibold text-[#0f2d22] line-clamp-2 leading-tight">
+                      {p.name}
+                    </div>
                   </div>
                 </div>
 
                 {/* Pricing & Unit Info */}
-                <div className="mt-2 pt-1.5 border-t border-[#e8e2d5]/60 flex flex-col gap-0.5 text-[11px]">
+                <div className="mt-2 pt-1.5 border-t border-[#e8e2d5]/60 flex flex-col gap-0.5 text-[11px] w-full">
                   <div className="flex items-center justify-between text-[#626c66]">
                     <span>Pack:</span>
                     <span className="font-medium text-[#1f2421]">
