@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, Suspense, useCallback } from 'react';
-import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { SiteSettings, Product, BulkPricingRule } from '@/lib/types';
 import { getClientSiteSettings } from '@/lib/api-client';
 import { getConfiguredWhatsAppNumber, getWhatsAppDirectUrl } from '@/lib/whatsapp';
@@ -16,51 +16,46 @@ import CommercialSpecsSection from '@/components/wholesale/CommercialSpecsSectio
 import WholesaleFaqSection from '@/components/wholesale/WholesaleFaqSection';
 import SmartMobileCtaBar from '@/components/wholesale/SmartMobileCtaBar';
 import { BuyerPersona } from '@/components/wholesale/PersonaSwitcher';
-import { Loader2 } from 'lucide-react';
 
 interface WholesaleClientProps {
   initialSiteSettings?: SiteSettings | null;
   initialProducts?: Product[];
   initialPricingRules?: BulkPricingRule[];
+  initialMode?: string;
+  initialPersona?: BuyerPersona;
+  initialProductId?: string;
+  initialQuantity?: number;
 }
 
-function WholesaleContent({
+export default function WholesaleClient({
   initialSiteSettings,
   initialProducts = [],
   initialPricingRules = [],
+  initialMode,
+  initialPersona,
+  initialProductId,
+  initialQuantity,
 }: WholesaleClientProps) {
-  const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
 
-  // Settings state (seeded from SSR props)
+  // Settings & catalog state (seeded from SSR props)
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(initialSiteSettings || null);
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [pricingRules, setPricingRules] = useState<BulkPricingRule[]>(initialPricingRules);
 
-  // URL search params
-  const isBulkMode = searchParams.get('mode') === 'bulk';
-  const urlPersona = searchParams.get('persona') as BuyerPersona | null;
-  const initialProductId = searchParams.get('product');
-  const initialQty = searchParams.get('qty') ? parseInt(searchParams.get('qty')!, 10) : null;
+  const isBulkMode = initialMode === 'bulk';
 
   // Active persona state
   const [activePersona, setActivePersona] = useState<BuyerPersona>(() => {
-    if (urlPersona && ['salon', 'artist', 'bulk'].includes(urlPersona)) {
-      return urlPersona;
+    if (initialPersona && ['salon', 'artist', 'bulk'].includes(initialPersona)) {
+      return initialPersona;
     }
     if (isBulkMode) return 'bulk';
     return 'salon';
   });
 
-  // Sync active persona when search param changes externally
-  useEffect(() => {
-    if (urlPersona && ['salon', 'artist', 'bulk'].includes(urlPersona) && urlPersona !== activePersona) {
-      setActivePersona(urlPersona);
-    }
-  }, [urlPersona, activePersona]);
-
-  // Fallback fetch only if initial server props were empty
+  // Fallback client fetch ONLY if server props were empty
   useEffect(() => {
     if (!siteSettings) {
       getClientSiteSettings().then((s: SiteSettings | null) => setSiteSettings(s));
@@ -83,12 +78,14 @@ function WholesaleContent({
     }
   }, [siteSettings, products.length, pricingRules.length]);
 
-  // Handle persona change with URL synchronization
+  // Handle persona change with URL synchronization without triggering Suspense
   const handlePersonaChange = (newPersona: BuyerPersona) => {
     setActivePersona(newPersona);
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('persona', newPersona);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('persona', newPersona);
+      window.history.replaceState({}, '', url.toString());
+    }
   };
 
   // Scroll to form smoothly
@@ -176,7 +173,7 @@ Please provide commercial terms and dispatch schedule. Thank you!`;
             siteSettings={siteSettings}
             activePersona={activePersona}
             initialProductId={initialProductId}
-            initialQuantity={initialQty}
+            initialQuantity={initialQuantity}
             onSelectQuote={handleSelectQuote}
             onDirectWhatsApp={handleDirectWhatsAppFromCalc}
           />
@@ -224,19 +221,5 @@ Please provide commercial terms and dispatch schedule. Thank you!`;
         onDirectWhatsApp={handleOpenWhatsAppDirect}
       />
     </div>
-  );
-}
-
-export default function WholesaleClient(props: WholesaleClientProps) {
-  return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-[#0f2d22] flex items-center justify-center p-8 text-[#c5a059]">
-          <Loader2 className="w-8 h-8 animate-spin" />
-        </div>
-      }
-    >
-      <WholesaleContent {...props} />
-    </Suspense>
   );
 }

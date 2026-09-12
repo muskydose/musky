@@ -5,6 +5,7 @@ import { getSiteSettings } from '@/lib/db/settings';
 import { getProducts } from '@/lib/db/products';
 import { getBulkPricingRules } from '@/lib/db/bulk-pricing';
 import { safeJsonLd } from '@/lib/utils';
+import { BuyerPersona } from '@/components/wholesale/PersonaSwitcher';
 
 export async function generateMetadata() {
   return await resolvePageSeoMetadata({
@@ -28,12 +29,22 @@ export async function generateMetadata() {
   });
 }
 
-export default async function WholesalePage() {
-  const [siteSettings, products, pricingRules] = await Promise.all([
+export default async function WholesalePage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const [siteSettings, products, pricingRules, resolvedParams] = await Promise.all([
     getSiteSettings().catch(() => null),
     getProducts().catch(() => []),
     getBulkPricingRules().catch(() => []),
+    searchParams ? searchParams : Promise.resolve(undefined),
   ]);
+
+  const rawMode = typeof resolvedParams?.mode === 'string' ? resolvedParams.mode : undefined;
+  const rawPersona = typeof resolvedParams?.persona === 'string' ? (resolvedParams.persona as BuyerPersona) : undefined;
+  const rawProduct = typeof resolvedParams?.product === 'string' ? resolvedParams.product : undefined;
+  const rawQty = typeof resolvedParams?.qty === 'string' ? parseInt(resolvedParams.qty, 10) : undefined;
 
   const baseUrl = siteSettings?.websiteUrl || 'https://muskydose.in';
 
@@ -126,6 +137,10 @@ export default async function WholesalePage() {
         initialSiteSettings={siteSettings}
         initialProducts={products}
         initialPricingRules={pricingRules}
+        initialMode={rawMode}
+        initialPersona={rawPersona}
+        initialProductId={rawProduct}
+        initialQuantity={rawQty && !isNaN(rawQty) ? rawQty : undefined}
       />
     </>
   );
