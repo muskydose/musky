@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Fraunces, Karla } from 'next/font/google';
+import { Karla } from 'next/font/google';
 import localFont from 'next/font/local';
 import './globals.css';
 import Providers from '@/components/Providers';
@@ -8,12 +8,6 @@ import { getSiteSettings } from '@/lib/db/settings';
 import { DEFAULT_BRAND_COLORS } from '@/lib/data-store';
 import { safeJsonLd } from '@/lib/utils';
 import { getSiteFavicon, getSiteLogo, getSiteAppleIcon } from '@/lib/brand-assets';
-
-const fraunces = Fraunces({
-  subsets: ['latin'],
-  variable: '--font-fraunces',
-  display: 'swap',
-});
 
 const karla = Karla({
   subsets: ['latin'],
@@ -206,7 +200,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const borderColor = brandColors.border || '#e8e2d5';
 
   return (
-    <html lang="en" className={`scroll-smooth ${fraunces.variable} ${karla.variable} ${momoTrustDisplay.variable}`}>
+    <html lang="en" className={`scroll-smooth ${karla.variable} ${momoTrustDisplay.variable}`}>
       <head>
         {siteSettings.googleSearchConsoleVerification && (
           <meta

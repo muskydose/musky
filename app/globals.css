@@ -4,8 +4,9 @@
 @theme {
   --font-momo: var(--font-momo-trust), "Momo Trust Display", Georgia, serif;
   --font-momo-display: var(--font-momo-trust), "Momo Trust Display", Georgia, serif;
-  --font-display: var(--font-fraunces), 'Fraunces', Georgia, serif;
-  --font-serif: var(--font-fraunces), 'Fraunces', Georgia, serif;
+  --font-heading: var(--font-momo-trust), "Momo Trust Display", Georgia, serif;
+  --font-display: var(--font-momo-trust), "Momo Trust Display", Georgia, serif;
+  --font-serif: var(--font-momo-trust), "Momo Trust Display", Georgia, serif;
   --font-sans: var(--font-karla), 'Karla', system-ui, sans-serif;
   --font-body: var(--font-karla), 'Karla', system-ui, sans-serif;
 }
@@ -38,9 +39,11 @@
     --text-body: var(--brand-text, #22231F);
     --text-muted: var(--brand-muted, #626c66);
 
-    --font-heading: var(--font-fraunces), 'Fraunces', Georgia, serif;
+    --font-heading: var(--font-momo-trust), "Momo Trust Display", Georgia, serif;
     --font-momo: var(--font-momo-trust), "Momo Trust Display", Georgia, serif;
-    --font-display: var(--font-fraunces), 'Fraunces', Georgia, serif;
+    --font-momo-display: var(--font-momo-trust), "Momo Trust Display", Georgia, serif;
+    --font-display: var(--font-momo-trust), "Momo Trust Display", Georgia, serif;
+    --font-serif: var(--font-momo-trust), "Momo Trust Display", Georgia, serif;
     --font-body: var(--font-karla), 'Karla', system-ui, sans-serif;
     --font-sans: var(--font-karla), 'Karla', system-ui, sans-serif;
 
@@ -130,12 +133,8 @@
     max-width: 100vw;
   }
 
-  h1, h2, h3, h4, h5, h6, .font-serif-heading, .font-display, .font-serif {
-    font-family: var(--font-heading), 'Fraunces', Georgia, serif;
-  }
-
-  .font-momo, .font-momo-display {
-    font-family: var(--font-momo-trust), "Momo Trust Display", Georgia, serif;
+  h1, h2, h3, h4, h5, h6, .font-serif-heading, .font-display, .font-serif, .font-momo, .font-momo-display {
+    font-family: var(--font-heading), "Momo Trust Display", Georgia, serif;
     font-weight: 400;
   }
 
