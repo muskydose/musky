@@ -53,8 +53,7 @@ export default function WholesaleClient({
     if (initialPersona && ['salon', 'artist', 'bulk'].includes(initialPersona)) {
       return initialPersona;
     }
-    if (isBulkMode) return 'bulk';
-    return 'salon';
+    return 'bulk';
   });
 
   // Fallback client fetch ONLY if server props were empty

@@ -17,15 +17,15 @@ export interface PersonaConfig {
 }
 
 export const PERSONA_CONFIGS: Record<BuyerPersona, PersonaConfig> = {
-  salon: {
-    id: 'salon',
-    label: 'Salons & Spas',
-    tagline: 'Salon master packs, consistent batch quality & commercial volume rates',
-    icon: Scissors,
-    defaultBusinessType: 'SALON',
-    defaultPresetQuantities: [5, 10, 25, 50],
-    ctaLabel: 'Request Salon Wholesale Quote',
-    preferredCategories: ['Henna & Herbal Powders', 'Hair Care', 'Bulk Packs'],
+  bulk: {
+    id: 'bulk',
+    label: 'Reseller & Wholesaler',
+    tagline: 'Direct factory commercial sacks, master cartons & distributor terms',
+    icon: Package,
+    defaultBusinessType: 'WHOLESALE',
+    defaultPresetQuantities: [25, 50, 100, 250],
+    ctaLabel: 'Request Commercial Bulk Quote',
+    preferredCategories: ['Bulk Commercial', 'Raw Sacks', 'All Products'],
   },
   artist: {
     id: 'artist',
@@ -37,15 +37,15 @@ export const PERSONA_CONFIGS: Record<BuyerPersona, PersonaConfig> = {
     ctaLabel: 'Request Artist Batch Quote',
     preferredCategories: ['Henna & Herbal Powders', 'Cones & Applicators'],
   },
-  bulk: {
-    id: 'bulk',
-    label: 'Bulk Sacks & Resellers',
-    tagline: 'Direct factory commercial sacks, master cartons & distributor terms',
-    icon: Package,
-    defaultBusinessType: 'WHOLESALE',
-    defaultPresetQuantities: [25, 50, 100, 250],
-    ctaLabel: 'Request Commercial Bulk Quote',
-    preferredCategories: ['Bulk Commercial', 'Raw Sacks', 'All Products'],
+  salon: {
+    id: 'salon',
+    label: 'Salons & Spas',
+    tagline: 'Salon master packs, consistent batch quality & commercial volume rates',
+    icon: Scissors,
+    defaultBusinessType: 'SALON',
+    defaultPresetQuantities: [5, 10, 25, 50],
+    ctaLabel: 'Request Salon Wholesale Quote',
+    preferredCategories: ['Henna & Herbal Powders', 'Hair Care', 'Bulk Packs'],
   },
 };
 
@@ -58,7 +58,7 @@ export default function PersonaSwitcher({
   activePersona,
   onPersonaChange,
 }: PersonaSwitcherProps) {
-  const personas: BuyerPersona[] = ['salon', 'artist', 'bulk'];
+  const personas: BuyerPersona[] = ['bulk', 'artist', 'salon'];
 
   return (
     <div className="w-full max-w-2xl mx-auto">
