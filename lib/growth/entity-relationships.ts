@@ -539,8 +539,8 @@ function buildOverrideKey(sourceType: EntityType, sourceId: string, targetType: 
 }
 
 /**
- * Resiliently loads manual overrides from Supabase entity_relationships table if present.
- * Fails gracefully to site_settings.data.entityRelationshipsLedger if table is pending migration.
+ * Loads manual overrides from canonical Supabase entity_relationships table.
+ * Operates with fail-closed in-memory resilience if database connection is unavailable.
  */
 export async function loadRelationshipOverrides(): Promise<void> {
   if (hasAttemptedDbLoad) return;
@@ -549,14 +549,14 @@ export async function loadRelationshipOverrides(): Promise<void> {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
-  // 1. Primary Source: public.entity_relationships table
+  // Sole Canonical Source: public.entity_relationships table
   try {
     const { data, error } = await supabase
       .from('entity_relationships')
       .select('*')
-      .limit(1000);
+      .limit(2000);
 
-    if (!error && Array.isArray(data) && data.length > 0) {
+    if (!error && Array.isArray(data)) {
       for (const row of data) {
         const record: EntityRelationshipRecord = {
           id: row.id,
@@ -582,51 +582,12 @@ export async function loadRelationshipOverrides(): Promise<void> {
       return;
     }
   } catch {
-    // Fall through to dual-persistence backup
-  }
-
-  // 2. Resilient Fallback: site_settings.data.entityRelationshipsLedger
-  try {
-    const { data: currentSite, error: siteErr } = await supabase
-      .from('site_settings')
-      .select('id, data')
-      .limit(1)
-      .maybeSingle();
-
-    if (!siteErr && currentSite?.data?.entityRelationshipsLedger) {
-      const ledger = currentSite.data.entityRelationshipsLedger;
-      if (Array.isArray(ledger)) {
-        for (const r of ledger) {
-          const record: EntityRelationshipRecord = {
-            id: r.id,
-            sourceType: r.sourceType,
-            sourceId: r.sourceId,
-            targetType: r.targetType,
-            targetId: r.targetId,
-            relationshipType: r.relationshipType,
-            relevanceScore: Number(r.relevanceScore) || 0,
-            confidence: r.confidence,
-            status: r.status,
-            reasons: Array.isArray(r.reasons) ? r.reasons : [],
-            visualContext: r.visualContext || undefined,
-            metadata: r.metadata || undefined,
-            createdAt: r.createdAt,
-            updatedAt: r.updatedAt,
-          };
-          relationshipOverridesCache.set(
-            buildOverrideKey(record.sourceType, record.sourceId, record.targetType, record.targetId, record.relationshipType),
-            record
-          );
-        }
-      }
-    }
-  } catch {
     // Fail closed in-memory without breaking storefront
   }
 }
 
 /**
- * Saves or updates a single relationship override in Supabase and the in-memory cache.
+ * Saves or updates a single relationship override directly into public.entity_relationships.
  */
 export async function saveRelationshipOverride(
   record: Partial<EntityRelationshipRecord> & {
@@ -661,63 +622,29 @@ export async function saveRelationshipOverride(
 
   const supabase = getSupabaseAdmin();
   if (supabase) {
-    // 1. Table upsert
     try {
-      await supabase.from('entity_relationships').upsert([
-        {
-          id: fullRecord.id,
-          source_type: fullRecord.sourceType,
-          source_id: fullRecord.sourceId,
-          target_type: fullRecord.targetType,
-          target_id: fullRecord.targetId,
-          relationship_type: fullRecord.relationshipType,
-          relevance_score: fullRecord.relevanceScore,
-          confidence: fullRecord.confidence,
-          status: fullRecord.status,
-          reasons: fullRecord.reasons,
-          visual_context: fullRecord.visualContext,
-          metadata: fullRecord.metadata,
-          updated_at: fullRecord.updatedAt,
-        },
-      ]);
+      await supabase.from('entity_relationships').upsert(
+        [
+          {
+            id: fullRecord.id,
+            source_type: fullRecord.sourceType,
+            source_id: fullRecord.sourceId,
+            target_type: fullRecord.targetType,
+            target_id: fullRecord.targetId,
+            relationship_type: fullRecord.relationshipType,
+            relevance_score: fullRecord.relevanceScore,
+            confidence: fullRecord.confidence,
+            status: fullRecord.status,
+            reasons: fullRecord.reasons,
+            visual_context: fullRecord.visualContext,
+            metadata: fullRecord.metadata,
+            updated_at: fullRecord.updatedAt,
+          },
+        ],
+        { onConflict: 'source_type,source_id,target_type,target_id,relationship_type' }
+      );
     } catch {
-      // Best effort
-    }
-
-    // 2. Dual persistence in site_settings
-    try {
-      const { data: currentSite } = await supabase.from('site_settings').select('id, data').limit(1).maybeSingle();
-      if (currentSite) {
-        const ledger: EntityRelationshipRecord[] = Array.isArray(currentSite.data?.entityRelationshipsLedger)
-          ? [...currentSite.data.entityRelationshipsLedger]
-          : [];
-        const existingIdx = ledger.findIndex(
-          (r) =>
-            r.sourceType === fullRecord.sourceType &&
-            r.sourceId === fullRecord.sourceId &&
-            r.targetType === fullRecord.targetType &&
-            r.targetId === fullRecord.targetId &&
-            r.relationshipType === fullRecord.relationshipType
-        );
-        if (existingIdx >= 0) {
-          ledger[existingIdx] = fullRecord;
-        } else {
-          ledger.push(fullRecord);
-        }
-        await supabase
-          .from('site_settings')
-          .update({
-            data: {
-              ...currentSite.data,
-              entityRelationshipsLedger: ledger,
-              entityRelationshipsUpdatedAt: now,
-            },
-            updated_at: now,
-          })
-          .eq('id', currentSite.id);
-      }
-    } catch {
-      // Best effort
+      // In-memory cache remains authoritative for current execution
     }
   }
 
@@ -725,7 +652,7 @@ export async function saveRelationshipOverride(
 }
 
 /**
- * Deletes a relationship override from memory and persistent storage.
+ * Deletes a relationship override from memory and public.entity_relationships.
  */
 export async function deleteRelationshipOverride(
   sourceType: EntityType,
@@ -753,52 +680,22 @@ export async function deleteRelationshipOverride(
     } catch {
       // Ignore
     }
-
-    try {
-      const { data: currentSite } = await supabase.from('site_settings').select('id, data').limit(1).maybeSingle();
-      if (currentSite?.data?.entityRelationshipsLedger) {
-        const filtered = (currentSite.data.entityRelationshipsLedger as EntityRelationshipRecord[]).filter(
-          (r) =>
-            !(
-              r.sourceType === sourceType &&
-              r.sourceId === sourceId &&
-              r.targetType === targetType &&
-              r.targetId === targetId &&
-              r.relationshipType === relationshipType
-            )
-        );
-        await supabase
-          .from('site_settings')
-          .update({
-            data: {
-              ...currentSite.data,
-              entityRelationshipsLedger: filtered,
-              entityRelationshipsUpdatedAt: new Date().toISOString(),
-            },
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', currentSite.id);
-      }
-    } catch {
-      // Ignore
-    }
   }
 
   return true;
 }
 
 /**
- * Persists an array of candidate relationship edges into canonical storage.
+ * Persists an array of candidate relationship edges directly into canonical public.entity_relationships.
  * - Idempotently merges with existing state.
  * - Respects existing 'rejected' and 'approved' overrides.
- * - Updates in-memory cache, Supabase entity_relationships (if available), and site_settings.
+ * - Enforces composite unique constraint (source_type, source_id, target_type, target_id, relationship_type).
  */
 export async function persistRelationshipLedger(
   records: EntityRelationshipRecord[]
 ): Promise<{
   persistedCount: number;
   tablePersisted: boolean;
-  siteSettingsPersisted: boolean;
   tableError?: string;
 }> {
   await loadRelationshipOverrides();
@@ -834,10 +731,8 @@ export async function persistRelationshipLedger(
 
   let tablePersisted = false;
   let tableError: string | undefined;
-  let siteSettingsPersisted = false;
 
   if (supabase) {
-    // 1. Attempt writing to public.entity_relationships table
     try {
       const rows = validRecordsToPersist.map((r) => ({
         id: r.id,
@@ -872,47 +767,42 @@ export async function persistRelationshipLedger(
     } catch (err: any) {
       tableError = err.message;
     }
-
-    // 2. Dual-persistence backup into site_settings.data.entityRelationshipsLedger
-    try {
-      const { data: currentSite, error: siteErr } = await supabase
-        .from('site_settings')
-        .select('id, data')
-        .limit(1)
-        .maybeSingle();
-
-      if (!siteErr && currentSite) {
-        const existingData = currentSite.data && typeof currentSite.data === 'object' ? currentSite.data : {};
-        const updatedData = {
-          ...existingData,
-          entityRelationshipsLedger: validRecordsToPersist,
-          entityRelationshipsUpdatedAt: new Date().toISOString(),
-          entityRelationshipsCount: validRecordsToPersist.length,
-        };
-
-        const { error: updateErr } = await supabase
-          .from('site_settings')
-          .update({
-            data: updatedData,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', currentSite.id);
-
-        if (!updateErr) {
-          siteSettingsPersisted = true;
-        }
-      }
-    } catch {
-      // Best-effort dual persistence
-    }
   }
 
   return {
     persistedCount: validRecordsToPersist.length,
     tablePersisted,
-    siteSettingsPersisted,
     tableError,
   };
+}
+
+/**
+ * Prunes any legacy JSON fallback ledger from site_settings.data so that
+ * public.entity_relationships remains the uncompromised single source of truth.
+ */
+export async function pruneLegacyJsonLedger(): Promise<boolean> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return false;
+  try {
+    const { data: currentSite } = await supabase.from('site_settings').select('id, data').limit(1).maybeSingle();
+    if (currentSite?.data?.entityRelationshipsLedger) {
+      const updatedData = { ...currentSite.data };
+      delete updatedData.entityRelationshipsLedger;
+      delete updatedData.entityRelationshipsUpdatedAt;
+      delete updatedData.entityRelationshipsCount;
+      await supabase
+        .from('site_settings')
+        .update({
+          data: updatedData,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', currentSite.id);
+      return true;
+    }
+  } catch {
+    // Ignore
+  }
+  return false;
 }
 
 /**
