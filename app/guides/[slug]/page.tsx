@@ -29,6 +29,10 @@ import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
 import GuideTracker, { GuideProductClickTracker } from '@/components/GuideTracker';
 import { formatPrice, safeJsonLd } from '@/lib/utils';
+import {
+  getRelatedProductsForGuide,
+  getRelatedKnowledgeForGuide,
+} from '@/lib/growth/entity-relationships';
 
 export const revalidate = 60; // Revalidate every 60s
 
@@ -74,26 +78,27 @@ export default async function ProductGuideDetailPage({
 
   const activeProducts = allProducts.filter((p) => p.isActive !== false);
 
-  // Find primary linked product
-  const primaryProduct = guide.productId
-    ? activeProducts.find((p) => p.id === guide.productId)
+  // Canonical universal relationship resolution (approved only)
+  const [canonicalRelatedProducts, canonicalRelatedKnowledge] = await Promise.all([
+    getRelatedProductsForGuide(guide, {
+      allProducts: activeProducts,
+      requireApproval: true,
+      includeDrafts: false,
+      limit: 3,
+    }),
+    getRelatedKnowledgeForGuide(guide, {
+      requireApproval: true,
+      includeDrafts: false,
+      limit: 2,
+    }),
+  ]);
+
+  // Authoritative primary product: matched via canonical relationship engine
+  const primaryProduct = canonicalRelatedProducts.length > 0
+    ? (guide.productId ? canonicalRelatedProducts.find((p) => p.id === guide.productId) || canonicalRelatedProducts[0] : canonicalRelatedProducts[0])
     : null;
 
-  // Find secondary linked products (for comparison guides)
-  const comparisonProducts = Array.isArray(guide.productIds)
-    ? activeProducts.filter((p) => guide.productIds?.includes(p.id))
-    : [];
-
-  // Find related products
-  const relatedProducts = Array.isArray(guide.relatedProductIds)
-    ? activeProducts.filter((p) => guide.relatedProductIds?.includes(p.id))
-    : [];
-
-  const displayProducts = relatedProducts.length > 0
-    ? relatedProducts
-    : primaryProduct
-    ? [primaryProduct]
-    : activeProducts.slice(0, 3);
+  const displayProducts = canonicalRelatedProducts;
 
   const whatsappPhone = getConfiguredWhatsAppNumber(siteSettings);
 

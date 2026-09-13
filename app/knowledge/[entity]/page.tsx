@@ -17,6 +17,10 @@ import {
   getPublicIndexableEntities,
 } from '@/lib/growth/entity-registry';
 import {
+  getRelatedProductsForKnowledge,
+  getRelatedGuidesForKnowledge,
+} from '@/lib/growth/entity-relationships';
+import {
   ENTITY_KEY_TO_SLUG,
   SLUG_TO_ENTITY_KEY,
   HENNA_ALIAS_SLUGS,
@@ -152,19 +156,20 @@ export default async function KnowledgeEntityPage(props: KnowledgePageProps) {
     guides: allGuides,
   });
 
-  // Filter products matching entity
-  const matchingProducts = allProducts.filter((p) => {
-    if (p.isActive === false) return false;
-    const resolved = resolveCanonicalEntity(p);
-    return resolved.entityKey === entityKey;
-  });
-
-  // Filter published guides mentioning entity
-  const matchingGuides = allGuides.filter((g) => {
-    const gSlug = g.slug.toLowerCase();
-    const gTitle = g.title.toLowerCase();
-    return record.normalizedAliases.some((a) => gSlug.includes(a) || gTitle.includes(a));
-  });
+  // Canonical universal relationship resolution (approved only)
+  const [matchingProducts, matchingGuides] = await Promise.all([
+    getRelatedProductsForKnowledge(record, {
+      allProducts,
+      requireApproval: true,
+      limit: 12,
+    }),
+    getRelatedGuidesForKnowledge(record, {
+      allGuides,
+      requireApproval: true,
+      includeDrafts: false,
+      limit: 6,
+    }),
+  ]);
 
   const canonicalUrl = `https://muskydose.in/knowledge/${slug}`;
 

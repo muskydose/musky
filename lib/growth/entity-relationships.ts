@@ -849,9 +849,10 @@ export async function getRelatedGuidesForProduct(
   for (const guide of guides) {
     if (guide.published === false && !options?.includeDrafts) continue;
 
-    // Check for manual admin override first
-    const overrideKey = buildOverrideKey('PRODUCT', product.id, 'GUIDE', guide.id || guide.slug, 'PRODUCT_GUIDE');
-    const override = relationshipOverridesCache.get(overrideKey);
+    // Check for manual admin override first (direction-aware: forward and reverse)
+    const forwardKey = buildOverrideKey('PRODUCT', product.id, 'GUIDE', guide.id || guide.slug, 'PRODUCT_GUIDE');
+    const reverseKey = buildOverrideKey('GUIDE', guide.id || guide.slug, 'PRODUCT', product.id, 'GUIDE_PRODUCT');
+    const override = relationshipOverridesCache.get(forwardKey) || relationshipOverridesCache.get(reverseKey);
 
     if (override) {
       if (isRelationshipPubliclyVisible(override, { requireExplicitApproval: options?.requireApproval, minScore })) {
@@ -903,8 +904,14 @@ export async function getRelatedProductsForGuide(
     limit?: number;
     requireApproval?: boolean;
     growthKeywords?: GscKeywordSignal[];
+    includeDrafts?: boolean;
   }
 ): Promise<Product[]> {
+  // Strict draft safety invariant: Unpublished guides cannot yield public products
+  if (guide.published === false && !options?.includeDrafts) {
+    return [];
+  }
+
   await loadRelationshipOverrides();
   const products = options?.allProducts || [];
   const limit = options?.limit ?? 3;
@@ -915,9 +922,10 @@ export async function getRelatedProductsForGuide(
   for (const product of products) {
     if (product.isActive === false) continue;
 
-    // Check for manual admin override
-    const overrideKey = buildOverrideKey('GUIDE', guide.id || guide.slug, 'PRODUCT', product.id, 'GUIDE_PRODUCT');
-    const override = relationshipOverridesCache.get(overrideKey);
+    // Check for manual admin override (direction-aware: forward and reverse)
+    const forwardKey = buildOverrideKey('GUIDE', guide.id || guide.slug, 'PRODUCT', product.id, 'GUIDE_PRODUCT');
+    const reverseKey = buildOverrideKey('PRODUCT', product.id, 'GUIDE', guide.id || guide.slug, 'PRODUCT_GUIDE');
+    const override = relationshipOverridesCache.get(forwardKey) || relationshipOverridesCache.get(reverseKey);
 
     if (override) {
       if (isRelationshipPubliclyVisible(override, { requireExplicitApproval: options?.requireApproval, minScore })) {
@@ -977,8 +985,9 @@ export async function getRelatedKnowledgeForProduct(
   const scoredEntities: { entity: CanonicalEntityRecord; score: number }[] = [];
 
   for (const ent of allEntities) {
-    const overrideKey = buildOverrideKey('PRODUCT', product.id, 'KNOWLEDGE', ent.entityKey, 'PRODUCT_KNOWLEDGE');
-    const override = relationshipOverridesCache.get(overrideKey);
+    const forwardKey = buildOverrideKey('PRODUCT', product.id, 'KNOWLEDGE', ent.entityKey, 'PRODUCT_KNOWLEDGE');
+    const reverseKey = buildOverrideKey('KNOWLEDGE', ent.entityKey, 'PRODUCT', product.id, 'PRODUCT_KNOWLEDGE');
+    const override = relationshipOverridesCache.get(forwardKey) || relationshipOverridesCache.get(reverseKey);
 
     if (override) {
       if (isRelationshipPubliclyVisible(override, { requireExplicitApproval: options?.requireApproval, minScore })) {
@@ -1024,8 +1033,14 @@ export async function getRelatedKnowledgeForGuide(
     minScore?: number;
     limit?: number;
     requireApproval?: boolean;
+    includeDrafts?: boolean;
   }
 ): Promise<CanonicalEntityRecord[]> {
+  // Strict draft safety invariant: Unpublished guides cannot yield public knowledge
+  if (guide.published === false && !options?.includeDrafts) {
+    return [];
+  }
+
   await loadRelationshipOverrides();
   const limit = options?.limit ?? 2;
   const minScore = options?.minScore ?? 0.40;
@@ -1034,8 +1049,9 @@ export async function getRelatedKnowledgeForGuide(
   const scoredEntities: { entity: CanonicalEntityRecord; score: number }[] = [];
 
   for (const ent of allEntities) {
-    const overrideKey = buildOverrideKey('GUIDE', guide.id || guide.slug, 'KNOWLEDGE', ent.entityKey, 'GUIDE_KNOWLEDGE');
-    const override = relationshipOverridesCache.get(overrideKey);
+    const forwardKey = buildOverrideKey('GUIDE', guide.id || guide.slug, 'KNOWLEDGE', ent.entityKey, 'GUIDE_KNOWLEDGE');
+    const reverseKey = buildOverrideKey('KNOWLEDGE', ent.entityKey, 'GUIDE', guide.id || guide.slug, 'GUIDE_KNOWLEDGE');
+    const override = relationshipOverridesCache.get(forwardKey) || relationshipOverridesCache.get(reverseKey);
 
     if (override) {
       if (isRelationshipPubliclyVisible(override, { requireExplicitApproval: options?.requireApproval, minScore })) {
@@ -1070,6 +1086,147 @@ export async function getRelatedKnowledgeForGuide(
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map((item) => item.entity);
+}
+
+/**
+ * Resolves related products for a given knowledge entity dynamically and bidirectionally.
+ */
+export async function getRelatedProductsForKnowledge(
+  entityKeyOrRecord: string | CanonicalEntityRecord,
+  options?: {
+    allProducts?: Product[];
+    minScore?: number;
+    limit?: number;
+    requireApproval?: boolean;
+    growthKeywords?: GscKeywordSignal[];
+  }
+): Promise<Product[]> {
+  await loadRelationshipOverrides();
+  const ent = typeof entityKeyOrRecord === 'string'
+    ? getEntity(entityKeyOrRecord)
+    : entityKeyOrRecord;
+  if (!ent || ent.status === 'UNKNOWN') return [];
+
+  const products = options?.allProducts || [];
+  const limit = options?.limit ?? 12;
+  const minScore = options?.minScore ?? 0.35;
+
+  const scoredProducts: { product: Product; score: number }[] = [];
+
+  for (const product of products) {
+    if (product.isActive === false) continue;
+
+    // Check for manual admin override (direction-aware: forward and reverse)
+    const forwardKey = buildOverrideKey('KNOWLEDGE', ent.entityKey, 'PRODUCT', product.id, 'PRODUCT_KNOWLEDGE');
+    const reverseKey = buildOverrideKey('PRODUCT', product.id, 'KNOWLEDGE', ent.entityKey, 'PRODUCT_KNOWLEDGE');
+    const override = relationshipOverridesCache.get(forwardKey) || relationshipOverridesCache.get(reverseKey);
+
+    if (override) {
+      if (isRelationshipPubliclyVisible(override, { requireExplicitApproval: options?.requireApproval, minScore })) {
+        scoredProducts.push({ product, score: override.relevanceScore });
+      }
+      continue;
+    }
+
+    const evaluation = scoreProductKnowledgeRelationship(product, ent, {
+      growthKeywords: options?.growthKeywords,
+    });
+
+    const candidateRecord: EntityRelationshipRecord = {
+      id: `dyn-pk-${product.id}-${ent.entityKey}`,
+      sourceType: 'PRODUCT',
+      sourceId: product.id,
+      targetType: 'KNOWLEDGE',
+      targetId: ent.entityKey,
+      relationshipType: 'PRODUCT_KNOWLEDGE',
+      relevanceScore: evaluation.score,
+      confidence: evaluation.confidence,
+      status: 'suggested',
+      reasons: evaluation.reasons,
+      visualContext: evaluation.visualContext,
+      createdAt: '',
+      updatedAt: '',
+    };
+
+    if (isRelationshipPubliclyVisible(candidateRecord, { requireExplicitApproval: options?.requireApproval, minScore })) {
+      scoredProducts.push({ product, score: evaluation.score });
+    }
+  }
+
+  return scoredProducts
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((item) => item.product);
+}
+
+/**
+ * Resolves related guides for a given knowledge entity dynamically and bidirectionally.
+ */
+export async function getRelatedGuidesForKnowledge(
+  entityKeyOrRecord: string | CanonicalEntityRecord,
+  options?: {
+    allGuides?: ProductGuide[];
+    minScore?: number;
+    limit?: number;
+    requireApproval?: boolean;
+    includeDrafts?: boolean;
+    growthKeywords?: GscKeywordSignal[];
+  }
+): Promise<ProductGuide[]> {
+  await loadRelationshipOverrides();
+  const ent = typeof entityKeyOrRecord === 'string'
+    ? getEntity(entityKeyOrRecord)
+    : entityKeyOrRecord;
+  if (!ent || ent.status === 'UNKNOWN') return [];
+
+  const guides = options?.allGuides || [];
+  const limit = options?.limit ?? 6;
+  const minScore = options?.minScore ?? 0.35;
+
+  const scoredGuides: { guide: ProductGuide; score: number }[] = [];
+
+  for (const guide of guides) {
+    if (guide.published === false && !options?.includeDrafts) continue;
+
+    // Check for manual admin override (direction-aware: forward and reverse)
+    const forwardKey = buildOverrideKey('KNOWLEDGE', ent.entityKey, 'GUIDE', guide.id || guide.slug, 'GUIDE_KNOWLEDGE');
+    const reverseKey = buildOverrideKey('GUIDE', guide.id || guide.slug, 'KNOWLEDGE', ent.entityKey, 'GUIDE_KNOWLEDGE');
+    const override = relationshipOverridesCache.get(forwardKey) || relationshipOverridesCache.get(reverseKey);
+
+    if (override) {
+      if (isRelationshipPubliclyVisible(override, { requireExplicitApproval: options?.requireApproval, minScore })) {
+        scoredGuides.push({ guide, score: override.relevanceScore });
+      }
+      continue;
+    }
+
+    const evaluation = scoreGuideKnowledgeRelationship(guide, ent);
+
+    const candidateRecord: EntityRelationshipRecord = {
+      id: `dyn-gk-${guide.id || guide.slug}-${ent.entityKey}`,
+      sourceType: 'GUIDE',
+      sourceId: guide.id || guide.slug,
+      targetType: 'KNOWLEDGE',
+      targetId: ent.entityKey,
+      relationshipType: 'GUIDE_KNOWLEDGE',
+      relevanceScore: evaluation.score,
+      confidence: evaluation.confidence,
+      status: 'suggested',
+      reasons: evaluation.reasons,
+      visualContext: evaluation.visualContext,
+      createdAt: '',
+      updatedAt: '',
+    };
+
+    if (isRelationshipPubliclyVisible(candidateRecord, { requireExplicitApproval: options?.requireApproval, minScore })) {
+      scoredGuides.push({ guide, score: evaluation.score });
+    }
+  }
+
+  return scoredGuides
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((item) => item.guide);
 }
 
 // ============================================================================

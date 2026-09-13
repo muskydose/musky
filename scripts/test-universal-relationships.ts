@@ -402,8 +402,8 @@ async function runUniversalRelationshipVerification() {
   console.log('\n--- SECTION 4: Mandatory Real Guide Assertions ---');
   for (const guide of guides) {
     console.log(`  Evaluating Guide: "${guide.title}" (ID: ${guide.id})`);
-    const matchedProducts = await getRelatedProductsForGuide(guide, { allProducts: activeProducts, limit: 3 });
-    const matchedKnowledge = await getRelatedKnowledgeForGuide(guide, { limit: 2 });
+    const matchedProducts = await getRelatedProductsForGuide(guide, { allProducts: activeProducts, limit: 3, includeDrafts: true });
+    const matchedKnowledge = await getRelatedKnowledgeForGuide(guide, { limit: 2, includeDrafts: true });
 
     console.log(`    -> Products Matched (${matchedProducts.length}): [${matchedProducts.map((p) => p.name).join(', ')}]`);
     console.log(`    -> Knowledge Matched (${matchedKnowledge.length}): [${matchedKnowledge.map((k) => k.canonicalName).join(', ')}]`);

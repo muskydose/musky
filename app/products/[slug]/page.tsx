@@ -19,6 +19,10 @@ import {
   resolveAuthoritativeProductMedia,
   generateProductMediaSchema,
 } from '@/lib/growth/product-media-governance';
+import {
+  getRelatedGuidesForProduct,
+  getRelatedKnowledgeForProduct,
+} from '@/lib/growth/entity-relationships';
 
 export const dynamic = 'force-dynamic';
 export const dynamicParams = true;
@@ -68,22 +72,19 @@ export default async function ProductDetailPage({
     notFound();
   }
 
-  const prodNameLower = (product.name || '').toLowerCase();
-  const prodSlugLower = (product.slug || '').toLowerCase();
-  const catNameLower = (product.categoryName || '').toLowerCase();
-
-  const relevantGuides = allGuides.filter((g) => {
-    if (g.productId === product.id) return true;
-    if (Array.isArray(g.productIds) && g.productIds.includes(product.id)) return true;
-    if (Array.isArray(g.relatedProductIds) && g.relatedProductIds.includes(product.id)) return true;
-    
-    // Topic matching
-    if ((prodNameLower.includes('indigo') || prodSlugLower.includes('indigo')) && g.slug.includes('indigo')) return true;
-    if ((prodNameLower.includes('henna') || prodSlugLower.includes('henna') || catNameLower.includes('henna')) && g.slug.includes('henna')) return true;
-    if ((prodNameLower.includes('amla') || prodNameLower.includes('hair pack')) && g.slug.includes('which-henna')) return true;
-    
-    return false;
-  }).slice(0, 2);
+  // Canonical universal relationship resolution (approved only)
+  const [relevantGuides, relevantKnowledge] = await Promise.all([
+    getRelatedGuidesForProduct(product, {
+      allGuides,
+      requireApproval: true,
+      includeDrafts: false,
+      limit: 2,
+    }),
+    getRelatedKnowledgeForProduct(product, {
+      requireApproval: true,
+      limit: 2,
+    }),
+  ]);
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
   const relatedProducts = await getRelatedProducts(product.id, product.categoryId, 3);
