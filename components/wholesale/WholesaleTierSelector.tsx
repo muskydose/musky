@@ -140,16 +140,21 @@ export default function WholesaleTierSelector({
   if (!hasAnyDiscountTier) {
     return (
       <div className="space-y-3 pt-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-[#c5a059]" />
-            <h3 className="text-xs font-bold text-[#0f2d22] uppercase tracking-wider">
-              Direct Bulk Buy
-            </h3>
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-[#c5a059]" />
+              <h3 className="text-xs font-bold text-[#0f2d22] uppercase tracking-wider">
+                Direct Bulk Buy
+              </h3>
+            </div>
+            <span className="text-[11px] font-semibold text-[#88908a]">
+              Factory Catalog Terms
+            </span>
           </div>
-          <span className="text-[11px] font-semibold text-[#88908a]">
-            Factory Catalog Terms
-          </span>
+          <div className="text-xs sm:text-sm font-semibold text-[#0f2d22] break-words">
+            {product.name}
+          </div>
         </div>
 
         {/* Neutral Presentation: Base Rate & No Bulk Discount */}
@@ -210,16 +215,21 @@ export default function WholesaleTierSelector({
   // Case 2: Product has configured discount tiers -> Direct Bulk Buy Slabs
   return (
     <div className="space-y-3 pt-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Layers className="w-3.5 h-3.5 text-[#c5a059]" />
-          <h3 className="text-xs font-bold text-[#0f2d22] uppercase tracking-wider">
-            Direct Bulk Buy
-          </h3>
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Layers className="w-3.5 h-3.5 text-[#c5a059]" />
+            <h3 className="text-xs font-bold text-[#0f2d22] uppercase tracking-wider">
+              Direct Bulk Buy
+            </h3>
+          </div>
+          <span className="text-[11px] font-semibold text-[#626c66] hidden sm:inline">
+            Click a slab to preview factory rates
+          </span>
         </div>
-        <span className="text-[11px] font-semibold text-[#626c66] hidden sm:inline">
-          Click a slab to preview factory rates
-        </span>
+        <div className="text-xs sm:text-sm font-semibold text-[#0f2d22] break-words">
+          {product.name}
+        </div>
       </div>
 
       {/* Slabs Stack */}
