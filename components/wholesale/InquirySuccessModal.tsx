@@ -51,7 +51,7 @@ export default function InquirySuccessModal({
           Thank You, {enquiry.customerName}
         </h3>
         <p className="text-xs text-[#626c66] max-w-md mx-auto">
-          Your wholesale quotation request has been recorded. Reference Reference ID:
+          Your wholesale quotation enquiry has been recorded with official Reference ID:
         </p>
 
         {/* Copyable Reference Chip */}
@@ -95,7 +95,7 @@ export default function InquirySuccessModal({
 
       {/* Status Notice */}
       <p className="text-[11px] text-[#626c66] max-w-md mx-auto leading-relaxed">
-        Our Sojat sales desk reviews wholesale requests during business hours. Connect on WhatsApp to expedite quotation review.
+        Your enquiry is ready on WhatsApp. If WhatsApp did not open automatically, tap below to continue to our Sojat sales desk.
       </p>
 
       {/* Action Buttons */}
@@ -104,10 +104,10 @@ export default function InquirySuccessModal({
           <button
             type="button"
             onClick={handleOpenWhatsApp}
-            className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer min-h-[44px]"
+            className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer min-h-[46px]"
           >
             <MessageCircle className="w-4 h-4" />
-            <span>Open WhatsApp Conversation (New Tab)</span>
+            <span>Open WhatsApp</span>
           </button>
         )}
 

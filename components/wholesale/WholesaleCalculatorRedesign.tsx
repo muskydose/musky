@@ -80,7 +80,7 @@ export default function WholesaleCalculatorRedesign({
     return resolveProductWholesaleUnits(selectedProduct);
   }, [selectedProduct]);
 
-  // Quick quantity presets (Strictly 4: 5, 10, 25, 100 per Batch Change Set 08)
+  // Quick quantity presets (Compact pills: 1, 2, 5, 10, 25 per Batch Change Set 09)
   const quickQuantityPresets = QUICK_QUANTITY_PRESETS;
 
   // Quantity state (defaults to initialQuantity or 5)

@@ -3,9 +3,9 @@
 import React from 'react';
 import { formatPrice, formatPercent } from '@/lib/utils';
 import { CanonicalWholesaleResolution } from '@/lib/wholesale-pricing-resolver';
-import { TrendingDown, ShieldCheck, ArrowDownCircle, MessageCircle, AlertCircle, Sparkles, Minus, Plus } from 'lucide-react';
+import { TrendingDown, ShieldCheck, ArrowDownCircle, MessageCircle, AlertCircle, Sparkles, Minus, Plus, Check } from 'lucide-react';
 
-export const QUICK_QUANTITY_PRESETS = [5, 10, 25, 100] as const;
+export const QUICK_QUANTITY_PRESETS = [1, 2, 5, 10, 25] as const;
 
 interface CommercialEstimateCardProps {
   pricingResult: CanonicalWholesaleResolution;
@@ -126,14 +126,9 @@ export default function CommercialEstimateCard({
       {/* Interactive Order Volume Selection */}
       {onQuantityChange && (
         <div className="p-3 sm:p-3.5 rounded-xl bg-[#FAF8F5] border border-[#e8e2d5] space-y-2.5">
-          <div className="flex items-center justify-between text-[11px]">
-            <label htmlFor="estimate-qty-input" className="font-bold text-[#0f2d22] uppercase tracking-wider">
-              Order Volume
-            </label>
-            <span className="text-[#626c66] font-medium">
-              Packaging Unit: <strong className="text-[#0f2d22]">{unit}</strong>
-            </span>
-          </div>
+          <label htmlFor="estimate-qty-input" className="block text-[11px] font-bold text-[#0f2d22] uppercase tracking-wider">
+            Order Volume
+          </label>
 
           {/* Stepper Controls & Manual Input (Any custom quantity allowed) */}
           <div className="flex items-center justify-between rounded-xl border border-[#e8e2d5] bg-white p-1 shadow-2xs">
@@ -172,36 +167,32 @@ export default function CommercialEstimateCard({
             </button>
           </div>
 
-          {/* Strictly 4 Quick Presets: 5, 10, 25, 100 */}
+          {/* Compact Quantity Pills: [ 1 Litre ] [ 2 Litre ] [ 5 Litre ] [ 10 Litre ] [ 25 Litre ] */}
           {presetQuantities && presetQuantities.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-[10px] text-[#88908a]">
-                <span className="font-semibold uppercase tracking-wider">Quick Presets</span>
-                <span className="hidden xs:inline">or enter custom quantity above</span>
-              </div>
-              <div
-                role="group"
-                aria-label="Quick volume presets"
-                className="grid grid-cols-4 gap-1.5 w-full"
-              >
-                {presetQuantities.map((preset) => {
-                  const isSelected = quantity === preset;
-                  return (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => onQuantityChange(preset)}
-                      className={`px-1 sm:px-2 py-2 rounded-xl text-[11px] sm:text-xs font-mono font-bold transition-all min-h-[44px] flex items-center justify-center text-center cursor-pointer ${
-                        isSelected
-                          ? 'bg-[#1b4332] text-[#c5a059] shadow-xs ring-2 ring-[#1b4332]/40 font-extrabold'
-                          : 'bg-white text-[#0f2d22] border border-[#e8e2d5] hover:bg-gray-50 hover:border-[#b2c8be]'
-                      }`}
-                    >
-                      {preset} {unit}
-                    </button>
-                  );
-                })}
-              </div>
+            <div
+              role="group"
+              aria-label="Quick volume options"
+              className="flex flex-wrap items-center gap-1.5 pt-0.5"
+            >
+              {presetQuantities.map((preset) => {
+                const isSelected = quantity === preset;
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => onQuantityChange(preset)}
+                    aria-pressed={isSelected}
+                    className={`px-3 py-1.5 rounded-full text-xs font-mono font-bold transition-all min-h-[38px] flex items-center justify-center text-center cursor-pointer ${
+                      isSelected
+                        ? 'bg-[#1b4332] text-[#c5a059] border border-[#1b4332] shadow-2xs ring-1 ring-[#1b4332]/30 font-extrabold'
+                        : 'bg-white text-[#2d3748] border border-[#e8e2d5] hover:bg-[#FAF8F5] hover:border-[#b2c8be]'
+                    }`}
+                  >
+                    {isSelected && <Check className="w-3.5 h-3.5 mr-1 text-[#c5a059] shrink-0 inline stroke-[2.5]" />}
+                    {preset} {unit}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -280,24 +271,14 @@ export default function CommercialEstimateCard({
         <span>Non-binding estimate. Freight & applicable GST confirmed upon final dispatch review.</span>
       </div>
 
-      {/* Action Buttons */}
-      <div className="pt-1 space-y-2">
+      {/* Action Button: Single Primary Conversion CTA */}
+      <div className="pt-1">
         <button
           type="button"
           onClick={onApplyToForm}
-          className="w-full py-3 px-4 rounded-xl bg-[#0f2d22] hover:bg-[#1b4332] text-[#c5a059] font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-sm active:scale-98 cursor-pointer min-h-[44px]"
+          className="w-full py-3.5 px-4 rounded-xl bg-[#0f2d22] hover:bg-[#1b4332] text-[#c5a059] font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-98 cursor-pointer min-h-[48px]"
         >
-          <ArrowDownCircle className="w-4 h-4 text-[#c5a059]" />
-          <span>{ctaLabel}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={onDirectWhatsApp}
-          className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs active:scale-98 cursor-pointer min-h-[40px]"
-        >
-          <MessageCircle className="w-4 h-4" />
-          <span>WhatsApp Factory Desk</span>
+          <span>Get Wholesale Quote for {quantity} {unit} →</span>
         </button>
       </div>
     </div>

@@ -201,55 +201,8 @@ export default function WholesaleInquiryForm({
     return data.enquiry as WholesaleEnquiry;
   };
 
-  const handleStandardSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateFullForm()) return;
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const payload = prepareEnquiryPayload();
-      const savedEnquiry = await submitEnquiryToBackend(payload);
-
-      // Track telemetry
-      trackWholesaleInquirySubmitted({
-        productsRequired: payload.productsRequired,
-        approxQuantity: payload.approxQuantity,
-      });
-
-      // Build WhatsApp URL with registered reference ID
-      const msg = generateWholesaleWhatsAppMessage(
-        {
-          customerName: payload.customerName,
-          businessName: payload.businessName || 'Wholesale Partner',
-          businessType: payload.businessType,
-          phone: payload.phone,
-          whatsapp: payload.whatsapp,
-          email: payload.email,
-          city: payload.city,
-          state: payload.state,
-          productsRequired: payload.productsRequired,
-          approxQuantity: payload.approxQuantity,
-          notes: payload.notes,
-          referenceId: savedEnquiry.id,
-        },
-        siteSettings?.whatsappWholesaleMessageTemplate
-      );
-
-      const destNum = getConfiguredWhatsAppNumber(siteSettings);
-      const url = getWhatsAppDirectUrl(destNum, msg);
-
-      setWhatsappUrl(url);
-      setSubmittedEnquiry(savedEnquiry);
-    } catch (err: any) {
-      setError(err.message || 'Unable to submit your requirement. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleWhatsAppSubmit = async () => {
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!validateFullForm()) return;
 
     setLoading(true);
@@ -365,7 +318,7 @@ export default function WholesaleInquiryForm({
         </div>
       )}
 
-      <form onSubmit={handleStandardSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {/* STEP 1: Contact & Business Profile */}
         {step === 1 && (
           <div className="space-y-4 animate-in fade-in duration-200">
@@ -595,12 +548,12 @@ export default function WholesaleInquiryForm({
               />
             </div>
 
-            {/* Action Buttons */}
+            {/* Action Buttons: Single Direct WhatsApp Submit Action */}
             <div className="pt-2 flex flex-col sm:flex-row items-stretch gap-2.5">
               <button
                 type="button"
                 onClick={() => setStep(1)}
-                className="py-2.5 px-3 rounded-xl border border-[#e8e2d5] bg-white hover:bg-[#FAF8F5] text-[#626c66] font-semibold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer min-h-[44px]"
+                className="py-2.5 px-4 rounded-xl border border-[#e8e2d5] bg-white hover:bg-[#FAF8F5] text-[#626c66] font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer min-h-[46px]"
               >
                 <ChevronLeft className="w-4 h-4" />
                 <span>Back</span>
@@ -609,29 +562,19 @@ export default function WholesaleInquiryForm({
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 py-3 px-4 rounded-xl bg-[#0f2d22] hover:bg-[#1b4332] text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs disabled:opacity-50 cursor-pointer min-h-[44px]"
+                className="flex-1 py-3.5 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-sm active:scale-98 disabled:opacity-50 cursor-pointer min-h-[46px]"
               >
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Registering Inquiry...</span>
+                    <span>Registering &amp; Preparing WhatsApp...</span>
                   </>
                 ) : (
                   <>
-                    <Send className="w-4 h-4" />
-                    <span>Submit Quotation Request</span>
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Send Wholesale Enquiry on WhatsApp →</span>
                   </>
                 )}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleWhatsAppSubmit}
-                disabled={loading}
-                className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs disabled:opacity-50 cursor-pointer min-h-[44px]"
-              >
-                <MessageCircle className="w-4 h-4" />
-                <span>Enquire via WhatsApp</span>
               </button>
             </div>
           </div>
