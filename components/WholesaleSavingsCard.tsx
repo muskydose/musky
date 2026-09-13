@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Product, BulkPricingRule } from '@/lib/types';
 import { deriveWholesaleSavings, WholesaleSavingsResult } from '@/lib/wholesale-savings';
 import { resolveProductWholesaleUnits } from '@/lib/wholesale-units';
+import { getAuthoritativeWholesaleTiers } from '@/lib/wholesale-pricing-resolver';
 import { Sparkles, TrendingDown, ArrowRight, ShieldCheck, CheckCircle2, Package, HelpCircle } from 'lucide-react';
 
 interface WholesaleSavingsCardProps {
@@ -27,7 +28,13 @@ export default function WholesaleSavingsCard({
   const units = useMemo(() => resolveProductWholesaleUnits(product), [product]);
   const minQty = units.minWholesaleQuantity || 1;
 
-  const [quantity, setQuantity] = useState<number>(initialQuantity || minQty);
+  const availableTiers = useMemo(() => {
+    const authoritative = getAuthoritativeWholesaleTiers(product, bulkRules);
+    if (authoritative.length > 0) return authoritative;
+    return units.presetQuantities.slice(0, 5);
+  }, [product, bulkRules, units]);
+
+  const [quantity, setQuantity] = useState<number>(initialQuantity || availableTiers[0] || minQty);
 
   // Derive live savings strictly through canonical engine
   const savings = useMemo(() => {
@@ -100,7 +107,7 @@ export default function WholesaleSavingsCard({
             </div>
 
             <div className="flex flex-wrap gap-1.5">
-              {units.presetQuantities.slice(0, 5).map((qty) => (
+              {availableTiers.map((qty) => (
                 <button
                   key={qty}
                   type="button"

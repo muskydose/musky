@@ -11,7 +11,7 @@ export interface PersonaConfig {
   tagline: string;
   icon: React.ComponentType<{ className?: string }>;
   defaultBusinessType: string;
-  defaultPresetQuantities: number[];
+  defaultPresetQuantities?: number[];
   ctaLabel: string;
   preferredCategories?: string[];
 }

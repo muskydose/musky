@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Product, BulkPricingRule, SiteSettings } from '@/lib/types';
 import { resolveProductWholesaleUnits } from '@/lib/wholesale-units';
-import { resolveCanonicalWholesalePricing } from '@/lib/wholesale-pricing-resolver';
+import { resolveCanonicalWholesalePricing, getAuthoritativeWholesaleTiers } from '@/lib/wholesale-pricing-resolver';
 import { trackWholesaleInquiryStarted } from '@/lib/analytics';
 import { BuyerPersona, PERSONA_CONFIGS } from './PersonaSwitcher';
 import ProductCardPicker from './ProductCardPicker';
@@ -80,11 +80,33 @@ export default function WholesaleCalculatorRedesign({
     return resolveProductWholesaleUnits(selectedProduct);
   }, [selectedProduct]);
 
-  // Quantity state (defaults to initialQuantity or 5)
+  // Authoritative tiers for selected product
+  const availableTiers = useMemo(() => {
+    if (!selectedProduct) return [];
+    return getAuthoritativeWholesaleTiers(selectedProduct, pricingRules);
+  }, [selectedProduct, pricingRules]);
+
+  // Quantity state (defaults to initialQuantity or first available tier, or 1)
   const [quantity, setQuantity] = useState<number>(() => {
     if (initialQuantity && initialQuantity > 0) return initialQuantity;
-    return 5;
+    const p = (initialProductId && products.length > 0)
+      ? (products.find((x) => x.id === initialProductId || x.slug === initialProductId) || products[0])
+      : (products[0] || null);
+    if (p) {
+      const tiers = getAuthoritativeWholesaleTiers(p, pricingRules);
+      if (tiers.length > 0) return tiers[0];
+    }
+    return 1;
   });
+
+  // Keep quantity aligned with available tiers when product changes
+  useEffect(() => {
+    if (availableTiers.length > 0) {
+      if (!availableTiers.includes(quantity)) {
+        setQuantity(availableTiers[0]);
+      }
+    }
+  }, [availableTiers, quantity]);
 
   // Sync initialQuantity when provided or updated externally
   useEffect(() => {

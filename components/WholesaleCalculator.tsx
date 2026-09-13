@@ -20,7 +20,7 @@ import { motion, useReducedMotion } from 'motion/react';
 import { SPRINGS } from '@/lib/motion';
 import { trackWholesaleInquiryStarted } from '@/lib/analytics';
 import { resolveProductWholesaleUnits, calculateProductBaseWholesaleRate } from '@/lib/wholesale-units';
-import { resolveCanonicalWholesalePricing } from '@/lib/wholesale-pricing-resolver';
+import { resolveCanonicalWholesalePricing, getAuthoritativeWholesaleTiers } from '@/lib/wholesale-pricing-resolver';
 import { formatPrice, formatPercent } from '@/lib/utils';
 
 interface WholesaleCalculatorProps {
@@ -112,15 +112,21 @@ export default function WholesaleCalculator({
     return resolveProductWholesaleUnits(selectedProduct);
   }, [selectedProduct]);
 
+  const availableTiers = useMemo(() => {
+    if (!selectedProduct) return units.presetQuantities;
+    const auth = getAuthoritativeWholesaleTiers(selectedProduct, rules);
+    return auth.length > 0 ? auth : units.presetQuantities;
+  }, [selectedProduct, rules, units]);
+
   // Adjust default quantity when product switches unit family
   useEffect(() => {
     if (initialQuantity && initialQuantity > 0) {
       setQuantity(initialQuantity);
-    } else if (units.presetQuantities && units.presetQuantities.length > 0) {
-      const defaultPreset = units.presetQuantities[2] || units.presetQuantities[0];
+    } else if (availableTiers && availableTiers.length > 0) {
+      const defaultPreset = availableTiers[0];
       setQuantity(defaultPreset);
     }
-  }, [units, initialQuantity]);
+  }, [availableTiers, initialQuantity]);
 
   // Authoritative Pricing Calculation via Canonical Resolver
   const calculation = useMemo(() => {
@@ -324,7 +330,7 @@ export default function WholesaleCalculator({
 
           {/* Dynamic Quick Preset Buttons */}
           <div className="flex flex-wrap gap-1.5 pt-1">
-            {units.presetQuantities.map((qty) => (
+            {availableTiers.map((qty) => (
               <button
                 key={qty}
                 type="button"

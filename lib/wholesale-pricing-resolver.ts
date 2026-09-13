@@ -145,6 +145,49 @@ export function selectMatchingWholesaleTier(
 }
 
 /**
+ * CANONICAL ADMIN-BACKED WHOLESALE TIERS DISCOVERY
+ *
+ * Returns the exact list of configured quantities for a given product
+ * from the Admin-defined BulkPricingRule source of truth.
+ * Product-specific rules take precedence over global rules.
+ * Preserves configured sortOrder, then minQuantity.
+ * Returns empty array if no rules exist.
+ */
+export function getAuthoritativeWholesaleTiers(
+  product: Product,
+  rules: BulkPricingRule[]
+): number[] {
+  if (!rules || rules.length === 0) return [];
+
+  // 1. Search product-specific rules first
+  const productRules = rules.filter(
+    (r) => r.isActive !== false && r.productId === product.id
+  );
+
+  if (productRules.length > 0) {
+    const sorted = [...productRules].sort(
+      (a, b) => (Number(a.sortOrder) || 1) - (Number(b.sortOrder) || 1) || Number(a.minQuantity) - Number(b.minQuantity)
+    );
+    return Array.from(new Set(sorted.map((r) => Number(r.minQuantity))));
+  }
+
+  // 2. Fall back to global rules if no product-specific rules exist
+  const globalRules = rules.filter(
+    (r) => r.isActive !== false && (!r.productId || r.productId === 'global')
+  );
+
+  if (globalRules.length > 0) {
+    const sorted = [...globalRules].sort(
+      (a, b) => (Number(a.sortOrder) || 1) - (Number(b.sortOrder) || 1) || Number(a.minQuantity) - Number(b.minQuantity)
+    );
+    return Array.from(new Set(sorted.map((r) => Number(r.minQuantity))));
+  }
+
+  return [];
+}
+
+
+/**
  * THE SINGLE AUTHORITATIVE CANONICAL WHOLESALE PRICING RESOLVER
  * All storefront, calculator, cart, checkout, admin, and quote flows consume this function.
  */
