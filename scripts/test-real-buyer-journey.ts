@@ -302,6 +302,33 @@ async function runBuyerJourneyVerification() {
     console.log('  ✓ Persona C (Bulk Buyer) Journey PASSED with zero retail unit leakage!\n');
 
     // -------------------------------------------------------------
+    // PERSONA C2: RESELLER 250 KG BULK TIER INHERITANCE VERIFICATION
+    // -------------------------------------------------------------
+    console.log('--- PERSONA C2: RESELLER 250 KG BULK TIER INHERITANCE ---');
+    const bulkHennaRes100 = resolveCanonicalWholesalePricing({
+      product: hennaProduct,
+      quantity: 100,
+      rules,
+      units: hennaUnits,
+    });
+    const bulkHennaRes250 = resolveCanonicalWholesalePricing({
+      product: hennaProduct,
+      quantity: 250,
+      rules,
+      units: hennaUnits,
+    });
+
+    console.log(`  100 kg: Status=${bulkHennaRes100.status}, Rate=₹${bulkHennaRes100.effectiveWholesaleRate}/${bulkHennaRes100.unit}, Tier="${bulkHennaRes100.tierName}"`);
+    console.log(`  250 kg: Status=${bulkHennaRes250.status}, Rate=₹${bulkHennaRes250.effectiveWholesaleRate}/${bulkHennaRes250.unit}, Tier="${bulkHennaRes250.tierName}"`);
+
+    assert.strictEqual(bulkHennaRes250.status, 'CONFIRMED', '250 kg must be CONFIRMED (not CUSTOM_QUOTE)');
+    assert.strictEqual(bulkHennaRes250.hasConfiguredTier, true, '250 kg must have configured tier');
+    assert.strictEqual(bulkHennaRes250.effectiveWholesaleRate, bulkHennaRes100.effectiveWholesaleRate, '250 kg must inherit 100 kg tier rate');
+    assert.strictEqual(bulkHennaRes250.savingsPercent, bulkHennaRes100.savingsPercent, '250 kg must inherit 100 kg discount percentage');
+    assert.strictEqual(bulkHennaRes250.effectiveTotal, Math.round(250 * bulkHennaRes100.effectiveWholesaleRate * 100) / 100, '250 kg total must equal 250 * inherited rate');
+    console.log(`  ✓ 250 kg Reseller Bulk Tier Inheritance PASSED: Inherited ₹${bulkHennaRes100.effectiveWholesaleRate}/kg seamlessly!\n`);
+
+    // -------------------------------------------------------------
     // FAILURE STATES VERIFICATION
     // -------------------------------------------------------------
     console.log('--- FAILURE STATES AUDIT ---');

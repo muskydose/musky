@@ -160,7 +160,7 @@ export default function ProductCardPicker({
                     </div>
 
                     {/* Product Title */}
-                    <div className="text-xs font-semibold text-[#0f2d22] line-clamp-2 leading-tight">
+                    <div className="text-xs font-semibold text-[#0f2d22] leading-snug break-words">
                       {p.name}
                     </div>
                   </div>

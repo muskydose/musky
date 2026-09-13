@@ -1141,6 +1141,7 @@ export interface BulkPricingRule {
   discountValue: number;
   isActive: boolean;
   sortOrder: number;
+  isCustomQuote?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

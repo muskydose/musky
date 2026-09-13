@@ -73,46 +73,72 @@ export interface CanonicalWholesaleParams {
   fallbackPolicy?: 'CUSTOM_QUOTE' | 'NO_TIER';
 }
 
+export function isCustomQuoteRule(r?: BulkPricingRule | null): boolean {
+  if (!r) return false;
+  return (
+    (r as any).isCustomQuote === true ||
+    (r as any).requiresCustomQuote === true ||
+    (r.discountType as string) === 'custom' ||
+    (r.discountType as string) === 'custom_quote'
+  );
+}
+
 /**
  * Pure function to select the most specific matching tier rule.
  * Product-specific rules take precedence over global rules.
  * Within the same scope, the rule with the highest minQuantity is selected.
+ *
+ * UNIVERSAL BULK TIER INHERITANCE (Phase 10E Batch 06):
+ * If requested quantity exceeds the highest standard tier's maxQuantity,
+ * the highest configured standard tier (where minQuantity <= requestedQuantity)
+ * is inherited and continues to apply, UNLESS an explicit custom-quote /
+ * high-volume rule takes precedence.
  */
 export function selectMatchingWholesaleTier(
   rules: BulkPricingRule[],
   productId: string,
   quantity: number
 ): BulkPricingRule | undefined {
-  if (!rules || rules.length === 0) return undefined;
+  if (!rules || rules.length === 0 || quantity == null || isNaN(quantity) || quantity <= 0) {
+    return undefined;
+  }
 
-  const isRuleEligible = (r: BulkPricingRule, targetProductId?: string) => {
-    if (r.isActive === false) return false;
-    if (targetProductId) {
-      if (r.productId !== targetProductId) return false;
-    } else {
-      if (r.productId && r.productId !== 'global') return false;
+  const findBestRuleForScope = (scopeRules: BulkPricingRule[]): BulkPricingRule | undefined => {
+    // 1. Filter to active rules whose minQuantity has been reached
+    const eligible = scopeRules.filter(
+      (r) => r.isActive !== false && quantity >= Number(r.minQuantity)
+    );
+
+    if (eligible.length === 0) return undefined;
+
+    // 2. First check for an exact range match (minQuantity <= quantity <= maxQuantity)
+    const exactMatches = eligible.filter(
+      (r) => r.maxQuantity === undefined || r.maxQuantity === null || quantity <= Number(r.maxQuantity)
+    );
+
+    if (exactMatches.length > 0) {
+      return exactMatches.sort((a, b) => Number(b.minQuantity) - Number(a.minQuantity))[0];
     }
-    const minOk = quantity >= Number(r.minQuantity);
-    const maxOk = r.maxQuantity === undefined || r.maxQuantity === null || quantity <= Number(r.maxQuantity);
-    return minOk && maxOk;
+
+    // 3. Tier Inheritance: No exact range match found because quantity exceeds maxQuantity
+    // of configured tiers. Select the highest configured standard tier where tier.minQuantity <= requestedQuantity.
+    // Continue using that tier for higher quantities unless an explicit custom/high-volume rule takes precedence.
+    const sortedDescending = [...eligible].sort((a, b) => Number(b.minQuantity) - Number(a.minQuantity));
+    return sortedDescending[0];
   };
 
-  // 1. Search product-specific rules first (sorted by minQuantity descending for closest tier)
-  const productRules = rules
-    .filter((r) => isRuleEligible(r, productId))
-    .sort((a, b) => Number(b.minQuantity) - Number(a.minQuantity));
-
-  if (productRules.length > 0) {
-    return productRules[0];
+  // 1. Search product-specific rules first
+  const productScopeRules = rules.filter((r) => r.productId === productId);
+  const matchedProductRule = findBestRuleForScope(productScopeRules);
+  if (matchedProductRule) {
+    return matchedProductRule;
   }
 
   // 2. Fall back to global rules
-  const globalRules = rules
-    .filter((r) => isRuleEligible(r))
-    .sort((a, b) => Number(b.minQuantity) - Number(a.minQuantity));
-
-  if (globalRules.length > 0) {
-    return globalRules[0];
+  const globalScopeRules = rules.filter((r) => !r.productId || r.productId === 'global');
+  const matchedGlobalRule = findBestRuleForScope(globalScopeRules);
+  if (matchedGlobalRule) {
+    return matchedGlobalRule;
   }
 
   return undefined;
@@ -151,10 +177,17 @@ export function resolveCanonicalWholesalePricing({
   let status: WholesaleResolutionStatus = fallbackPolicy;
   let tierName = 'Base Catalog Rate';
 
-  if (matchedRule) {
+  if (matchedRule && !isCustomQuoteRule(matchedRule)) {
     hasConfiguredTier = true;
     isConfirmed = true;
     status = 'CONFIRMED';
+
+    const isInherited = matchedRule.maxQuantity != null && effectiveQty > Number(matchedRule.maxQuantity);
+    const rangeLabel = isInherited
+      ? `${matchedRule.minQuantity}+ ${targetUnit}`
+      : `${matchedRule.minQuantity}${
+          matchedRule.maxQuantity ? `–${matchedRule.maxQuantity}` : '+'
+        } ${targetUnit}`;
 
     if (matchedRule.discountType === 'percentage') {
       // CRITICAL: Strictly use admin-entered percentage.
@@ -165,31 +198,22 @@ export function resolveCanonicalWholesalePricing({
       effectiveWholesaleRate = Math.round(baseWholesaleRate * (1 - discountPercentage / 100) * 100) / 100;
       savingsPercent = discountPercentage;
 
-      const rangeLabel = `${matchedRule.minQuantity}${
-        matchedRule.maxQuantity ? `–${matchedRule.maxQuantity}` : '+'
-      } ${targetUnit}`;
       tierName = `Active Tier (${discountPercentage}% Off: ${rangeLabel})`;
     } else if (matchedRule.discountType === 'fixed_amount') {
       const fixedDiscount = Math.max(0, Number(matchedRule.discountValue) || 0);
       effectiveWholesaleRate = Math.max(0, Math.round((baseWholesaleRate - fixedDiscount) * 100) / 100);
       savingsPercent = baseWholesaleRate > 0 ? ((baseWholesaleRate - effectiveWholesaleRate) / baseWholesaleRate) * 100 : 0;
 
-      const rangeLabel = `${matchedRule.minQuantity}${
-        matchedRule.maxQuantity ? `–${matchedRule.maxQuantity}` : '+'
-      } ${targetUnit}`;
       tierName = `Active Tier (₹${fixedDiscount}/${targetUnit} Off: ${rangeLabel})`;
     } else if (matchedRule.discountType === 'fixed_price') {
       const fixedRate = Math.max(0, Number(matchedRule.discountValue) || 0);
       effectiveWholesaleRate = Math.round(fixedRate * 100) / 100;
       savingsPercent = baseWholesaleRate > 0 ? Math.max(0, ((baseWholesaleRate - fixedRate) / baseWholesaleRate) * 100) : 0;
 
-      const rangeLabel = `${matchedRule.minQuantity}${
-        matchedRule.maxQuantity ? `–${matchedRule.maxQuantity}` : '+'
-      } ${targetUnit}`;
       tierName = `Fixed Special Tier (₹${fixedRate}/${targetUnit}: ${rangeLabel})`;
     }
   } else {
-    // STATE: No configured tier -> Clean Custom Quote state without fabricated discounts
+    // STATE: No configured tier or explicit custom quote boundary -> Clean Custom Quote state without fabricated discounts
     hasConfiguredTier = false;
     isConfirmed = false;
     status = fallbackPolicy;

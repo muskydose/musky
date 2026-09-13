@@ -8,7 +8,7 @@ import { trackWholesaleInquiryStarted } from '@/lib/analytics';
 import { BuyerPersona, PERSONA_CONFIGS } from './PersonaSwitcher';
 import ProductCardPicker from './ProductCardPicker';
 import WholesaleTierSelector from './WholesaleTierSelector';
-import CommercialEstimateCard from './CommercialEstimateCard';
+import CommercialEstimateCard, { QUICK_QUANTITY_PRESETS } from './CommercialEstimateCard';
 import { Calculator } from 'lucide-react';
 
 interface WholesaleCalculatorRedesignProps {
@@ -80,27 +80,21 @@ export default function WholesaleCalculatorRedesign({
     return resolveProductWholesaleUnits(selectedProduct);
   }, [selectedProduct]);
 
-  // Persona-aware preset quantities
-  const presetQuantities = useMemo(() => {
-    const personaConfig = PERSONA_CONFIGS[activePersona];
-    if (personaConfig && personaConfig.defaultPresetQuantities?.length > 0) {
-      return personaConfig.defaultPresetQuantities;
-    }
-    return unitInfo?.presetQuantities || [5, 10, 25, 50, 100];
-  }, [activePersona, unitInfo]);
+  // Quick quantity presets (Strictly 4: 5, 10, 25, 100 per Batch Change Set 08)
+  const quickQuantityPresets = QUICK_QUANTITY_PRESETS;
 
-  // Quantity state
+  // Quantity state (defaults to initialQuantity or 5)
   const [quantity, setQuantity] = useState<number>(() => {
     if (initialQuantity && initialQuantity > 0) return initialQuantity;
-    return presetQuantities[0] || 5;
+    return 5;
   });
 
-  // When persona changes, adjust initial default quantity if appropriate
+  // Sync initialQuantity when provided or updated externally
   useEffect(() => {
-    if (presetQuantities.length > 0) {
-      setQuantity((prev) => (presetQuantities.includes(prev) ? prev : presetQuantities[0]));
+    if (initialQuantity && initialQuantity > 0) {
+      setQuantity(initialQuantity);
     }
-  }, [presetQuantities]);
+  }, [initialQuantity]);
 
   // Calculate canonical wholesale pricing
   const pricingResult = useMemo(() => {
@@ -211,7 +205,7 @@ export default function WholesaleCalculatorRedesign({
             onDirectWhatsApp={handleWhatsAppQuote}
             ctaLabel={personaConfig?.ctaLabel || 'Lock Estimate & Populate Form Below ↓'}
             onQuantityChange={setQuantity}
-            presetQuantities={presetQuantities}
+            presetQuantities={quickQuantityPresets}
           />
 
           {/* Compact Commercial Confidence Card */}

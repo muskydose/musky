@@ -5,6 +5,8 @@ import { formatPrice, formatPercent } from '@/lib/utils';
 import { CanonicalWholesaleResolution } from '@/lib/wholesale-pricing-resolver';
 import { TrendingDown, ShieldCheck, ArrowDownCircle, MessageCircle, AlertCircle, Sparkles, Minus, Plus } from 'lucide-react';
 
+export const QUICK_QUANTITY_PRESETS = [5, 10, 25, 100] as const;
+
 interface CommercialEstimateCardProps {
   pricingResult: CanonicalWholesaleResolution;
   productName: string;
@@ -16,7 +18,7 @@ interface CommercialEstimateCardProps {
   onDirectWhatsApp: () => void;
   ctaLabel?: string;
   onQuantityChange?: (qty: number) => void;
-  presetQuantities?: number[];
+  presetQuantities?: readonly number[] | number[];
 }
 
 export default function CommercialEstimateCard({
@@ -29,7 +31,7 @@ export default function CommercialEstimateCard({
   onDirectWhatsApp,
   ctaLabel = 'Lock Estimate & Populate Form Below ↓',
   onQuantityChange,
-  presetQuantities,
+  presetQuantities = QUICK_QUANTITY_PRESETS,
 }: CommercialEstimateCardProps) {
   const {
     baseWholesaleRate,
@@ -112,10 +114,10 @@ export default function CommercialEstimateCard({
         </div>
 
         <div className="flex items-baseline justify-between gap-2">
-          <h3 className="font-momo-display text-lg sm:text-xl font-normal text-[#0f2d22] truncate max-w-[260px]">
+          <h3 className="font-momo-display text-lg sm:text-xl font-normal text-[#0f2d22] break-words">
             {productName}
           </h3>
-          <span className="text-xs font-mono font-bold text-[#1b4332] bg-[#FAF8F5] px-2 py-0.5 rounded-md border border-[#e8e2d5]">
+          <span className="text-xs font-mono font-bold text-[#1b4332] bg-[#FAF8F5] px-2.5 py-1 rounded-md border border-[#e8e2d5] shrink-0">
             {quantity} {unit}
           </span>
         </div>
@@ -123,7 +125,7 @@ export default function CommercialEstimateCard({
 
       {/* Interactive Order Volume Selection */}
       {onQuantityChange && (
-        <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#e8e2d5] space-y-2">
+        <div className="p-3 sm:p-3.5 rounded-xl bg-[#FAF8F5] border border-[#e8e2d5] space-y-2.5">
           <div className="flex items-center justify-between text-[11px]">
             <label htmlFor="estimate-qty-input" className="font-bold text-[#0f2d22] uppercase tracking-wider">
               Order Volume
@@ -133,50 +135,54 @@ export default function CommercialEstimateCard({
             </span>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-            {/* Stepper Controls */}
-            <div className="inline-flex items-center justify-between rounded-lg border border-[#e8e2d5] bg-white p-0.5 shadow-2xs shrink-0">
-              <button
-                type="button"
-                onClick={handleDecrement}
-                disabled={quantity <= 1}
-                aria-label={`Decrease volume by 1 ${unit}`}
-                className="w-8 h-8 rounded flex items-center justify-center text-[#0f2d22] hover:bg-[#FAF8F5] disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
-              >
-                <Minus className="w-3.5 h-3.5" />
-              </button>
+          {/* Stepper Controls & Manual Input (Any custom quantity allowed) */}
+          <div className="flex items-center justify-between rounded-xl border border-[#e8e2d5] bg-white p-1 shadow-2xs">
+            <button
+              type="button"
+              onClick={handleDecrement}
+              disabled={quantity <= 1}
+              aria-label={`Decrease volume by 1 ${unit}`}
+              className="w-11 h-11 min-h-[44px] min-w-[44px] rounded-lg flex items-center justify-center text-[#0f2d22] hover:bg-[#FAF8F5] disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
+            >
+              <Minus className="w-4 h-4" />
+            </button>
 
-              <div className="flex items-center justify-center px-1.5">
-                <input
-                  id="estimate-qty-input"
-                  type="number"
-                  min={1}
-                  value={quantity}
-                  onChange={handleManualInput}
-                  aria-label={`Order quantity in ${unit}`}
-                  className="w-14 text-center font-mono font-bold text-sm text-[#0f2d22] bg-transparent focus:outline-none"
-                />
-                <span className="text-xs font-semibold text-[#626c66] ml-0.5 select-none">
-                  {unit}
-                </span>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleIncrement}
-                aria-label={`Increase volume by 1 ${unit}`}
-                className="w-8 h-8 rounded flex items-center justify-center text-[#0f2d22] hover:bg-[#FAF8F5] transition-colors cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
+            <div className="flex items-center justify-center px-2 flex-1">
+              <input
+                id="estimate-qty-input"
+                type="number"
+                min={1}
+                value={quantity}
+                onChange={handleManualInput}
+                aria-label={`Order quantity in ${unit}`}
+                className="w-20 text-center font-mono font-bold text-base text-[#0f2d22] bg-transparent focus:outline-none"
+              />
+              <span className="text-xs sm:text-sm font-semibold text-[#626c66] ml-1 select-none">
+                {unit}
+              </span>
             </div>
 
-            {/* Quick Presets */}
-            {presetQuantities && presetQuantities.length > 0 && (
+            <button
+              type="button"
+              onClick={handleIncrement}
+              aria-label={`Increase volume by 1 ${unit}`}
+              className="w-11 h-11 min-h-[44px] min-w-[44px] rounded-lg flex items-center justify-center text-[#0f2d22] hover:bg-[#FAF8F5] transition-colors cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Strictly 4 Quick Presets: 5, 10, 25, 100 */}
+          {presetQuantities && presetQuantities.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-[10px] text-[#88908a]">
+                <span className="font-semibold uppercase tracking-wider">Quick Presets</span>
+                <span className="hidden xs:inline">or enter custom quantity above</span>
+              </div>
               <div
                 role="group"
                 aria-label="Quick volume presets"
-                className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:pb-0 scrollbar-none flex-1"
+                className="grid grid-cols-4 gap-1.5 w-full"
               >
                 {presetQuantities.map((preset) => {
                   const isSelected = quantity === preset;
@@ -185,10 +191,10 @@ export default function CommercialEstimateCard({
                       key={preset}
                       type="button"
                       onClick={() => onQuantityChange(preset)}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-mono font-bold transition-all min-h-[34px] shrink-0 cursor-pointer ${
+                      className={`px-1 sm:px-2 py-2 rounded-xl text-[11px] sm:text-xs font-mono font-bold transition-all min-h-[44px] flex items-center justify-center text-center cursor-pointer ${
                         isSelected
-                          ? 'bg-[#1b4332] text-[#c5a059] shadow-xs ring-1 ring-[#1b4332]'
-                          : 'bg-white text-[#0f2d22] border border-[#e8e2d5] hover:bg-gray-50'
+                          ? 'bg-[#1b4332] text-[#c5a059] shadow-xs ring-2 ring-[#1b4332]/40 font-extrabold'
+                          : 'bg-white text-[#0f2d22] border border-[#e8e2d5] hover:bg-gray-50 hover:border-[#b2c8be]'
                       }`}
                     >
                       {preset} {unit}
@@ -196,8 +202,8 @@ export default function CommercialEstimateCard({
                   );
                 })}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 

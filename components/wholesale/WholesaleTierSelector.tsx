@@ -63,19 +63,6 @@ export default function WholesaleTierSelector({
       if (min >= minWholesaleQuantity) {
         qtySet.add(min);
       }
-      // If rule specifies a finite maxQuantity and no subsequent rule covers maxQuantity + 1
-      if (r.maxQuantity && Number(r.maxQuantity) > 0) {
-        const nextBoundary = Number(r.maxQuantity) + 1;
-        const isCovered = applicableRules.some(
-          (other) =>
-            other !== r &&
-            Number(other.minQuantity) <= nextBoundary &&
-            (!other.maxQuantity || Number(other.maxQuantity) >= nextBoundary)
-        );
-        if (!isCovered) {
-          qtySet.add(nextBoundary);
-        }
-      }
     });
 
     // 2. Add persona preset quantities

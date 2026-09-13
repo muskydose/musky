@@ -210,6 +210,91 @@ async function runTestSuite() {
   }
 
   // -------------------------------------------------------------
+  // SECTION 1B: UNIVERSAL BULK TIER INHERITANCE (25, 50, 100, 250, 500 kg)
+  // -------------------------------------------------------------
+  console.log('\n--- SECTION 1B: UNIVERSAL BULK TIER INHERITANCE SUITE ---');
+  // Highest standard tier is capped at 100 kg (maxQuantity: 100).
+  // 250 kg and 500 kg must inherit 100 kg tier rate and discount.
+  const cappedTiers = [
+    {
+      id: 'cap-tier-1',
+      productId: 'test-henna-weight',
+      minQuantity: 5,
+      maxQuantity: 24,
+      discountType: 'percentage',
+      discountValue: 10, // 10% off -> ₹896.40/kg
+      isActive: true,
+    },
+    {
+      id: 'cap-tier-2',
+      productId: 'test-henna-weight',
+      minQuantity: 25,
+      maxQuantity: 99,
+      discountType: 'percentage',
+      discountValue: 20, // 20% off -> ₹796.80/kg
+      isActive: true,
+    },
+    {
+      id: 'cap-tier-3',
+      productId: 'test-henna-weight',
+      minQuantity: 100,
+      maxQuantity: 100, // Explicitly capped at 100
+      discountType: 'percentage',
+      discountValue: 30, // 30% off -> ₹697.20/kg
+      isActive: true,
+    },
+  ] as unknown as BulkPricingRule[];
+
+  const inheritanceQuantities = [25, 50, 100, 250, 500];
+  const inheritanceResults = inheritanceQuantities.map((q) =>
+    resolveCanonicalWholesalePricing({
+      product: weightProduct,
+      quantity: q,
+      rules: cappedTiers,
+      units: weightUnits,
+    })
+  );
+
+  inheritanceResults.forEach((res, idx) => {
+    verifyCanonicalMathContract(res, `Inheritance Qty=${inheritanceQuantities[idx]}kg`);
+  });
+
+  const res25 = inheritanceResults[0];
+  const res50 = inheritanceResults[1];
+  const res100 = inheritanceResults[2];
+  const res250 = inheritanceResults[3];
+  const res500 = inheritanceResults[4];
+
+  // 25kg & 50kg verify Tier 2
+  assertStrictEqual(res25.effectiveWholesaleRate, 796.8, '25kg must have Tier 2 rate');
+  assertStrictEqual(res25.savingsPercent, 20, '25kg must have 20% discount');
+  assertStrictEqual(res50.effectiveWholesaleRate, 796.8, '50kg must have Tier 2 rate');
+  assertStrictEqual(res50.savingsPercent, 20, '50kg must have 20% discount');
+  console.log('  ✓ 25kg & 50kg: Tier 2 (20% off) verified');
+
+  // 100kg verifies Highest Standard Tier
+  assertStrictEqual(res100.effectiveWholesaleRate, 697.2, '100kg must have Tier 3 rate');
+  assertStrictEqual(res100.savingsPercent, 30, '100kg must have 30% discount');
+  assertStrictEqual(res100.status, 'CONFIRMED', '100kg must be CONFIRMED');
+  console.log('  ✓ 100kg: Highest standard tier (30% off, ₹697.20/kg) verified');
+
+  // 250kg verifies Tier Inheritance from 100kg tier
+  assertStrictEqual(res250.effectiveWholesaleRate, res100.effectiveWholesaleRate, '250kg must inherit 100kg tier rate');
+  assertStrictEqual(res250.savingsPercent, res100.savingsPercent, '250kg must inherit 100kg tier savingsPercent (30%)');
+  assertStrictEqual(res250.status, 'CONFIRMED', '250kg must be CONFIRMED (not CUSTOM_QUOTE)');
+  assertStrictEqual(res250.hasConfiguredTier, true, '250kg must have hasConfiguredTier=true');
+  assertStrictEqual(res250.effectiveTotal, 174300, '250kg total must be 250 * 697.20 = 174,300');
+  console.log('  ✓ 250kg: Successfully inherited 100kg tier rate (₹697.20/kg, 30% off) without dropping to custom quote');
+
+  // 500kg verifies Tier Inheritance from 100kg tier
+  assertStrictEqual(res500.effectiveWholesaleRate, res100.effectiveWholesaleRate, '500kg must inherit 100kg tier rate');
+  assertStrictEqual(res500.savingsPercent, res100.savingsPercent, '500kg must inherit 100kg tier savingsPercent (30%)');
+  assertStrictEqual(res500.status, 'CONFIRMED', '500kg must be CONFIRMED (not CUSTOM_QUOTE)');
+  assertStrictEqual(res500.hasConfiguredTier, true, '500kg must have hasConfiguredTier=true');
+  assertStrictEqual(res500.effectiveTotal, 348600, '500kg total must be 500 * 697.20 = 348,600');
+  console.log('  ✓ 500kg: Successfully inherited 100kg tier rate (₹697.20/kg, 30% off) without dropping to custom quote');
+
+  // -------------------------------------------------------------
   // SECTION 2: MANDATORY VOLUME TESTS (1, 10, 100 Litre)
   // -------------------------------------------------------------
   console.log('\n--- SECTION 2: VOLUME SUITE (Gulab Jal 100ml Bottle @ ₹499) ---');
@@ -392,18 +477,41 @@ async function runTestSuite() {
   assertStrictEqual(resNeg.quantity, 5, 'Negative quantity must clamp to minWholesaleQuantity (5)');
   console.log('  ✓ Negative quantity fallback to minQuantity: PASSED');
 
-  // Custom quote -> volume exceeding highest tier (e.g. 10,000 kg with no matching tier)
+  // Custom quote -> Explicit custom quote rule takes precedence at configured boundary
+  const explicitCustomQuoteRule = {
+    id: 'w-tier-cq',
+    productId: weightProduct.id,
+    minQuantity: 10000,
+    discountType: 'custom',
+    discountValue: 0,
+    isActive: true,
+    isCustomQuote: true,
+  } as unknown as BulkPricingRule;
+
   const resCustomQuote = resolveCanonicalWholesalePricing({
     product: weightProduct,
     quantity: 10000,
-    rules: [weightTiers[0]], // Only 5-24 tier exists
+    rules: [weightTiers[0], explicitCustomQuoteRule],
     units: weightUnits,
     fallbackPolicy: 'CUSTOM_QUOTE',
   });
-  verifyCanonicalMathContract(resCustomQuote, 'Custom Quote High Volume');
-  assertStrictEqual(resCustomQuote.status, 'CUSTOM_QUOTE', 'Unmatched tier must yield CUSTOM_QUOTE');
-  assertStrictEqual(resCustomQuote.hasConfiguredTier, false, 'Unmatched tier must have hasConfiguredTier=false');
-  console.log('  ✓ Custom quote fallback state: PASSED');
+  verifyCanonicalMathContract(resCustomQuote, 'Explicit Custom Quote Rule');
+  assertStrictEqual(resCustomQuote.status, 'CUSTOM_QUOTE', 'Explicit custom quote rule must yield CUSTOM_QUOTE');
+  assertStrictEqual(resCustomQuote.hasConfiguredTier, false, 'Custom quote rule must have hasConfiguredTier=false');
+  console.log('  ✓ Explicit custom quote rule state: PASSED');
+
+  // Custom quote fallback -> Zero tiers configured for product
+  const resNoTiers = resolveCanonicalWholesalePricing({
+    product: weightProduct,
+    quantity: 50,
+    rules: [],
+    units: weightUnits,
+    fallbackPolicy: 'CUSTOM_QUOTE',
+  });
+  verifyCanonicalMathContract(resNoTiers, 'Zero Tiers Configured');
+  assertStrictEqual(resNoTiers.status, 'CUSTOM_QUOTE', 'Zero tiers must yield CUSTOM_QUOTE');
+  assertStrictEqual(resNoTiers.hasConfiguredTier, false, 'Zero tiers must have hasConfiguredTier=false');
+  console.log('  ✓ Zero tiers fallback state: PASSED');
 
   // -------------------------------------------------------------
   // SECTION 5: DISCOUNT TYPES (percentage, fixed_amount, fixed_price)
@@ -475,6 +583,715 @@ async function runTestSuite() {
   } catch (err: any) {
     console.warn('  (Live DB connection not available in local test env; verified with full fixture matrix)', err.message);
   }
+
+  // -------------------------------------------------------------
+  // SECTION 7: UNIVERSALITY MATRIX & FUTURE PRODUCT SUITE
+  // -------------------------------------------------------------
+  console.log('\n--- SECTION 7: UNIVERSALITY MATRIX & FUTURE PRODUCT SUITE ---');
+
+  function assertFullPricingContract(
+    res: CanonicalWholesaleResolution,
+    expected: {
+      tierNamePattern?: RegExp | string;
+      status: 'CONFIRMED' | 'CUSTOM_QUOTE';
+      unit: string;
+      effectiveRate: number;
+      discountPercent: number;
+      total: number;
+      savings: number;
+    },
+    context: string
+  ) {
+    verifyCanonicalMathContract(res, context);
+    assertStrictEqual(res.status, expected.status, `[${context}] status must be ${expected.status}`);
+    assertStrictEqual(res.unit, expected.unit, `[${context}] unit must be ${expected.unit}`);
+    assertStrictEqual(res.effectiveWholesaleRate, expected.effectiveRate, `[${context}] effectiveRate must be ${expected.effectiveRate}`);
+    assertStrictEqual(res.savingsPercent, expected.discountPercent, `[${context}] discountPercent must be ${expected.discountPercent}`);
+    assertStrictEqual(res.effectiveTotal, expected.total, `[${context}] total must be ${expected.total}`);
+    assertStrictEqual(res.savingsAmount, expected.savings, `[${context}] savings must be ${expected.savings}`);
+    if (expected.tierNamePattern) {
+      if (typeof expected.tierNamePattern === 'string') {
+        assert(res.tierName.includes(expected.tierNamePattern), `[${context}] tierName (${res.tierName}) must include '${expected.tierNamePattern}'`);
+      } else {
+        assert(expected.tierNamePattern.test(res.tierName), `[${context}] tierName (${res.tierName}) must match ${expected.tierNamePattern}`);
+      }
+    }
+  }
+
+  // =============================================================
+  // FIXTURE 1: WEIGHT PRODUCT (kg) — Base Rate: ₹1,000/kg
+  // =============================================================
+  console.log('\n  [Fixture 1: Weight Product (kg)]');
+  const fixtureWeightProduct = {
+    id: 'fixture-weight-universal',
+    name: 'Universal Weight Botanical Powder',
+    price: 250, // 250g pouch @ ₹250 -> ₹1000/kg
+    unitConfig: {
+      packQuantity: 250,
+      packUnit: 'g',
+      sellingUnit: 'Pouch',
+      wholesaleUnit: 'kg',
+      minWholesaleQuantity: 5,
+    },
+  } as unknown as Product;
+  const fixtureWeightUnits = resolveProductWholesaleUnits(fixtureWeightProduct);
+
+  const fixtureWeightRules: BulkPricingRule[] = [
+    {
+      id: 'rule-w-1',
+      productId: fixtureWeightProduct.id,
+      minQuantity: 5,
+      maxQuantity: 24,
+      discountType: 'percentage',
+      discountValue: 10, // ₹900/kg
+      isActive: true,
+      sortOrder: 1,
+    },
+    {
+      id: 'rule-w-2',
+      productId: fixtureWeightProduct.id,
+      minQuantity: 25,
+      maxQuantity: 99,
+      discountType: 'percentage',
+      discountValue: 20, // ₹800/kg
+      isActive: true,
+      sortOrder: 2,
+    },
+    {
+      id: 'rule-w-3',
+      productId: fixtureWeightProduct.id,
+      minQuantity: 100,
+      maxQuantity: 100, // Capped at 100
+      discountType: 'percentage',
+      discountValue: 30, // ₹700/kg
+      isActive: true,
+      sortOrder: 3,
+    },
+    {
+      id: 'rule-w-cq',
+      productId: fixtureWeightProduct.id,
+      minQuantity: 1000,
+      discountType: 'percentage',
+      discountValue: 0,
+      isActive: true,
+      isCustomQuote: true,
+      sortOrder: 4,
+    },
+  ];
+
+  // 1. Below first tier (qty = 2 kg < 5 kg minWholesaleQuantity)
+  const wBelow = resolveCanonicalWholesalePricing({
+    product: fixtureWeightProduct,
+    quantity: 2,
+    rules: fixtureWeightRules,
+    units: fixtureWeightUnits,
+  });
+  // Note: quantity 2 clamps to minQty (5) in resolver if passed <= 0, but 2 > 0 so effectiveQty = 2.
+  // 2 < 5 (tier 1 min), so no tier matched -> CUSTOM_QUOTE
+  assertFullPricingContract(wBelow, {
+    status: 'CUSTOM_QUOTE',
+    unit: 'kg',
+    effectiveRate: 1000,
+    discountPercent: 0,
+    total: 2000,
+    savings: 0,
+    tierNamePattern: 'Custom Factory Quote Required',
+  }, 'Weight: Below First Tier (2kg)');
+
+  // 2. Exact first tier (qty = 5 kg)
+  const wFirst = resolveCanonicalWholesalePricing({
+    product: fixtureWeightProduct,
+    quantity: 5,
+    rules: fixtureWeightRules,
+    units: fixtureWeightUnits,
+  });
+  assertFullPricingContract(wFirst, {
+    status: 'CONFIRMED',
+    unit: 'kg',
+    effectiveRate: 900,
+    discountPercent: 10,
+    total: 4500,
+    savings: 500,
+    tierNamePattern: '10% Off: 5–24 kg',
+  }, 'Weight: Exact First Tier (5kg)');
+
+  // 3. Between tiers (qty = 50 kg)
+  const wBetween = resolveCanonicalWholesalePricing({
+    product: fixtureWeightProduct,
+    quantity: 50,
+    rules: fixtureWeightRules,
+    units: fixtureWeightUnits,
+  });
+  assertFullPricingContract(wBetween, {
+    status: 'CONFIRMED',
+    unit: 'kg',
+    effectiveRate: 800,
+    discountPercent: 20,
+    total: 40000,
+    savings: 10000,
+    tierNamePattern: '20% Off: 25–99 kg',
+  }, 'Weight: Between Tiers (50kg)');
+
+  // 4. Exact highest tier (qty = 100 kg)
+  const wHighest = resolveCanonicalWholesalePricing({
+    product: fixtureWeightProduct,
+    quantity: 100,
+    rules: fixtureWeightRules,
+    units: fixtureWeightUnits,
+  });
+  assertFullPricingContract(wHighest, {
+    status: 'CONFIRMED',
+    unit: 'kg',
+    effectiveRate: 700,
+    discountPercent: 30,
+    total: 70000,
+    savings: 30000,
+    tierNamePattern: '30% Off: 100–100 kg',
+  }, 'Weight: Exact Highest Tier (100kg)');
+
+  // 5. Above highest tier (qty = 250 kg & 500 kg -> Universal Bulk Tier Inheritance)
+  const wAbove250 = resolveCanonicalWholesalePricing({
+    product: fixtureWeightProduct,
+    quantity: 250,
+    rules: fixtureWeightRules,
+    units: fixtureWeightUnits,
+  });
+  assertFullPricingContract(wAbove250, {
+    status: 'CONFIRMED',
+    unit: 'kg',
+    effectiveRate: 700,
+    discountPercent: 30,
+    total: 175000,
+    savings: 75000,
+    tierNamePattern: '30% Off: 100+ kg',
+  }, 'Weight: Above Highest Tier (250kg Inherited)');
+
+  const wAbove500 = resolveCanonicalWholesalePricing({
+    product: fixtureWeightProduct,
+    quantity: 500,
+    rules: fixtureWeightRules,
+    units: fixtureWeightUnits,
+  });
+  assertFullPricingContract(wAbove500, {
+    status: 'CONFIRMED',
+    unit: 'kg',
+    effectiveRate: 700,
+    discountPercent: 30,
+    total: 350000,
+    savings: 150000,
+    tierNamePattern: '30% Off: 100+ kg',
+  }, 'Weight: Above Highest Tier (500kg Inherited)');
+
+  // 6. Explicit custom quote boundary (qty = 1000 kg)
+  const wCustomQuote = resolveCanonicalWholesalePricing({
+    product: fixtureWeightProduct,
+    quantity: 1000,
+    rules: fixtureWeightRules,
+    units: fixtureWeightUnits,
+  });
+  assertFullPricingContract(wCustomQuote, {
+    status: 'CUSTOM_QUOTE',
+    unit: 'kg',
+    effectiveRate: 1000,
+    discountPercent: 0,
+    total: 1000000,
+    savings: 0,
+    tierNamePattern: 'Custom Factory Quote Required',
+  }, 'Weight: Explicit Custom Quote (1000kg)');
+
+  // 7. No tiers configured (rules = [])
+  const wNoTiers = resolveCanonicalWholesalePricing({
+    product: fixtureWeightProduct,
+    quantity: 50,
+    rules: [],
+    units: fixtureWeightUnits,
+  });
+  assertFullPricingContract(wNoTiers, {
+    status: 'CUSTOM_QUOTE',
+    unit: 'kg',
+    effectiveRate: 1000,
+    discountPercent: 0,
+    total: 50000,
+    savings: 0,
+    tierNamePattern: 'Custom Factory Quote Required',
+  }, 'Weight: No Tiers Configured');
+
+  console.log('    ✓ All 7 lifecycle states verified for Weight fixture (kg)');
+
+  // =============================================================
+  // FIXTURE 2: VOLUME PRODUCT (Litre) — Base Rate: ₹5,000/Litre
+  // =============================================================
+  console.log('\n  [Fixture 2: Volume Product (Litre)]');
+  const fixtureVolumeProduct = {
+    id: 'fixture-volume-universal',
+    name: 'Universal Steam Distilled Hydrosol',
+    price: 500, // 100ml bottle @ ₹500 -> ₹5000/Litre
+    unitConfig: {
+      packQuantity: 100,
+      packUnit: 'ml',
+      sellingUnit: 'Bottle',
+      wholesaleUnit: 'Litre',
+      minWholesaleQuantity: 1,
+    },
+  } as unknown as Product;
+  const fixtureVolumeUnits = resolveProductWholesaleUnits(fixtureVolumeProduct);
+
+  const fixtureVolumeRules: BulkPricingRule[] = [
+    {
+      id: 'rule-v-1',
+      productId: fixtureVolumeProduct.id,
+      minQuantity: 1,
+      maxQuantity: 4,
+      discountType: 'percentage',
+      discountValue: 10, // ₹4500/Litre
+      isActive: true,
+      sortOrder: 1,
+    },
+    {
+      id: 'rule-v-2',
+      productId: fixtureVolumeProduct.id,
+      minQuantity: 5,
+      maxQuantity: 19,
+      discountType: 'percentage',
+      discountValue: 20, // ₹4000/Litre
+      isActive: true,
+      sortOrder: 2,
+    },
+    {
+      id: 'rule-v-3',
+      productId: fixtureVolumeProduct.id,
+      minQuantity: 20,
+      maxQuantity: 20, // Capped at 20 Litre
+      discountType: 'percentage',
+      discountValue: 30, // ₹3500/Litre
+      isActive: true,
+      sortOrder: 3,
+    },
+    {
+      id: 'rule-v-cq',
+      productId: fixtureVolumeProduct.id,
+      minQuantity: 200,
+      discountType: 'percentage',
+      discountValue: 0,
+      isActive: true,
+      isCustomQuote: true,
+      sortOrder: 4,
+    },
+  ];
+
+  // 1. Below first tier (qty = 0.5 Litre < 1 Litre min)
+  const vBelow = resolveCanonicalWholesalePricing({
+    product: fixtureVolumeProduct,
+    quantity: 0.5,
+    rules: fixtureVolumeRules,
+    units: fixtureVolumeUnits,
+  });
+  assertFullPricingContract(vBelow, {
+    status: 'CUSTOM_QUOTE',
+    unit: 'Litre',
+    effectiveRate: 5000,
+    discountPercent: 0,
+    total: 2500,
+    savings: 0,
+    tierNamePattern: 'Custom Factory Quote Required',
+  }, 'Volume: Below First Tier (0.5L)');
+
+  // 2. Exact first tier (qty = 1 Litre)
+  const vFirst = resolveCanonicalWholesalePricing({
+    product: fixtureVolumeProduct,
+    quantity: 1,
+    rules: fixtureVolumeRules,
+    units: fixtureVolumeUnits,
+  });
+  assertFullPricingContract(vFirst, {
+    status: 'CONFIRMED',
+    unit: 'Litre',
+    effectiveRate: 4500,
+    discountPercent: 10,
+    total: 4500,
+    savings: 500,
+    tierNamePattern: '10% Off: 1–4 Litre',
+  }, 'Volume: Exact First Tier (1L)');
+
+  // 3. Between tiers (qty = 10 Litre)
+  const vBetween = resolveCanonicalWholesalePricing({
+    product: fixtureVolumeProduct,
+    quantity: 10,
+    rules: fixtureVolumeRules,
+    units: fixtureVolumeUnits,
+  });
+  assertFullPricingContract(vBetween, {
+    status: 'CONFIRMED',
+    unit: 'Litre',
+    effectiveRate: 4000,
+    discountPercent: 20,
+    total: 40000,
+    savings: 10000,
+    tierNamePattern: '20% Off: 5–19 Litre',
+  }, 'Volume: Between Tiers (10L)');
+
+  // 4. Exact highest tier (qty = 20 Litre)
+  const vHighest = resolveCanonicalWholesalePricing({
+    product: fixtureVolumeProduct,
+    quantity: 20,
+    rules: fixtureVolumeRules,
+    units: fixtureVolumeUnits,
+  });
+  assertFullPricingContract(vHighest, {
+    status: 'CONFIRMED',
+    unit: 'Litre',
+    effectiveRate: 3500,
+    discountPercent: 30,
+    total: 70000,
+    savings: 30000,
+    tierNamePattern: '30% Off: 20–20 Litre',
+  }, 'Volume: Exact Highest Tier (20L)');
+
+  // 5. Above highest tier (qty = 50 Litre & 100 Litre -> Inherited)
+  const vAbove50 = resolveCanonicalWholesalePricing({
+    product: fixtureVolumeProduct,
+    quantity: 50,
+    rules: fixtureVolumeRules,
+    units: fixtureVolumeUnits,
+  });
+  assertFullPricingContract(vAbove50, {
+    status: 'CONFIRMED',
+    unit: 'Litre',
+    effectiveRate: 3500,
+    discountPercent: 30,
+    total: 175000,
+    savings: 75000,
+    tierNamePattern: '30% Off: 20+ Litre',
+  }, 'Volume: Above Highest Tier (50L Inherited)');
+
+  // 6. Explicit custom quote boundary (qty = 200 Litre)
+  const vCustomQuote = resolveCanonicalWholesalePricing({
+    product: fixtureVolumeProduct,
+    quantity: 200,
+    rules: fixtureVolumeRules,
+    units: fixtureVolumeUnits,
+  });
+  assertFullPricingContract(vCustomQuote, {
+    status: 'CUSTOM_QUOTE',
+    unit: 'Litre',
+    effectiveRate: 5000,
+    discountPercent: 0,
+    total: 1000000,
+    savings: 0,
+    tierNamePattern: 'Custom Factory Quote Required',
+  }, 'Volume: Explicit Custom Quote (200L)');
+
+  // 7. No tiers configured (rules = [])
+  const vNoTiers = resolveCanonicalWholesalePricing({
+    product: fixtureVolumeProduct,
+    quantity: 10,
+    rules: [],
+    units: fixtureVolumeUnits,
+  });
+  assertFullPricingContract(vNoTiers, {
+    status: 'CUSTOM_QUOTE',
+    unit: 'Litre',
+    effectiveRate: 5000,
+    discountPercent: 0,
+    total: 50000,
+    savings: 0,
+    tierNamePattern: 'Custom Factory Quote Required',
+  }, 'Volume: No Tiers Configured');
+
+  console.log('    ✓ All 7 lifecycle states verified for Volume fixture (Litre)');
+
+  // =============================================================
+  // FIXTURE 3: COUNT PRODUCT (Box) — Base Rate: ₹400/Box
+  // =============================================================
+  console.log('\n  [Fixture 3: Count Product (Box)]');
+  const fixtureCountProduct = {
+    id: 'fixture-count-universal',
+    name: 'Universal Botanical Master Box',
+    price: 400, // 1 Box @ ₹400 -> ₹400/Box
+    sellingUnit: 'Box',
+    unitConfig: {
+      packQuantity: 12,
+      packUnit: 'Piece',
+      sellingUnit: 'Box',
+      wholesaleUnit: 'Box',
+      minWholesaleQuantity: 5,
+    },
+  } as unknown as Product;
+  const fixtureCountUnits = resolveProductWholesaleUnits(fixtureCountProduct);
+
+  const fixtureCountRules: BulkPricingRule[] = [
+    {
+      id: 'rule-c-1',
+      productId: fixtureCountProduct.id,
+      minQuantity: 5,
+      maxQuantity: 24,
+      discountType: 'percentage',
+      discountValue: 15, // ₹340/Box
+      isActive: true,
+      sortOrder: 1,
+    },
+    {
+      id: 'rule-c-2',
+      productId: fixtureCountProduct.id,
+      minQuantity: 25,
+      maxQuantity: 99,
+      discountType: 'percentage',
+      discountValue: 25, // ₹300/Box
+      isActive: true,
+      sortOrder: 2,
+    },
+    {
+      id: 'rule-c-3',
+      productId: fixtureCountProduct.id,
+      minQuantity: 100,
+      maxQuantity: 100, // Capped at 100 Box
+      discountType: 'percentage',
+      discountValue: 35, // ₹260/Box
+      isActive: true,
+      sortOrder: 3,
+    },
+    {
+      id: 'rule-c-cq',
+      productId: fixtureCountProduct.id,
+      minQuantity: 500,
+      discountType: 'percentage',
+      discountValue: 0,
+      isActive: true,
+      isCustomQuote: true,
+      sortOrder: 4,
+    },
+  ];
+
+  // 1. Below first tier (qty = 2 Box < 5 Box min)
+  const cBelow = resolveCanonicalWholesalePricing({
+    product: fixtureCountProduct,
+    quantity: 2,
+    rules: fixtureCountRules,
+    units: fixtureCountUnits,
+  });
+  assertFullPricingContract(cBelow, {
+    status: 'CUSTOM_QUOTE',
+    unit: 'Box',
+    effectiveRate: 400,
+    discountPercent: 0,
+    total: 800,
+    savings: 0,
+    tierNamePattern: 'Custom Factory Quote Required',
+  }, 'Count: Below First Tier (2 Box)');
+
+  // 2. Exact first tier (qty = 5 Box)
+  const cFirst = resolveCanonicalWholesalePricing({
+    product: fixtureCountProduct,
+    quantity: 5,
+    rules: fixtureCountRules,
+    units: fixtureCountUnits,
+  });
+  assertFullPricingContract(cFirst, {
+    status: 'CONFIRMED',
+    unit: 'Box',
+    effectiveRate: 340,
+    discountPercent: 15,
+    total: 1700,
+    savings: 300,
+    tierNamePattern: '15% Off: 5–24 Box',
+  }, 'Count: Exact First Tier (5 Box)');
+
+  // 3. Between tiers (qty = 50 Box)
+  const cBetween = resolveCanonicalWholesalePricing({
+    product: fixtureCountProduct,
+    quantity: 50,
+    rules: fixtureCountRules,
+    units: fixtureCountUnits,
+  });
+  assertFullPricingContract(cBetween, {
+    status: 'CONFIRMED',
+    unit: 'Box',
+    effectiveRate: 300,
+    discountPercent: 25,
+    total: 15000,
+    savings: 5000,
+    tierNamePattern: '25% Off: 25–99 Box',
+  }, 'Count: Between Tiers (50 Box)');
+
+  // 4. Exact highest tier (qty = 100 Box)
+  const cHighest = resolveCanonicalWholesalePricing({
+    product: fixtureCountProduct,
+    quantity: 100,
+    rules: fixtureCountRules,
+    units: fixtureCountUnits,
+  });
+  assertFullPricingContract(cHighest, {
+    status: 'CONFIRMED',
+    unit: 'Box',
+    effectiveRate: 260,
+    discountPercent: 35,
+    total: 26000,
+    savings: 14000,
+    tierNamePattern: '35% Off: 100–100 Box',
+  }, 'Count: Exact Highest Tier (100 Box)');
+
+  // 5. Above highest tier (qty = 250 Box -> Inherited)
+  const cAbove250 = resolveCanonicalWholesalePricing({
+    product: fixtureCountProduct,
+    quantity: 250,
+    rules: fixtureCountRules,
+    units: fixtureCountUnits,
+  });
+  assertFullPricingContract(cAbove250, {
+    status: 'CONFIRMED',
+    unit: 'Box',
+    effectiveRate: 260,
+    discountPercent: 35,
+    total: 65000,
+    savings: 35000,
+    tierNamePattern: '35% Off: 100+ Box',
+  }, 'Count: Above Highest Tier (250 Box Inherited)');
+
+  // 6. Explicit custom quote boundary (qty = 500 Box)
+  const cCustomQuote = resolveCanonicalWholesalePricing({
+    product: fixtureCountProduct,
+    quantity: 500,
+    rules: fixtureCountRules,
+    units: fixtureCountUnits,
+  });
+  assertFullPricingContract(cCustomQuote, {
+    status: 'CUSTOM_QUOTE',
+    unit: 'Box',
+    effectiveRate: 400,
+    discountPercent: 0,
+    total: 200000,
+    savings: 0,
+    tierNamePattern: 'Custom Factory Quote Required',
+  }, 'Count: Explicit Custom Quote (500 Box)');
+
+  // 7. No tiers configured (rules = [])
+  const cNoTiers = resolveCanonicalWholesalePricing({
+    product: fixtureCountProduct,
+    quantity: 50,
+    rules: [],
+    units: fixtureCountUnits,
+  });
+  assertFullPricingContract(cNoTiers, {
+    status: 'CUSTOM_QUOTE',
+    unit: 'Box',
+    effectiveRate: 400,
+    discountPercent: 0,
+    total: 20000,
+    savings: 0,
+    tierNamePattern: 'Custom Factory Quote Required',
+  }, 'Count: No Tiers Configured');
+
+  console.log('    ✓ All 7 lifecycle states verified for Count fixture (Box)');
+
+  // =============================================================
+  // FIXTURE 4: UNKNOWN FUTURE PRODUCT FIXTURE (Novel Custom Unit: Drum)
+  // Completely isolated and unknown to codebase. Zero frontend conditionals.
+  // =============================================================
+  console.log('\n  [Fixture 4: Unknown Future Product (Novel Unit: Drum)]');
+  const futureNovelProduct = {
+    id: 'novel-future-bio-extract-999',
+    name: 'Future Supercritical Botanical Extract 200L',
+    price: 10000, // ₹10,000 / Drum
+    sellingUnit: 'Drum',
+    unitConfig: {
+      packQuantity: 1,
+      packUnit: 'Drum',
+      sellingUnit: 'Drum',
+      wholesaleUnit: 'Drum',
+      minWholesaleQuantity: 25,
+    },
+  } as unknown as Product;
+  const futureNovelUnits = resolveProductWholesaleUnits(futureNovelProduct);
+  assertStrictEqual(futureNovelUnits.wholesaleUnit, 'Drum', 'Future product unit must resolve to Drum');
+
+  // SUB-FIXTURE 4A: Standard Tiers (25, 50, 100) — Open-Ended Inheritance
+  const futureRules4A: BulkPricingRule[] = [
+    {
+      id: 'future-rule-1',
+      productId: futureNovelProduct.id,
+      minQuantity: 25,
+      maxQuantity: 49,
+      discountType: 'percentage',
+      discountValue: 10, // ₹9,000 / Drum
+      isActive: true,
+      sortOrder: 1,
+    },
+    {
+      id: 'future-rule-2',
+      productId: futureNovelProduct.id,
+      minQuantity: 50,
+      maxQuantity: 99,
+      discountType: 'percentage',
+      discountValue: 20, // ₹8,000 / Drum
+      isActive: true,
+      sortOrder: 2,
+    },
+    {
+      id: 'future-rule-3',
+      productId: futureNovelProduct.id,
+      minQuantity: 100,
+      maxQuantity: 100, // Capped at 100
+      discountType: 'percentage',
+      discountValue: 30, // ₹7,000 / Drum
+      isActive: true,
+      sortOrder: 3,
+    },
+  ];
+
+  // Exact User Specification 4A:
+  // 25 -> tier
+  const fut25 = resolveCanonicalWholesalePricing({ product: futureNovelProduct, quantity: 25, rules: futureRules4A, units: futureNovelUnits });
+  assertFullPricingContract(fut25, { status: 'CONFIRMED', unit: 'Drum', effectiveRate: 9000, discountPercent: 10, total: 225000, savings: 25000, tierNamePattern: '10% Off: 25–49 Drum' }, 'Future Product: 25 Drum');
+
+  // 50 -> tier
+  const fut50 = resolveCanonicalWholesalePricing({ product: futureNovelProduct, quantity: 50, rules: futureRules4A, units: futureNovelUnits });
+  assertFullPricingContract(fut50, { status: 'CONFIRMED', unit: 'Drum', effectiveRate: 8000, discountPercent: 20, total: 400000, savings: 100000, tierNamePattern: '20% Off: 50–99 Drum' }, 'Future Product: 50 Drum');
+
+  // 100 -> highest tier
+  const fut100 = resolveCanonicalWholesalePricing({ product: futureNovelProduct, quantity: 100, rules: futureRules4A, units: futureNovelUnits });
+  assertFullPricingContract(fut100, { status: 'CONFIRMED', unit: 'Drum', effectiveRate: 7000, discountPercent: 30, total: 700000, savings: 300000, tierNamePattern: '30% Off: 100–100 Drum' }, 'Future Product: 100 Drum');
+
+  // 250 -> inherits 100 tier
+  const fut250 = resolveCanonicalWholesalePricing({ product: futureNovelProduct, quantity: 250, rules: futureRules4A, units: futureNovelUnits });
+  assertFullPricingContract(fut250, { status: 'CONFIRMED', unit: 'Drum', effectiveRate: 7000, discountPercent: 30, total: 1750000, savings: 750000, tierNamePattern: '30% Off: 100+ Drum' }, 'Future Product: 250 Drum (Inherited)');
+
+  // 500 -> inherits 100 tier
+  const fut500 = resolveCanonicalWholesalePricing({ product: futureNovelProduct, quantity: 500, rules: futureRules4A, units: futureNovelUnits });
+  assertFullPricingContract(fut500, { status: 'CONFIRMED', unit: 'Drum', effectiveRate: 7000, discountPercent: 30, total: 3500000, savings: 1500000, tierNamePattern: '30% Off: 100+ Drum' }, 'Future Product: 500 Drum (Inherited)');
+
+  console.log('    ✓ Future product Fixture 4A: 25 -> tier, 50 -> tier, 100 -> highest tier, 250 -> inherits 100 tier, 500 -> inherits 100 tier (PASSED)');
+
+  // SUB-FIXTURE 4B: Second Fixture with Explicit Custom Quote Boundary (500+)
+  const futureRules4B: BulkPricingRule[] = [
+    ...futureRules4A,
+    {
+      id: 'future-rule-cq',
+      productId: futureNovelProduct.id,
+      minQuantity: 500,
+      discountType: 'percentage',
+      discountValue: 0,
+      isActive: true,
+      isCustomQuote: true,
+      sortOrder: 4,
+    },
+  ];
+
+  // 100 -> standard tier
+  const futB100 = resolveCanonicalWholesalePricing({ product: futureNovelProduct, quantity: 100, rules: futureRules4B, units: futureNovelUnits });
+  assertFullPricingContract(futB100, { status: 'CONFIRMED', unit: 'Drum', effectiveRate: 7000, discountPercent: 30, total: 700000, savings: 300000, tierNamePattern: '30% Off: 100–100 Drum' }, 'Future Product 4B: 100 Drum Standard Tier');
+
+  // 250 -> standard tier (inherited)
+  const futB250 = resolveCanonicalWholesalePricing({ product: futureNovelProduct, quantity: 250, rules: futureRules4B, units: futureNovelUnits });
+  assertFullPricingContract(futB250, { status: 'CONFIRMED', unit: 'Drum', effectiveRate: 7000, discountPercent: 30, total: 1750000, savings: 750000, tierNamePattern: '30% Off: 100+ Drum' }, 'Future Product 4B: 250 Drum Standard Tier (Inherited)');
+
+  // 500+ -> CUSTOM_QUOTE (explicit custom quote boundary takes precedence)
+  const futB500 = resolveCanonicalWholesalePricing({ product: futureNovelProduct, quantity: 500, rules: futureRules4B, units: futureNovelUnits });
+  assertFullPricingContract(futB500, { status: 'CUSTOM_QUOTE', unit: 'Drum', effectiveRate: 10000, discountPercent: 0, total: 5000000, savings: 0, tierNamePattern: 'Custom Factory Quote Required' }, 'Future Product 4B: 500 Drum Explicit Custom Quote');
+
+  const futB1000 = resolveCanonicalWholesalePricing({ product: futureNovelProduct, quantity: 1000, rules: futureRules4B, units: futureNovelUnits });
+  assertFullPricingContract(futB1000, { status: 'CUSTOM_QUOTE', unit: 'Drum', effectiveRate: 10000, discountPercent: 0, total: 10000000, savings: 0, tierNamePattern: 'Custom Factory Quote Required' }, 'Future Product 4B: 1000 Drum Explicit Custom Quote');
+
+  console.log('    ✓ Future product Fixture 4B: 100 -> standard tier, 250 -> standard tier, 500+ -> CUSTOM_QUOTE (PASSED)');
 
   console.log('\n===============================================================');
   console.log(`ALL TESTS PASSED! Total Assertions Verified: ${totalAssertions}`);

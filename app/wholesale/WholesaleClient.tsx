@@ -16,8 +16,7 @@ import FactoryDeskPanel from '@/components/wholesale/FactoryDeskPanel';
 import WhyBuyDirectStrip from '@/components/wholesale/WhyBuyDirectStrip';
 import CommercialSpecsSection from '@/components/wholesale/CommercialSpecsSection';
 import WholesaleFaqSection from '@/components/wholesale/WholesaleFaqSection';
-import SmartMobileCtaBar from '@/components/wholesale/SmartMobileCtaBar';
-import { BuyerPersona } from '@/components/wholesale/PersonaSwitcher';
+import PersonaSwitcher, { BuyerPersona } from '@/components/wholesale/PersonaSwitcher';
 
 interface WholesaleClientProps {
   initialSiteSettings?: SiteSettings | null;
@@ -109,15 +108,7 @@ export default function WholesaleClient({
     }
   }, []);
 
-  // Direct WhatsApp launch
-  const handleOpenWhatsAppDirect = useCallback(() => {
-    const destNum = getConfiguredWhatsAppNumber(siteSettings);
-    const text = `Hello Musky Dose, I am inquiring regarding wholesale & commercial supply from your Sojat factory.`;
-    const url = getWhatsAppDirectUrl(destNum, text);
-    if (typeof window !== 'undefined') {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
-  }, [siteSettings]);
+
 
   // State for quote handoff from calculator to form
   const [externalQuoteData, setExternalQuoteData] = useState<{
@@ -173,7 +164,20 @@ Please provide commercial terms and dispatch schedule. Thank you!`;
       <Navbar siteSettings={siteSettings || undefined} />
 
       <main className="flex-1 pb-16">
-        {/* 2. Compact B2B Hero with Persona Switcher */}
+        {/* 1. Top Buyer Persona Selector */}
+        <section
+          aria-label="Buyer Persona Selection"
+          className="bg-[#0b241b] border-b border-[#2d6a4f]/40 py-2.5 sm:py-3 px-4 relative z-10"
+        >
+          <div className="max-w-3xl mx-auto">
+            <PersonaSwitcher
+              activePersona={activePersona}
+              onPersonaChange={handlePersonaChange}
+            />
+          </div>
+        </section>
+
+        {/* 2. Compact B2B Wholesale Hero */}
         <WholesaleHero
           siteSettings={siteSettings}
           activePersona={activePersona}
@@ -239,12 +243,6 @@ Please provide commercial terms and dispatch schedule. Thank you!`;
 
       {/* Persistent WhatsApp Float */}
       <WhatsAppFloat />
-
-      {/* 8. Smart Mobile CTA Bar (Hides when inquiry form is in viewport) */}
-      <SmartMobileCtaBar
-        onScrollToForm={scrollToForm}
-        onDirectWhatsApp={handleOpenWhatsAppDirect}
-      />
     </div>
   );
 }

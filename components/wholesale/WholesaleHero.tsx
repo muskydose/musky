@@ -2,13 +2,13 @@
 
 import React from 'react';
 import { SiteSettings } from '@/lib/types';
-import PersonaSwitcher, { BuyerPersona, PERSONA_CONFIGS } from './PersonaSwitcher';
+import { BuyerPersona, PERSONA_CONFIGS } from './PersonaSwitcher';
 import { Building2, MapPin, Sparkles, ShieldCheck, Truck } from 'lucide-react';
 
 interface WholesaleHeroProps {
   siteSettings?: SiteSettings | null;
   activePersona: BuyerPersona;
-  onPersonaChange: (p: BuyerPersona) => void;
+  onPersonaChange?: (p: BuyerPersona) => void;
   isBulkMode?: boolean;
   onScrollToForm?: () => void;
   onScrollToCalculator?: () => void;
@@ -43,7 +43,7 @@ export default function WholesaleHero({
   };
 
   return (
-    <section className="bg-[#0f2d22] text-white pt-10 pb-12 px-4 relative overflow-hidden border-b border-[#2d6a4f]/50">
+    <section className="bg-[#0f2d22] text-white pt-8 sm:pt-10 pb-10 sm:pb-12 px-4 relative overflow-hidden border-b border-[#2d6a4f]/50">
       {/* Background ambient lighting */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-48 bg-[#1b4332]/40 blur-3xl rounded-full pointer-events-none" />
 
@@ -88,16 +88,8 @@ export default function WholesaleHero({
           </button>
         </div>
 
-        {/* Buyer Persona Selector Switcher */}
-        <div className="pt-3">
-          <PersonaSwitcher
-            activePersona={activePersona}
-            onPersonaChange={onPersonaChange}
-          />
-        </div>
-
         {/* Compact Trust Highlights Strip */}
-        <div className="pt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-left max-w-3xl mx-auto text-[11px] text-[#b2c8be]">
+        <div className="pt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-left max-w-3xl mx-auto text-[11px] text-[#b2c8be]">
           <div className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1.5 rounded-lg border border-white/10">
             <ShieldCheck className="w-3.5 h-3.5 text-[#c5a059] shrink-0" />
             <span className="truncate">Sojat Factory</span>
