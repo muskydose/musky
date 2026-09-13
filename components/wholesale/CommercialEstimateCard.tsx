@@ -3,35 +3,26 @@
 import React from 'react';
 import { formatPrice, formatPercent } from '@/lib/utils';
 import { CanonicalWholesaleResolution } from '@/lib/wholesale-pricing-resolver';
-import { TrendingDown, ShieldCheck, ArrowDownCircle, MessageCircle, AlertCircle, Sparkles, Minus, Plus, Check } from 'lucide-react';
-
-export const QUICK_QUANTITY_PRESETS = [1, 2, 5, 10, 25] as const;
+import { TrendingDown, ShieldCheck, AlertCircle, Sparkles } from 'lucide-react';
 
 interface CommercialEstimateCardProps {
   pricingResult: CanonicalWholesaleResolution;
-  productName: string;
   quantity: number;
   unitLabel: string;
   minWholesaleQuantity?: number;
   pricingUnit?: string;
+  productName?: string;
   onApplyToForm: () => void;
-  onDirectWhatsApp: () => void;
+  onDirectWhatsApp?: () => void;
   ctaLabel?: string;
-  onQuantityChange?: (qty: number) => void;
-  presetQuantities?: readonly number[] | number[];
 }
 
 export default function CommercialEstimateCard({
   pricingResult,
-  productName,
   quantity,
   unitLabel,
   minWholesaleQuantity = 1,
   onApplyToForm,
-  onDirectWhatsApp,
-  ctaLabel = 'Lock Estimate & Populate Form Below ↓',
-  onQuantityChange,
-  presetQuantities = QUICK_QUANTITY_PRESETS,
 }: CommercialEstimateCardProps) {
   const {
     baseWholesaleRate,
@@ -40,7 +31,6 @@ export default function CommercialEstimateCard({
     effectiveTotal,
     savingsAmount,
     savingsPercent,
-    tierName,
     status,
     hasConfiguredTier,
     unit,
@@ -48,26 +38,6 @@ export default function CommercialEstimateCard({
 
   const isCustomQuote = status === 'CUSTOM_QUOTE';
   const isBelowMoq = quantity < minWholesaleQuantity;
-
-  const handleDecrement = () => {
-    if (!onQuantityChange) return;
-    onQuantityChange(Math.max(1, quantity - 1));
-  };
-
-  const handleIncrement = () => {
-    if (!onQuantityChange) return;
-    onQuantityChange(quantity + 1);
-  };
-
-  const handleManualInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!onQuantityChange) return;
-    const val = parseInt(e.target.value, 10);
-    if (isNaN(val)) {
-      onQuantityChange(1);
-    } else {
-      onQuantityChange(Math.max(1, val));
-    }
-  };
 
   return (
     <div
@@ -77,10 +47,10 @@ export default function CommercialEstimateCard({
       {/* Decorative top accent strip */}
       <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#1b4332] via-[#c5a059] to-[#1b4332]" />
 
-      {/* Header & Product Summary */}
-      <div className="border-b border-[#e8e2d5] pb-3 space-y-1.5">
+      {/* Header & Status (Read-only Commercial Result) */}
+      <div className="border-b border-[#e8e2d5] pb-3">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[10px] font-extrabold text-[#c5a059] uppercase tracking-wider block">
+          <span className="text-[10px] sm:text-xs font-extrabold text-[#c5a059] uppercase tracking-wider block">
             Live Commercial Estimate
           </span>
           {/* MOQ / Tier Status Badge */}
@@ -112,91 +82,7 @@ export default function CommercialEstimateCard({
             )}
           </span>
         </div>
-
-        <div className="flex items-baseline justify-between gap-2">
-          <h3 className="font-momo-display text-lg sm:text-xl font-normal text-[#0f2d22] break-words">
-            {productName}
-          </h3>
-          <span className="text-xs font-mono font-bold text-[#1b4332] bg-[#FAF8F5] px-2.5 py-1 rounded-md border border-[#e8e2d5] shrink-0">
-            {quantity} {unit}
-          </span>
-        </div>
       </div>
-
-      {/* Interactive Order Volume Selection */}
-      {onQuantityChange && (
-        <div className="p-3 sm:p-3.5 rounded-xl bg-[#FAF8F5] border border-[#e8e2d5] space-y-2.5">
-          <label htmlFor="estimate-qty-input" className="block text-[11px] font-bold text-[#0f2d22] uppercase tracking-wider">
-            Order Volume
-          </label>
-
-          {/* Stepper Controls & Manual Input (Any custom quantity allowed) */}
-          <div className="flex items-center justify-between rounded-xl border border-[#e8e2d5] bg-white p-1 shadow-2xs">
-            <button
-              type="button"
-              onClick={handleDecrement}
-              disabled={quantity <= 1}
-              aria-label={`Decrease volume by 1 ${unit}`}
-              className="w-11 h-11 min-h-[44px] min-w-[44px] rounded-lg flex items-center justify-center text-[#0f2d22] hover:bg-[#FAF8F5] disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
-            >
-              <Minus className="w-4 h-4" />
-            </button>
-
-            <div className="flex items-center justify-center px-2 flex-1">
-              <input
-                id="estimate-qty-input"
-                type="number"
-                min={1}
-                value={quantity}
-                onChange={handleManualInput}
-                aria-label={`Order quantity in ${unit}`}
-                className="w-20 text-center font-mono font-bold text-base text-[#0f2d22] bg-transparent focus:outline-none"
-              />
-              <span className="text-xs sm:text-sm font-semibold text-[#626c66] ml-1 select-none">
-                {unit}
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleIncrement}
-              aria-label={`Increase volume by 1 ${unit}`}
-              className="w-11 h-11 min-h-[44px] min-w-[44px] rounded-lg flex items-center justify-center text-[#0f2d22] hover:bg-[#FAF8F5] transition-colors cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Compact Quantity Pills: [ 1 Litre ] [ 2 Litre ] [ 5 Litre ] [ 10 Litre ] [ 25 Litre ] */}
-          {presetQuantities && presetQuantities.length > 0 && (
-            <div
-              role="group"
-              aria-label="Quick volume options"
-              className="flex flex-wrap items-center gap-1.5 pt-0.5"
-            >
-              {presetQuantities.map((preset) => {
-                const isSelected = quantity === preset;
-                return (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => onQuantityChange(preset)}
-                    aria-pressed={isSelected}
-                    className={`px-3 py-1.5 rounded-full text-xs font-mono font-bold transition-all min-h-[38px] flex items-center justify-center text-center cursor-pointer ${
-                      isSelected
-                        ? 'bg-[#1b4332] text-[#c5a059] border border-[#1b4332] shadow-2xs ring-1 ring-[#1b4332]/30 font-extrabold'
-                        : 'bg-white text-[#2d3748] border border-[#e8e2d5] hover:bg-[#FAF8F5] hover:border-[#b2c8be]'
-                    }`}
-                  >
-                    {isSelected && <Check className="w-3.5 h-3.5 mr-1 text-[#c5a059] shrink-0 inline stroke-[2.5]" />}
-                    {preset} {unit}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Centerpiece Rate Display */}
       <div className="bg-[#FAF8F5] border border-[#e8e2d5] rounded-xl p-4 space-y-2 text-center relative">
@@ -284,4 +170,3 @@ export default function CommercialEstimateCard({
     </div>
   );
 }
-

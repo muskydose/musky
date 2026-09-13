@@ -8,7 +8,7 @@ import { trackWholesaleInquiryStarted } from '@/lib/analytics';
 import { BuyerPersona, PERSONA_CONFIGS } from './PersonaSwitcher';
 import ProductCardPicker from './ProductCardPicker';
 import WholesaleTierSelector from './WholesaleTierSelector';
-import CommercialEstimateCard, { QUICK_QUANTITY_PRESETS } from './CommercialEstimateCard';
+import CommercialEstimateCard from './CommercialEstimateCard';
 import { Calculator } from 'lucide-react';
 
 interface WholesaleCalculatorRedesignProps {
@@ -79,9 +79,6 @@ export default function WholesaleCalculatorRedesign({
     if (!selectedProduct) return null;
     return resolveProductWholesaleUnits(selectedProduct);
   }, [selectedProduct]);
-
-  // Quick quantity presets (Compact pills: 1, 2, 5, 10, 25 per Batch Change Set 09)
-  const quickQuantityPresets = QUICK_QUANTITY_PRESETS;
 
   // Quantity state (defaults to initialQuantity or 5)
   const [quantity, setQuantity] = useState<number>(() => {
@@ -197,15 +194,12 @@ export default function WholesaleCalculatorRedesign({
         <div className="lg:col-span-5 lg:sticky lg:top-24 space-y-3">
           <CommercialEstimateCard
             pricingResult={pricingResult}
-            productName={selectedProduct.name}
             quantity={quantity}
             unitLabel={pricingResult.unit}
             minWholesaleQuantity={unitInfo?.minWholesaleQuantity || 1}
             onApplyToForm={handleApplyToForm}
             onDirectWhatsApp={handleWhatsAppQuote}
             ctaLabel={personaConfig?.ctaLabel || 'Lock Estimate & Populate Form Below ↓'}
-            onQuantityChange={setQuantity}
-            presetQuantities={quickQuantityPresets}
           />
 
           {/* Compact Commercial Confidence Card */}

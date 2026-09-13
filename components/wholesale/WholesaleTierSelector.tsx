@@ -152,7 +152,7 @@ export default function WholesaleTierSelector({
               Factory Catalog Terms
             </span>
           </div>
-          <div className="text-xs sm:text-sm font-semibold text-[#0f2d22] break-words">
+          <div className="text-base sm:text-lg font-bold text-[#0f2d22] break-words">
             {product.name}
           </div>
         </div>
@@ -227,7 +227,7 @@ export default function WholesaleTierSelector({
             Click a slab to preview factory rates
           </span>
         </div>
-        <div className="text-xs sm:text-sm font-semibold text-[#0f2d22] break-words">
+        <div className="text-base sm:text-lg font-bold text-[#0f2d22] break-words">
           {product.name}
         </div>
       </div>
