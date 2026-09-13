@@ -16,7 +16,7 @@ import FactoryDeskPanel from '@/components/wholesale/FactoryDeskPanel';
 import WhyBuyDirectStrip from '@/components/wholesale/WhyBuyDirectStrip';
 import CommercialSpecsSection from '@/components/wholesale/CommercialSpecsSection';
 import WholesaleFaqSection from '@/components/wholesale/WholesaleFaqSection';
-import PersonaSwitcher, { BuyerPersona } from '@/components/wholesale/PersonaSwitcher';
+import { BuyerPersona } from '@/components/wholesale/PersonaSwitcher';
 
 interface WholesaleClientProps {
   initialSiteSettings?: SiteSettings | null;
@@ -164,20 +164,7 @@ Please provide commercial terms and dispatch schedule. Thank you!`;
       <Navbar siteSettings={siteSettings || undefined} />
 
       <main className="flex-1 pb-16">
-        {/* 1. Top Buyer Persona Selector */}
-        <section
-          aria-label="Buyer Persona Selection"
-          className="bg-[#0b241b] border-b border-[#2d6a4f]/40 py-2.5 sm:py-3 px-4 relative z-10"
-        >
-          <div className="max-w-3xl mx-auto">
-            <PersonaSwitcher
-              activePersona={activePersona}
-              onPersonaChange={handlePersonaChange}
-            />
-          </div>
-        </section>
-
-        {/* 2. Compact B2B Wholesale Hero */}
+        {/* 1. Compact B2B Wholesale Hero */}
         <WholesaleHero
           siteSettings={siteSettings}
           activePersona={activePersona}
