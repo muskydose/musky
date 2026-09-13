@@ -167,10 +167,10 @@ export default function WholesaleCalculatorRedesign({
         </div>
       </div>
 
-      {/* Two-Column Responsive Calculator Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Left Column: Product Selection & Direct Bulk Buy Slabs (7 Cols) */}
-        <div className="lg:col-span-7 bg-white border border-[#e8e2d5] rounded-2xl p-4 sm:p-6 shadow-2xs space-y-5">
+      {/* Unified Primary Wholesale Selection & Commercial Card */}
+      <div className="max-w-3xl mx-auto space-y-4">
+        <div className="bg-white border border-[#e8e2d5] rounded-2xl p-4 sm:p-7 shadow-xs space-y-6">
+          {/* 1. SELECT PRODUCT TO QUOTE */}
           <ProductCardPicker
             products={products}
             selectedProduct={selectedProduct}
@@ -180,7 +180,7 @@ export default function WholesaleCalculatorRedesign({
 
           <hr className="border-[#e8e2d5]" />
 
-          {/* Direct Bulk Buy Wholesale Tier Slabs */}
+          {/* 2. DIRECT BULK BUY */}
           <WholesaleTierSelector
             product={selectedProduct}
             pricingRules={pricingRules}
@@ -188,40 +188,42 @@ export default function WholesaleCalculatorRedesign({
             selectedQuantity={quantity}
             onSelectQuantity={(q) => setQuantity(q)}
           />
+
+          <hr className="border-[#e8e2d5]" />
+
+          {/* 3. COMMERCIAL RATE SUMMARY & VALUE */}
+          {pricingResult && (
+            <CommercialEstimateCard
+              pricingResult={pricingResult}
+              quantity={quantity}
+              unitLabel={pricingResult.unit}
+              minWholesaleQuantity={unitInfo?.minWholesaleQuantity || 1}
+              onApplyToForm={handleApplyToForm}
+              onDirectWhatsApp={handleWhatsAppQuote}
+              ctaLabel={personaConfig?.ctaLabel || 'Lock Estimate & Populate Form Below ↓'}
+            />
+          )}
         </div>
 
-        {/* Right Column: Sticky Estimate Card & Confidence Panel (5 Cols) */}
-        <div className="lg:col-span-5 lg:sticky lg:top-24 space-y-3">
-          <CommercialEstimateCard
-            pricingResult={pricingResult}
-            quantity={quantity}
-            unitLabel={pricingResult.unit}
-            minWholesaleQuantity={unitInfo?.minWholesaleQuantity || 1}
-            onApplyToForm={handleApplyToForm}
-            onDirectWhatsApp={handleWhatsAppQuote}
-            ctaLabel={personaConfig?.ctaLabel || 'Lock Estimate & Populate Form Below ↓'}
-          />
-
-          {/* Compact Commercial Confidence Card */}
-          <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#e8e2d5] text-[11px] text-[#626c66] space-y-1.5 shadow-2xs">
-            <div className="text-[10px] font-bold text-[#0f2d22] uppercase tracking-wider flex items-center justify-between">
-              <span>Factory Direct Supply Signals</span>
-              <span className="text-emerald-700 font-extrabold font-mono">Factory Verified</span>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5 text-[10px] pt-1 border-t border-[#e8e2d5]/60">
-              <span className="flex items-center gap-1 text-[#0f2d22]">
-                ✓ Sojat Factory Origin
-              </span>
-              <span className="flex items-center gap-1 text-[#0f2d22]">
-                ✓ B2B GST Invoicing
-              </span>
-              <span className="flex items-center gap-1 text-[#0f2d22]">
-                ✓ Pan-India Dispatch
-              </span>
-              <span className="flex items-center gap-1 text-[#0f2d22]">
-                ✓ Fresh Batch Sifted
-              </span>
-            </div>
+        {/* Compact Commercial Confidence Card */}
+        <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#e8e2d5] text-[11px] text-[#626c66] space-y-1.5 shadow-2xs">
+          <div className="text-[10px] font-bold text-[#0f2d22] uppercase tracking-wider flex items-center justify-between">
+            <span>Factory Direct Supply Signals</span>
+            <span className="text-emerald-700 font-extrabold font-mono">Factory Verified</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] pt-1 border-t border-[#e8e2d5]/60">
+            <span className="flex items-center gap-1 text-[#0f2d22]">
+              ✓ Sojat Factory Origin
+            </span>
+            <span className="flex items-center gap-1 text-[#0f2d22]">
+              ✓ B2B GST Invoicing
+            </span>
+            <span className="flex items-center gap-1 text-[#0f2d22]">
+              ✓ Pan-India Dispatch
+            </span>
+            <span className="flex items-center gap-1 text-[#0f2d22]">
+              ✓ Fresh Batch Sifted
+            </span>
           </div>
         </div>
       </div>
