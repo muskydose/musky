@@ -181,7 +181,19 @@ export async function runMediaMigration(options: MigrationOptions = {}): Promise
       caption?: string;
     }> = [];
 
-    if (Array.isArray(product.media) && product.media.length > 0) {
+    if (Array.isArray(product.images) && product.images.length > 0) {
+      product.images.forEach((img: string, idx: number) => {
+        if (typeof img === 'string' && img.trim()) {
+          mediaItemsToProcess.push({
+            url: img.trim(),
+            role: idx === 0 ? 'PRIMARY' : 'GALLERY',
+            sortOrder: idx + 1,
+            title: product.name,
+            altText: `${product.name} visual ${idx + 1}`,
+          });
+        }
+      });
+    } else if (Array.isArray(product.media) && product.media.length > 0) {
       product.media.forEach((item: ProductMediaItem, idx: number) => {
         if (item.url) {
           mediaItemsToProcess.push({
@@ -191,18 +203,6 @@ export async function runMediaMigration(options: MigrationOptions = {}): Promise
             title: item.title || product.name,
             altText: item.altText || product.name,
             caption: item.caption,
-          });
-        }
-      });
-    } else if (Array.isArray(product.images) && product.images.length > 0) {
-      product.images.forEach((img: string, idx: number) => {
-        if (typeof img === 'string' && img.trim()) {
-          mediaItemsToProcess.push({
-            url: img.trim(),
-            role: idx === 0 ? 'PRIMARY' : 'GALLERY',
-            sortOrder: idx + 1,
-            title: product.name,
-            altText: `${product.name} visual ${idx + 1}`,
           });
         }
       });

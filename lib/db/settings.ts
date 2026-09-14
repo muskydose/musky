@@ -89,6 +89,9 @@ export function mapRowToSiteSettings(row: any): SiteSettings {
     finalCtaHeading: base.finalCtaHeading || row.final_cta_heading || INITIAL_SITE_SETTINGS.finalCtaHeading,
     finalCtaDescription: base.finalCtaDescription || row.final_cta_description || INITIAL_SITE_SETTINGS.finalCtaDescription,
     finalCtaButtonText: base.finalCtaButtonText || row.final_cta_button_text || INITIAL_SITE_SETTINGS.finalCtaButtonText,
+    mediaLibrary: (Array.isArray(base.mediaLibrary) && base.mediaLibrary.length > 0)
+      ? base.mediaLibrary
+      : (INITIAL_SITE_SETTINGS.mediaLibrary || []),
   };
 }
 

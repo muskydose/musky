@@ -188,6 +188,177 @@ export function resetMediaCache(options?: { clearFallbackStore?: boolean }): voi
 }
 
 /**
+ * Generates a deterministic asset ID to guarantee 100% idempotent rerun and cache parity.
+ */
+export function generateDeterministicAssetId(
+  entityType: MediaEntityType,
+  entityId: string | undefined,
+  role: MediaAssetRole,
+  index: number
+): string {
+  const cleanType = entityType.toLowerCase();
+  const cleanId = (entityId || 'global').replace(/[^a-zA-Z0-9-_]/g, '-');
+  return `legacy-${cleanType}-${cleanId}-${role.toLowerCase()}-${index}`;
+}
+
+/**
+ * Dynamically synthesizes canonical media assets from live catalog entities (products, categories, guides, settings)
+ * when public.media_assets table is pending DDL migration or empty.
+ */
+async function deriveCatalogFallbackMediaAssets(): Promise<MediaAsset[]> {
+  const supabase = getSupabaseAdmin() || getSupabase();
+  if (!supabase) return [];
+
+  const assets: MediaAsset[] = [];
+  const now = new Date().toISOString();
+
+  try {
+    const [productsRes, categoriesRes, guidesRes, settingsRes] = await Promise.all([
+      supabase.from('products').select('id, name, images, slug'),
+      supabase.from('categories').select('id, name, image, slug, sort_order'),
+      supabase.from('product_guides').select('id, title, cover_image, slug'),
+      supabase.from('site_settings').select('data'),
+    ]);
+
+    // 1. Products
+    if (Array.isArray(productsRes.data)) {
+      productsRes.data.forEach((p) => {
+        if (Array.isArray(p.images)) {
+          p.images.forEach((img: any, idx: number) => {
+            const url = typeof img === 'string' ? img : img?.url;
+            if (url && typeof url === 'string' && url.trim()) {
+              const role: MediaAssetRole = idx === 0 ? 'PRIMARY' : 'GALLERY';
+              const id = generateDeterministicAssetId('PRODUCT', p.id, role, idx);
+              assets.push({
+                id,
+                entityType: 'PRODUCT',
+                entityId: p.id,
+                url: url.trim(),
+                storageBucket: 'product-images',
+                aspectRatio: '1:1',
+                role,
+                source: 'MANUAL_UPLOAD',
+                status: 'approved',
+                isLocked: idx === 0,
+                title: `${p.name} - Image ${idx + 1}`,
+                altText: `${p.name} photo`,
+                sortOrder: idx === 0 ? 1 : idx + 1,
+                visualContext: { productId: p.id, productName: p.name, slug: p.slug },
+                aiMetadata: {},
+                mimeType: 'image/webp',
+                createdAt: now,
+                updatedAt: now,
+              });
+            }
+          });
+        }
+      });
+    }
+
+    // 2. Categories
+    if (Array.isArray(categoriesRes.data)) {
+      categoriesRes.data.forEach((c) => {
+        if (c.image && typeof c.image === 'string' && c.image.trim()) {
+          const id = generateDeterministicAssetId('CATEGORY', c.id, 'HERO', 0);
+          assets.push({
+            id,
+            entityType: 'CATEGORY',
+            entityId: c.id,
+            url: c.image.trim(),
+            storageBucket: 'product-images',
+            aspectRatio: '16:9',
+            role: 'HERO',
+            source: 'MANUAL_UPLOAD',
+            status: 'approved',
+            isLocked: true,
+            title: `${c.name} Category Banner`,
+            altText: `${c.name} banner`,
+            sortOrder: c.sort_order || 1,
+            visualContext: { categoryId: c.id, categoryName: c.name, slug: c.slug },
+            aiMetadata: {},
+            mimeType: 'image/webp',
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+      });
+    }
+
+    // 3. Guides
+    if (Array.isArray(guidesRes.data)) {
+      guidesRes.data.forEach((g) => {
+        if (g.cover_image && typeof g.cover_image === 'string' && g.cover_image.trim()) {
+          const id = generateDeterministicAssetId('GUIDE', g.id, 'HERO', 0);
+          assets.push({
+            id,
+            entityType: 'GUIDE',
+            entityId: g.id,
+            url: g.cover_image.trim(),
+            storageBucket: 'product-images',
+            aspectRatio: '16:9',
+            role: 'HERO',
+            source: 'MANUAL_UPLOAD',
+            status: 'approved',
+            isLocked: true,
+            title: g.title,
+            altText: `${g.title} cover`,
+            sortOrder: 1,
+            visualContext: { guideId: g.id, guideSlug: g.slug },
+            aiMetadata: {},
+            mimeType: 'image/webp',
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+      });
+    }
+
+    // 4. Site Settings Media Library
+    const settingsData = settingsRes?.data?.[0]?.data;
+    if (settingsData && Array.isArray(settingsData.mediaLibrary)) {
+      settingsData.mediaLibrary.forEach((m: any, idx: number) => {
+        if (m.url && typeof m.url === 'string' && m.url.trim()) {
+          const exists = assets.some((a) => a.url === m.url.trim());
+          if (!exists) {
+            let role: MediaAssetRole = 'GALLERY';
+            if (m.category === 'hero') role = 'HERO';
+            else if (m.category === 'factory') role = 'LIFESTYLE';
+            else if (m.category === 'brand') role = 'ICON';
+            else if (m.category === 'og') role = 'OG_SOCIAL';
+
+            const id = generateDeterministicAssetId('BRAND', 'library', role, idx);
+            assets.push({
+              id,
+              entityType: 'BRAND',
+              entityId: 'media-library',
+              url: m.url.trim(),
+              storageBucket: 'product-images',
+              aspectRatio: '1:1',
+              role,
+              source: 'MANUAL_UPLOAD',
+              status: 'approved',
+              isLocked: false,
+              title: m.name || m.title || 'Brand Asset',
+              altText: m.altText || 'Brand Asset',
+              sortOrder: 100 + idx,
+              visualContext: { usedIn: m.usedIn },
+              aiMetadata: {},
+              mimeType: m.type || 'image/webp',
+              createdAt: m.uploadedAt || now,
+              updatedAt: now,
+            });
+          }
+        }
+      });
+    }
+  } catch {
+    // Fail-safe
+  }
+
+  return assets;
+}
+
+/**
  * Returns raw assets from Supabase public.media_assets or falls back to in-memory store.
  */
 export async function getAllMediaAssetsRaw(): Promise<{
@@ -207,7 +378,7 @@ export async function getAllMediaAssetsRaw(): Promise<{
         .select('*')
         .order('sort_order', { ascending: true });
 
-      if (!error && Array.isArray(data)) {
+      if (!error && Array.isArray(data) && data.length > 0) {
         const mapped = data.map(mapRowToMediaAsset);
         memoryCache = { assets: mapped, loadedAt: now, source: 'database' };
         return { assets: mapped, source: 'database' };
@@ -217,6 +388,15 @@ export async function getAllMediaAssetsRaw(): Promise<{
     }
   }
 
+  // If table is pending migration or empty, populate in-memory fallback store from live catalog
+  if (memoryMediaStore.length === 0) {
+    const derived = await deriveCatalogFallbackMediaAssets();
+    if (derived.length > 0) {
+      memoryMediaStore = derived;
+    }
+  }
+
+  memoryCache = { assets: memoryMediaStore, loadedAt: now, source: 'memory' };
   return { assets: [...memoryMediaStore], source: 'memory' };
 }
 
