@@ -23,6 +23,7 @@ import { getGuideBySlug, getPublishedGuides } from '@/lib/db/guides';
 import { getSiteSettings } from '@/lib/db/settings';
 import { getProducts } from '@/lib/db/products';
 import { resolvePageSeoMetadata } from '@/lib/db/seo';
+import { getPrimaryMedia } from '@/lib/db/media';
 import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -48,13 +49,19 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     };
   }
 
+  const primaryMedia = await getPrimaryMedia({
+    entityType: 'GUIDE',
+    entityId: guide.id,
+    legacyFallbackUrl: guide.coverImage || settings.ogImageUrl || '/images/fallback.svg',
+  });
+
   return await resolvePageSeoMetadata({
     targetType: 'guide',
     targetId: guide.id,
     targetUrl: `/guides/${guide.slug}`,
     defaultTitle: guide.seoTitle ? guide.seoTitle.replace(/\s*\|\s*Musky\s*Dose.*$/i, '').trim() : guide.title,
     defaultDescription: guide.seoDescription || guide.shortIntro || `Read complete guide about ${guide.title} from Musky Dose.`,
-    defaultImage: guide.coverImage || settings.ogImageUrl || '/images/fallback.svg',
+    defaultImage: primaryMedia.url || guide.coverImage || settings.ogImageUrl || '/images/fallback.svg',
     defaultKeywords: [guide.title, 'Henna Guide', 'Sojat Henna Care', 'Musky Dose'],
   });
 }
@@ -75,6 +82,12 @@ export default async function ProductGuideDetailPage({
   if (!guide || guide.published === false) {
     notFound();
   }
+
+  const primaryGuideMedia = await getPrimaryMedia({
+    entityType: 'GUIDE',
+    entityId: guide.id,
+    legacyFallbackUrl: guide.coverImage || '/images/fallback.svg',
+  });
 
   const activeProducts = allProducts.filter((p) => p.isActive !== false);
 
@@ -103,11 +116,10 @@ export default async function ProductGuideDetailPage({
   const whatsappPhone = getConfiguredWhatsAppNumber(siteSettings);
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
-  const guideImageUrl = guide.coverImage
-    ? guide.coverImage.startsWith('http')
-      ? guide.coverImage
-      : `${baseUrl}${guide.coverImage}`
-    : `${baseUrl}/images/fallback.svg`;
+  const resolvedCoverUrl = primaryGuideMedia.url || guide.coverImage || '/images/fallback.svg';
+  const guideImageUrl = resolvedCoverUrl.startsWith('http')
+    ? resolvedCoverUrl
+    : `${baseUrl}${resolvedCoverUrl.startsWith('/') ? '' : '/'}${resolvedCoverUrl}`;
 
   const articleLd = {
     '@context': 'https://schema.org',
@@ -238,7 +250,7 @@ export default async function ProductGuideDetailPage({
           {/* COVER IMAGE */}
           <div className="relative aspect-[16/9] bg-[#f0ebe0] rounded-2xl overflow-hidden border border-[#e8e2d5] shadow-lg mb-8">
             <Image
-              src={guide.coverImage || '/images/fallback.svg'}
+              src={primaryGuideMedia.url || guide.coverImage || '/images/fallback.svg'}
               alt={guide.title}
               fill
               priority

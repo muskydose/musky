@@ -12,6 +12,7 @@ import { validateCatalogVariants, getProductTypeUnitRule } from '@/lib/growth/pr
 import { validateProductTypeClassification } from '@/lib/growth/product-type-governance';
 import { validateProductVariants } from '@/lib/product-variants';
 import { UniversalGovernanceCore } from '@/lib/governance';
+import { attachCanonicalMediaToProducts } from './media';
 
 function requireSupabaseAdmin(): SupabaseClient {
   const client = getSupabaseAdmin();
@@ -267,13 +268,14 @@ export async function getAllProductsAdmin(): Promise<Product[]> {
   }
 
   const categories = await getAllCategoriesAdmin();
-  return data
+  const mapped = data
     .map((row) => {
       const p = mapRowToProduct(row);
       p.categoryName = resolveCanonicalCategoryName(p, categories);
       return p;
     })
     .sort((a, b) => a.sortOrder - b.sortOrder);
+  return await attachCanonicalMediaToProducts(mapped);
 }
 
 export const getActiveProductsForStore = cache(async (): Promise<Product[]> => {
@@ -298,11 +300,12 @@ export const getActiveProductsForStore = cache(async (): Promise<Product[]> => {
   }
 
   const categories = await getCategories();
-  return data.map((row) => {
+  const mapped = data.map((row) => {
     const p = mapRowToProduct(row);
     p.categoryName = resolveCanonicalCategoryName(p, categories);
     return p;
   });
+  return await attachCanonicalMediaToProducts(mapped);
 });
 
 export async function getProducts(): Promise<Product[]> {
@@ -350,7 +353,8 @@ export const getProductsByCategory = cache(async (categoryIdOrSlug: string): Pro
       return [];
     }
 
-    return data.map(mapRowToProduct);
+    const mapped = data.map(mapRowToProduct);
+    return await attachCanonicalMediaToProducts(mapped);
   } catch (err: any) {
     console.error('[getProductsByCategory] Error:', err?.message);
     return [];
@@ -413,7 +417,7 @@ export async function getRelatedProducts(
       }
     }
 
-    return mapped;
+    return await attachCanonicalMediaToProducts(mapped);
   } catch (err: any) {
     console.error('[getRelatedProducts] Error:', err?.message);
     return [];
@@ -453,10 +457,12 @@ export async function getFeaturedProducts(limit: number = 8): Promise<Product[]>
       if (fbErr || !fallbackData || fallbackData.length === 0) {
         return [];
       }
-      return fallbackData.map(mapRowToProduct);
+      const fbMapped = fallbackData.map(mapRowToProduct);
+      return await attachCanonicalMediaToProducts(fbMapped);
     }
 
-    return data.map(mapRowToProduct);
+    const featMapped = data.map(mapRowToProduct);
+    return await attachCanonicalMediaToProducts(featMapped);
   } catch (err: any) {
     console.error('[getFeaturedProducts] Error:', err?.message);
     return [];
@@ -545,7 +551,8 @@ export const getProductByIdOrSlug = cache(async (
         }
         const categories = await getCategories();
         product.categoryName = resolveCanonicalCategoryName(product, categories);
-        return product;
+        const enriched = await attachCanonicalMediaToProducts([product]);
+        return enriched[0] || product;
       }
     } catch (err: any) {
       console.error('[getProductByIdOrSlug] DB query error:', err?.message);

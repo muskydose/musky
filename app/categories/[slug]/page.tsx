@@ -16,6 +16,7 @@ import { safeJsonLd } from '@/lib/utils';
 import { ArrowLeft, PackageX, Sparkles, CheckCircle2, Leaf, ArrowRight, MessageCircle } from 'lucide-react';
 import { resolveCategoryIntelligence } from '@/lib/growth/category-intelligence';
 import { resolveCategorySlugRedirect } from '@/lib/db/category-redirects';
+import { getPrimaryMedia } from '@/lib/db/media';
 
 export const dynamic = 'force-dynamic';
 export const dynamicParams = true;
@@ -71,13 +72,19 @@ export async function generateMetadata({
   const editorialFallback = editorial ? `${editorial.lead}. ${editorial.body.slice(0, 100)}...` : undefined;
   const customDesc = category.description?.trim() ? category.description.trim() : editorialFallback;
 
+  const primaryMedia = await getPrimaryMedia({
+    entityType: 'CATEGORY',
+    entityId: category.id,
+    legacyFallbackUrl: category.image || '/images/hero-bg.jpg',
+  });
+
   return await resolvePageSeoMetadata({
     targetType: 'category',
     targetId: category.id,
     targetUrl: `/categories/${category.slug}`,
     defaultTitle: `${category.name} — Pure Sojat Botanical Care`,
     defaultDescription: customDesc || `Explore ${category.name} handcrafted directly in Sojat, Rajasthan. 100% natural, chemical-free botanicals.`,
-    defaultImage: category.image || '/images/hero-bg.jpg',
+    defaultImage: primaryMedia.url || category.image || '/images/hero-bg.jpg',
   });
 }
 
@@ -107,7 +114,14 @@ export default async function CategoryPage({
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
-  const categoryProducts = await getProductsByCategory(category.id);
+  const [categoryProducts, categoryPrimaryMedia] = await Promise.all([
+    getProductsByCategory(category.id),
+    getPrimaryMedia({
+      entityType: 'CATEGORY',
+      entityId: category.id,
+      legacyFallbackUrl: category.image,
+    }),
+  ]);
   const categoryInsight = resolveCategoryIntelligence(category, categoryProducts);
 
   const jsonLdCategory = {
@@ -118,6 +132,7 @@ export default async function CategoryPage({
         name: `${category.name} - Musky Dose`,
         url: `${baseUrl}/categories/${category.slug}`,
         description: category.description,
+        image: categoryPrimaryMedia.url || category.image || '/images/fallback.svg',
         mainEntity: {
           '@type': 'ItemList',
           itemListElement: categoryProducts.map((prod, index) => ({
@@ -186,7 +201,7 @@ export default async function CategoryPage({
 
           <div className="md:col-span-4 relative aspect-[4/3] rounded-2xl overflow-hidden border-2 border-[#c5a059]/30 shadow-xl">
             <Image
-              src={category.image || '/images/fallback.svg'}
+              src={categoryPrimaryMedia.url || category.image || '/images/fallback.svg'}
               alt={category.name}
               fill
               className="object-cover"

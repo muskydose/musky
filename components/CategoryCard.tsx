@@ -11,6 +11,7 @@ import { SPRINGS } from '@/lib/motion';
 
 interface CategoryCardProps {
   category: Category;
+  canonicalImage?: string;
 }
 
 function getCategoryIcon(slugOrName: string) {
@@ -23,9 +24,9 @@ function getCategoryIcon(slugOrName: string) {
   return <Leaf className="w-8 h-8 text-[#c5a059]" />;
 }
 
-export default function CategoryCard({ category }: CategoryCardProps) {
+export default function CategoryCard({ category, canonicalImage }: CategoryCardProps) {
   const shouldReduceMotion = useReducedMotion();
-  const rawImage = category.image || '';
+  const rawImage = canonicalImage || (category as any)?.canonicalPrimaryUrl || category.image || '';
   const isCustomImage = rawImage && !rawImage.endsWith('.svg') && !rawImage.includes('fallback.svg');
 
   return (
@@ -40,7 +41,7 @@ export default function CategoryCard({ category }: CategoryCardProps) {
       >
         {isCustomImage ? (
           <Image
-            src={sanitizeImageUrl(category.image)}
+            src={sanitizeImageUrl(rawImage)}
             alt={category.name}
             fill
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"

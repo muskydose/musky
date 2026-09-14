@@ -49,7 +49,7 @@ export default function ProductCard({
     return resolveAuthoritativeProductMedia(product);
   }, [product]);
 
-  const rawImage = mediaResolution.primaryImage || product.images?.[0];
+  const rawImage = (product as any)?.canonicalPrimaryUrl || mediaResolution.primaryImage || product.images?.[0];
   const primaryImage = sanitizeImageUrl(rawImage, BRANDED_FALLBACK_IMAGE);
   const [imgSrc, setImgSrc] = React.useState(primaryImage);
   const [isAddingToCart, setIsAddingToCart] = React.useState(false);

@@ -15,6 +15,7 @@ import {
   getPublishedKnowledgeEntities,
   KnowledgeEntity,
 } from '@/lib/db/knowledge';
+import { getPrimaryMedia } from '@/lib/db/media';
 import {
   getRelatedProductsForKnowledge,
   getRelatedGuidesForKnowledge,
@@ -84,6 +85,12 @@ export async function generateMetadata(props: KnowledgePageProps): Promise<Metad
   const title = record.seoTitle || `${record.canonicalName}${record.scientificName ? ` (${record.scientificName})` : ''} | Botanical Care & Sourcing — Musky Dose`;
   const description = record.seoDescription || `${record.description} Explore authentic Rajasthani botanical characteristics, safe usage, related products, and verified origin sourcing.`;
 
+  const primaryMedia = await getPrimaryMedia({
+    entityType: 'KNOWLEDGE',
+    entityId: record.id || record.entityKey,
+    legacyFallbackUrl: record.ogImageUrl || '/images/og-default.jpg',
+  });
+
   return {
     metadataBase: new URL('https://muskydose.in'),
     title,
@@ -103,7 +110,10 @@ export async function generateMetadata(props: KnowledgePageProps): Promise<Metad
       siteName: 'Musky Dose',
       type: 'article',
       locale: 'en_IN',
-      ...(record.ogImageUrl ? { images: [{ url: record.ogImageUrl }] } : {}),
+      ...(() => {
+        const ogUrl = primaryMedia.url || record.ogImageUrl;
+        return ogUrl ? { images: [{ url: ogUrl }] } : {};
+      })(),
     },
   };
 }
@@ -154,7 +164,16 @@ export default async function KnowledgeEntityPage(props: KnowledgePageProps) {
     }),
   ]);
 
-  const canonicalUrl = `https://muskydose.in/knowledge/${record.slug}`;
+  const [canonicalUrl, primaryMedia] = await Promise.all([
+    Promise.resolve(`https://muskydose.in/knowledge/${record.slug}`),
+    getPrimaryMedia({
+      entityType: 'KNOWLEDGE',
+      entityId: record.id || record.entityKey,
+      legacyFallbackUrl: record.ogImageUrl,
+    }),
+  ]);
+
+  const resolvedImage = primaryMedia.url || record.ogImageUrl;
 
   // Structured Data (AboutPage + ItemPage)
   const jsonLd = {
@@ -163,12 +182,14 @@ export default async function KnowledgeEntityPage(props: KnowledgePageProps) {
     name: record.canonicalName,
     description: record.description,
     url: canonicalUrl,
+    ...(resolvedImage ? { image: resolvedImage } : {}),
     mainEntity: {
       '@type': 'Thing',
       name: record.canonicalName,
       alternateName: record.aliases,
       ...(record.scientificName ? { scientificName: record.scientificName } : {}),
       description: record.description,
+      ...(resolvedImage ? { image: resolvedImage } : {}),
     },
     publisher: {
       '@type': 'Organization',

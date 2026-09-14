@@ -203,6 +203,7 @@ export interface AuthoritativeProductMedia {
   media: ProductMediaItem[];
   hasVideo: boolean;
   totalItems: number;
+  isFallback: boolean;
 }
 
 const FALLBACK_IMAGE = '/images/fallback.svg';
@@ -224,6 +225,7 @@ export function resolveAuthoritativeProductMedia(
       media: [],
       hasVideo: false,
       totalItems: 0,
+      isFallback: true,
     };
   }
 
@@ -294,18 +296,24 @@ export function resolveAuthoritativeProductMedia(
   let primaryImage = FALLBACK_IMAGE;
   let primaryMediaItem: ProductMediaItem | undefined;
 
-  const explicitPrimary = activeImages.find((img) => img.role === 'PRIMARY' && !img.url.includes('fallback.svg'));
-  if (explicitPrimary) {
-    primaryImage = explicitPrimary.url;
-    primaryMediaItem = explicitPrimary;
+  const canonicalPrimaryUrl = (product as any)?.canonicalPrimaryUrl;
+  if (canonicalPrimaryUrl && typeof canonicalPrimaryUrl === 'string') {
+    primaryImage = canonicalPrimaryUrl;
+    primaryMediaItem = activeImages.find((img) => img.url === canonicalPrimaryUrl);
   } else {
-    const firstNonFallback = activeImages.find((img) => !img.url.includes('fallback.svg'));
-    if (firstNonFallback) {
-      primaryImage = firstNonFallback.url;
-      primaryMediaItem = firstNonFallback;
-    } else if (activeImages.length > 0) {
-      primaryImage = activeImages[0].url;
-      primaryMediaItem = activeImages[0];
+    const explicitPrimary = activeImages.find((img) => img.role === 'PRIMARY' && !img.url.includes('fallback.svg'));
+    if (explicitPrimary) {
+      primaryImage = explicitPrimary.url;
+      primaryMediaItem = explicitPrimary;
+    } else {
+      const firstNonFallback = activeImages.find((img) => !img.url.includes('fallback.svg'));
+      if (firstNonFallback) {
+        primaryImage = firstNonFallback.url;
+        primaryMediaItem = firstNonFallback;
+      } else if (activeImages.length > 0) {
+        primaryImage = activeImages[0].url;
+        primaryMediaItem = activeImages[0];
+      }
     }
   }
 
@@ -327,6 +335,7 @@ export function resolveAuthoritativeProductMedia(
     media: allMedia,
     hasVideo: activeVideos.length > 0,
     totalItems: allMedia.length,
+    isFallback: primaryImage === FALLBACK_IMAGE || Boolean((product as any)?.canonicalMedia?.isFallback),
   };
 }
 

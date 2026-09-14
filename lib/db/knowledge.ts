@@ -14,6 +14,11 @@ import { ProductFamily, ProductScope, VerifiedAttributeSlug } from '@/lib/growth
 import { GuideFamily } from '@/lib/growth/guide-opportunity-engine';
 import { getSupabase, getSupabaseAdmin } from '@/lib/supabase';
 import { UniversalGovernanceCore } from '@/lib/governance/core';
+import {
+  attachCanonicalMediaToKnowledge,
+  attachCanonicalMediaToKnowledgeList,
+  getPrimaryMedia,
+} from '@/lib/db/media';
 
 // ============================================================================
 // 1. KNOWLEDGE ENTITY TYPES & CONTRACTS
@@ -31,6 +36,7 @@ export interface KnowledgeEntity extends CanonicalEntityRecord {
   seoTitle?: string;
   seoDescription?: string;
   ogImageUrl?: string;
+  canonicalPrimaryUrl?: string;
   robotsIndex: boolean;
   robotsFollow: boolean;
   createdAt: string;
@@ -326,9 +332,10 @@ export async function getAllKnowledgeEntitiesRaw(): Promise<{
  */
 export async function getPublishedKnowledgeEntities(): Promise<KnowledgeEntity[]> {
   const { entities } = await getAllKnowledgeEntitiesRaw();
-  return entities.filter(
+  const published = entities.filter(
     (e) => e.published === true && e.dbStatus === 'published' && e.entityKey !== 'UNKNOWN'
   );
+  return attachCanonicalMediaToKnowledgeList(published);
 }
 
 /**
@@ -357,7 +364,8 @@ export async function getKnowledgeBySlug(
         exactMatch.entityKey !== 'UNKNOWN');
 
     if (isPubliclyAccessible) {
-      return { entity: exactMatch, isRedirect: false };
+      const primaryMedia = await getPrimaryMedia('KNOWLEDGE', exactMatch.id || exactMatch.entityKey);
+      return { entity: attachCanonicalMediaToKnowledge(exactMatch, primaryMedia), isRedirect: false };
     }
     return { entity: null, isRedirect: false };
   }
@@ -372,8 +380,9 @@ export async function getKnowledgeBySlug(
         redirectMatch.entityKey !== 'UNKNOWN');
 
     if (isPubliclyAccessible) {
+      const primaryMedia = await getPrimaryMedia('KNOWLEDGE', redirectMatch.id || redirectMatch.entityKey);
       return {
-        entity: redirectMatch,
+        entity: attachCanonicalMediaToKnowledge(redirectMatch, primaryMedia),
         isRedirect: true,
         redirectCanonicalSlug: redirectMatch.slug,
       };
@@ -403,7 +412,10 @@ export async function getKnowledgeByKey(
     options?.includeDrafts ||
     (match.published === true && match.dbStatus === 'published' && match.entityKey !== 'UNKNOWN');
 
-  return isPubliclyAccessible ? match : null;
+  if (!isPubliclyAccessible) return null;
+
+  const primaryMedia = await getPrimaryMedia('KNOWLEDGE', match.id || match.entityKey);
+  return attachCanonicalMediaToKnowledge(match, primaryMedia);
 }
 
 /**
@@ -425,7 +437,10 @@ export async function getKnowledgeById(
     options?.includeDrafts ||
     (match.published === true && match.dbStatus === 'published' && match.entityKey !== 'UNKNOWN');
 
-  return isPubliclyAccessible ? match : null;
+  if (!isPubliclyAccessible) return null;
+
+  const primaryMedia = await getPrimaryMedia('KNOWLEDGE', match.id || match.entityKey);
+  return attachCanonicalMediaToKnowledge(match, primaryMedia);
 }
 
 /**

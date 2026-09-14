@@ -1,0 +1,923 @@
+import crypto from 'crypto';
+import { getSupabase, getSupabaseAdmin } from '@/lib/supabase';
+
+// ============================================================================
+// 1. TYPES & CONTRACTS
+// ============================================================================
+
+export type MediaEntityType =
+  | 'PRODUCT'
+  | 'CATEGORY'
+  | 'GUIDE'
+  | 'KNOWLEDGE'
+  | 'BRAND'
+  | 'MARKETING';
+
+export type MediaAssetRole =
+  | 'PRIMARY'
+  | 'GALLERY'
+  | 'PACKAGING'
+  | 'LIFESTYLE'
+  | 'DETAIL'
+  | 'USAGE'
+  | 'INGREDIENTS'
+  | 'HERO'
+  | 'OG_SOCIAL'
+  | 'ICON';
+
+export type MediaAssetSource =
+  | 'MANUAL_UPLOAD'
+  | 'AI_GENERATED'
+  | 'EXTERNAL_IMPORT'
+  | 'SYSTEM_FALLBACK';
+
+export type MediaAssetStatus = 'suggested' | 'approved' | 'rejected' | 'archived';
+
+export interface MediaAsset {
+  id: string;
+  entityType: MediaEntityType;
+  entityId?: string;
+  url: string;
+  storagePath?: string;
+  storageBucket: string;
+  fileHash?: string;
+  fileName?: string;
+  mimeType: string;
+  fileSizeBytes?: number;
+  width?: number;
+  height?: number;
+  aspectRatio: string;
+  role: MediaAssetRole;
+  source: MediaAssetSource;
+  status: MediaAssetStatus;
+  isLocked: boolean;
+  title?: string;
+  altText?: string;
+  caption?: string;
+  visualContext?: Record<string, any>;
+  aiMetadata?: Record<string, any>;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SaveMediaAssetInput {
+  id?: string;
+  entityType: MediaEntityType;
+  entityId?: string;
+  url: string;
+  storagePath?: string;
+  storageBucket?: string;
+  fileHash?: string;
+  fileName?: string;
+  mimeType?: string;
+  fileSizeBytes?: number;
+  width?: number;
+  height?: number;
+  aspectRatio?: string;
+  role?: MediaAssetRole;
+  source?: MediaAssetSource;
+  status?: MediaAssetStatus;
+  isLocked?: boolean;
+  title?: string;
+  altText?: string;
+  caption?: string;
+  visualContext?: Record<string, any>;
+  aiMetadata?: Record<string, any>;
+  sortOrder?: number;
+}
+
+export interface MediaResolutionResult {
+  primaryAsset: MediaAsset;
+  galleryAssets: MediaAsset[];
+  allAssets: MediaAsset[];
+  isFallback: boolean;
+  source: MediaAssetSource;
+}
+
+const DEFAULT_FALLBACK_URL = '/images/fallback.svg';
+
+// ============================================================================
+// 2. CRYPTOGRAPHIC HASHING & DEDUPLICATION
+// ============================================================================
+
+/**
+ * Computes a SHA-256 hash string for a binary buffer.
+ */
+export function computeFileHash(buffer: Buffer): string {
+  return crypto.createHash('sha256').update(buffer).digest('hex');
+}
+
+// ============================================================================
+// 3. ROW MAPPING & NORMALIZATION
+// ============================================================================
+
+export function mapRowToMediaAsset(row: any): MediaAsset {
+  return {
+    id: String(row.id || `med-${Date.now()}`),
+    entityType: (row.entity_type || row.entityType || 'PRODUCT') as MediaEntityType,
+    entityId: row.entity_id || row.entityId || undefined,
+    url: String(row.url || ''),
+    storagePath: row.storage_path || row.storagePath || undefined,
+    storageBucket: row.storage_bucket || row.storageBucket || 'product-images',
+    fileHash: row.file_hash || row.fileHash || undefined,
+    fileName: row.file_name || row.fileName || undefined,
+    mimeType: row.mime_type || row.mimeType || 'image/webp',
+    fileSizeBytes: row.file_size_bytes ?? row.fileSizeBytes ?? undefined,
+    width: row.width ?? undefined,
+    height: row.height ?? undefined,
+    aspectRatio: row.aspect_ratio || row.aspectRatio || '1:1',
+    role: (row.role || 'GALLERY') as MediaAssetRole,
+    source: (row.source || 'MANUAL_UPLOAD') as MediaAssetSource,
+    status: (row.status || 'approved') as MediaAssetStatus,
+    isLocked: Boolean(row.is_locked ?? row.isLocked ?? false),
+    title: row.title || undefined,
+    altText: row.alt_text || row.altText || undefined,
+    caption: row.caption || undefined,
+    visualContext: row.visual_context || row.visualContext || {},
+    aiMetadata: row.ai_metadata || row.aiMetadata || {},
+    sortOrder: Number(row.sort_order ?? row.sortOrder ?? 100),
+    createdAt: row.created_at || row.createdAt || new Date().toISOString(),
+    updatedAt: row.updated_at || row.updatedAt || new Date().toISOString(),
+  };
+}
+
+export function mapMediaAssetToRow(asset: MediaAsset): any {
+  return {
+    id: asset.id,
+    entity_type: asset.entityType,
+    entity_id: asset.entityId || null,
+    url: asset.url,
+    storage_path: asset.storagePath || null,
+    storage_bucket: asset.storageBucket || 'product-images',
+    file_hash: asset.fileHash || null,
+    file_name: asset.fileName || null,
+    mime_type: asset.mimeType || 'image/webp',
+    file_size_bytes: asset.fileSizeBytes || null,
+    width: asset.width || null,
+    height: asset.height || null,
+    aspect_ratio: asset.aspectRatio || '1:1',
+    role: asset.role || 'GALLERY',
+    source: asset.source || 'MANUAL_UPLOAD',
+    status: asset.status || 'approved',
+    is_locked: asset.isLocked ?? false,
+    title: asset.title || null,
+    alt_text: asset.altText || null,
+    caption: asset.caption || null,
+    visual_context: asset.visualContext || {},
+    ai_metadata: asset.aiMetadata || {},
+    sort_order: asset.sortOrder ?? 100,
+    created_at: asset.createdAt || new Date().toISOString(),
+    updated_at: asset.updatedAt || new Date().toISOString(),
+  };
+}
+
+// ============================================================================
+// 4. IN-MEMORY FALLBACK STORE & CACHE
+// ============================================================================
+
+let memoryMediaStore: MediaAsset[] = [];
+let memoryCache: { assets: MediaAsset[]; loadedAt: number; source: 'database' | 'memory' } | null = null;
+const CACHE_TTL_MS = 60_000;
+
+export function resetMediaCache(options?: { clearFallbackStore?: boolean }): void {
+  memoryCache = null;
+  if (options?.clearFallbackStore) {
+    memoryMediaStore = [];
+  }
+}
+
+/**
+ * Returns raw assets from Supabase public.media_assets or falls back to in-memory store.
+ */
+export async function getAllMediaAssetsRaw(): Promise<{
+  assets: MediaAsset[];
+  source: 'database' | 'memory';
+}> {
+  const now = Date.now();
+  if (memoryCache && now - memoryCache.loadedAt < CACHE_TTL_MS) {
+    return { assets: memoryCache.assets, source: memoryCache.source };
+  }
+
+  const supabase = getSupabaseAdmin() || getSupabase();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('media_assets')
+        .select('*')
+        .order('sort_order', { ascending: true });
+
+      if (!error && Array.isArray(data)) {
+        const mapped = data.map(mapRowToMediaAsset);
+        memoryCache = { assets: mapped, loadedAt: now, source: 'database' };
+        return { assets: mapped, source: 'database' };
+      }
+    } catch {
+      // In-memory fallback
+    }
+  }
+
+  return { assets: [...memoryMediaStore], source: 'memory' };
+}
+
+// ============================================================================
+// 5. CANONICAL PRIORITY RESOLVER ENGINE
+// ============================================================================
+
+/**
+ * Priority Scoring Matrix:
+ * Rank 1: MANUAL_UPLOAD + approved + isLocked=true + role='PRIMARY'
+ * Rank 2: MANUAL_UPLOAD + approved + role='PRIMARY'
+ * Rank 3: AI_GENERATED + approved + role='PRIMARY'
+ * Rank 4: MANUAL_UPLOAD + approved (any role)
+ * Rank 5: AI_GENERATED + approved (any role)
+ * Rank 6: EXTERNAL_IMPORT + approved
+ * Rank 7: SYSTEM_FALLBACK
+ */
+function computeAssetPriorityScore(asset: MediaAsset): number {
+  if (asset.status !== 'approved') return -1; // Ineligible
+
+  let score = 0;
+
+  // Source weight
+  if (asset.source === 'MANUAL_UPLOAD') {
+    score += 1000;
+  } else if (asset.source === 'AI_GENERATED') {
+    score += 500;
+  } else if (asset.source === 'EXTERNAL_IMPORT') {
+    score += 250;
+  } else {
+    score += 50; // SYSTEM_FALLBACK
+  }
+
+  // Primary Role weight
+  if (asset.role === 'PRIMARY') {
+    score += 2000;
+  }
+
+  // Locked override weight (Human manual lock)
+  if (asset.isLocked && asset.role === 'PRIMARY') {
+    score += 4000;
+  }
+
+  // Prefer lower sort order values (higher priority)
+  score -= Math.min( asset.sortOrder, 100 );
+
+  return score;
+}
+
+/**
+ * Creates a synthetic branded fallback asset when no approved media exists.
+ */
+function createSyntheticFallbackAsset(
+  entityType?: MediaEntityType,
+  entityId?: string,
+  customFallbackUrl?: string
+): MediaAsset {
+  const now = new Date().toISOString();
+  const safeType = entityType ? String(entityType).toLowerCase() : 'product';
+  return {
+    id: `fallback-${safeType}-${entityId || 'global'}`,
+    entityType: entityType || 'PRODUCT',
+    entityId,
+    url: customFallbackUrl || DEFAULT_FALLBACK_URL,
+    storageBucket: 'product-images',
+    aspectRatio: '1:1',
+    role: 'PRIMARY',
+    source: 'SYSTEM_FALLBACK',
+    status: 'approved',
+    isLocked: false,
+    sortOrder: 999,
+    mimeType: 'image/svg+xml',
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+// ============================================================================
+// 6. PUBLIC QUERY INTERFACES
+// ============================================================================
+
+/**
+ * Finds an existing media asset by its SHA-256 file hash for instant deduplication.
+ */
+export async function findAssetByHash(fileHash: string): Promise<MediaAsset | null> {
+  if (!fileHash || typeof fileHash !== 'string') return null;
+
+  const cleanHash = fileHash.trim().toLowerCase();
+  const { assets } = await getAllMediaAssetsRaw();
+  const found = assets.find((a) => (a.fileHash || '').toLowerCase() === cleanHash && a.status !== 'archived');
+  return found || null;
+}
+
+/**
+ * Normalizes a Knowledge entity identifier (id, entityKey, slug) to canonical comparable form.
+ * E.g. 'HENNA_MEHNDI', 'ent-henna-mehndi', 'henna-mehndi', 'ke-henna-mehndi' -> 'hennamehndi'
+ */
+export function normalizeKnowledgeEntityIdentifier(id: string): string {
+  if (!id || typeof id !== 'string') return '';
+  return id
+    .toLowerCase()
+    .trim()
+    .replace(/^(ent|ke)[-_]/, '')
+    .replace(/[-_]/g, '');
+}
+
+/**
+ * Resolves all media assets for an entity sorted by primary priority first, then sortOrder.
+ * Respects governance gating: suggested and rejected are omitted unless includeDrafts=true.
+ */
+export async function getMediaForEntity(options: {
+  entityType: MediaEntityType;
+  entityId?: string;
+  includeDrafts?: boolean;
+}): Promise<MediaAsset[]> {
+  const { entityType, entityId, includeDrafts } = options;
+  const { assets } = await getAllMediaAssetsRaw();
+
+  const matched = assets.filter((a) => {
+    if (a.entityType !== entityType) return false;
+    if (entityId !== undefined) {
+      if (a.entityId !== entityId) {
+        if (entityType === 'KNOWLEDGE') {
+          const normA = normalizeKnowledgeEntityIdentifier(a.entityId || '');
+          const normQuery = normalizeKnowledgeEntityIdentifier(entityId);
+          if (normA !== normQuery) return false;
+        } else {
+          return false;
+        }
+      }
+    }
+
+    if (includeDrafts) {
+      return a.status !== 'archived';
+    }
+    return a.status === 'approved';
+  });
+
+  // Sort by priority score descending
+  return matched.sort((a, b) => {
+    const scoreA = computeAssetPriorityScore(a);
+    const scoreB = computeAssetPriorityScore(b);
+    if (scoreA !== scoreB) return scoreB - scoreA;
+    return a.sortOrder - b.sortOrder;
+  });
+}
+
+/**
+ * Resolves the authoritative Primary media asset for an entity.
+ * Supports both object parameter and positional parameters.
+ * Follows strict priority:
+ * MANUAL approved locked > MANUAL approved > AI approved > legacyFallbackUrl > BRANDED_FALLBACK
+ */
+export async function getPrimaryMedia(
+  optionsOrType:
+    | MediaEntityType
+    | {
+        entityType: MediaEntityType;
+        entityId?: string;
+        legacyFallbackUrl?: string;
+      },
+  entityId?: string,
+  legacyFallbackUrl?: string
+): Promise<MediaAsset> {
+  const options =
+    typeof optionsOrType === 'string'
+      ? { entityType: optionsOrType, entityId, legacyFallbackUrl }
+      : optionsOrType;
+
+  const { entityType, entityId: targetEntityId, legacyFallbackUrl: targetFallbackUrl } = options;
+  const approvedAssets = await getMediaForEntity({ entityType, entityId: targetEntityId, includeDrafts: false });
+
+  if (approvedAssets.length > 0) {
+    // Top asset is the highest priority primary asset
+    return approvedAssets[0];
+  }
+
+  // Fallback to legacy field or system fallback
+  return createSyntheticFallbackAsset(entityType, targetEntityId, targetFallbackUrl);
+}
+
+/**
+ * Resolves the gallery media assets for an entity (excluding the primary asset).
+ * Supports both object parameter and positional parameters.
+ */
+export async function getGalleryMedia(
+  optionsOrType:
+    | MediaEntityType
+    | {
+        entityType: MediaEntityType;
+        entityId?: string;
+        includeDrafts?: boolean;
+      },
+  entityId?: string,
+  includeDrafts?: boolean
+): Promise<MediaAsset[]> {
+  const options =
+    typeof optionsOrType === 'string'
+      ? { entityType: optionsOrType, entityId, includeDrafts }
+      : optionsOrType;
+
+  const all = await getMediaForEntity(options);
+  if (all.length <= 1) return [];
+  return all.slice(1);
+}
+
+/**
+ * Returns comprehensive media resolution: primary, gallery, and fallback indicator.
+ * Supports direct MediaAsset[] evaluation, object options, and positional parameters.
+ */
+export async function resolveAuthoritativeMedia(
+  optionsOrTypeOrAssets:
+    | MediaAsset[]
+    | MediaEntityType
+    | {
+        entityType: MediaEntityType;
+        entityId?: string;
+        legacyFallbackUrl?: string;
+      },
+  entityId?: string,
+  legacyFallbackUrl?: string
+): Promise<MediaResolutionResult> {
+  if (Array.isArray(optionsOrTypeOrAssets)) {
+    const allAssets = [...optionsOrTypeOrAssets].sort((a, b) => {
+      const scoreA = computeAssetPriorityScore(a);
+      const scoreB = computeAssetPriorityScore(b);
+      if (scoreA !== scoreB) return scoreB - scoreA;
+      return a.sortOrder - b.sortOrder;
+    });
+
+    if (allAssets.length > 0) {
+      const primaryAsset = allAssets[0];
+      return {
+        primaryAsset,
+        galleryAssets: allAssets.slice(1),
+        allAssets,
+        isFallback: primaryAsset.source === 'SYSTEM_FALLBACK',
+        source: primaryAsset.source,
+      };
+    }
+
+    const fallback = createSyntheticFallbackAsset('PRODUCT');
+    return {
+      primaryAsset: fallback,
+      galleryAssets: [],
+      allAssets: [fallback],
+      isFallback: true,
+      source: 'SYSTEM_FALLBACK',
+    };
+  }
+
+  const options =
+    typeof optionsOrTypeOrAssets === 'string'
+      ? { entityType: optionsOrTypeOrAssets, entityId, legacyFallbackUrl }
+      : optionsOrTypeOrAssets;
+
+  const { entityType, entityId: targetEntityId, legacyFallbackUrl: targetFallbackUrl } = options;
+  const allAssets = await getMediaForEntity({ entityType, entityId: targetEntityId, includeDrafts: false });
+
+  if (allAssets.length > 0) {
+    const primaryAsset = allAssets[0];
+    const galleryAssets = allAssets.slice(1);
+    return {
+      primaryAsset,
+      galleryAssets,
+      allAssets,
+      isFallback: primaryAsset.source === 'SYSTEM_FALLBACK',
+      source: primaryAsset.source,
+    };
+  }
+
+  const fallbackAsset = createSyntheticFallbackAsset(entityType, targetEntityId, targetFallbackUrl);
+  return {
+    primaryAsset: fallbackAsset,
+    galleryAssets: [],
+    allAssets: [fallbackAsset],
+    isFallback: true,
+    source: 'SYSTEM_FALLBACK',
+  };
+}
+
+/**
+ * Batch resolves media for multiple entities in $O(1)$ without N+1 queries.
+ * Uses the cached media assets.
+ */
+export async function getBatchResolvedMedia(
+  entityType: MediaEntityType,
+  entityIds?: string[]
+): Promise<Map<string, MediaResolutionResult>> {
+  const { assets } = await getAllMediaAssetsRaw();
+  const approved = assets.filter((a) => a.entityType === entityType && a.status === 'approved');
+
+  // Group by entityId
+  const grouped = new Map<string, MediaAsset[]>();
+  for (const asset of approved) {
+    const key = asset.entityId || 'global';
+    const list = grouped.get(key) || [];
+    list.push(asset);
+    grouped.set(key, list);
+  }
+
+  const resultMap = new Map<string, MediaResolutionResult>();
+  const targetIds = entityIds || Array.from(grouped.keys());
+
+  for (const id of targetIds) {
+    let matchedAssets = grouped.get(id) || [];
+    if (matchedAssets.length === 0 && entityType === 'KNOWLEDGE') {
+      const normId = normalizeKnowledgeEntityIdentifier(id);
+      for (const [key, list] of grouped.entries()) {
+        const normKey = normalizeKnowledgeEntityIdentifier(key);
+        if (normKey === normId) {
+          matchedAssets = list;
+          break;
+        }
+      }
+    }
+
+    if (matchedAssets.length > 0) {
+      const sorted = [...matchedAssets].sort((a, b) => {
+        const scoreA = computeAssetPriorityScore(a);
+        const scoreB = computeAssetPriorityScore(b);
+        if (scoreA !== scoreB) return scoreB - scoreA;
+        return a.sortOrder - b.sortOrder;
+      });
+      resultMap.set(id, {
+        primaryAsset: sorted[0],
+        galleryAssets: sorted.slice(1),
+        allAssets: sorted,
+        isFallback: sorted[0].source === 'SYSTEM_FALLBACK',
+        source: sorted[0].source,
+      });
+    } else {
+      const fallback = createSyntheticFallbackAsset(entityType, id);
+      resultMap.set(id, {
+        primaryAsset: fallback,
+        galleryAssets: [],
+        allAssets: [fallback],
+        isFallback: true,
+        source: 'SYSTEM_FALLBACK',
+      });
+    }
+  }
+
+  return resultMap;
+}
+
+/**
+ * Batch resolves primary media assets for multiple entities without N+1 queries.
+ */
+export async function getBatchPrimaryMedia(
+  entityType: MediaEntityType,
+  entityIds?: string[]
+): Promise<Map<string, MediaAsset>> {
+  const resolved = await getBatchResolvedMedia(entityType, entityIds);
+  const primaryMap = new Map<string, MediaAsset>();
+  for (const [id, res] of resolved.entries()) {
+    primaryMap.set(id, res.primaryAsset);
+  }
+  return primaryMap;
+}
+
+/**
+ * Attaches canonical media assets to a Product object.
+ * CRITICAL ARCHITECTURE RULE:
+ * NEVER mutates product.images! product.images remains the untouched legacy source of record.
+ * Attaches canonical items to product.media and sets product.canonicalPrimaryUrl.
+ */
+export function attachCanonicalMediaToProduct<T extends { id?: string; images?: string[]; media?: any[] }>(
+  product: T,
+  mediaResult?: MediaResolutionResult
+): T & { canonicalPrimaryUrl?: string; canonicalMedia?: MediaResolutionResult } {
+  if (!product) return product as any;
+  if (!mediaResult || mediaResult.isFallback || mediaResult.allAssets.length === 0) {
+    return product as any;
+  }
+
+  // Map MediaAsset[] to ProductMediaItem[]
+  const canonicalMediaItems = mediaResult.allAssets.map((asset, idx) => ({
+    id: asset.id,
+    type: (asset.mimeType?.startsWith('video/') ? 'video' : 'image') as 'video' | 'image',
+    url: asset.url,
+    role: asset.role as any,
+    sortOrder: asset.sortOrder || idx + 1,
+    title: asset.title,
+    altText: asset.altText,
+    caption: asset.caption,
+    enabled: asset.status === 'approved',
+  }));
+
+  return {
+    ...product,
+    media: canonicalMediaItems,
+    canonicalPrimaryUrl: mediaResult.primaryAsset.url,
+    canonicalMedia: mediaResult,
+    // Note: product.images is intentionally untouched to respect legacy immutability!
+  };
+}
+
+/**
+ * Batch attaches canonical media to a collection of products.
+ */
+export async function attachCanonicalMediaToProducts<T extends { id?: string; images?: string[]; media?: any[] }>(
+  products: T[]
+): Promise<Array<T & { canonicalPrimaryUrl?: string; canonicalMedia?: MediaResolutionResult }>> {
+  if (!products || products.length === 0) return [];
+  const productIds = products.map((p) => p.id).filter(Boolean) as string[];
+  const mediaMap = await getBatchResolvedMedia('PRODUCT', productIds);
+
+  return products.map((p) => {
+    const res = p.id ? mediaMap.get(p.id) : undefined;
+    return attachCanonicalMediaToProduct(p, res);
+  });
+}
+
+/**
+ * Attaches canonical media to a Category object without mutating category.image.
+ */
+export function attachCanonicalMediaToCategory<T extends { id?: string; image?: string }>(
+  category: T,
+  primaryAsset?: MediaAsset
+): T & { canonicalPrimaryUrl?: string } {
+  if (!category || !primaryAsset || primaryAsset.source === 'SYSTEM_FALLBACK') {
+    return category as any;
+  }
+  return {
+    ...category,
+    canonicalPrimaryUrl: primaryAsset.url,
+  };
+}
+
+/**
+ * Batch attaches canonical media to a collection of categories.
+ */
+export async function attachCanonicalMediaToCategories<T extends { id?: string; image?: string }>(
+  categories: T[]
+): Promise<Array<T & { canonicalPrimaryUrl?: string }>> {
+  if (!categories || categories.length === 0) return [];
+  const categoryIds = categories.map((c) => c.id).filter(Boolean) as string[];
+  const mediaMap = await getBatchPrimaryMedia('CATEGORY', categoryIds);
+  return categories.map((c) => {
+    const primary = c.id ? mediaMap.get(c.id) : undefined;
+    return attachCanonicalMediaToCategory(c, primary);
+  });
+}
+
+/**
+ * Attaches canonical media to a Guide object without mutating guide.coverImage.
+ */
+export function attachCanonicalMediaToGuide<T extends { id?: string; coverImage?: string }>(
+  guide: T,
+  primaryAsset?: MediaAsset
+): T & { canonicalPrimaryUrl?: string } {
+  if (!guide || !primaryAsset || primaryAsset.source === 'SYSTEM_FALLBACK') {
+    return guide as any;
+  }
+  return {
+    ...guide,
+    canonicalPrimaryUrl: primaryAsset.url,
+  };
+}
+
+/**
+ * Batch attaches canonical media to a collection of guides.
+ */
+export async function attachCanonicalMediaToGuides<T extends { id?: string; coverImage?: string }>(
+  guides: T[]
+): Promise<Array<T & { canonicalPrimaryUrl?: string }>> {
+  if (!guides || guides.length === 0) return [];
+  const guideIds = guides.map((g) => g.id).filter(Boolean) as string[];
+  const mediaMap = await getBatchPrimaryMedia('GUIDE', guideIds);
+  return guides.map((g) => {
+    const primary = g.id ? mediaMap.get(g.id) : undefined;
+    return attachCanonicalMediaToGuide(g, primary);
+  });
+}
+
+/**
+ * Attaches canonical media to a KnowledgeEntity object without mutating entity.ogImageUrl.
+ */
+export function attachCanonicalMediaToKnowledge<T extends { id?: string; entityKey?: string; ogImageUrl?: string }>(
+  entity: T,
+  primaryAsset?: MediaAsset
+): T & { canonicalPrimaryUrl?: string } {
+  if (!entity || !primaryAsset || primaryAsset.source === 'SYSTEM_FALLBACK') {
+    return entity as any;
+  }
+  return {
+    ...entity,
+    canonicalPrimaryUrl: primaryAsset.url,
+  };
+}
+
+/**
+ * Batch attaches canonical media to a collection of knowledge entities.
+ */
+export async function attachCanonicalMediaToKnowledgeList<T extends { id?: string; entityKey?: string; ogImageUrl?: string }>(
+  entities: T[]
+): Promise<Array<T & { canonicalPrimaryUrl?: string }>> {
+  if (!entities || entities.length === 0) return [];
+  const ids = entities.map((e) => e.id || e.entityKey).filter(Boolean) as string[];
+  const mediaMap = await getBatchPrimaryMedia('KNOWLEDGE', ids);
+  return entities.map((e) => {
+    const primary = (e.id ? mediaMap.get(e.id) : undefined) || (e.entityKey ? mediaMap.get(e.entityKey) : undefined);
+    return attachCanonicalMediaToKnowledge(e, primary);
+  });
+}
+
+// ============================================================================
+// 7. MUTATION & GOVERNANCE METHODS
+// ============================================================================
+
+/**
+ * Saves or creates a media asset with anti-hallucination locking guard:
+ * - If an existing primary asset has isLocked=true, an AI_GENERATED asset
+ *   is PREVENTED from claiming role='PRIMARY' and is demoted to 'GALLERY'.
+ * - Deduplicates by fileHash if the binary hash already exists in storage.
+ */
+export async function saveMediaAsset(input: SaveMediaAssetInput): Promise<{
+  asset: MediaAsset;
+  deduplicated: boolean;
+}> {
+  const now = new Date().toISOString();
+  let role = input.role || 'GALLERY';
+  let deduplicated = false;
+
+  // 1. Deduplication check via SHA-256 hash
+  let finalUrl = input.url;
+  let finalStoragePath = input.storagePath;
+  if (input.fileHash) {
+    const existingSameHash = await findAssetByHash(input.fileHash);
+    if (existingSameHash) {
+      finalUrl = existingSameHash.url;
+      finalStoragePath = existingSameHash.storagePath;
+      deduplicated = true;
+    }
+  }
+
+  // 2. Anti-Hallucination Locking Guard:
+  // If an asset claims role='PRIMARY' via AI_GENERATED, check if current primary is locked
+  if (role === 'PRIMARY' && input.source === 'AI_GENERATED') {
+    const existingAssets = await getMediaForEntity({
+      entityType: input.entityType,
+      entityId: input.entityId,
+      includeDrafts: true,
+    });
+    const lockedPrimary = existingAssets.find((a) => a.role === 'PRIMARY' && a.isLocked);
+    if (lockedPrimary) {
+      // Demote AI visual to GALLERY — Human locked primary is immutable to AI
+      role = 'GALLERY';
+    }
+  }
+
+  const assetId = input.id || `med-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+  const fullAsset: MediaAsset = {
+    id: assetId,
+    entityType: input.entityType,
+    entityId: input.entityId,
+    url: finalUrl,
+    storagePath: finalStoragePath,
+    storageBucket: input.storageBucket || 'product-images',
+    fileHash: input.fileHash,
+    fileName: input.fileName,
+    mimeType: input.mimeType || 'image/webp',
+    fileSizeBytes: input.fileSizeBytes,
+    width: input.width,
+    height: input.height,
+    aspectRatio: input.aspectRatio || '1:1',
+    role,
+    source: input.source || 'MANUAL_UPLOAD',
+    status: input.status || 'approved',
+    isLocked: input.isLocked ?? (role === 'PRIMARY' && input.source === 'MANUAL_UPLOAD'),
+    title: input.title,
+    altText: input.altText,
+    caption: input.caption,
+    visualContext: input.visualContext || {},
+    aiMetadata: input.aiMetadata || {},
+    sortOrder: input.sortOrder ?? (role === 'PRIMARY' ? 1 : 100),
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  // If new asset is approved PRIMARY, demote previous primaries for this entity
+  if (fullAsset.role === 'PRIMARY' && fullAsset.status === 'approved') {
+    const existing = await getMediaForEntity({
+      entityType: fullAsset.entityType,
+      entityId: fullAsset.entityId,
+      includeDrafts: true,
+    });
+    for (const ex of existing) {
+      if (ex.id !== fullAsset.id && ex.role === 'PRIMARY') {
+        ex.role = 'GALLERY';
+        ex.isLocked = false;
+        ex.updatedAt = now;
+        await persistAssetRecord(ex);
+      }
+    }
+  }
+
+  await persistAssetRecord(fullAsset);
+  resetMediaCache();
+
+  return { asset: fullAsset, deduplicated };
+}
+
+/**
+ * Updates an existing media asset.
+ */
+export async function updateMediaAsset(
+  id: string,
+  updates: Partial<SaveMediaAssetInput>
+): Promise<MediaAsset | null> {
+  const { assets } = await getAllMediaAssetsRaw();
+  const existing = assets.find((a) => a.id === id);
+  if (!existing) return null;
+
+  const now = new Date().toISOString();
+  const updatedAsset: MediaAsset = {
+    ...existing,
+    ...updates,
+    id: existing.id, // Immutable ID
+    updatedAt: now,
+  };
+
+  await persistAssetRecord(updatedAsset);
+  resetMediaCache();
+
+  return updatedAsset;
+}
+
+/**
+ * Soft archives a media asset (status='archived').
+ */
+export async function archiveMediaAsset(id: string): Promise<boolean> {
+  return (await updateMediaAsset(id, { status: 'archived' })) !== null;
+}
+
+/**
+ * Promotes a specific asset to PRIMARY and optionally locks it.
+ */
+export async function setPrimaryMedia(options: {
+  assetId: string;
+  entityType: MediaEntityType;
+  entityId?: string;
+  lockPrimary?: boolean;
+}): Promise<MediaAsset | null> {
+  const { assetId, entityType, entityId, lockPrimary } = options;
+  const now = new Date().toISOString();
+
+  // 1. Demote all existing primaries for this entity
+  const existingAssets = await getMediaForEntity({ entityType, entityId, includeDrafts: true });
+  for (const asset of existingAssets) {
+    if (asset.role === 'PRIMARY' && asset.id !== assetId) {
+      asset.role = 'GALLERY';
+      asset.isLocked = false;
+      asset.updatedAt = now;
+      await persistAssetRecord(asset);
+    }
+  }
+
+  // 2. Promote target asset to PRIMARY
+  const target = existingAssets.find((a) => a.id === assetId);
+  if (!target) return null;
+
+  target.role = 'PRIMARY';
+  target.status = 'approved';
+  if (lockPrimary !== undefined) {
+    target.isLocked = lockPrimary;
+  }
+  target.updatedAt = now;
+
+  await persistAssetRecord(target);
+  resetMediaCache();
+
+  return target;
+}
+
+// ============================================================================
+// 8. PERSISTENCE HELPER (DB OR FALLBACK STORE)
+// ============================================================================
+
+async function persistAssetRecord(asset: MediaAsset): Promise<void> {
+  // Always update in-memory store for fallback parity
+  const idx = memoryMediaStore.findIndex((a) => a.id === asset.id);
+  if (idx >= 0) {
+    memoryMediaStore[idx] = asset;
+  } else {
+    memoryMediaStore.push(asset);
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    try {
+      const row = mapMediaAssetToRow(asset);
+      const { error } = await supabase.from('media_assets').upsert([row], { onConflict: 'id' });
+      if (error) {
+        // Table may be pending migration; fail-closed gracefully
+      }
+    } catch {
+      // In-memory fallback
+    }
+  }
+}
+

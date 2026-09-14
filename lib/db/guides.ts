@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { sanitizeSlug } from './custom-pages';
 import { UniversalGovernanceCore } from '@/lib/governance';
 import { revalidateCatalogSurfaces } from '@/lib/revalidation';
+import { attachCanonicalMediaToGuides } from './media';
 
 let cachedGuidesMemory: ProductGuide[] | null = null;
 
@@ -54,8 +55,9 @@ export async function getGuides(): Promise<ProductGuide[]> {
       updatedAt: row.updated_at || row.updatedAt || new Date().toISOString(),
     }));
 
-    cachedGuidesMemory = mapped;
-    return mapped;
+    const enriched = await attachCanonicalMediaToGuides(mapped);
+    cachedGuidesMemory = enriched;
+    return enriched;
   } catch (err: any) {
     console.warn('getGuides error, returning fail-closed empty:', err?.message);
     return cachedGuidesMemory || [];

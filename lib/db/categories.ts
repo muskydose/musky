@@ -5,6 +5,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { sanitizeImageUrl } from '@/lib/utils';
 import { UniversalGovernanceCore } from '@/lib/governance';
 import { revalidateCatalogSurfaces } from '@/lib/revalidation';
+import { attachCanonicalMediaToCategories } from './media';
 
 function requireSupabaseAdmin(): SupabaseClient {
   const client = getSupabaseAdmin();
@@ -45,10 +46,11 @@ export const getCategories = cache(async (): Promise<Category[]> => {
   if (admin) {
     const { data, error } = await admin.from('categories').select('*');
     if (!error && data && data.length > 0) {
-      return data
+      const mapped = data
         .map(mapRowToCategory)
         .filter((c) => c.isActive !== false)
         .sort((a, b) => a.sortOrder - b.sortOrder);
+      return await attachCanonicalMediaToCategories(mapped);
     }
   }
 
@@ -56,10 +58,11 @@ export const getCategories = cache(async (): Promise<Category[]> => {
   if (anon) {
     const { data, error } = await anon.from('categories').select('*');
     if (!error && data && data.length > 0) {
-      return data
+      const mapped = data
         .map(mapRowToCategory)
         .filter((c) => c.isActive !== false)
         .sort((a, b) => a.sortOrder - b.sortOrder);
+      return await attachCanonicalMediaToCategories(mapped);
     }
   }
 
@@ -77,7 +80,8 @@ export async function getAllCategoriesAdmin(): Promise<Category[]> {
   }
   if (!data || data.length === 0) return [];
 
-  return data.map(mapRowToCategory).sort((a, b) => a.sortOrder - b.sortOrder);
+  const mapped = data.map(mapRowToCategory).sort((a, b) => a.sortOrder - b.sortOrder);
+  return await attachCanonicalMediaToCategories(mapped);
 }
 
 export async function getCategoryByIdOrSlug(identifier: string): Promise<Category | null> {
@@ -153,7 +157,8 @@ export async function getCategoryByIdOrSlug(identifier: string): Promise<Categor
       if (row) {
         const cat = mapRowToCategory(row);
         if (cat.isActive === false) return null;
-        return cat;
+        const enriched = await attachCanonicalMediaToCategories([cat]);
+        return enriched[0] || cat;
       }
     } catch (err: any) {
       console.error('[getCategoryByIdOrSlug] DB query error:', err?.message);

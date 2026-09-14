@@ -19,6 +19,7 @@ import {
   resolveAuthoritativeProductMedia,
   generateProductMediaSchema,
 } from '@/lib/growth/product-media-governance';
+import { getPrimaryMedia } from '@/lib/db/media';
 import {
   getRelatedGuidesForProduct,
   getRelatedKnowledgeForProduct,
@@ -33,8 +34,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!product || product.isActive === false) return { title: 'Product Not Found' };
 
   const autoSeo = deriveProductAutoSeo(product);
-  const mediaResolution = resolveAuthoritativeProductMedia(product);
-  const rawPrimary = mediaResolution.primaryImage || product.ogImageUrl || product.images?.[0];
+  const primaryMedia = await getPrimaryMedia({
+    entityType: 'PRODUCT',
+    entityId: product.id,
+    legacyFallbackUrl: product.ogImageUrl || product.images?.[0],
+  });
+  const rawPrimary = primaryMedia.url || (product as any)?.canonicalPrimaryUrl || product.images?.[0];
   const primaryImgUrl = rawPrimary && !rawPrimary.includes('fallback.svg') ? rawPrimary : undefined;
 
   return await resolvePageSeoMetadata({
