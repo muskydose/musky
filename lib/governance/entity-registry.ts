@@ -254,3 +254,43 @@ registerGovernedEntity({
   getRevalidationTags: () => ['site_settings', 'business_settings'],
   getRevalidationPaths: () => ['/', '/sitemap.xml'],
 });
+
+// 9. KNOWLEDGE ENTITY
+registerGovernedEntity({
+  entityType: 'KNOWLEDGE',
+  displayName: 'Botanical Knowledge Entity',
+  tableName: 'knowledge_entities',
+  requiresAdminAuth: true,
+  requiresCsrf: true,
+  allowedStates: ['MANUAL', 'NEEDS_REVIEW', 'PUBLISHED', 'UNPUBLISHED', 'ARCHIVED'],
+  defaultState: 'PUBLISHED',
+  isSeoEligible: true,
+  isAnalyticsEligible: true,
+  validate: (entity: any, isNew?: boolean): GovernanceValidationResult => {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    if (!entity || typeof entity !== 'object') {
+      return { isValid: false, errors: ['Invalid entity payload.'], warnings: [] };
+    }
+
+    const name = entity.canonicalName || entity.canonical_name;
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      errors.push('Canonical name is required.');
+    }
+
+    const key = entity.entityKey || entity.entity_key;
+    if (isNew && (!key || typeof key !== 'string' || !key.trim())) {
+      errors.push('Entity key is required for new entities.');
+    }
+
+    const isPub = entity.published === true || entity.status === 'published' || entity.status === 'PUBLISHED';
+    if (key === 'UNKNOWN' && isPub) {
+      errors.push('Sentinel entity "UNKNOWN" cannot be published.');
+    }
+
+    return { isValid: errors.length === 0, errors, warnings };
+  },
+  getRevalidationTags: () => ['knowledge'],
+  getRevalidationPaths: (slug?: string) => ['/knowledge', slug ? `/knowledge/${slug}` : '/knowledge', '/sitemap.xml'],
+});

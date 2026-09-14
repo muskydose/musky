@@ -87,6 +87,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
     { name: 'Custom Pages', href: '/admin/pages', icon: FileText },
     { name: 'Business Content', href: '/admin/business-content', icon: Award },
     { name: 'Product Guides', href: '/admin/guides', icon: BookOpen },
+    { name: 'Knowledge Entities', href: '/admin/knowledge', icon: Leaf },
     { name: 'SEO & Google', href: '/admin/seo', icon: Globe },
     { name: 'Website Guardian', href: '/admin/guardian', icon: ShieldCheck },
     { name: 'Payment Settings', href: '/admin/payments', icon: CreditCard },

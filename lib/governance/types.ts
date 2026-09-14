@@ -15,6 +15,7 @@ export type UniversalEntityType =
   | 'CATEGORY'
   | 'COLLECTION'
   | 'GUIDE'
+  | 'KNOWLEDGE'
   | 'PAGE'
   | 'BUSINESS_DOCUMENT'
   | 'FAQ'

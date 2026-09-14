@@ -160,6 +160,16 @@ export async function revalidateEntitySurfaces(
         } catch {}
         break;
 
+      case 'KNOWLEDGE':
+        try {
+          revalidatePath('/knowledge', 'page');
+          for (const s of cleanSlugs) {
+            revalidatePath(`/knowledge/${s}`, 'page');
+          }
+          revalidateTag('knowledge');
+        } catch {}
+        break;
+
       case 'SETTING':
         try {
           revalidatePath('/', 'page');
@@ -193,11 +203,17 @@ export async function revalidateEntitySurfaces(
         break;
     }
 
-    // Safe indexing notification for content/guide updates
-    if (['GUIDE', 'PAGE'].includes(entityType) && cleanSlugs.length > 0) {
+    // Safe indexing notification for content/guide/knowledge updates
+    if (['GUIDE', 'PAGE', 'KNOWLEDGE'].includes(entityType) && cleanSlugs.length > 0) {
       try {
         const { notifySearchEngines } = await import('@/lib/indexing/indexing-service');
-        const urls = cleanSlugs.map((s) => (entityType === 'GUIDE' ? `/guides/${s}` : `/${s}`));
+        const urls = cleanSlugs.map((s) => (
+          entityType === 'GUIDE'
+            ? `/guides/${s}`
+            : entityType === 'KNOWLEDGE'
+            ? `/knowledge/${s}`
+            : `/${s}`
+        ));
         notifySearchEngines(urls, { entityType, action: 'UPDATE' });
       } catch {}
     }
