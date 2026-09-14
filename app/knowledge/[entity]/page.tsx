@@ -11,21 +11,14 @@ import { getPublishedGuides } from '@/lib/db/guides';
 import { getCategories } from '@/lib/db/categories';
 import { safeJsonLd } from '@/lib/utils';
 import {
-  CANONICAL_ENTITY_REGISTRY,
-  getEntity,
-  resolveCanonicalEntity,
-  getPublicIndexableEntities,
-} from '@/lib/growth/entity-registry';
+  getKnowledgeBySlug,
+  getPublishedKnowledgeEntities,
+  KnowledgeEntity,
+} from '@/lib/db/knowledge';
 import {
   getRelatedProductsForKnowledge,
   getRelatedGuidesForKnowledge,
 } from '@/lib/growth/entity-relationships';
-import {
-  ENTITY_KEY_TO_SLUG,
-  SLUG_TO_ENTITY_KEY,
-  HENNA_ALIAS_SLUGS,
-  getCanonicalKnowledgeUrl,
-} from '@/lib/growth/search-intent-router';
 import { buildEntityInternalGraph } from '@/lib/growth/internal-link-graph';
 import {
   Sparkles,
@@ -48,27 +41,28 @@ interface KnowledgePageProps {
 }
 
 export const revalidate = 60;
+export const dynamicParams = true;
 
 export async function generateStaticParams() {
-  return getPublicIndexableEntities()
-    .map((record) => {
-      const slug = ENTITY_KEY_TO_SLUG[record.entityKey];
-      return slug ? { entity: slug } : null;
-    })
-    .filter((p): p is { entity: string } => p !== null);
+  const entities = await getPublishedKnowledgeEntities();
+  return entities.map((record) => ({
+    entity: record.slug,
+  }));
 }
 
 export async function generateMetadata(props: KnowledgePageProps): Promise<Metadata> {
   const { entity } = await props.params;
   const slug = entity.toLowerCase().trim();
 
-  // Alias canonicalization
-  if (HENNA_ALIAS_SLUGS.has(slug)) {
+  const lookup = await getKnowledgeBySlug(slug);
+
+  if (lookup.isRedirect && lookup.redirectCanonicalSlug) {
+    const canonicalUrl = `https://muskydose.in/knowledge/${lookup.redirectCanonicalSlug}`;
     return {
-      title: 'Henna / Mehndi (Lawsonia inermis) | Musky Dose',
-      description: 'Redirecting to canonical Henna / Mehndi knowledge page.',
+      title: `${lookup.entity?.canonicalName || 'Knowledge Base'} | Musky Dose`,
+      description: `Redirecting to canonical ${lookup.entity?.canonicalName || ''} knowledge page.`,
       alternates: {
-        canonical: 'https://muskydose.in/knowledge/henna-mehndi',
+        canonical: canonicalUrl,
       },
       robots: {
         index: false,
@@ -77,26 +71,18 @@ export async function generateMetadata(props: KnowledgePageProps): Promise<Metad
     };
   }
 
-  const entityKey = SLUG_TO_ENTITY_KEY[slug];
-  if (!entityKey) {
-    return {
-      title: 'Knowledge Base | Musky Dose',
-      robots: { index: false, follow: false },
-    };
-  }
-
-  const record = getEntity(entityKey);
-  if (!record || record.status === 'UNKNOWN') {
+  const record = lookup.entity;
+  if (!record || !record.published || record.dbStatus !== 'published' || record.entityKey === 'UNKNOWN') {
     return {
       title: 'Entity Not Found | Musky Dose',
       robots: { index: false, follow: false },
     };
   }
 
-  const isIndexable = record.status === 'KNOWN';
-  const canonicalUrl = `https://muskydose.in/knowledge/${slug}`;
-  const title = `${record.canonicalName}${record.scientificName ? ` (${record.scientificName})` : ''} | Botanical Care & Sourcing — Musky Dose`;
-  const description = `${record.description} Explore authentic Rajasthani botanical characteristics, safe usage, related products, and verified origin sourcing.`;
+  const isIndexable = record.robotsIndex;
+  const canonicalUrl = `https://muskydose.in/knowledge/${record.slug}`;
+  const title = record.seoTitle || `${record.canonicalName}${record.scientificName ? ` (${record.scientificName})` : ''} | Botanical Care & Sourcing — Musky Dose`;
+  const description = record.seoDescription || `${record.description} Explore authentic Rajasthani botanical characteristics, safe usage, related products, and verified origin sourcing.`;
 
   return {
     metadataBase: new URL('https://muskydose.in'),
@@ -108,7 +94,7 @@ export async function generateMetadata(props: KnowledgePageProps): Promise<Metad
     },
     robots: {
       index: isIndexable,
-      follow: true,
+      follow: record.robotsFollow,
     },
     openGraph: {
       title,
@@ -117,6 +103,7 @@ export async function generateMetadata(props: KnowledgePageProps): Promise<Metad
       siteName: 'Musky Dose',
       type: 'article',
       locale: 'en_IN',
+      ...(record.ogImageUrl ? { images: [{ url: record.ogImageUrl }] } : {}),
     },
   };
 }
@@ -125,23 +112,19 @@ export default async function KnowledgeEntityPage(props: KnowledgePageProps) {
   const { entity } = await props.params;
   const slug = entity.toLowerCase().trim();
 
-  // 1. Permanent redirect for all regional/spelling aliases of Henna
-  if (HENNA_ALIAS_SLUGS.has(slug)) {
-    redirect('/knowledge/henna-mehndi');
+  // 1. Resolve knowledge entity via canonical DAL (handles exact slug & dynamic redirect_slugs)
+  const lookup = await getKnowledgeBySlug(slug);
+
+  if (lookup.isRedirect && lookup.redirectCanonicalSlug) {
+    redirect(`/knowledge/${lookup.redirectCanonicalSlug}`);
   }
 
-  // 2. Resolve canonical entity key
-  const entityKey = SLUG_TO_ENTITY_KEY[slug];
-  if (!entityKey) {
+  const record = lookup.entity;
+  if (!record || !record.published || record.dbStatus !== 'published' || record.entityKey === 'UNKNOWN') {
     notFound();
   }
 
-  const record = getEntity(entityKey);
-  if (!record || record.status === 'UNKNOWN') {
-    notFound();
-  }
-
-  // 3. Query active products, published guides, and categories
+  // 2. Query active products, published guides, and categories
   const [allProducts, allGuides, allCategories] = await Promise.all([
     getProducts(),
     getPublishedGuides(),
@@ -150,7 +133,7 @@ export default async function KnowledgeEntityPage(props: KnowledgePageProps) {
 
   // Build internal link graph
   const linkGraph = buildEntityInternalGraph({
-    entityKey,
+    entityKey: record.entityKey,
     products: allProducts,
     categories: allCategories,
     guides: allGuides,
@@ -171,7 +154,7 @@ export default async function KnowledgeEntityPage(props: KnowledgePageProps) {
     }),
   ]);
 
-  const canonicalUrl = `https://muskydose.in/knowledge/${slug}`;
+  const canonicalUrl = `https://muskydose.in/knowledge/${record.slug}`;
 
   // Structured Data (AboutPage + ItemPage)
   const jsonLd = {
