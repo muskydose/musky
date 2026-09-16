@@ -44,7 +44,17 @@ import {
   ChevronRight,
   Shield,
   FileCheck,
+  Grid,
+  ImageOff,
+  Maximize2,
 } from 'lucide-react';
+import MediaThumbnail from '@/components/admin/MediaThumbnail';
+import {
+  resolveMediaAssetUsage,
+  getUsedAsDescription,
+  MediaAssetUsageInfo,
+  EntityLookupContext,
+} from '@/lib/growth/media-usage';
 import {
   CatalogVisualHealthSummary,
   EntityVisualHealthReport,
@@ -70,6 +80,9 @@ export default function AdminMediaClient({
 }: AdminMediaClientProps) {
   // Navigation tabs: 'canonical' (MediaAsset) vs 'visual_health' vs 'legacy' (MediaItem)
   const [activeTab, setActiveTab] = useState<'canonical' | 'visual_health' | 'legacy'>('canonical');
+
+  // Sub-view inside canonical tab: 'entity_grouped' (Default) vs 'flat_grid'
+  const [canonicalViewMode, setCanonicalViewMode] = useState<'entity_grouped' | 'flat_grid'>('entity_grouped');
 
   // Canonical Media Assets State
   const [assets, setAssets] = useState<MediaAsset[]>(initialMediaAssets);
@@ -580,6 +593,217 @@ export default function AdminMediaClient({
     return assets.filter((a) => a.status === 'suggested');
   }, [assets]);
 
+  // Canonical Entity Lookup Context for Truthful Usage & Routes
+  const lookupContext = useMemo<EntityLookupContext>(
+    () => ({
+      products: initialProducts,
+      categories: initialCategories,
+      guides: initialGuides,
+      knowledge: initialKnowledgeEntities,
+    }),
+    [initialProducts, initialCategories, initialGuides, initialKnowledgeEntities]
+  );
+
+  // Truthful derived asset usage resolver
+  const getAssetUsage = useCallback(
+    (asset: MediaAsset): MediaAssetUsageInfo => {
+      return resolveMediaAssetUsage(asset, assets, lookupContext);
+    },
+    [assets, lookupContext]
+  );
+
+  // Quick Open Modal Helpers pre-selecting entity & role
+  const handleOpenUploadForEntity = (
+    entityType: MediaEntityType,
+    entityId: string,
+    role: MediaAssetRole = 'GALLERY'
+  ) => {
+    setUploadEntityType(entityType);
+    setUploadEntityId(entityId);
+    setUploadRole(role);
+    setShowUploadModal(true);
+  };
+
+  const handleOpenGenerateForEntity = (
+    entityType: MediaEntityType,
+    entityId: string,
+    role: MediaAssetRole = 'GALLERY'
+  ) => {
+    setGenEntityType(entityType);
+    setGenEntityId(entityId);
+    setGenRole(role);
+    setShowGenerateModal(true);
+  };
+
+  // Grouped Entity Clusters for Clustered UX
+  const entityClusters = useMemo(() => {
+    type ClusterItem = {
+      key: string;
+      entityType: MediaEntityType;
+      entityId: string;
+      name: string;
+      slug?: string;
+      existsInCatalog: boolean;
+      primaryAsset?: MediaAsset;
+      galleryAssets: MediaAsset[];
+      specializedAssets: MediaAsset[];
+      suggestedAssets: MediaAsset[];
+      allAssets: MediaAsset[];
+      storefrontUrl?: string;
+      totalAssetsCount: number;
+      livePublicCount: number;
+    };
+
+    const clusterMap = new Map<string, ClusterItem>();
+
+    const getOrCreateCluster = (entityType: MediaEntityType, entityId: string): ClusterItem => {
+      const key = `${entityType}:::${entityId}`;
+      let item = clusterMap.get(key);
+      if (!item) {
+        let name = `${entityType}: ${entityId}`;
+        let slug: string | undefined;
+        let existsInCatalog = false;
+        let storefrontUrl: string | undefined;
+
+        if (entityType === 'PRODUCT') {
+          const p = initialProducts.find((x) => x.id === entityId || x.slug === entityId);
+          if (p) {
+            name = p.name;
+            slug = p.slug;
+            existsInCatalog = true;
+            storefrontUrl = `/products/${p.slug}`;
+          }
+        } else if (entityType === 'CATEGORY') {
+          const c = initialCategories.find((x) => x.id === entityId || x.slug === entityId);
+          if (c) {
+            name = c.name;
+            slug = c.slug;
+            existsInCatalog = true;
+            storefrontUrl = `/categories/${c.slug}`;
+          }
+        } else if (entityType === 'GUIDE') {
+          const g = initialGuides.find((x) => x.id === entityId || x.slug === entityId);
+          if (g) {
+            name = g.title;
+            slug = g.slug;
+            existsInCatalog = true;
+            storefrontUrl = `/guides/${g.slug}`;
+          }
+        } else if (entityType === 'KNOWLEDGE') {
+          const k = initialKnowledgeEntities.find(
+            (x) => x.id === entityId || x.entityKey === entityId || x.slug === entityId
+          );
+          if (k) {
+            name = k.canonicalName;
+            slug = k.slug;
+            existsInCatalog = true;
+            storefrontUrl = `/knowledge/${k.slug}`;
+          }
+        } else if (entityType === 'BRAND') {
+          name = 'Musky Dose Brand Assets';
+          existsInCatalog = true;
+          storefrontUrl = '/';
+        } else if (entityType === 'MARKETING') {
+          name = 'Storefront Marketing & Banners';
+          existsInCatalog = true;
+          storefrontUrl = '/';
+        }
+
+        item = {
+          key,
+          entityType,
+          entityId,
+          name,
+          slug,
+          existsInCatalog,
+          galleryAssets: [],
+          specializedAssets: [],
+          suggestedAssets: [],
+          allAssets: [],
+          storefrontUrl,
+          totalAssetsCount: 0,
+          livePublicCount: 0,
+        };
+        clusterMap.set(key, item);
+      }
+      return item;
+    };
+
+    // Pre-populate clusters from catalog entities
+    initialProducts.forEach((p) => getOrCreateCluster('PRODUCT', p.id));
+    initialCategories.forEach((c) => getOrCreateCluster('CATEGORY', c.id));
+    initialGuides.forEach((g) => getOrCreateCluster('GUIDE', g.id));
+    initialKnowledgeEntities.forEach((k) => getOrCreateCluster('KNOWLEDGE', k.id || k.entityKey));
+    getOrCreateCluster('BRAND', 'brand-main');
+    getOrCreateCluster('MARKETING', 'marketing-hero');
+
+    // Populate assets into clusters
+    assets.forEach((asset) => {
+      if (asset.status === 'archived') return; // Hide archived assets from active entity clusters
+      const cluster = getOrCreateCluster(asset.entityType, asset.entityId || 'unassigned');
+      cluster.allAssets.push(asset);
+      cluster.totalAssetsCount++;
+
+      const usage = resolveMediaAssetUsage(asset, assets, lookupContext);
+      if (usage.isLivePublic) {
+        cluster.livePublicCount++;
+      }
+
+      if (asset.status === 'suggested') {
+        cluster.suggestedAssets.push(asset);
+      } else if (asset.status === 'approved') {
+        if (asset.role === 'PRIMARY') {
+          // If multiple approved primaries, first one sorted by sortOrder is primary
+          if (!cluster.primaryAsset || (asset.sortOrder ?? 100) < (cluster.primaryAsset.sortOrder ?? 100)) {
+            if (cluster.primaryAsset) {
+              cluster.galleryAssets.push(cluster.primaryAsset);
+            }
+            cluster.primaryAsset = asset;
+          } else {
+            cluster.galleryAssets.push(asset);
+          }
+        } else if (asset.role === 'GALLERY') {
+          cluster.galleryAssets.push(asset);
+        } else {
+          cluster.specializedAssets.push(asset);
+        }
+      }
+    });
+
+    // Sort gallery assets by sortOrder
+    for (const cluster of clusterMap.values()) {
+      cluster.galleryAssets.sort((a, b) => (a.sortOrder ?? 100) - (b.sortOrder ?? 100));
+    }
+
+    return Array.from(clusterMap.values()).filter((cluster) => {
+      if (selectedEntityType !== 'all' && cluster.entityType !== selectedEntityType) return false;
+      if (searchTerm.trim()) {
+        const q = searchTerm.toLowerCase();
+        const matches =
+          cluster.name.toLowerCase().includes(q) ||
+          cluster.entityId.toLowerCase().includes(q) ||
+          (cluster.slug && cluster.slug.toLowerCase().includes(q)) ||
+          cluster.allAssets.some(
+            (a) =>
+              (a.title && a.title.toLowerCase().includes(q)) ||
+              (a.fileName && a.fileName.toLowerCase().includes(q)) ||
+              (a.url && a.url.toLowerCase().includes(q))
+          );
+        if (!matches) return false;
+      }
+      return true;
+    });
+  }, [
+    assets,
+    initialProducts,
+    initialCategories,
+    initialGuides,
+    initialKnowledgeEntities,
+    lookupContext,
+    selectedEntityType,
+    searchTerm,
+  ]);
+
   return (
     <AdminLayout title="Universal Media & Assets">
       <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto">
@@ -679,11 +903,21 @@ export default function AdminMediaClient({
                   key={asset.id}
                   className="bg-white p-3 rounded-xl border border-amber-200 flex items-center gap-3 shadow-2xs"
                 >
-                  <div className="relative w-14 h-14 rounded-lg overflow-hidden bg-gray-100 shrink-0">
-                    <Image src={asset.url} alt={asset.title || 'AI Visual'} fill className="object-cover" unoptimized />
+                  <div
+                    className="relative w-14 h-14 rounded-lg overflow-hidden shrink-0 cursor-pointer border border-[#e8e2d5]"
+                    onClick={() => setSelectedAssetForDetail(asset)}
+                    title="Click to inspect"
+                  >
+                    <MediaThumbnail src={asset.url} alt={asset.title || 'AI Visual'} defaultFit="cover" role={asset.role} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-[#0f2d22] truncate text-[11px]">{asset.title || asset.id}</p>
+                    <p
+                      className="font-bold text-[#0f2d22] truncate text-[11px] cursor-pointer hover:text-[#c5a059]"
+                      onClick={() => setSelectedAssetForDetail(asset)}
+                      title={asset.title || asset.id}
+                    >
+                      {asset.title || asset.id}
+                    </p>
                     <p className="text-[10px] text-gray-500 truncate">
                       {getEntityLabel(asset.entityType, asset.entityId)}
                     </p>
@@ -765,21 +999,53 @@ export default function AdminMediaClient({
         {/* CANONICAL TAB CONTENT */}
         {activeTab === 'canonical' && (
           <div className="space-y-4">
-            {/* Filter Bar */}
+            {/* Filter & View Mode Switcher Bar */}
             <div className="bg-white p-4 rounded-2xl border border-[#e8e2d5] space-y-3">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="relative w-full sm:w-80">
-                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search by title, file, alt, URL..."
-                    className="w-full pl-9 pr-4 py-2 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-xs focus:outline-none focus:border-[#1b4332]"
-                  />
+              <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+                {/* Search Bar & View Mode Toggle */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <div className="relative w-full sm:w-72">
+                    <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Search by name, ID, title, file, URL..."
+                      className="w-full pl-9 pr-4 py-2 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-xs focus:outline-none focus:border-[#1b4332]"
+                    />
+                  </div>
+
+                  {/* View Mode Toggle: Group by Entity vs Flat Grid */}
+                  <div className="flex items-center bg-[#f5f1e8] p-1 rounded-xl border border-[#e8e2d5] shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setCanonicalViewMode('entity_grouped')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        canonicalViewMode === 'entity_grouped'
+                          ? 'bg-[#1b4332] text-white shadow-xs'
+                          : 'text-gray-600 hover:text-[#0f2d22]'
+                      }`}
+                    >
+                      <Layers className="w-3.5 h-3.5 text-[#c5a059]" />
+                      <span>Group by Entity ({entityClusters.length})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCanonicalViewMode('flat_grid')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        canonicalViewMode === 'flat_grid'
+                          ? 'bg-[#1b4332] text-white shadow-xs'
+                          : 'text-gray-600 hover:text-[#0f2d22]'
+                      }`}
+                    >
+                      <Grid className="w-3.5 h-3.5 text-[#c5a059]" />
+                      <span>All Assets Grid ({filteredAssets.length})</span>
+                    </button>
+                  </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto text-xs">
+                {/* Filter Selectors */}
+                <div className="flex flex-wrap items-center gap-2 text-xs">
                   {/* Entity Type Filter */}
                   <select
                     value={selectedEntityType}
@@ -839,156 +1105,694 @@ export default function AdminMediaClient({
               </div>
             </div>
 
-            {/* Media Asset Cards Grid */}
-            {filteredAssets.length === 0 ? (
-              <div className="p-16 text-center bg-white rounded-2xl border border-dashed border-[#e8e2d5] space-y-3">
-                <FolderOpen className="w-12 h-12 text-gray-300 mx-auto" />
-                <h3 className="font-serif-heading font-bold text-lg text-[#0f2d22]">No Media Assets Found</h3>
-                <p className="text-xs text-gray-500 max-w-md mx-auto">
-                  No assets match your current filter parameters. Try clearing the filters or upload a new asset.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {filteredAssets.map((asset) => {
-                  const isPrimary = asset.role === 'PRIMARY';
-                  const isAi = asset.source === 'AI_GENERATED';
-                  const isLocked = asset.isLocked;
-
-                  return (
-                    <div
-                      key={asset.id}
-                      className={`bg-white border rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between ${
-                        isPrimary
-                          ? 'border-[#c5a059] ring-2 ring-[#c5a059]/30'
-                          : 'border-[#e8e2d5]'
-                      }`}
-                    >
-                      {/* Image Thumbnail */}
-                      <div className="relative aspect-square bg-gray-50 overflow-hidden group">
-                        <Image
-                          src={asset.url}
-                          alt={asset.title || asset.fileName || 'Media Asset'}
-                          fill
-                          className="object-cover group-hover:scale-105 transition-transform duration-300"
-                          unoptimized
-                        />
-
-                        {/* Top-Left: Entity Type & Name */}
-                        <div className="absolute top-2 left-2 flex flex-col gap-1">
-                          <span className="bg-[#0f2d22]/90 backdrop-blur-xs text-[#c5a059] text-[10px] font-bold px-2 py-0.5 rounded-md">
-                            {asset.entityType}
-                          </span>
-                        </div>
-
-                        {/* Top-Right: Badges */}
-                        <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
-                          {isPrimary && (
-                            <span className="bg-[#c5a059] text-[#0f2d22] text-[10px] font-black px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">
-                              {isLocked ? <Lock className="w-3 h-3" /> : null} PRIMARY
+            {/* VIEW MODE 1: CLUSTERED GROUP BY ENTITY */}
+            {canonicalViewMode === 'entity_grouped' && (
+              <div className="space-y-6">
+                {entityClusters.length === 0 ? (
+                  <div className="p-16 text-center bg-white rounded-2xl border border-dashed border-[#e8e2d5] space-y-3">
+                    <FolderOpen className="w-12 h-12 text-gray-300 mx-auto" />
+                    <h3 className="font-serif-heading font-bold text-lg text-[#0f2d22]">No Matching Entities Found</h3>
+                    <p className="text-xs text-gray-500 max-w-md mx-auto">
+                      No entity clusters match your search or filter. Try changing your filters.
+                    </p>
+                  </div>
+                ) : (
+                  entityClusters.map((cluster) => {
+                    return (
+                      <div
+                        key={cluster.key}
+                        className="bg-white rounded-2xl border border-[#e8e2d5] shadow-xs overflow-hidden"
+                      >
+                        {/* Entity Header Banner */}
+                        <div className="p-4 md:p-5 bg-gradient-to-r from-[#fcfbf7] to-white border-b border-[#e8e2d5] flex flex-col md:flex-row md:items-center justify-between gap-3">
+                          <div className="flex items-start md:items-center gap-3">
+                            <span className="bg-[#0f2d22] text-[#c5a059] text-[10px] font-mono font-bold px-2.5 py-1 rounded-lg shrink-0">
+                              {cluster.entityType}
                             </span>
-                          )}
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h2 className="font-bold text-base text-[#0f2d22]">
+                                  {cluster.name}
+                                </h2>
+                                {cluster.storefrontUrl && cluster.existsInCatalog && (
+                                  <a
+                                    href={cluster.storefrontUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-[11px] text-emerald-800 hover:text-emerald-950 font-mono underline"
+                                    title="View live page on storefront"
+                                  >
+                                    <span>{cluster.storefrontUrl}</span>
+                                    <ExternalLink className="w-3 h-3 text-emerald-700" />
+                                  </a>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-gray-500 mt-0.5">
+                                Entity ID: <span className="font-mono">{cluster.entityId}</span>
+                                {cluster.slug ? ` • Slug: ${cluster.slug}` : ''} •{' '}
+                                <strong className="text-[#0f2d22]">{cluster.totalAssetsCount}</strong> assets (
+                                <strong className="text-emerald-700">{cluster.livePublicCount}</strong> live public
+                                {cluster.suggestedAssets.length > 0 && (
+                                  <span className="text-amber-700 font-bold ml-1">
+                                    • {cluster.suggestedAssets.length} AI pending
+                                  </span>
+                                )}
+                                )
+                              </p>
+                            </div>
+                          </div>
 
-                          {isAi && (
-                            <span className="bg-purple-900/90 text-purple-200 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">
-                              <Sparkles className="w-3 h-3 text-purple-300" /> AI
-                            </span>
-                          )}
-
-                          <span
-                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded capitalize ${
-                              asset.status === 'approved'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : asset.status === 'suggested'
-                                ? 'bg-amber-100 text-amber-800'
-                                : asset.status === 'rejected'
-                                ? 'bg-rose-100 text-rose-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}
-                          >
-                            {asset.status}
-                          </span>
-                        </div>
-
-                        {/* Hover Overlay Controls */}
-                        <div className="absolute inset-0 bg-[#0f2d22]/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2">
-                          <button
-                            onClick={() => setSelectedAssetForDetail(asset)}
-                            className="p-2 bg-white text-[#0f2d22] rounded-xl font-bold shadow hover:bg-[#c5a059] transition-colors"
-                            title="View Full Details"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-
-                          <button
-                            onClick={() => handleCopyUrl(asset.url, asset.id)}
-                            className="p-2 bg-white text-[#0f2d22] rounded-xl font-bold shadow hover:bg-[#c5a059] transition-colors"
-                            title="Copy Public URL"
-                          >
-                            {copiedId === asset.id ? (
-                              <Check className="w-4 h-4 text-emerald-600" />
-                            ) : (
-                              <Copy className="w-4 h-4" />
-                            )}
-                          </button>
-
-                          {asset.status !== 'archived' && (
+                          {/* Entity Header Actions */}
+                          <div className="flex items-center gap-2 shrink-0">
                             <button
-                              onClick={() => handleArchive(asset)}
-                              disabled={actionLoadingId === asset.id}
-                              className="p-2 bg-rose-600 text-white rounded-xl font-bold shadow hover:bg-rose-700 transition-colors"
-                              title="Archive Asset"
+                              type="button"
+                              onClick={() => handleOpenGenerateForEntity(cluster.entityType, cluster.entityId)}
+                              className="inline-flex items-center gap-1.5 bg-[#0f2d22] text-[#c5a059] border border-[#c5a059]/40 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-[#1b4332] transition-colors"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>Generate AI</span>
                             </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Card Info & Quick Actions */}
-                      <div className="p-3 bg-white text-xs border-t border-[#e8e2d5]/60 space-y-2">
-                        <div>
-                          <p className="font-bold text-[#0f2d22] truncate text-[11px]" title={asset.title || asset.fileName}>
-                            {asset.title || asset.fileName || 'Untitled Asset'}
-                          </p>
-                          <p className="text-[10px] text-gray-500 truncate">
-                            {getEntityLabel(asset.entityType, asset.entityId)}
-                          </p>
-                        </div>
-
-                        {/* Role and Lock Action */}
-                        <div className="flex items-center justify-between pt-1 border-t border-gray-100 text-[10px]">
-                          <span className="font-mono text-gray-400 uppercase">{asset.role}</span>
-
-                          <div className="flex items-center gap-1">
-                            {!isPrimary && asset.status === 'approved' && (
-                              <button
-                                onClick={() => handleSetPrimary(asset, true)}
-                                disabled={actionLoadingId === asset.id}
-                                className="text-[10px] font-bold text-[#1b4332] hover:text-[#c5a059] underline"
-                              >
-                                Set Primary
-                              </button>
-                            )}
-
-                            {isPrimary && (
-                              <button
-                                onClick={() => handleToggleLock(asset)}
-                                disabled={actionLoadingId === asset.id}
-                                className="flex items-center gap-0.5 text-[10px] font-bold text-[#c5a059] hover:underline"
-                                title={isLocked ? 'Click to unlock' : 'Click to lock primary against AI demotion'}
-                              >
-                                {isLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3 text-gray-400" />}
-                                <span>{isLocked ? 'Locked' : 'Unlocked'}</span>
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenUploadForEntity(cluster.entityType, cluster.entityId)}
+                              className="inline-flex items-center gap-1.5 bg-[#1b4332] text-white px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-[#0f2d22] transition-colors"
+                            >
+                              <Plus className="w-3.5 h-3.5 text-[#c5a059]" />
+                              <span>Upload Media</span>
+                            </button>
                           </div>
                         </div>
+
+                        {/* Entity Visual Assets Grid */}
+                        <div className="p-4 md:p-5 space-y-5">
+                          {/* 1. Authoritative Slots: PRIMARY & GALLERY */}
+                          <div>
+                            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Storefront Public Slots (PRIMARY &amp; GALLERY)</span>
+                            </p>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                              {/* Primary Slot Card */}
+                              {cluster.primaryAsset ? (
+                                (() => {
+                                  const usage = getAssetUsage(cluster.primaryAsset);
+                                  const isLocked = Boolean(cluster.primaryAsset.isLocked);
+                                  return (
+                                    <div className="bg-white border-2 border-[#c5a059] ring-2 ring-[#c5a059]/20 rounded-2xl overflow-hidden shadow-xs flex flex-col justify-between">
+                                      <div className="relative aspect-square bg-[#fcfbf7] overflow-hidden group">
+                                        <MediaThumbnail
+                                          src={cluster.primaryAsset.url}
+                                          alt={cluster.primaryAsset.title || cluster.name}
+                                          defaultFit="cover"
+                                          role="PRIMARY"
+                                        />
+                                        <div className="absolute top-2 left-2 z-20">
+                                          <span className="bg-[#0f2d22] text-[#c5a059] border border-[#c5a059]/50 text-[10px] font-black px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">
+                                            {isLocked ? <Lock className="w-3 h-3 text-[#c5a059]" /> : <ShieldCheck className="w-3 h-3 text-emerald-400" />}
+                                            <span>PRIMARY</span>
+                                          </span>
+                                        </div>
+                                        <div className="absolute top-2 right-2 z-20">
+                                          <span className="bg-emerald-800 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-xs flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                            <span>LIVE</span>
+                                          </span>
+                                        </div>
+
+                                        {/* Hover Controls */}
+                                        <div className="absolute inset-0 bg-[#0f2d22]/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2 z-30">
+                                          <button
+                                            type="button"
+                                            onClick={() => setSelectedAssetForDetail(cluster.primaryAsset!)}
+                                            className="p-2 bg-white text-[#0f2d22] rounded-xl font-bold shadow hover:bg-[#c5a059] transition-colors"
+                                            title="View Details"
+                                          >
+                                            <Eye className="w-4 h-4" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleCopyUrl(cluster.primaryAsset!.url, cluster.primaryAsset!.id)}
+                                            className="p-2 bg-white text-[#0f2d22] rounded-xl font-bold shadow hover:bg-[#c5a059] transition-colors"
+                                            title="Copy URL"
+                                          >
+                                            {copiedId === cluster.primaryAsset!.id ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleArchive(cluster.primaryAsset!)}
+                                            className="p-2 bg-rose-600 text-white rounded-xl font-bold shadow hover:bg-rose-700 transition-colors"
+                                            title="Archive"
+                                          >
+                                            <Trash2 className="w-4 h-4" />
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      <div className="p-3 bg-white text-xs border-t border-[#e8e2d5]/60 space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                          <span className="font-bold text-[#0f2d22] text-[11px] truncate">
+                                            {cluster.primaryAsset.title || cluster.primaryAsset.fileName || 'Authoritative Primary'}
+                                          </span>
+                                        </div>
+                                        <p className="text-[10px] text-gray-500 truncate">{usage.usedAs}</p>
+                                        {usage.consumingRoutes[0] && (
+                                          <a
+                                            href={usage.consumingRoutes[0].route}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 text-[10px] text-emerald-800 font-mono font-medium hover:underline truncate"
+                                          >
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                            <span>{usage.consumingRoutes[0].route}</span>
+                                          </a>
+                                        )}
+                                        <div className="flex items-center justify-between pt-1 border-t border-gray-100 text-[10px]">
+                                          <span className="font-mono text-gray-400">
+                                            {cluster.primaryAsset.id.slice(0, 12)}...
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleToggleLock(cluster.primaryAsset!)}
+                                            disabled={actionLoadingId === cluster.primaryAsset.id}
+                                            className="flex items-center gap-0.5 text-[10px] font-bold text-[#c5a059] hover:underline"
+                                            title={isLocked ? 'Click to unlock' : 'Click to lock primary'}
+                                          >
+                                            {isLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3 text-gray-400" />}
+                                            <span>{isLocked ? 'Locked' : 'Unlocked'}</span>
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })()
+                              ) : (
+                                /* Missing Primary Placeholder */
+                                <div className="border-2 border-dashed border-amber-300 bg-amber-50/40 rounded-2xl p-5 text-center flex flex-col items-center justify-center min-h-[260px] space-y-2">
+                                  <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+                                    <ImageIcon className="w-5 h-5" />
+                                  </div>
+                                  <div>
+                                    <p className="font-bold text-amber-950 text-xs">Missing Primary Packshot</p>
+                                    <p className="text-[10px] text-amber-800/80 mt-0.5 max-w-[180px]">
+                                      Storefront PDP hero is using legacy/fallback image.
+                                    </p>
+                                  </div>
+                                  <div className="flex flex-col gap-1.5 w-full pt-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenUploadForEntity(cluster.entityType, cluster.entityId, 'PRIMARY')}
+                                      className="w-full py-1.5 bg-[#1b4332] text-white rounded-lg text-[10px] font-bold hover:bg-[#0f2d22] transition-colors"
+                                    >
+                                      Upload Primary
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenGenerateForEntity(cluster.entityType, cluster.entityId, 'PRIMARY')}
+                                      className="w-full py-1.5 bg-[#0f2d22] text-[#c5a059] border border-[#c5a059]/40 rounded-lg text-[10px] font-bold hover:bg-[#1b4332] transition-colors"
+                                    >
+                                      Generate AI Primary
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Gallery Slots */}
+                              {cluster.galleryAssets.map((asset, index) => {
+                                const usage = getAssetUsage(asset);
+                                return (
+                                  <div
+                                    key={asset.id}
+                                    className="bg-white border border-[#e8e2d5] rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
+                                  >
+                                    <div className="relative aspect-square bg-[#fcfbf7] overflow-hidden group">
+                                      <MediaThumbnail
+                                        src={asset.url}
+                                        alt={asset.title || asset.fileName || 'Gallery Asset'}
+                                        defaultFit="cover"
+                                        role="GALLERY"
+                                      />
+                                      <div className="absolute top-2 left-2 z-20">
+                                        <span className="bg-[#0f2d22]/90 backdrop-blur-xs text-white text-[9px] font-bold px-2 py-0.5 rounded-md shadow-xs">
+                                          GALLERY #{index + 1}
+                                        </span>
+                                      </div>
+                                      <div className="absolute top-2 right-2 z-20">
+                                        {usage.isLivePublic ? (
+                                          <span className="bg-emerald-700 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-xs">
+                                            LIVE
+                                          </span>
+                                        ) : (
+                                          <span className="bg-slate-700 text-slate-200 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-xs">
+                                            STANDBY
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {/* Hover Controls */}
+                                      <div className="absolute inset-0 bg-[#0f2d22]/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2 z-30">
+                                        <button
+                                          type="button"
+                                          onClick={() => setSelectedAssetForDetail(asset)}
+                                          className="p-2 bg-white text-[#0f2d22] rounded-xl font-bold shadow hover:bg-[#c5a059] transition-colors"
+                                          title="View Details"
+                                        >
+                                          <Eye className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleCopyUrl(asset.url, asset.id)}
+                                          className="p-2 bg-white text-[#0f2d22] rounded-xl font-bold shadow hover:bg-[#c5a059] transition-colors"
+                                          title="Copy URL"
+                                        >
+                                          {copiedId === asset.id ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleArchive(asset)}
+                                          className="p-2 bg-rose-600 text-white rounded-xl font-bold shadow hover:bg-rose-700 transition-colors"
+                                          title="Archive"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    <div className="p-3 bg-white text-xs border-t border-[#e8e2d5]/60 space-y-1.5">
+                                      <p className="font-bold text-[#0f2d22] truncate text-[11px]" title={asset.title || asset.fileName}>
+                                        {asset.title || asset.fileName || `Gallery Asset #${index + 1}`}
+                                      </p>
+                                      <p className="text-[10px] text-gray-500 truncate">{usage.usedAs}</p>
+                                      <div className="flex items-center justify-between pt-1 border-t border-gray-100 text-[10px]">
+                                        <span className="font-mono text-gray-400">
+                                          {asset.id.slice(0, 12)}...
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSetPrimary(asset, true)}
+                                          disabled={actionLoadingId === asset.id}
+                                          className="text-[10px] font-bold text-[#1b4332] hover:text-[#c5a059] underline"
+                                        >
+                                          Set Primary
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                              {/* Add Gallery Placeholder Button */}
+                              {cluster.entityType === 'PRODUCT' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenUploadForEntity(cluster.entityType, cluster.entityId, 'GALLERY')}
+                                  className="border-2 border-dashed border-[#e8e2d5] hover:border-[#1b4332] bg-[#fcfbf7] hover:bg-white rounded-2xl p-5 text-center flex flex-col items-center justify-center min-h-[260px] space-y-2 transition-all cursor-pointer group"
+                                >
+                                  <div className="w-10 h-10 rounded-xl bg-[#f5f1e8] group-hover:bg-[#1b4332] text-[#1b4332] group-hover:text-white flex items-center justify-center transition-colors">
+                                    <Plus className="w-5 h-5" />
+                                  </div>
+                                  <div>
+                                    <p className="font-bold text-[#0f2d22] text-xs">Add Gallery Slide</p>
+                                    <p className="text-[10px] text-gray-400 mt-0.5">
+                                      Upload high-resolution lifestyle or packaging photo
+                                    </p>
+                                  </div>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* 2. Specialized Roles (Packaging, Lifestyle, Ingredients, Hero) */}
+                          {cluster.specializedAssets.length > 0 && (
+                            <div>
+                              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                                <Activity className="w-3.5 h-3.5 text-blue-600" />
+                                <span>Specialized Content Slots ({cluster.specializedAssets.length})</span>
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                {cluster.specializedAssets.map((asset) => {
+                                  const usage = getAssetUsage(asset);
+                                  return (
+                                    <div
+                                      key={asset.id}
+                                      className="bg-white border border-[#e8e2d5] rounded-2xl overflow-hidden shadow-xs flex flex-col justify-between"
+                                    >
+                                      <div className="relative aspect-square bg-[#fcfbf7] overflow-hidden group">
+                                        <MediaThumbnail
+                                          src={asset.url}
+                                          alt={asset.title || asset.fileName || 'Asset'}
+                                          defaultFit="cover"
+                                          role={asset.role}
+                                        />
+                                        <div className="absolute top-2 left-2 z-20">
+                                          <span className="bg-blue-900 text-blue-100 text-[9px] font-bold px-2 py-0.5 rounded-md shadow-xs">
+                                            {asset.role}
+                                          </span>
+                                        </div>
+                                        <div className="absolute inset-0 bg-[#0f2d22]/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2 z-30">
+                                          <button
+                                            type="button"
+                                            onClick={() => setSelectedAssetForDetail(asset)}
+                                            className="p-2 bg-white text-[#0f2d22] rounded-xl font-bold shadow hover:bg-[#c5a059]"
+                                          >
+                                            <Eye className="w-4 h-4" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleCopyUrl(asset.url, asset.id)}
+                                            className="p-2 bg-white text-[#0f2d22] rounded-xl font-bold shadow hover:bg-[#c5a059]"
+                                          >
+                                            <Copy className="w-4 h-4" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                      <div className="p-3 bg-white text-xs border-t border-[#e8e2d5]/60 space-y-1">
+                                        <p className="font-bold text-[#0f2d22] truncate text-[11px]">
+                                          {asset.title || asset.fileName || asset.role}
+                                        </p>
+                                        <p className="text-[10px] text-gray-500 truncate">{usage.usedAs}</p>
+                                        <span className="text-[9px] font-mono text-gray-400 block pt-1 border-t border-gray-100">
+                                          {usage.consumptionSummary}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 3. Pending AI Candidates for this Entity */}
+                          {cluster.suggestedAssets.length > 0 && (
+                            <div className="p-4 bg-amber-50/70 border border-amber-300 rounded-2xl space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-amber-950 font-bold text-xs">
+                                  <Sparkles className="w-4 h-4 text-amber-600" />
+                                  <span>{cluster.suggestedAssets.length} AI Suggested Visual(s) Awaiting Your Review</span>
+                                </div>
+                                <span className="bg-amber-200/80 text-amber-950 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                  NON-PUBLIC • ZERO STOREFRONT EXPOSURE
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                {cluster.suggestedAssets.map((asset) => (
+                                  <div
+                                    key={asset.id}
+                                    className="bg-white p-3 rounded-xl border border-amber-200 flex items-center gap-3 shadow-2xs"
+                                  >
+                                    <div
+                                      className="relative w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-[#e8e2d5] cursor-pointer"
+                                      onClick={() => setSelectedAssetForDetail(asset)}
+                                      title="Inspect visual"
+                                    >
+                                      <MediaThumbnail
+                                        src={asset.url}
+                                        alt={asset.title || 'AI Visual'}
+                                        defaultFit="cover"
+                                        role={asset.role}
+                                      />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p
+                                        className="font-bold text-[#0f2d22] truncate text-[11px] cursor-pointer hover:text-[#c5a059]"
+                                        onClick={() => setSelectedAssetForDetail(asset)}
+                                      >
+                                        {asset.title || asset.id}
+                                      </p>
+                                      <p className="text-[10px] text-gray-500 truncate">
+                                        Slot: <strong>{asset.role}</strong>
+                                      </p>
+                                      <div className="flex items-center gap-1.5 mt-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleStatusTransition(asset.id, 'approved')}
+                                          disabled={actionLoadingId === asset.id}
+                                          className="bg-emerald-700 hover:bg-emerald-800 text-white px-2.5 py-1 rounded text-[10px] font-bold transition-colors"
+                                        >
+                                          Approve
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleStatusTransition(asset.id, 'rejected')}
+                                          disabled={actionLoadingId === asset.id}
+                                          className="bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1 rounded text-[10px] font-bold transition-colors"
+                                        >
+                                          Reject
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
+            )}
+
+            {/* VIEW MODE 2: FLAT FILTERABLE GRID */}
+            {canonicalViewMode === 'flat_grid' && (
+              <>
+                {filteredAssets.length === 0 ? (
+                  <div className="p-16 text-center bg-white rounded-2xl border border-dashed border-[#e8e2d5] space-y-3">
+                    <FolderOpen className="w-12 h-12 text-gray-300 mx-auto" />
+                    <h3 className="font-serif-heading font-bold text-lg text-[#0f2d22]">No Media Assets Found</h3>
+                    <p className="text-xs text-gray-500 max-w-md mx-auto">
+                      No assets match your current filter parameters. Try clearing the filters or upload a new asset.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {filteredAssets.map((asset) => {
+                      const usage = getAssetUsage(asset);
+                      const isPrimary = asset.role === 'PRIMARY';
+                      const isAi = asset.source === 'AI_GENERATED';
+                      const isLocked = Boolean(asset.isLocked);
+
+                      return (
+                        <div
+                          key={asset.id}
+                          className={`bg-white border rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between ${
+                            usage.authorityStatus === 'LIVE_AUTHORITATIVE'
+                              ? 'border-[#c5a059] ring-2 ring-[#c5a059]/30'
+                              : asset.status === 'suggested'
+                              ? 'border-purple-300 ring-1 ring-purple-200'
+                              : asset.status === 'rejected'
+                              ? 'border-rose-200 opacity-75'
+                              : asset.status === 'archived'
+                              ? 'border-gray-200 opacity-60'
+                              : 'border-[#e8e2d5]'
+                          }`}
+                        >
+                          {/* Image Thumbnail */}
+                          <div className="relative aspect-square bg-[#fcfbf7] overflow-hidden group">
+                            <MediaThumbnail
+                              src={asset.url}
+                              alt={asset.title || asset.fileName || 'Media Asset'}
+                              defaultFit="cover"
+                              role={asset.role}
+                            />
+
+                            {/* Top-Left: Entity Type */}
+                            <div className="absolute top-2 left-2 flex flex-col gap-1 z-20 pointer-events-none">
+                              <span className="bg-[#0f2d22]/90 backdrop-blur-xs text-[#c5a059] text-[9px] font-bold px-2 py-0.5 rounded-md shadow-xs">
+                                {asset.entityType}
+                              </span>
+                            </div>
+
+                            {/* Top-Right: Authority & Source Badges */}
+                            <div className="absolute top-2 right-2 flex flex-col items-end gap-1 z-20 pointer-events-none">
+                              {usage.authorityStatus === 'LIVE_AUTHORITATIVE' && (
+                                <span className="bg-[#0f2d22] text-[#c5a059] border border-[#c5a059]/60 text-[9px] font-black px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">
+                                  {isLocked ? <Lock className="w-3 h-3 text-[#c5a059]" /> : <ShieldCheck className="w-3 h-3 text-emerald-400" />}
+                                  <span>{isLocked ? 'LIVE (LOCKED)' : 'LIVE / AUTH'}</span>
+                                </span>
+                              )}
+
+                              {usage.authorityStatus === 'APPROVED_NOT_CURRENT' && (
+                                <span className="bg-slate-800 text-slate-200 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-xs">
+                                  STANDBY
+                                </span>
+                              )}
+
+                              {usage.authorityStatus === 'SUGGESTED' && (
+                                <span className="bg-purple-900 text-purple-200 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-xs flex items-center gap-1">
+                                  <Sparkles className="w-3 h-3 text-purple-300" />
+                                  <span>SUGGESTED</span>
+                                </span>
+                              )}
+
+                              {usage.authorityStatus === 'REJECTED' && (
+                                <span className="bg-rose-900 text-rose-200 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-xs">
+                                  REJECTED
+                                </span>
+                              )}
+
+                              {usage.authorityStatus === 'ARCHIVED' && (
+                                <span className="bg-gray-800 text-gray-200 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-xs">
+                                  ARCHIVED
+                                </span>
+                              )}
+
+                              {isAi ? (
+                                <span className="bg-purple-100 text-purple-800 text-[8px] font-bold px-1.5 py-0.2 rounded border border-purple-200">
+                                  AI GEN
+                                </span>
+                              ) : asset.source === 'VERIFIED_FREE_LICENSE' ? (
+                                <span className="bg-emerald-100 text-emerald-800 text-[8px] font-bold px-1.5 py-0.2 rounded border border-emerald-200">
+                                  FREE LIC
+                                </span>
+                              ) : null}
+                            </div>
+
+                            {/* Hover Overlay Controls */}
+                            <div className="absolute inset-0 bg-[#0f2d22]/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2 z-30">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedAssetForDetail(asset)}
+                                className="p-2 bg-white text-[#0f2d22] rounded-xl font-bold shadow hover:bg-[#c5a059] transition-colors"
+                                title="View Full Details"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleCopyUrl(asset.url, asset.id)}
+                                className="p-2 bg-white text-[#0f2d22] rounded-xl font-bold shadow hover:bg-[#c5a059] transition-colors"
+                                title="Copy Public URL"
+                              >
+                                {copiedId === asset.id ? (
+                                  <Check className="w-4 h-4 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-4 h-4" />
+                                )}
+                              </button>
+
+                              {asset.status !== 'archived' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleArchive(asset)}
+                                  disabled={actionLoadingId === asset.id}
+                                  className="p-2 bg-rose-600 text-white rounded-xl font-bold shadow hover:bg-rose-700 transition-colors"
+                                  title="Archive Asset"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Card Info & Usage */}
+                          <div className="p-3 bg-white text-xs border-t border-[#e8e2d5]/60 space-y-2">
+                            <div>
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="font-mono text-[9px] text-gray-400 uppercase tracking-wider">
+                                  {asset.role}
+                                </span>
+                                <span className="font-mono text-[9px] text-gray-400 truncate max-w-[80px]" title={asset.id}>
+                                  {asset.id.slice(0, 12)}...
+                                </span>
+                              </div>
+                              <p className="font-bold text-[#0f2d22] truncate text-[11px] mt-0.5" title={asset.title || asset.fileName}>
+                                {asset.title || asset.fileName || 'Untitled Asset'}
+                              </p>
+                              <p className="text-[10px] text-gray-500 truncate" title={usage.entityName}>
+                                {usage.entityName}
+                              </p>
+                            </div>
+
+                            {/* Truthful Usage & Consuming Route */}
+                            <div className="pt-1.5 border-t border-gray-100 space-y-1">
+                              <p className="text-[10px] text-gray-600 leading-tight line-clamp-1" title={usage.usedAs}>
+                                <strong className="text-gray-400 uppercase text-[9px] block">Used As:</strong>
+                                {usage.usedAs}
+                              </p>
+
+                              {usage.isLivePublic && usage.consumingRoutes.length > 0 ? (
+                                <a
+                                  href={usage.consumingRoutes[0].route}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-[10px] text-emerald-800 font-mono font-medium hover:text-emerald-950 transition-colors truncate max-w-full"
+                                  title={`View consuming route: ${usage.consumingRoutes[0].route}`}
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                  <span className="truncate">{usage.consumingRoutes[0].route}</span>
+                                  <ExternalLink className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                                </a>
+                              ) : (
+                                <p className="text-[10px] text-gray-400 italic flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-gray-300 shrink-0" />
+                                  <span className="truncate">{usage.consumptionSummary}</span>
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Quick Governance Actions */}
+                            <div className="flex items-center justify-between pt-1.5 border-t border-gray-100 text-[10px]">
+                              {asset.status === 'suggested' ? (
+                                <div className="flex items-center gap-1.5 w-full justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStatusTransition(asset.id, 'approved')}
+                                    disabled={actionLoadingId === asset.id}
+                                    className="bg-emerald-700 hover:bg-emerald-800 text-white px-2.5 py-1 rounded text-[10px] font-bold"
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStatusTransition(asset.id, 'rejected')}
+                                    disabled={actionLoadingId === asset.id}
+                                    className="bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1 rounded text-[10px] font-bold"
+                                  >
+                                    Reject
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <div>
+                                    {!isPrimary && asset.status === 'approved' && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSetPrimary(asset, true)}
+                                        disabled={actionLoadingId === asset.id}
+                                        className="text-[10px] font-bold text-[#1b4332] hover:text-[#c5a059] underline"
+                                      >
+                                        Set Primary
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  <div>
+                                    {isPrimary && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleLock(asset)}
+                                        disabled={actionLoadingId === asset.id}
+                                        className="flex items-center gap-0.5 text-[10px] font-bold text-[#c5a059] hover:underline"
+                                        title={isLocked ? 'Click to unlock' : 'Click to lock primary against AI demotion'}
+                                      >
+                                        {isLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3 text-gray-400" />}
+                                        <span>{isLocked ? 'Locked' : 'Unlocked'}</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -1110,13 +1914,12 @@ export default function AdminMediaClient({
                         className="bg-white p-4 rounded-2xl border border-[#e8e2d5] flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs hover:border-[#c5a059]/60 transition-colors"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-gray-100 shrink-0 border border-[#e8e2d5]">
-                            <Image
+                          <div className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-[#e8e2d5]">
+                            <MediaThumbnail
                               src={primaryUrl}
                               alt={report.entityName}
-                              fill
-                              className="object-cover"
-                              unoptimized
+                              defaultFit="cover"
+                              role="PRIMARY"
                             />
                           </div>
 
@@ -1356,8 +2159,8 @@ export default function AdminMediaClient({
                     key={item.id}
                     className="bg-white border border-[#e8e2d5] rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
                   >
-                    <div className="relative aspect-square bg-gray-50 overflow-hidden">
-                      <Image src={item.url} alt={item.name} fill className="object-cover" unoptimized />
+                    <div className="relative aspect-square bg-[#fcfbf7] overflow-hidden">
+                      <MediaThumbnail src={item.url} alt={item.name} defaultFit="cover" />
                     </div>
                     <div className="p-3 bg-white text-[11px] border-t border-[#e8e2d5]/60 space-y-1">
                       <p className="font-bold text-[#0f2d22] truncate" title={item.name}>
@@ -1397,15 +2200,75 @@ export default function AdminMediaClient({
 
               <div className="p-6 space-y-6 text-xs">
                 {/* Large Preview */}
-                <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-gray-100 border border-[#e8e2d5]">
-                  <Image
+                <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-[#fcfbf7] border border-[#e8e2d5]">
+                  <MediaThumbnail
                     src={selectedAssetForDetail.url}
                     alt={selectedAssetForDetail.title || selectedAssetForDetail.fileName || 'Asset'}
-                    fill
-                    className="object-contain"
-                    unoptimized
+                    defaultFit="contain"
+                    role={selectedAssetForDetail.role}
                   />
                 </div>
+
+                {/* Truthful Storefront Usage & Consuming Routes */}
+                {(() => {
+                  const detailUsage = getAssetUsage(selectedAssetForDetail);
+                  return (
+                    <div className="p-4 rounded-xl border bg-[#fcfbf7] border-[#e8e2d5] space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-[#0f2d22] text-[11px] flex items-center gap-1.5">
+                          <Activity className="w-3.5 h-3.5 text-[#c5a059]" />
+                          <span>Storefront Consumption &amp; Authority</span>
+                        </span>
+                        {detailUsage.isLivePublic ? (
+                          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                            <span>{detailUsage.authorityBadgeLabel}</span>
+                          </span>
+                        ) : (
+                          <span className="bg-slate-100 text-slate-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-300">
+                            {detailUsage.authorityBadgeLabel}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                        <div>
+                          <span className="text-gray-400 font-bold text-[10px] uppercase">Used As:</span>
+                          <p className="font-medium text-[#0f2d22] mt-0.5">{detailUsage.usedAs}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-400 font-bold text-[10px] uppercase">Exact Slot:</span>
+                          <p className="font-mono font-medium text-[#0f2d22] mt-0.5">{detailUsage.exactSlot}</p>
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-gray-400 font-bold text-[10px] uppercase">Consuming Storefront Route(s):</span>
+                        {detailUsage.consumingRoutes.length > 0 ? (
+                          <div className="space-y-1 mt-1">
+                            {detailUsage.consumingRoutes.map((r) => (
+                              <a
+                                key={r.route}
+                                href={r.route}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-900 rounded-lg font-mono text-[11px] transition-colors"
+                              >
+                                <span>{r.route}</span>
+                                <ExternalLink className="w-3 h-3 text-emerald-700" />
+                                <span className="text-[10px] text-emerald-700 font-sans">({r.label})</span>
+                              </a>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-gray-500 italic mt-0.5">
+                            {detailUsage.whyNotPublicYet || 'Not currently consumed by any storefront page.'}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Metadata Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-[#fcfbf7] p-4 rounded-xl border border-[#e8e2d5]">
