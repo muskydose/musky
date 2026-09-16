@@ -7,7 +7,10 @@
     {
       "path": "/api/cron/gsc-sync",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/growth-autopilot",
+      "schedule": "0 */4 * * *"
     }
   ]
 }
-

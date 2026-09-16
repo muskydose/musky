@@ -1125,6 +1125,39 @@ export async function recordAuditLog(params: {
   }
 }
 
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  user_email: string;
+  resource: string;
+  details: Record<string, any>;
+  ip_address: string;
+  created_at: string;
+}
+
+/**
+ * Fetches recent audit log entries.
+ */
+export async function getAuditLogs(limit = 50): Promise<AuditLogEntry[]> {
+  try {
+    const supabase = getSupabaseAdmin();
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (!error && Array.isArray(data)) {
+        return data as AuditLogEntry[];
+      }
+    }
+  } catch (err) {
+    console.warn('[AuditLog] Failed to fetch audit logs:', err);
+  }
+  return [];
+}
+
 /**
  * Sets secure HttpOnly cookie on response object.
  */

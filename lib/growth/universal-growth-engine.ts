@@ -415,6 +415,176 @@ export async function mapKeywordsToUniversalCatalog(params: {
   return opportunities.sort((a, b) => b.opportunityScore - a.opportunityScore);
 }
 
+export interface UniversalOpportunityRecord {
+  id: string;
+  keyword: string;
+  queryText: string;
+  source: 'GSC_REAL' | 'GROWTH_DB' | 'CATALOG_DERIVED';
+  targetEntityType: UniversalTargetType;
+  targetEntityId: string;
+  targetUrl: string;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  position: number;
+  opportunityScore: number;
+  opportunityType:
+    | 'HIGH_IMPRESSION_LOW_CTR'
+    | 'UNMAPPED_INTENT'
+    | 'TOP_RANKING'
+    | 'CONTENT_GAP'
+    | 'CTR_OPPORTUNITY'
+    | 'STRIKING_DISTANCE';
+  suggestedAction: string;
+}
+
+/**
+ * Universal opportunity matrix generator.
+ * Combines real GSC signals with catalog-derived first-party opportunities.
+ * Zero invented search volume; real data only.
+ */
+export function generateUniversalOpportunityMatrix(
+  gscQueries: SearchConsoleQuery[] = [],
+  products: Product[] = [],
+  categories: Category[] = [],
+  guides: ProductGuide[] = [],
+  knowledgeEntities: CanonicalEntityRecord[] = []
+): UniversalOpportunityRecord[] {
+  const list: UniversalOpportunityRecord[] = [];
+
+  // 1. Process real GSC queries if available
+  for (const q of gscQueries) {
+    const term = q.query.toLowerCase().trim();
+    if (!term || term.length < 3) continue;
+
+    const impressions = q.impressions || 0;
+    const clicks = q.clicks || 0;
+    const ctr = q.ctr || 0;
+    const position = q.position || 99;
+
+    let matchedType: UniversalTargetType = 'PRODUCT';
+    let matchedId = products[0]?.id || 'prod-general';
+    let matchedUrl = `/products/${products[0]?.slug || ''}`;
+
+    const matchedProd = products.find(
+      (p) => term.includes(p.name.toLowerCase()) || p.name.toLowerCase().includes(term)
+    );
+    if (matchedProd) {
+      matchedType = 'PRODUCT';
+      matchedId = matchedProd.id;
+      matchedUrl = `/products/${matchedProd.slug}`;
+    } else {
+      const matchedCat = categories.find(
+        (c) => term.includes(c.name.toLowerCase()) || c.name.toLowerCase().includes(term)
+      );
+      if (matchedCat) {
+        matchedType = 'CATEGORY';
+        matchedId = matchedCat.id;
+        matchedUrl = `/categories/${matchedCat.slug}`;
+      } else {
+        const matchedKnow = knowledgeEntities.find(
+          (k) =>
+            term.includes(k.canonicalName.toLowerCase()) ||
+            (k.aliases || []).some((a) => term.includes(a.toLowerCase()))
+        );
+        if (matchedKnow) {
+          matchedType = 'KNOWLEDGE';
+          matchedId = matchedKnow.entityKey;
+          matchedUrl = `/knowledge/${matchedKnow.canonicalName.toLowerCase().replace(/\s+/g, '-')}`;
+        }
+      }
+    }
+
+    let oppType: UniversalOpportunityRecord['opportunityType'] = 'TOP_RANKING';
+    let suggestedAction = 'Maintain rank with fresh internal links.';
+    let score = 50;
+
+    if (impressions >= 50 && ctr < 0.03 && position <= 20) {
+      oppType = 'HIGH_IMPRESSION_LOW_CTR';
+      suggestedAction = `Refine meta title and description for ${matchedType} "${matchedId}" to improve click-through rate.`;
+      score = 90;
+    } else if (impressions >= 30 && !guides.some((g) => g.title.toLowerCase().includes(term))) {
+      oppType = 'CONTENT_GAP';
+      suggestedAction = `Create an instructional guide targeting "${term}" to capture commercial research intent.`;
+      score = 80;
+    } else if (position > 20 && impressions > 10) {
+      oppType = 'UNMAPPED_INTENT';
+      suggestedAction = `Add internal links with anchor "${term}" to boost ranking into top 10.`;
+      score = 65;
+    }
+
+    list.push({
+      id: `opp-gsc-${encodeURIComponent(term).slice(0, 30)}-${matchedId}`,
+      keyword: term,
+      queryText: term,
+      source: 'GSC_REAL',
+      targetEntityType: matchedType,
+      targetEntityId: matchedId,
+      targetUrl: matchedUrl,
+      impressions,
+      clicks,
+      ctr,
+      position,
+      opportunityScore: score,
+      opportunityType: oppType,
+      suggestedAction,
+    });
+  }
+
+  // 2. First-party Catalog-derived opportunities (missing SEO metadata or provenance)
+  for (const prod of products) {
+    const hasShortTitle = !prod.seoTitle || prod.seoTitle.length < 30;
+    const hasShortDesc = !prod.seoDescription || prod.seoDescription.length < 50;
+    if (hasShortTitle || hasShortDesc) {
+      list.push({
+        id: `opp-catalog-seo-${prod.id}`,
+        keyword: prod.name.toLowerCase(),
+        queryText: prod.name.toLowerCase(),
+        source: 'CATALOG_DERIVED',
+        targetEntityType: 'PRODUCT',
+        targetEntityId: prod.id,
+        targetUrl: `/products/${prod.slug}`,
+        impressions: 0,
+        clicks: 0,
+        ctr: 0,
+        position: 0,
+        opportunityScore: 85,
+        opportunityType: 'CTR_OPPORTUNITY',
+        suggestedAction: `Refine SEO title and description with authentic Sojat provenance for "${prod.name}".`,
+      });
+    }
+  }
+
+  // 3. Category content gaps lacking educational guides
+  for (const cat of categories) {
+    const hasGuide = guides.some(
+      (g) =>
+        g.category?.toLowerCase() === cat.name.toLowerCase() ||
+        g.title.toLowerCase().includes(cat.name.toLowerCase())
+    );
+    if (!hasGuide) {
+      list.push({
+        id: `opp-catalog-guide-${cat.id}`,
+        keyword: `${cat.name.toLowerCase()} guide`,
+        queryText: `${cat.name.toLowerCase()} guide`,
+        source: 'CATALOG_DERIVED',
+        targetEntityType: 'GUIDE',
+        targetEntityId: cat.id,
+        targetUrl: `/categories/${cat.slug}`,
+        impressions: 0,
+        clicks: 0,
+        ctr: 0,
+        position: 0,
+        opportunityScore: 75,
+        opportunityType: 'CONTENT_GAP',
+        suggestedAction: `Create comprehensive educational guide for ${cat.name}.`,
+      });
+    }
+  }
+
+  return list.sort((a, b) => b.opportunityScore - a.opportunityScore);
+}
+
 // ============================================================================
 // 3. UNIVERSAL INTERNAL LINKING ENGINE (APPROVED RELATIONSHIPS ONLY)
 // ============================================================================

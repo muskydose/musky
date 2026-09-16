@@ -30,6 +30,7 @@ import {
   Award,
   Globe,
   TrendingUp,
+  Zap,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -81,6 +82,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
     { name: 'Media Library', href: '/admin/media', icon: ImageIcon },
     { name: 'Wholesale Enquiries', href: '/admin/wholesale', icon: Building2 },
     { name: 'Growth AI', href: '/admin/growth', icon: TrendingUp },
+    { name: 'Growth Autopilot', href: '/admin/autopilot', icon: Zap },
     { name: 'Orders Log', href: '/admin/orders', icon: ShoppingBag },
     { name: 'Customers', href: '/admin/customers', icon: Users },
     { name: 'Website Settings', href: '/admin/settings', icon: Settings },
