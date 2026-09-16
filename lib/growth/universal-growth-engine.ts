@@ -550,7 +550,7 @@ export function generateUniversalOpportunityMatrix(
         position: 0,
         opportunityScore: 85,
         opportunityType: 'CTR_OPPORTUNITY',
-        suggestedAction: `Refine SEO title and description with authentic Sojat provenance for "${prod.name}".`,
+        suggestedAction: `Review SEO title and description for "${prod.name}" based on verified database facts and search demand.`,
       });
     }
   }

@@ -253,7 +253,7 @@ async function runAllTests() {
 
   // TEST 7: Cryptographic SHA-256 Deduplication
   await runTest('7. Cryptographic SHA-256 Deduplication: Same binary reuses storage asset', async () => {
-    const fakeBuffer = Buffer.from('musky-dose-sample-image-bytes-sha-test');
+    const fakeBuffer = Buffer.from(`musky-dose-sample-image-bytes-sha-test-${Date.now()}`);
     const hash = crypto.createHash('sha256').update(fakeBuffer).digest('hex');
 
     // Register first asset with hash

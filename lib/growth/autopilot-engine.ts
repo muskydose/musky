@@ -73,6 +73,32 @@ export interface AutopilotState {
   updatedAt: string;
 }
 
+export interface AutopilotEvidence {
+  queryText: string;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  position: number;
+  targetUrl: string;
+  evidenceScore: number;
+  source: 'GSC_REAL' | 'GROWTH_DB' | 'CATALOG_DERIVED';
+}
+
+export interface AutopilotProvenance {
+  verifiedFacts: string[];
+  canonicalOrigin?: string;
+  botanicalName?: string;
+  hasVerifiedProvenance: boolean;
+  isSojatVerified?: boolean;
+  isRajasthanVerified?: boolean;
+}
+
+export interface AutopilotEpistemicBreakdown {
+  fact: string;       // Verified truth from DB only
+  signal: string;     // Observed real metric from GSC / first-party signals
+  hypothesis: string; // Non-guaranteed testable hypothesis (NEVER "will increase")
+}
+
 export interface AutopilotActionRecord {
   id: string;
   opportunityId?: string;
@@ -81,6 +107,10 @@ export interface AutopilotActionRecord {
   entityId: string;
   riskLevel: AutopilotActionRiskLevel;
   status: AutopilotActionStatus;
+  evidence?: AutopilotEvidence;
+  provenance?: AutopilotProvenance;
+  epistemicBreakdown?: AutopilotEpistemicBreakdown;
+  reason?: string;
   baseline: {
     impressions?: number;
     clicks?: number;
@@ -93,7 +123,7 @@ export interface AutopilotActionRecord {
   confidenceScore: number; // 0.0 to 1.0
   learningCategory: 'FACT' | 'SIGNAL' | 'INFERENCE';
   measuredOutcome?: {
-    measuredAt?: string;
+    measuredAt?: string | null;
     deltaClicks?: number;
     deltaImpressions?: number;
     deltaPosition?: number;
@@ -155,7 +185,7 @@ let memoryAutopilotState: AutopilotState = {
 const memoryActionsStore = new Map<string, AutopilotActionRecord>();
 const memoryLearningStore = new Map<string, LearningPattern>();
 
-// Seed default baseline learning patterns
+// Seed default baseline learning patterns with non-guaranteed, evidence-first phrasing
 function ensureDefaultLearningPatterns() {
   if (memoryLearningStore.size === 0) {
     memoryLearningStore.set('pattern-seo-titles', {
@@ -163,7 +193,7 @@ function ensureDefaultLearningPatterns() {
       patternType: 'WINNING',
       actionType: 'SEO_METADATA_UPDATE',
       entityType: 'PRODUCT',
-      patternDescription: 'Enriching product titles with Sojat origin and Rajasthani botanical identity increases search CTR.',
+      patternDescription: 'Correlated observation: Aligning product titles with verified canonical database attributes and verified GSC queries demonstrates positive click potential. Outcomes are non-guaranteed and verified post-cycle.',
       sampleSize: 12,
       successRate: 0.833,
       avgImpactPct: 18.5,
@@ -176,7 +206,7 @@ function ensureDefaultLearningPatterns() {
       patternType: 'WINNING',
       actionType: 'INTERNAL_LINK_MAINTENANCE',
       entityType: 'GUIDE',
-      patternDescription: 'Contextual internal links between Guides and companion products lift position in striking distance queries.',
+      patternDescription: 'Correlated observation: Contextual internal links between Guides and companion products demonstrate rank-stabilization potential in striking distance queries. Outcomes are non-guaranteed.',
       sampleSize: 8,
       successRate: 0.75,
       avgImpactPct: 14.2,
@@ -367,7 +397,84 @@ export async function getLearningPatterns(): Promise<LearningPattern[]> {
 }
 
 // ============================================================================
-// 4. LOW-RISK VS HIGH-RISK DECISION GATING
+// 4. CANONICAL PROVENANCE RESOLVER (EVIDENCE-FIRST TRUTH)
+// ============================================================================
+
+/**
+ * Derives verified facts strictly from database records.
+ * NEVER assumes or injects "Sojat" or "Rajasthan" unless explicitly verified in DB.
+ */
+export function resolveEntityProvenanceFacts(
+  entityType: UniversalTargetType,
+  entity: any
+): AutopilotProvenance & {
+  isSojatVerified: boolean;
+  isRajasthanVerified: boolean;
+  ingredients: string[];
+} {
+  const verifiedFacts: string[] = [];
+  const ingredients: string[] = Array.isArray(entity?.ingredients) ? entity.ingredients : [];
+
+  if (entity?.name) {
+    verifiedFacts.push(`Name: ${entity.name}`);
+  }
+  if (entity?.categoryName || entity?.category) {
+    verifiedFacts.push(`Category: ${entity.categoryName || entity.category}`);
+  }
+  if (ingredients.length > 0) {
+    verifiedFacts.push(`Ingredients: ${ingredients.join(', ')}`);
+  }
+
+  // Strictly check verified database attributes and description texts for authentic regional origin
+  const textToCheck = [
+    entity?.name,
+    entity?.shortDescription,
+    entity?.fullDescription,
+    ...(entity?.benefits || []),
+    ...(entity?.intelligence?.verifiedAttributes?.map((a: any) => `${a.traitName}: ${a.traitValue}`) || []),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  const isSojatVerified = textToCheck.includes('sojat');
+  const isRajasthanVerified = textToCheck.includes('rajasthan');
+
+  let canonicalOrigin: string | undefined;
+  if (isSojatVerified) {
+    canonicalOrigin = 'Sojat, Rajasthan';
+    verifiedFacts.push('Verified Origin: Sojat, Rajasthan');
+  } else if (isRajasthanVerified) {
+    canonicalOrigin = 'Rajasthan, India';
+    verifiedFacts.push('Verified Origin: Rajasthan, India');
+  }
+
+  // Botanical identity from canonical facts
+  let botanicalName: string | undefined;
+  if (textToCheck.includes('henna') || textToCheck.includes('mehendi') || textToCheck.includes('lawsonia')) {
+    botanicalName = 'Lawsonia inermis';
+    verifiedFacts.push('Botanical Identity: Lawsonia inermis');
+  } else if (textToCheck.includes('indigo') || textToCheck.includes('indigofera')) {
+    botanicalName = 'Indigofera tinctoria';
+    verifiedFacts.push('Botanical Identity: Indigofera tinctoria');
+  } else if (textToCheck.includes('amla') || textToCheck.includes('phyllanthus')) {
+    botanicalName = 'Phyllanthus emblica';
+    verifiedFacts.push('Botanical Identity: Phyllanthus emblica');
+  }
+
+  return {
+    verifiedFacts,
+    canonicalOrigin,
+    isSojatVerified,
+    isRajasthanVerified,
+    botanicalName,
+    ingredients,
+    hasVerifiedProvenance: Boolean(canonicalOrigin),
+  };
+}
+
+// ============================================================================
+// 5. LOW-RISK VS HIGH-RISK DECISION GATING
 // ============================================================================
 
 export function classifyActionRiskLevel(actionType: AutopilotActionType): AutopilotActionRiskLevel {
@@ -525,7 +632,6 @@ export async function runAutopilotCycle(options?: {
         const product = products.find((p) => p.id === opp.targetEntityId);
         if (product) {
           const actionType: AutopilotActionType = 'SEO_METADATA_UPDATE';
-          const riskLevel = classifyActionRiskLevel(actionType);
           const actionId = `act-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
           // Check if similar action already executed recently
@@ -542,13 +648,64 @@ export async function runAutopilotCycle(options?: {
             continue;
           }
 
-          // Build safe refined SEO metadata
-          const botanicalSuffix = product.name.toLowerCase().includes('sojat') ? '' : ' | Sojat Rajasthan Direct';
-          const safeNewTitle = `${product.name}${botanicalSuffix}`.slice(0, 60);
-          const safeNewDesc =
-            product.seoDescription && product.seoDescription.length >= 60
-              ? product.seoDescription
-              : `Authentic ${product.name} direct from Sojat, Rajasthan. 100% pure botanical craftsmanship, farm-fresh harvest, fast India-wide shipping.`;
+          // 1. Resolve Canonical Provenance (STRICTLY FROM DB FACTS)
+          const provenance = resolveEntityProvenanceFacts('PRODUCT', product);
+
+          // 2. Evaluate Search Evidence Thresholds
+          // Autonomous SEO updates REQUIRE real GSC queries with verified impression volume (>=20)
+          const hasRealGscEvidence =
+            opp.source === 'GSC_REAL' &&
+            Boolean(opp.queryText) &&
+            opp.queryText.trim().length >= 3 &&
+            opp.impressions >= 20;
+
+          // 3. Build Title & Description based STRICTLY on canonical facts
+          let safeNewTitle = product.name;
+          if (provenance.isSojatVerified) {
+            safeNewTitle = `${product.name} | Sojat, Rajasthan`;
+          } else if (provenance.botanicalName) {
+            safeNewTitle = `${product.name} (${provenance.botanicalName}) | Musky Dose`;
+          } else {
+            safeNewTitle = `${product.name} | Musky Dose`;
+          }
+          safeNewTitle = safeNewTitle.slice(0, 60);
+
+          let safeNewDesc = product.seoDescription;
+          if (!safeNewDesc || safeNewDesc.length < 60) {
+            if (provenance.isSojatVerified) {
+              safeNewDesc = `Authentic ${product.name} sourced from Sojat, Rajasthan. 100% pure botanical craftsmanship, farm-fresh harvest, fast India-wide shipping.`;
+            } else {
+              safeNewDesc = `Premium ${product.name} by Musky Dose. 100% pure botanical craftsmanship, laboratory tested, fast India-wide shipping.`;
+            }
+          }
+
+          // 4. Formulate Testable Hypothesis (NEVER CLAIM "will increase")
+          const hypothesis = `Hypothesizing that aligning the page snippet for "${product.name}" with observed search query "${opp.queryText}" may enhance search relevance. Ranking and CTR improvements are non-guaranteed and subject to multi-cycle observation.`;
+
+          const epistemicBreakdown: AutopilotEpistemicBreakdown = {
+            fact: `Canonical Product: "${product.name}", Category: "${product.categoryName || 'Botanicals'}", Verified Origin: ${provenance.canonicalOrigin || 'Unspecified in DB'}. Verified Attributes: [${provenance.verifiedFacts.join('; ')}]`,
+            signal: opp.source === 'GSC_REAL'
+              ? `Real GSC Search Query "${opp.queryText}" recorded ${opp.impressions} impressions, ${opp.clicks} clicks, CTR ${(opp.ctr * 100).toFixed(2)}%, average position ${opp.position.toFixed(1)}`
+              : `First-party catalog observation: Product lacks complete SEO title/description. Zero GSC query data available.`,
+            hypothesis: `Aligning meta tags with query "${opp.queryText}" presents an opportunity to test search snippet relevance. Outcome is non-deterministic.`,
+          };
+
+          const evidence: AutopilotEvidence = {
+            queryText: opp.queryText,
+            impressions: opp.impressions,
+            clicks: opp.clicks,
+            ctr: opp.ctr,
+            position: opp.position,
+            targetUrl: opp.targetUrl,
+            evidenceScore: opp.opportunityScore,
+            source: opp.source,
+          };
+
+          // 5. Decision Gating: Only auto-execute if sufficient real GSC search evidence exists
+          // If evidence is weak (<20 impressions) or catalog-derived, queue for human approval
+          const canAutoExecute = hasRealGscEvidence && !options?.dryRun;
+          const assignedRisk: AutopilotActionRiskLevel = canAutoExecute ? 'LOW' : 'HIGH';
+          const assignedStatus: AutopilotActionStatus = canAutoExecute ? 'AUTO_EXECUTED' : 'PENDING_APPROVAL';
 
           const actionRecord: AutopilotActionRecord = {
             id: actionId,
@@ -556,8 +713,14 @@ export async function runAutopilotCycle(options?: {
             actionType,
             entityType: 'PRODUCT',
             entityId: product.id,
-            riskLevel,
-            status: riskLevel === 'LOW' ? 'AUTO_EXECUTED' : 'PENDING_APPROVAL',
+            riskLevel: assignedRisk,
+            status: assignedStatus,
+            evidence,
+            provenance,
+            epistemicBreakdown,
+            reason: hasRealGscEvidence
+              ? `GSC recorded ${opp.impressions} impressions and ${opp.clicks} clicks for query "${opp.queryText}". Refinement opportunity detected.`
+              : `Catalog-derived recommendation without verified Google Search Console query evidence. Queued for administrative review.`,
             baseline: {
               impressions: opp.impressions,
               clicks: opp.clicks,
@@ -569,20 +732,30 @@ export async function runAutopilotCycle(options?: {
                 updatedAt: product.updatedAt,
               },
             },
-            hypothesis: `Refining SEO metadata with authentic Sojat Rajasthan origin will increase search CTR for query "${opp.queryText}".`,
+            hypothesis,
             actionPayload: {
               newSeoTitle: safeNewTitle,
               newSeoDescription: safeNewDesc,
+              evidence,
+              provenance,
+              epistemicBreakdown,
             },
-            confidenceScore: 0.85,
-            learningCategory: 'SIGNAL',
+            confidenceScore: hasRealGscEvidence ? 0.85 : 0.6,
+            learningCategory: hasRealGscEvidence ? 'SIGNAL' : 'INFERENCE',
+            measuredOutcome: {
+              outcomeStatus: 'MEASURING',
+              measuredAt: null,
+              deltaClicks: 0,
+              deltaImpressions: 0,
+              deltaPosition: 0,
+              deltaCtr: 0,
+            },
             isRollbackable: true,
             createdAt: new Date().toISOString(),
-            executedAt: riskLevel === 'LOW' ? new Date().toISOString() : null,
+            executedAt: canAutoExecute ? new Date().toISOString() : null,
           };
 
-          if (riskLevel === 'LOW' && !options?.dryRun) {
-            // AUTONOMOUS EXECUTION (LOW-RISK)
+          if (canAutoExecute) {
             try {
               await saveProduct({
                 ...product,
@@ -598,7 +771,6 @@ export async function runAutopilotCycle(options?: {
               errors.push(`Failed auto SEO update on ${product.id}: ${err?.message}`);
             }
           } else {
-            // HIGH-RISK OR DRY-RUN (QUEUED FOR APPROVAL)
             actionsQueuedForApproval++;
             await saveAutopilotAction(actionRecord);
           }
@@ -623,7 +795,7 @@ export async function runAutopilotCycle(options?: {
             impressions: opp.impressions,
             clicks: opp.clicks,
           },
-          hypothesis: `Publishing new guide targeting search query "${opp.queryText}" will capture unranked commercial intent.`,
+          hypothesis: `Hypothesizing that publishing an instructional botanical guide targeting search query "${opp.queryText}" may address unmet informational demand. Outcome is non-guaranteed and pending editorial review.`,
           actionPayload: {
             proposedTitle: `Complete Botanical Guide to ${opp.queryText}`,
             queryText: opp.queryText,
@@ -707,7 +879,7 @@ export async function runAutopilotCycle(options?: {
           riskLevel: 'LOW', // Generating draft is low-risk
           status: 'AUTO_EXECUTED',
           baseline: {},
-          hypothesis: 'Prepared Google Business Profile local update draft for top Rajasthani botanical.',
+          hypothesis: 'Prepared Google Business Profile update draft based on verified catalog product. Requires administrative approval before external publication.',
           actionPayload: draft,
           confidenceScore: 0.8,
           learningCategory: 'FACT',
@@ -727,8 +899,46 @@ export async function runAutopilotCycle(options?: {
     // Verified: zero runtime exceptions, zero schema breaches
 
     // ------------------------------------------------------------------------
-    // STEP 6 & 7: MEASURE & LEARN (Update winning/failed patterns)
+    // STEP 6 & 7: MEASURE & LEARN (Evidence-backed outcome evaluation)
     // ------------------------------------------------------------------------
+    // Multi-cycle verification: inspect prior actions that are in MEASURING status
+    const previousActions = await getAutopilotActions(100);
+    for (const prevAct of previousActions) {
+      if (
+        prevAct.status === 'AUTO_EXECUTED' &&
+        prevAct.actionType === 'SEO_METADATA_UPDATE' &&
+        prevAct.evidence?.queryText &&
+        prevAct.measuredOutcome?.outcomeStatus === 'MEASURING'
+      ) {
+        // Compare with current GSC queries if multi-cycle observations exist
+        const currentQueryMetric = realQueries.find(
+          (q) => q.query.toLowerCase().trim() === prevAct.evidence?.queryText.toLowerCase().trim()
+        );
+        if (currentQueryMetric && prevAct.baseline.impressions !== undefined && prevAct.baseline.impressions > 0) {
+          const deltaClicks = (currentQueryMetric.clicks || 0) - (prevAct.baseline.clicks || 0);
+          const deltaImpressions = (currentQueryMetric.impressions || 0) - prevAct.baseline.impressions;
+          const deltaPosition = (prevAct.baseline.position || 99) - (currentQueryMetric.position || 99); // positive = improved rank
+
+          let outcomeStatus: 'WIN' | 'NEUTRAL' | 'LOSS' = 'NEUTRAL';
+          if (deltaClicks > 0 || (deltaImpressions > 20 && deltaPosition >= 0)) {
+            outcomeStatus = 'WIN';
+          } else if (deltaPosition < -5 || deltaClicks < 0) {
+            outcomeStatus = 'LOSS';
+          }
+
+          prevAct.measuredOutcome = {
+            measuredAt: new Date().toISOString(),
+            deltaClicks,
+            deltaImpressions,
+            deltaPosition,
+            deltaCtr: (currentQueryMetric.ctr || 0) - (prevAct.baseline.ctr || 0),
+            outcomeStatus,
+          };
+          await saveAutopilotAction(prevAct);
+        }
+      }
+    }
+
     const completedDurationMs = Date.now() - startTime;
     const completedAt = new Date().toISOString();
     const nextScheduled = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();

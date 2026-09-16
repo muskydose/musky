@@ -127,8 +127,23 @@ async function runAutopilotTests() {
   for (const act of actions.slice(0, 5)) {
     assert(Boolean(act.id), `Action has valid ID: ${act.id}`);
     assert(Boolean(act.hypothesis), `Action has grounded hypothesis: ${act.hypothesis.slice(0, 40)}...`);
+    assert(!act.hypothesis.toLowerCase().includes('will increase'), 'Hypothesis NEVER claims guaranteed causality ("will increase")');
     assert(act.confidenceScore >= 0 && act.confidenceScore <= 1, 'Action has valid confidence score (0.0 to 1.0)');
     assert(['FACT', 'SIGNAL', 'INFERENCE'].includes(act.learningCategory), `Valid learning category: ${act.learningCategory}`);
+
+    if (act.actionType === 'SEO_METADATA_UPDATE') {
+      assert(Boolean(act.provenance), 'SEO action includes verified canonical provenance');
+      assert(Boolean(act.epistemicBreakdown), 'SEO action includes separate FACT, SIGNAL, HYPOTHESIS breakdown');
+      assert(Boolean(act.epistemicBreakdown?.fact), 'Epistemic breakdown includes verified fact');
+      assert(Boolean(act.epistemicBreakdown?.signal), 'Epistemic breakdown includes observed signal');
+      assert(Boolean(act.epistemicBreakdown?.hypothesis), 'Epistemic breakdown includes non-guaranteed hypothesis');
+      if (act.provenance && !act.provenance.isSojatVerified) {
+        assert(
+          !act.actionPayload?.newSeoTitle?.includes('Sojat'),
+          'Product without verified DB Sojat origin does NOT have Sojat injected into title'
+        );
+      }
+    }
 
     if (act.riskLevel === 'HIGH') {
       assert(act.status === 'PENDING_APPROVAL', 'High-risk action is STRICTLY queued as PENDING_APPROVAL');
