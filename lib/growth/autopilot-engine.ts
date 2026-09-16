@@ -28,6 +28,7 @@ import {
   DISTRIBUTION_ADAPTERS,
 } from './universal-growth-engine';
 import { composeVisualPrompt } from './visual-prompt-engine';
+import { evaluateCatalogVisualHealth } from './visual-decision-engine';
 import { getActiveVisualProvider } from '@/lib/ai/visual-engine';
 
 // ============================================================================
@@ -51,6 +52,7 @@ export type AutopilotActionType =
   | 'SITEMAP_REGENERATE'
   | 'FEED_REFRESH'
   | 'AI_MEDIA_CANDIDATE'
+  | 'VISUAL_SLOT_ATTACH'
   | 'CONTENT_BRIEF_DRAFT'
   | 'SOCIAL_DRAFT'
   | 'TECHNICAL_REPAIR'
@@ -811,7 +813,41 @@ export async function runAutopilotCycle(options?: {
       }
     }
 
-    // 4C. Autonomous AI Media Candidate Generation (Strictly Suggested & Unlocked)
+    // 4C. Universal Visual Decision Engine Integration & Asset Reuse
+    const visualHealth = await evaluateCatalogVisualHealth();
+    for (const opp of visualHealth.actionableOpportunities.slice(0, 5)) {
+      if (actionsExecuted >= 8 && actionsQueuedForApproval >= 8) break;
+
+      if (opp.opportunityType === 'AUTO_ATTACH_EXISTING' && opp.reusableAssetId) {
+        // Safe autonomous reuse of existing approved asset for an unattached slot
+        const actionId = `act-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+        const actionRecord: AutopilotActionRecord = {
+          id: actionId,
+          actionType: 'VISUAL_SLOT_ATTACH',
+          entityType: opp.entityType as any,
+          entityId: opp.entityId,
+          riskLevel: 'LOW',
+          status: 'AUTO_EXECUTED',
+          baseline: {},
+          hypothesis: `Safely reusing existing approved asset (${opp.reusableAssetId}) for slot ${opp.slotId} without duplicating files or mutating legacy fields.`,
+          actionPayload: {
+            slotId: opp.slotId,
+            role: opp.role,
+            reusableAssetId: opp.reusableAssetId,
+          },
+          confidenceScore: 0.95,
+          learningCategory: 'FACT',
+          isRollbackable: true,
+          createdAt: new Date().toISOString(),
+          executedAt: new Date().toISOString(),
+        };
+
+        actionsExecuted++;
+        await saveAutopilotAction(actionRecord);
+      }
+    }
+
+    // 4D. Autonomous AI Media Candidate Generation (Strictly Suggested & Unlocked)
     const activeProvider = getActiveVisualProvider();
     if (activeProvider && (await activeProvider.isAvailable())) {
       const productNeedingMedia = products.find((p) => !p.images || p.images.length === 0);

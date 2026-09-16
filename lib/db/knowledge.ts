@@ -327,6 +327,14 @@ export async function getAllKnowledgeEntitiesRaw(): Promise<{
 // ============================================================================
 
 /**
+ * Returns all knowledge entities (admin / internal queries).
+ */
+export async function getAllKnowledgeEntities(): Promise<KnowledgeEntity[]> {
+  const { entities } = await getAllKnowledgeEntitiesRaw();
+  return entities;
+}
+
+/**
  * Returns all publicly published knowledge entities.
  * Excludes: draft, archived, needs_review, and UNKNOWN sentinel.
  */

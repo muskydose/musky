@@ -70,6 +70,11 @@ function validateMagicBytes(buffer: Buffer, mimeType: string): boolean {
   return true;
 }
 
+import {
+  evaluateCatalogVisualHealth,
+  evaluateEntityVisualHealth,
+} from '@/lib/growth/visual-decision-engine';
+
 export async function GET(req: NextRequest) {
   try {
     const authCheck = requireAdminAuthAndCsrf(req);
@@ -78,8 +83,20 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
+    const view = searchParams.get('view');
     const entityType = searchParams.get('entityType') as MediaEntityType | null;
     const entityId = searchParams.get('entityId');
+
+    // 1. Visual Health View
+    if (view === 'visual_health') {
+      if (entityType && entityId) {
+        const entityReport = await evaluateEntityVisualHealth(entityType, entityId);
+        return NextResponse.json({ success: true, visualHealth: entityReport });
+      }
+      const catalogSummary = await evaluateCatalogVisualHealth();
+      return NextResponse.json({ success: true, catalogSummary });
+    }
+
     const status = searchParams.get('status') as MediaAssetStatus | null;
     const role = searchParams.get('role') as MediaAssetRole | null;
     const source = searchParams.get('source');

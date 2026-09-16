@@ -23,15 +23,50 @@ export type MediaAssetRole =
   | 'INGREDIENTS'
   | 'HERO'
   | 'OG_SOCIAL'
-  | 'ICON';
+  | 'ICON'
+  | 'PROCESS'
+  | 'INFOGRAPHIC'
+  | 'COMPARISON'
+  | 'THUMBNAIL'
+  | 'BANNER'
+  | 'MOBILE_HERO'
+  | 'DESKTOP_HERO'
+  | 'SOCIAL_SQUARE'
+  | 'SOCIAL_PORTRAIT';
 
 export type MediaAssetSource =
   | 'MANUAL_UPLOAD'
   | 'AI_GENERATED'
+  | 'VERIFIED_FREE_LICENSE'
   | 'EXTERNAL_IMPORT'
   | 'SYSTEM_FALLBACK';
 
 export type MediaAssetStatus = 'suggested' | 'approved' | 'rejected' | 'archived';
+
+export interface MediaLicenseInfo {
+  source: string;
+  sourceUrl: string;
+  licenseType: string;
+  attributionRequirement?: string;
+  retrievedAt: string;
+  fileHash: string;
+  storagePath?: string;
+}
+
+export type MotionLayerType =
+  | 'BOTANICAL_OBJECT'
+  | 'PRODUCT_CUTOUT'
+  | 'BACKGROUND_TEXTURE'
+  | 'STORY_SCENE'
+  | 'PROCESS_STAGE'
+  | 'NONE';
+
+export interface MediaMotionLayerInfo {
+  layerType: MotionLayerType;
+  isTransparent?: boolean;
+  depth?: number;
+  motionSafe?: boolean;
+}
 
 export interface MediaAsset {
   id: string;
@@ -54,6 +89,8 @@ export interface MediaAsset {
   title?: string;
   altText?: string;
   caption?: string;
+  licenseInfo?: MediaLicenseInfo;
+  motionLayer?: MediaMotionLayerInfo;
   visualContext?: Record<string, any>;
   aiMetadata?: Record<string, any>;
   sortOrder: number;
@@ -82,6 +119,8 @@ export interface SaveMediaAssetInput {
   title?: string;
   altText?: string;
   caption?: string;
+  licenseInfo?: MediaLicenseInfo;
+  motionLayer?: MediaMotionLayerInfo;
   visualContext?: Record<string, any>;
   aiMetadata?: Record<string, any>;
   sortOrder?: number;
@@ -113,6 +152,10 @@ export function computeFileHash(buffer: Buffer): string {
 // ============================================================================
 
 export function mapRowToMediaAsset(row: any): MediaAsset {
+  const visualContext = row.visual_context || row.visualContext || {};
+  const licenseInfo = row.license_info || row.licenseInfo || visualContext.licenseInfo || undefined;
+  const motionLayer = row.motion_layer || row.motionLayer || visualContext.motionLayer || undefined;
+
   return {
     id: String(row.id || `med-${Date.now()}`),
     entityType: (row.entity_type || row.entityType || 'PRODUCT') as MediaEntityType,
@@ -134,7 +177,9 @@ export function mapRowToMediaAsset(row: any): MediaAsset {
     title: row.title || undefined,
     altText: row.alt_text || row.altText || undefined,
     caption: row.caption || undefined,
-    visualContext: row.visual_context || row.visualContext || {},
+    licenseInfo,
+    motionLayer,
+    visualContext,
     aiMetadata: row.ai_metadata || row.aiMetadata || {},
     sortOrder: Number(row.sort_order ?? row.sortOrder ?? 100),
     createdAt: row.created_at || row.createdAt || new Date().toISOString(),
@@ -143,6 +188,12 @@ export function mapRowToMediaAsset(row: any): MediaAsset {
 }
 
 export function mapMediaAssetToRow(asset: MediaAsset): any {
+  const mergedVisualContext = {
+    ...(asset.visualContext || {}),
+    ...(asset.licenseInfo ? { licenseInfo: asset.licenseInfo } : {}),
+    ...(asset.motionLayer ? { motionLayer: asset.motionLayer } : {}),
+  };
+
   return {
     id: asset.id,
     entity_type: asset.entityType,
@@ -164,7 +215,7 @@ export function mapMediaAssetToRow(asset: MediaAsset): any {
     title: asset.title || null,
     alt_text: asset.altText || null,
     caption: asset.caption || null,
-    visual_context: asset.visualContext || {},
+    visual_context: mergedVisualContext,
     ai_metadata: asset.aiMetadata || {},
     sort_order: asset.sortOrder ?? 100,
     created_at: asset.createdAt || new Date().toISOString(),
@@ -406,13 +457,12 @@ export async function getAllMediaAssetsRaw(): Promise<{
 
 /**
  * Priority Scoring Matrix:
- * Rank 1: MANUAL_UPLOAD + approved + isLocked=true + role='PRIMARY'
- * Rank 2: MANUAL_UPLOAD + approved + role='PRIMARY'
- * Rank 3: AI_GENERATED + approved + role='PRIMARY'
- * Rank 4: MANUAL_UPLOAD + approved (any role)
- * Rank 5: AI_GENERATED + approved (any role)
- * Rank 6: EXTERNAL_IMPORT + approved
- * Rank 7: SYSTEM_FALLBACK
+ * Rank 1: REAL MANUAL APPROVED LOCKED (score ~ 7000+)
+ * Rank 2: REAL MANUAL APPROVED (score ~ 3000 for PRIMARY, 1000 for others)
+ * Rank 3: APPROVED ORIGINAL AI (score ~ 2600 for PRIMARY, 600 for others)
+ * Rank 4: APPROVED VERIFIED FREE LICENSED (score ~ 2400 for PRIMARY, 400 for others)
+ * Rank 5: APPROVED EXTERNAL IMPORT (score ~ 2200 for PRIMARY, 200 for others)
+ * Rank 6: SYSTEM FALLBACK (score ~ 50)
  */
 function computeAssetPriorityScore(asset: MediaAsset): number {
   if (asset.status !== 'approved') return -1; // Ineligible
@@ -423,9 +473,11 @@ function computeAssetPriorityScore(asset: MediaAsset): number {
   if (asset.source === 'MANUAL_UPLOAD') {
     score += 1000;
   } else if (asset.source === 'AI_GENERATED') {
-    score += 500;
+    score += 600;
+  } else if (asset.source === 'VERIFIED_FREE_LICENSE') {
+    score += 400;
   } else if (asset.source === 'EXTERNAL_IMPORT') {
-    score += 250;
+    score += 200;
   } else {
     score += 50; // SYSTEM_FALLBACK
   }
@@ -441,7 +493,7 @@ function computeAssetPriorityScore(asset: MediaAsset): number {
   }
 
   // Prefer lower sort order values (higher priority)
-  score -= Math.min( asset.sortOrder, 100 );
+  score -= Math.min(asset.sortOrder, 100);
 
   return score;
 }
@@ -972,6 +1024,8 @@ export async function saveMediaAsset(input: SaveMediaAssetInput): Promise<{
     title: input.title,
     altText: input.altText,
     caption: input.caption,
+    licenseInfo: input.licenseInfo,
+    motionLayer: input.motionLayer,
     visualContext: input.visualContext || {},
     aiMetadata: input.aiMetadata || {},
     sortOrder: input.sortOrder ?? (role === 'PRIMARY' ? 1 : 100),

@@ -35,10 +35,21 @@ import {
   XCircle,
   Filter,
   ArrowUpDown,
-  Tag,
   Layers,
   History,
+  Activity,
+  CheckCircle,
+  HelpCircle,
+  Sliders,
+  ChevronRight,
+  Shield,
+  FileCheck,
 } from 'lucide-react';
+import {
+  CatalogVisualHealthSummary,
+  EntityVisualHealthReport,
+  EvaluatedVisualSlot,
+} from '@/lib/growth/visual-decision-engine';
 
 interface AdminMediaClientProps {
   initialSettings: SiteSettings;
@@ -57,8 +68,8 @@ export default function AdminMediaClient({
   initialKnowledgeEntities = [],
   initialMediaAssets = [],
 }: AdminMediaClientProps) {
-  // Navigation tabs: 'canonical' (MediaAsset) vs 'legacy' (MediaItem)
-  const [activeTab, setActiveTab] = useState<'canonical' | 'legacy'>('canonical');
+  // Navigation tabs: 'canonical' (MediaAsset) vs 'visual_health' vs 'legacy' (MediaItem)
+  const [activeTab, setActiveTab] = useState<'canonical' | 'visual_health' | 'legacy'>('canonical');
 
   // Canonical Media Assets State
   const [assets, setAssets] = useState<MediaAsset[]>(initialMediaAssets);
@@ -66,6 +77,13 @@ export default function AdminMediaClient({
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Visual Health State
+  const [catalogHealth, setCatalogHealth] = useState<CatalogVisualHealthSummary | null>(null);
+  const [healthLoading, setHealthLoading] = useState<boolean>(false);
+  const [healthFilter, setHealthFilter] = useState<string>('ALL');
+  const [selectedEntityForSlots, setSelectedEntityForSlots] = useState<EntityVisualHealthReport | null>(null);
+  const [inspectModalOpen, setInspectModalOpen] = useState<boolean>(false);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -149,6 +167,22 @@ export default function AdminMediaClient({
       console.error('Failed to refresh legacy media:', err);
     } finally {
       setLegacyLoading(false);
+    }
+  }, []);
+
+  // Fetch catalog visual health
+  const refreshVisualHealth = useCallback(async () => {
+    setHealthLoading(true);
+    try {
+      const res = await fetch('/api/admin/media-assets?view=visual_health');
+      const data = await res.json();
+      if (data.success && data.catalogSummary) {
+        setCatalogHealth(data.catalogSummary);
+      }
+    } catch (err) {
+      console.error('Failed to refresh visual health:', err);
+    } finally {
+      setHealthLoading(false);
     }
   }, []);
 
@@ -676,7 +710,7 @@ export default function AdminMediaClient({
           </div>
         )}
 
-        {/* Tab Switcher: Canonical vs Legacy */}
+        {/* Tab Switcher: Canonical vs Visual Health vs Legacy */}
         <div className="flex items-center justify-between border-b border-[#e8e2d5] pb-2">
           <div className="flex items-center gap-2">
             <button
@@ -689,6 +723,23 @@ export default function AdminMediaClient({
             >
               <Layers className="w-4 h-4 text-[#c5a059]" />
               <span>Universal Media Assets ({assets.length})</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('visual_health');
+                refreshVisualHealth();
+              }}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                activeTab === 'visual_health'
+                  ? 'bg-[#1b4332] text-white shadow-xs'
+                  : 'bg-[#fcfbf7] text-gray-600 hover:bg-[#f5f1e8]'
+              }`}
+            >
+              <Activity className="w-4 h-4 text-[#c5a059]" />
+              <span>
+                Visual Health &amp; Slots {catalogHealth ? `(${catalogHealth.overallScore}%)` : ''}
+              </span>
             </button>
 
             <button
@@ -939,6 +990,347 @@ export default function AdminMediaClient({
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* VISUAL HEALTH & SLOTS TAB CONTENT */}
+        {activeTab === 'visual_health' && (
+          <div className="space-y-6">
+            {/* Visual Health Top Summary KPIs */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="bg-white p-4 rounded-2xl border border-[#e8e2d5] shadow-xs">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Overall Score</p>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-2xl font-bold font-serif-heading text-[#0f2d22]">
+                    {catalogHealth ? `${catalogHealth.overallScore}%` : '...'}
+                  </span>
+                  <span className="text-[10px] text-emerald-700 font-bold">Catalog Parity</span>
+                </div>
+              </div>
+
+              <div className="bg-white p-4 rounded-2xl border border-[#e8e2d5] shadow-xs">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total Entities</p>
+                <p className="text-2xl font-bold font-serif-heading text-[#0f2d22] mt-1">
+                  {catalogHealth ? catalogHealth.totalEntities : '...'}
+                </p>
+              </div>
+
+              <div className="bg-white p-4 rounded-2xl border border-emerald-200 shadow-xs bg-emerald-50/20">
+                <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">Complete</p>
+                <p className="text-2xl font-bold font-serif-heading text-emerald-900 mt-1">
+                  {catalogHealth ? catalogHealth.healthyCount : '...'}
+                </p>
+              </div>
+
+              <div className="bg-white p-4 rounded-2xl border border-rose-200 shadow-xs bg-rose-50/20">
+                <p className="text-[10px] font-bold text-rose-800 uppercase tracking-wider">Missing Required</p>
+                <p className="text-2xl font-bold font-serif-heading text-rose-900 mt-1">
+                  {catalogHealth ? catalogHealth.missingCount : '...'}
+                </p>
+              </div>
+
+              <div className="bg-white p-4 rounded-2xl border border-orange-200 shadow-xs bg-orange-50/20">
+                <p className="text-[10px] font-bold text-orange-800 uppercase tracking-wider">Fallback / Weak</p>
+                <p className="text-2xl font-bold font-serif-heading text-orange-900 mt-1">
+                  {catalogHealth ? catalogHealth.fallbackCount : '...'}
+                </p>
+              </div>
+
+              <div className="bg-white p-4 rounded-2xl border border-purple-200 shadow-xs bg-purple-50/20">
+                <p className="text-[10px] font-bold text-purple-800 uppercase tracking-wider">Pending AI / Review</p>
+                <p className="text-2xl font-bold font-serif-heading text-purple-900 mt-1">
+                  {catalogHealth ? catalogHealth.pendingAiCount + catalogHealth.pendingApprovalCount : '...'}
+                </p>
+              </div>
+            </div>
+
+            {/* Health Filter Bar */}
+            <div className="bg-white p-4 rounded-2xl border border-[#e8e2d5] flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold">
+                <span className="text-gray-400 text-[11px] mr-1 flex items-center gap-1">
+                  <Filter className="w-3.5 h-3.5" /> Filter:
+                </span>
+                {[
+                  { key: 'ALL', label: 'All Entities' },
+                  { key: 'COMPLETE', label: 'Complete' },
+                  { key: 'NEEDS_REVIEW', label: 'Needs Review' },
+                  { key: 'MISSING', label: 'Missing Slots' },
+                  { key: 'FALLBACK', label: 'Fallback' },
+                  { key: 'PENDING_AI', label: 'Pending AI' },
+                  { key: 'PENDING_APPROVAL', label: 'Pending Approval' },
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    onClick={() => setHealthFilter(item.key)}
+                    className={`px-3 py-1.5 rounded-xl transition-all ${
+                      healthFilter === item.key
+                        ? 'bg-[#1b4332] text-white shadow-xs'
+                        : 'bg-[#f5f1e8] text-gray-700 hover:bg-[#e8e2d5]'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={refreshVisualHealth}
+                disabled={healthLoading}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#f5f1e8] hover:bg-[#e8e2d5] text-[#1b4332] rounded-xl text-xs font-bold transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${healthLoading ? 'animate-spin' : ''}`} />
+                <span>Refresh Audit</span>
+              </button>
+            </div>
+
+            {/* Entity Blueprint Matrix */}
+            {healthLoading && !catalogHealth ? (
+              <div className="p-12 text-center bg-white rounded-2xl border border-[#e8e2d5]">
+                <RefreshCw className="w-8 h-8 text-[#c5a059] animate-spin mx-auto mb-3" />
+                <p className="font-bold text-[#0f2d22]">Auditing Visual Blueprint Slots Across Catalog...</p>
+                <p className="text-xs text-gray-500 mt-1">Analyzing aspect ratios, fallback status, and reuse candidates.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {catalogHealth?.entityReports
+                  .filter((r) => {
+                    if (healthFilter === 'ALL') return true;
+                    return r.overallHealth === healthFilter;
+                  })
+                  .map((report) => {
+                    // Find authoritative primary asset for thumbnail preview
+                    const primarySlot = report.evaluatedSlots.find(
+                      (s) => s.slot.role === 'PRIMARY' || s.slot.role === 'HERO' || s.slot.role === 'BANNER'
+                    );
+                    const primaryUrl = primarySlot?.asset?.url || '/images/fallback.svg';
+
+                    return (
+                      <div
+                        key={`${report.entityType}-${report.entityId}`}
+                        className="bg-white p-4 rounded-2xl border border-[#e8e2d5] flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs hover:border-[#c5a059]/60 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-gray-100 shrink-0 border border-[#e8e2d5]">
+                            <Image
+                              src={primaryUrl}
+                              alt={report.entityName}
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                          </div>
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-mono font-bold bg-[#f5f1e8] text-[#1b4332] px-2 py-0.5 rounded">
+                                {report.entityType}
+                              </span>
+                              <h3 className="font-bold text-[#0f2d22] text-sm truncate">
+                                {report.entityName}
+                              </h3>
+                            </div>
+                            <p className="text-[11px] text-gray-500 truncate mt-0.5">
+                              ID: <span className="font-mono">{report.entityId}</span> • Health Score:{' '}
+                              <strong>{report.healthScore}%</strong> ({report.filledRequiredCount}/
+                              {report.requiredSlotsCount} required slots filled)
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3">
+                          {/* Health Badge */}
+                          <span
+                            className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                              report.overallHealth === 'COMPLETE'
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : report.overallHealth === 'NEEDS_REVIEW'
+                                ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                : report.overallHealth === 'MISSING'
+                                ? 'bg-rose-100 text-rose-800 border-rose-300'
+                                : report.overallHealth === 'FALLBACK'
+                                ? 'bg-orange-100 text-orange-800 border-orange-300'
+                                : report.overallHealth === 'PENDING_AI'
+                                ? 'bg-purple-100 text-purple-800 border-purple-300'
+                                : 'bg-blue-100 text-blue-800 border-blue-300'
+                            }`}
+                          >
+                            {report.overallHealth}
+                          </span>
+
+                          <button
+                            onClick={() => {
+                              setSelectedEntityForSlots(report);
+                              setInspectModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1.5 bg-[#0f2d22] hover:bg-[#1b4332] text-[#c5a059] px-3.5 py-2 rounded-xl text-xs font-bold transition-colors shadow-2xs"
+                          >
+                            <Sliders className="w-3.5 h-3.5" />
+                            <span>Inspect Slots ({report.totalSlots})</span>
+                            <ChevronRight className="w-3.5 h-3.5 opacity-75" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* VISUAL SLOT INSPECTOR MODAL */}
+        {inspectModalOpen && selectedEntityForSlots && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+            <div className="bg-white border border-[#e8e2d5] rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+              <div className="p-5 border-b border-[#e8e2d5] flex items-center justify-between bg-[#0f2d22] text-white shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <Sliders className="w-5 h-5 text-[#c5a059]" />
+                  <div>
+                    <h3 className="font-serif-heading font-bold text-lg text-white">
+                      Visual Blueprint Slots: {selectedEntityForSlots.entityName}
+                    </h3>
+                    <p className="text-[11px] text-[#c5a059]">
+                      Entity: {selectedEntityForSlots.entityType} ({selectedEntityForSlots.entityId}) • Overall Status:{' '}
+                      <span className="font-bold underline">{selectedEntityForSlots.overallHealth}</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setInspectModalOpen(false)}
+                  className="p-1.5 text-gray-300 hover:text-white hover:bg-[#1b4332] rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto space-y-4 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {selectedEntityForSlots.evaluatedSlots.map((evaluated) => {
+                    const slot = evaluated.slot;
+                    const asset = evaluated.asset;
+
+                    return (
+                      <div
+                        key={slot.slotId}
+                        className={`p-3.5 rounded-xl border space-y-2.5 ${
+                          evaluated.status === 'FILLED_OPTIMAL'
+                            ? 'bg-white border-[#e8e2d5]'
+                            : evaluated.status === 'FILLED_REUSED'
+                            ? 'bg-blue-50/40 border-blue-200'
+                            : evaluated.status === 'WEAK_FALLBACK'
+                            ? 'bg-orange-50/40 border-orange-200'
+                            : evaluated.status === 'PENDING_AI'
+                            ? 'bg-purple-50/40 border-purple-200'
+                            : 'bg-rose-50/40 border-rose-200'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-bold text-[#0f2d22] text-xs">
+                                {slot.slotId}
+                              </span>
+                              {slot.isRequired && (
+                                <span className="bg-rose-100 text-rose-800 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                                  REQUIRED
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-gray-600 mt-0.5">{slot.purpose}</p>
+                          </div>
+
+                          {/* Slot Status Badge */}
+                          <span
+                            className={`text-[9px] font-bold px-2 py-0.5 rounded shrink-0 ${
+                              evaluated.status === 'FILLED_OPTIMAL'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : evaluated.status === 'FILLED_REUSED'
+                                ? 'bg-blue-100 text-blue-800'
+                                : evaluated.status === 'WEAK_FALLBACK'
+                                ? 'bg-orange-100 text-orange-800'
+                                : evaluated.status === 'PENDING_AI'
+                                ? 'bg-purple-100 text-purple-800'
+                                : 'bg-rose-100 text-rose-800'
+                            }`}
+                          >
+                            {evaluated.status}
+                          </span>
+                        </div>
+
+                        {/* Visual Preview & Provenance */}
+                        <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+                          <div className="relative w-14 h-14 rounded-lg overflow-hidden bg-gray-100 shrink-0 border border-gray-200">
+                            <Image
+                              src={asset?.url || '/images/fallback.svg'}
+                              alt={slot.slotId}
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                          </div>
+
+                          <div className="flex-1 min-w-0 space-y-1 text-[11px]">
+                            <p className="text-gray-600 truncate">
+                              <strong>Preferred Ratio:</strong> {slot.preferredAspectRatio}
+                              {asset?.aspectRatio && ` (Actual: ${asset.aspectRatio})`}
+                            </p>
+                            {asset && (
+                              <p className="text-gray-500 truncate text-[10px]">
+                                <strong>Source:</strong> {asset.source} • Status: {asset.status}
+                              </p>
+                            )}
+                            {evaluated.reusedFromSlotId && (
+                              <p className="text-blue-700 text-[10px] font-medium">
+                                ↳ Reused from {evaluated.reusedFromSlotId}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Slot Action Button */}
+                        <div className="pt-2 flex justify-end gap-2 border-t border-gray-100">
+                          {evaluated.status === 'PENDING_AI' && asset && (
+                            <button
+                              onClick={() => {
+                                handleStatusTransition(asset.id, 'approved');
+                                setInspectModalOpen(false);
+                              }}
+                              className="bg-emerald-700 hover:bg-emerald-800 text-white px-2.5 py-1 rounded-lg font-bold text-[10px]"
+                            >
+                              Approve AI Visual
+                            </button>
+                          )}
+
+                          {(evaluated.status === 'MISSING_REQUIRED' || evaluated.status === 'WEAK_FALLBACK') && (
+                            <button
+                              onClick={() => {
+                                setInspectModalOpen(false);
+                                setGenEntityType(selectedEntityForSlots.entityType as MediaEntityType);
+                                setGenEntityId(selectedEntityForSlots.entityId);
+                                setGenRole(slot.role);
+                                setShowGenerateModal(true);
+                              }}
+                              className="bg-[#0f2d22] hover:bg-[#1b4332] text-[#c5a059] px-2.5 py-1 rounded-lg font-bold text-[10px] flex items-center gap-1"
+                            >
+                              <Sparkles className="w-3 h-3" />
+                              <span>Generate Visual</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-[#e8e2d5] bg-[#fcfbf7] flex justify-end">
+                <button
+                  onClick={() => setInspectModalOpen(false)}
+                  className="px-5 py-2 bg-[#1b4332] text-white font-bold rounded-xl hover:bg-[#0f2d22]"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
