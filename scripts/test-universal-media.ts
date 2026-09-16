@@ -240,7 +240,7 @@ async function runUniversalMediaTests() {
   // SUITE 5: SHA-256 DEDUPLICATION
   // --------------------------------------------------------------------------
   console.log('\n--- SUITE 5: Cryptographic SHA-256 Deduplication ---');
-  const dummyFileBuffer = Buffer.from('MUSKY_DOSE_AUTHENTIC_BOTANICAL_IMAGE_BUFFER_TEST_2026');
+  const dummyFileBuffer = Buffer.from(`MUSKY_DOSE_AUTHENTIC_BOTANICAL_IMAGE_BUFFER_TEST_${Date.now()}`);
   const testHash = computeFileHash(dummyFileBuffer);
   assert.strictEqual(testHash.length, 64, 'SHA-256 hash must be 64 hex characters');
 

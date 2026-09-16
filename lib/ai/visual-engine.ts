@@ -1,32 +1,65 @@
 import crypto from 'crypto';
 import { GoogleGenAI } from '@google/genai';
 import { MediaEntityType, MediaAssetRole, MediaAsset, saveMediaAsset } from '@/lib/db/media';
-import { getProductByIdOrSlug, getAllProductsAdmin } from '@/lib/db/products';
-import { getCategories } from '@/lib/db/categories';
-import { getGuides } from '@/lib/db/guides';
-import { getKnowledgeById, getKnowledgeByKey, getAllKnowledgeEntitiesAdmin } from '@/lib/db/knowledge';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import {
+  VisualVariant,
+  EntityCanonicalFacts,
+  PromptBuildResult,
+  composeVisualPrompt,
+  resolveEntityCanonicalFacts,
+  buildCanonicalVisualPrompt,
+} from '@/lib/growth/visual-prompt-engine';
+
+// Re-export visual variant and context types for consumption across the app
+export type { VisualVariant, EntityCanonicalFacts, PromptBuildResult };
+export { composeVisualPrompt, resolveEntityCanonicalFacts, buildCanonicalVisualPrompt };
+
+/**
+ * Backward-compatible helper for building visual prompts directly from fact dictionaries.
+ */
+export function buildVisualPrompt(
+  facts: any,
+  variant: VisualVariant = 'packshot',
+  customOverride?: string
+): string {
+  if (customOverride && customOverride.trim().length > 10) {
+    return customOverride.trim();
+  }
+  const completeFacts: EntityCanonicalFacts = {
+    entityType: facts.entityType || 'PRODUCT',
+    entityId: facts.entityId || 'test',
+    name: facts.name || 'Botanical Care',
+    botanicalName: facts.botanicalName,
+    category: facts.category,
+    ingredients: facts.ingredients || [],
+    formFactor: facts.formFactor || 'triple-sifted botanical powder',
+    brandName: facts.brandName || 'Musky Dose',
+    brandColors: facts.brandColors || {
+      primary: '#0f2d22',
+      secondary: '#5F7F52',
+      henna: '#9A4F32',
+      gold: '#c5a059',
+    },
+  };
+  return buildCanonicalVisualPrompt(completeFacts, variant);
+}
 
 // ============================================================================
-// 1. CONTRACTS & INTERFACES
+// 1. PROVIDER TIERS & CAPABILITY CONTRACTS
 // ============================================================================
 
-export type VisualVariant =
-  | 'packshot'
-  | 'infographic'
-  | 'illustration'
-  | 'collection'
-  | 'lifestyle'
-  | 'ingredient'
-  | 'usage'
-  | 'social';
+export type ProviderTier = 'FREE' | 'LOCAL' | 'PAID' | 'UNAVAILABLE';
 
-export interface VisualGenerationRequest {
-  entityType: MediaEntityType;
-  entityId: string;
-  role?: MediaAssetRole;
-  variant?: VisualVariant;
-  promptOverride?: string;
+export interface ProviderCapability {
+  id: string;
+  name: string;
+  tier: ProviderTier;
+  isAvailable: boolean;
+  costPerImage: string;
+  requiresApiKey: boolean;
+  endpointConfigured?: string;
+  description: string;
 }
 
 export interface GeneratedVisualResult {
@@ -39,26 +72,250 @@ export interface GeneratedVisualResult {
   promptUsed: string;
   modelName: string;
   provider: string;
+  providerId?: string;
+  tier?: ProviderTier;
 }
 
 export interface VisualProvider {
+  id?: string;
   name: string;
+  tier?: ProviderTier;
+  costPerImage?: string;
+  requiresApiKey?: boolean;
+  getCapability?(): Promise<ProviderCapability> | ProviderCapability;
   isAvailable(): Promise<boolean> | boolean;
   generateImage(
     prompt: string,
-    options?: { aspectRatio?: string; width?: number; height?: number }
+    options?: {
+      aspectRatio?: string;
+      width?: number;
+      height?: number;
+      imageBuffer?: Buffer;
+      imageMimeType?: string;
+      imageFileName?: string;
+    }
   ): Promise<GeneratedVisualResult>;
 }
 
 // ============================================================================
-// 2. PROVIDER ABSTRACTION — GOOGLE GEMINI IMAGEN PROVIDER
+// 2. PROVIDER IMPLEMENTATIONS
 // ============================================================================
 
-export class GeminiImagenProvider implements VisualProvider {
-  public name = 'Google Gemini Imagen';
+/**
+ * PROVIDER 1: Free AI Studio / Manual Import (Tier: FREE, ₹0)
+ * Allows admins to use our grounded prompt generator with any free AI generator
+ * (ChatGPT Free, Bing Image Creator, HuggingFace, Fooocus, etc.) and import
+ * directly with zero mandatory API costs. Always available out of the box.
+ */
+export class ManualAiStudioProvider implements VisualProvider {
+  public id = 'manual-studio';
+  public name = 'Free AI Studio / Manual Import';
+  public tier: ProviderTier = 'FREE';
+  public costPerImage = '₹0 (Completely Free)';
+  public requiresApiKey = false;
+
+  public getCapability(): ProviderCapability {
+    return {
+      id: this.id,
+      name: this.name,
+      tier: this.tier,
+      isAvailable: true,
+      costPerImage: this.costPerImage,
+      requiresApiKey: this.requiresApiKey,
+      description:
+        'Zero-cost visual creation. Use the grounded factual prompt generator with any external free AI tool, then import the resulting image directly into the canonical media system.',
+    };
+  }
 
   public isAvailable(): boolean {
-    const key = process.env.GEMINI_API_KEY?.trim();
+    return true;
+  }
+
+  public async generateImage(
+    prompt: string,
+    options?: {
+      aspectRatio?: string;
+      width?: number;
+      height?: number;
+      imageBuffer?: Buffer;
+      imageMimeType?: string;
+      imageFileName?: string;
+    }
+  ): Promise<GeneratedVisualResult> {
+    if (!options?.imageBuffer || options.imageBuffer.length === 0) {
+      throw new Error(
+        'Free AI Studio requires an uploaded image file generated from the prompt. Copy the prompt to generate in your preferred free tool, then drop the image here to import.'
+      );
+    }
+
+    const mimeType = options.imageMimeType || 'image/jpeg';
+    const aspectRatio = options.aspectRatio || '1:1';
+    const width = options.width || (aspectRatio === '16:9' ? 1280 : 1024);
+    const height = options.height || (aspectRatio === '16:9' ? 720 : 1024);
+    const fileName = options.imageFileName || `free-studio-${Date.now()}.jpg`;
+
+    return {
+      buffer: options.imageBuffer,
+      mimeType,
+      width,
+      height,
+      aspectRatio,
+      fileName,
+      promptUsed: prompt,
+      modelName: 'External Free AI / Studio Import',
+      provider: this.name,
+      providerId: this.id,
+      tier: this.tier,
+    };
+  }
+}
+
+/**
+ * PROVIDER 2: Local / Self-Hosted AI (Tier: LOCAL, ₹0)
+ * Connects to a local ComfyUI, Stable Diffusion WebUI, or Ollama instance via
+ * LOCAL_AI_IMAGE_URL. Free operation on local/on-prem hardware.
+ */
+export class LocalSelfHostedProvider implements VisualProvider {
+  public id = 'local-sd';
+  public name = 'Local / Self-Hosted AI (ComfyUI / SD)';
+  public tier: ProviderTier = 'LOCAL';
+  public costPerImage = '₹0 (Self-Hosted Hardware)';
+  public requiresApiKey = false;
+
+  public getEndpoint(): string | undefined {
+    return process.env.LOCAL_AI_IMAGE_URL?.trim();
+  }
+
+  public getCapability(): ProviderCapability {
+    const endpoint = this.getEndpoint();
+    return {
+      id: this.id,
+      name: this.name,
+      tier: endpoint ? 'LOCAL' : 'UNAVAILABLE',
+      isAvailable: Boolean(endpoint),
+      costPerImage: this.costPerImage,
+      requiresApiKey: this.requiresApiKey,
+      endpointConfigured: endpoint || 'Not configured (set LOCAL_AI_IMAGE_URL)',
+      description:
+        'Local automated generation via self-hosted Stable Diffusion, ComfyUI, or Ollama without cloud API subscriptions.',
+    };
+  }
+
+  public async isAvailable(): Promise<boolean> {
+    const endpoint = this.getEndpoint();
+    if (!endpoint) return false;
+    try {
+      // Fast ping with 1.5s timeout
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 1500);
+      const res = await fetch(endpoint, {
+        method: 'GET',
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      return res.status < 500;
+    } catch {
+      return false;
+    }
+  }
+
+  public async generateImage(
+    prompt: string,
+    options?: { aspectRatio?: string; width?: number; height?: number }
+  ): Promise<GeneratedVisualResult> {
+    const endpoint = this.getEndpoint();
+    if (!endpoint) {
+      throw new Error(
+        'Local AI generation is unavailable: LOCAL_AI_IMAGE_URL environment variable is not configured.'
+      );
+    }
+
+    const aspectRatio = options?.aspectRatio || '1:1';
+    const width = options?.width || (aspectRatio === '16:9' ? 1280 : 1024);
+    const height = options?.height || (aspectRatio === '16:9' ? 720 : 1024);
+
+    try {
+      // Standard SD txt2img or generic local image generation endpoint
+      const genUrl = endpoint.endsWith('/') ? `${endpoint}sdapi/v1/txt2img` : `${endpoint}/sdapi/v1/txt2img`;
+      const res = await fetch(genUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          negative_prompt: 'ugly, blurry, lowres, distorted, artificial neon, text artifacts, watermark',
+          width,
+          height,
+          steps: 25,
+          cfg_scale: 7.5,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Local AI server responded with HTTP status ${res.status}`);
+      }
+
+      const json = await res.json();
+      const base64Image = Array.isArray(json.images) && json.images[0] ? json.images[0] : null;
+
+      if (!base64Image) {
+        throw new Error('Local AI server returned an empty image payload.');
+      }
+
+      const buffer = Buffer.from(base64Image.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+
+      return {
+        buffer,
+        mimeType: 'image/png',
+        width,
+        height,
+        aspectRatio,
+        fileName: `local-ai-${Date.now()}.png`,
+        promptUsed: prompt,
+        modelName: 'Local Stable Diffusion / ComfyUI',
+        provider: this.name,
+        providerId: this.id,
+        tier: this.tier,
+      };
+    } catch (err: any) {
+      throw new Error(`Local AI generation failed: ${err?.message || 'Connection error'}`);
+    }
+  }
+}
+
+/**
+ * PROVIDER 3: Google Gemini Native Image (Tier: PAID / Optional Quota)
+ * Uses native Gemini 3.1 Flash Image model via @google/genai interactions API.
+ * STRICT RULE: OPTIONAL ONLY. Never mandatory. Never called without explicit
+ * admin consent.
+ */
+export class GeminiNativeProvider implements VisualProvider {
+  public id = 'gemini';
+  public name = 'Google Gemini Flash Image';
+  public tier: ProviderTier = 'PAID';
+  public costPerImage = 'Standard Google Gemini GenAI API quota / pricing';
+  public requiresApiKey = true;
+
+  public getApiKey(): string | undefined {
+    return process.env.GEMINI_API_KEY?.trim();
+  }
+
+  public getCapability(): ProviderCapability {
+    const apiKey = this.getApiKey();
+    const isAvail = Boolean(apiKey && apiKey.length > 5);
+    return {
+      id: this.id,
+      name: this.name,
+      tier: isAvail ? 'PAID' : 'UNAVAILABLE',
+      isAvailable: isAvail,
+      costPerImage: this.costPerImage,
+      requiresApiKey: this.requiresApiKey,
+      description:
+        'Native Google Gemini 3.1 Flash Image generation model. Optional provider requiring configured GEMINI_API_KEY.',
+    };
+  }
+
+  public isAvailable(): boolean {
+    const key = this.getApiKey();
     return Boolean(key && key.length > 5);
   }
 
@@ -66,19 +323,53 @@ export class GeminiImagenProvider implements VisualProvider {
     prompt: string,
     options?: { aspectRatio?: string; width?: number; height?: number }
   ): Promise<GeneratedVisualResult> {
-    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    const apiKey = this.getApiKey();
     if (!apiKey) {
       throw new Error(
-        'Gemini Image Generation is unavailable: GEMINI_API_KEY environment variable is not configured.'
+        'Gemini image generation is unavailable: GEMINI_API_KEY is not configured. Use the Free AI Studio provider for ₹0 generation.'
       );
     }
 
     const ai = new GoogleGenAI({ apiKey });
     const aspectRatio = options?.aspectRatio || '1:1';
+    const width = options?.width || (aspectRatio === '16:9' ? 1280 : 1024);
+    const height = options?.height || (aspectRatio === '16:9' ? 720 : 1024);
 
+    // 1. Attempt native interactions.create() with 'gemini-3.1-flash-image'
     try {
-      // Use Gemini Imagen 3 model via @google/genai SDK
-      // Valid Imagen aspect ratios: "1:1", "3:4", "4:3", "9:16", "16:9"
+      if (ai.interactions && typeof (ai.interactions as any).create === 'function') {
+        const interaction = await (ai.interactions as any).create({
+          model: 'gemini-3.1-flash-image',
+          input: prompt,
+          response_modalities: ['image'],
+        });
+
+        const outputs = interaction?.outputs || [];
+        for (const output of outputs) {
+          if (output.type === 'image' && output.data) {
+            const buffer = Buffer.from(output.data, 'base64');
+            return {
+              buffer,
+              mimeType: 'image/jpeg',
+              width,
+              height,
+              aspectRatio,
+              fileName: `gemini-flash-${Date.now()}.jpg`,
+              promptUsed: prompt,
+              modelName: 'gemini-3.1-flash-image',
+              provider: this.name,
+              providerId: this.id,
+              tier: this.tier,
+            };
+          }
+        }
+      }
+    } catch (interactionErr: any) {
+      console.warn('Interactions API generation attempt note:', interactionErr?.message);
+    }
+
+    // 2. Fallback to models.generateImages via @google/genai
+    try {
       const response = await (ai.models as any).generateImages({
         model: 'imagen-3.0-generate-002',
         prompt,
@@ -90,215 +381,98 @@ export class GeminiImagenProvider implements VisualProvider {
       });
 
       const generatedImages = response?.generatedImages;
-      if (!generatedImages || generatedImages.length === 0) {
-        throw new Error('Gemini API returned an empty image generation response.');
+      if (generatedImages && generatedImages.length > 0 && generatedImages[0].image?.imageBytes) {
+        const buffer = Buffer.from(generatedImages[0].image.imageBytes, 'base64');
+        return {
+          buffer,
+          mimeType: 'image/jpeg',
+          width,
+          height,
+          aspectRatio,
+          fileName: `gemini-imagen-${Date.now()}.jpg`,
+          promptUsed: prompt,
+          modelName: 'imagen-3.0-generate-002',
+          provider: this.name,
+          providerId: this.id,
+          tier: this.tier,
+        };
       }
-
-      const firstImage = generatedImages[0];
-      const imageBytesBase64 = firstImage.image?.imageBytes;
-      if (!imageBytesBase64) {
-        throw new Error('Gemini API returned no image byte payload.');
-      }
-
-      const buffer = Buffer.from(imageBytesBase64, 'base64');
-      const width = options?.width || (aspectRatio === '16:9' ? 1280 : 1024);
-      const height = options?.height || (aspectRatio === '16:9' ? 720 : 1024);
-
-      return {
-        buffer,
-        mimeType: 'image/jpeg',
-        width,
-        height,
-        aspectRatio,
-        fileName: `gemini-imagen-${Date.now()}.jpg`,
-        promptUsed: prompt,
-        modelName: 'imagen-3.0-generate-002',
-        provider: this.name,
-      };
-    } catch (err: any) {
-      throw new Error(
-        `Gemini Imagen API generation failed: ${err?.message || 'Unknown provider error'}`
-      );
+    } catch (imagenErr: any) {
+      throw new Error(`Google GenAI image generation failed: ${imagenErr?.message || 'Unknown provider error'}`);
     }
+
+    throw new Error('Google GenAI returned no image output data.');
   }
 }
 
+export { GeminiNativeProvider as GeminiImagenProvider };
+
 // ============================================================================
-// 3. PROVIDER REGISTRY
+// 3. PROVIDER REGISTRY & CAPABILITY DISCOVERY
 // ============================================================================
 
-let activeProvider: VisualProvider = new GeminiImagenProvider();
+const registeredProviders: Record<string, VisualProvider> = {
+  'manual-studio': new ManualAiStudioProvider(),
+  'local-sd': new LocalSelfHostedProvider(),
+  'gemini': new GeminiNativeProvider(),
+};
+
+let customActiveProvider: VisualProvider | null = null;
 
 export function setVisualProvider(provider: VisualProvider): void {
-  activeProvider = provider;
+  customActiveProvider = provider;
+  if (provider.id) {
+    registeredProviders[provider.id] = provider;
+  }
 }
 
 export function getActiveVisualProvider(): VisualProvider {
-  return activeProvider;
+  return customActiveProvider || getProviderById();
+}
+
+/**
+ * Returns capabilities and live status for all providers.
+ */
+export async function getProviderCapabilities(): Promise<ProviderCapability[]> {
+  const capabilities: ProviderCapability[] = [];
+  for (const provider of Object.values(registeredProviders)) {
+    if (typeof provider.getCapability === 'function') {
+      const cap = await provider.getCapability();
+      capabilities.push(cap);
+    }
+  }
+  return capabilities;
+}
+
+/**
+ * Returns a specific provider by ID with default failover to the Free Studio.
+ */
+export function getProviderById(providerId?: string): VisualProvider {
+  if (customActiveProvider) {
+    return customActiveProvider;
+  }
+  if (providerId && registeredProviders[providerId]) {
+    return registeredProviders[providerId];
+  }
+  // Default is strictly the ₹0 Free AI Studio
+  return registeredProviders['manual-studio'];
 }
 
 // ============================================================================
-// 4. ENTITY FACT RESOLVER & ANTI-HALLUCINATION PROMPT BUILDER
+// 4. ENGINE EXECUTION — ASYNC & ADMIN TRIGGERED ONLY
 // ============================================================================
 
-export interface EntityCanonicalContext {
+export interface VisualGenerationRequest {
   entityType: MediaEntityType;
   entityId: string;
-  name: string;
-  botanicalName?: string;
-  category?: string;
-  ingredients: string[];
-  productType?: string;
-  formFactor: string; // e.g., 'triple-sifted leaf powder', 'ready-to-use mehendi cone', 'pure floral hydrosol'
-  description?: string;
+  role?: MediaAssetRole;
+  variant?: VisualVariant;
+  promptOverride?: string;
+  providerId?: string;
+  imageBuffer?: Buffer;
+  imageMimeType?: string;
+  imageFileName?: string;
 }
-
-/**
- * Resolves authoritative facts from DB for an entity so AI never invents claims.
- */
-export async function resolveEntityCanonicalFacts(
-  entityType: MediaEntityType,
-  entityId: string
-): Promise<EntityCanonicalContext> {
-  const cleanId = entityId.trim();
-
-  if (entityType === 'PRODUCT') {
-    const product = await getProductByIdOrSlug(cleanId);
-    if (product) {
-      const isHenna = /henna|mehendi|mehndi/i.test(product.name);
-      const isAmla = /amla|gooseberry/i.test(product.name);
-      const isIndigo = /indigo/i.test(product.name);
-      const isCone = /cone/i.test(product.name);
-      const isHydrosol = /rose|water|hydrosol|gulab/i.test(product.name);
-      const isOil = /oil/i.test(product.name);
-
-      let formFactor = 'triple-sifted botanical powder in eco craft pouch';
-      if (isCone) formFactor = 'ready-to-use smooth bridal mehendi cone with precision applicator tip';
-      else if (isHydrosol) formFactor = 'steam-distilled floral mist in amber spray bottle';
-      else if (isOil) formFactor = 'cold-pressed herbal hair oil in dark glass dropper bottle';
-
-      let botanicalName = '';
-      if (isHenna) botanicalName = 'Lawsonia Inermis (Rajasthani Sojat Henna)';
-      else if (isAmla) botanicalName = 'Phyllanthus Emblica (Indian Gooseberry)';
-      else if (isIndigo) botanicalName = 'Indigofera Tinctoria (Natural Indigo Leaf)';
-      else if (isHydrosol) botanicalName = 'Rosa Damascena (Pure Country Rose)';
-
-      return {
-        entityType,
-        entityId: product.id,
-        name: product.name,
-        botanicalName,
-        category: product.categoryName || product.categoryId,
-        ingredients: product.ingredients || (botanicalName ? [botanicalName] : []),
-        productType: product.productType,
-        formFactor,
-        description: product.shortDescription || product.fullDescription,
-      };
-    }
-  }
-
-  if (entityType === 'CATEGORY') {
-    const categories = await getCategories();
-    const cat = categories.find((c) => c.id === cleanId || c.slug === cleanId);
-    if (cat) {
-      return {
-        entityType,
-        entityId: cat.id,
-        name: cat.name,
-        formFactor: 'curated premium Rajasthani botanical collection',
-        ingredients: [],
-        description: cat.description,
-      };
-    }
-  }
-
-  if (entityType === 'GUIDE') {
-    const guides = await getGuides();
-    const guide = guides.find((g) => g.id === cleanId || g.slug === cleanId);
-    if (guide) {
-      return {
-        entityType,
-        entityId: guide.id,
-        name: guide.title,
-        formFactor: 'step-by-step instructional botanical guide',
-        ingredients: guide.ingredients || [],
-        description: guide.shortIntro || guide.overview,
-      };
-    }
-  }
-
-  if (entityType === 'KNOWLEDGE') {
-    const knowledge = (await getKnowledgeById(cleanId)) || (await getKnowledgeByKey(cleanId));
-    if (knowledge) {
-      return {
-        entityType,
-        entityId: knowledge.id,
-        name: knowledge.canonicalName,
-        botanicalName: knowledge.scientificName,
-        formFactor: 'educational botanical illustration & field monograph',
-        ingredients: [knowledge.canonicalName],
-        description: knowledge.description,
-      };
-    }
-  }
-
-  // Fallback generic context for BRAND / MARKETING
-  return {
-    entityType,
-    entityId: cleanId,
-    name: cleanId,
-    formFactor: 'authentic Ayurvedic botanical presentation',
-    ingredients: [],
-    description: 'Musky Dose — Premium Sojat Botanicals & Organic Mehendi',
-  };
-}
-
-/**
- * Builds an authentic, grounded prompt without hallucinated claims.
- */
-export function buildVisualPrompt(
-  context: EntityCanonicalContext,
-  variant: VisualVariant = 'packshot',
-  customOverride?: string
-): string {
-  if (customOverride && customOverride.trim().length > 10) {
-    return customOverride.trim();
-  }
-
-  const baseStyle =
-    'Professional commercial studio product photography for luxury Ayurvedic wellness brand "Musky Dose" in Sojat, Rajasthan. Elegant earthy color palette of deep forest green (#0f2d22), soft warm gold (#c5a059), terracotta, and natural linen. Soft natural diffused lighting, crisp focus, clean composition, zero artificial neon hues.';
-
-  switch (variant) {
-    case 'packshot':
-      return `${baseStyle} Centered clean packshot of ${context.name}. The product is presented as ${context.formFactor}. Elegant minimal packaging label featuring subtle botanical line-art with the name "${context.name}". Resting on a polished organic sandstone or warm teakwood surface, shallow depth of field, pure commercial catalog quality.`;
-
-    case 'lifestyle':
-      return `${baseStyle} Warm atmospheric lifestyle setting for ${context.name}. Placed on a sunlit Rajasthani courtyard table with traditional brass accents, hand-woven textile, soft morning sunlight casting gentle shadows. Organic, grounded, peaceful Ayurvedic ritual setting.`;
-
-    case 'ingredient':
-      return `${baseStyle} Raw botanical ingredient still life for ${context.name} (${context.botanicalName || context.name}). Displayed alongside natural raw sun-dried botanical elements in an antique stone or brass mortar. Fresh organic textures, authentic Sojat farm harvest atmosphere, macro botanical detail.`;
-
-    case 'usage':
-      return `${baseStyle} Elegant authentic demonstration of applying or preparing ${context.name}. Gentle hands preparing the smooth natural paste or fine mist, surrounded by raw organic botanical elements. Calm, educational, authentic Ayurvedic self-care ritual.`;
-
-    case 'infographic':
-      return `${baseStyle} Clean editorial educational composition for ${context.name}. Visual breakdown of pure botanical layers: pure leaves, traditional stone milling, fine silk-cloth sifting, and final pure product. Informative, elegant, museum-grade aesthetic.`;
-
-    case 'illustration':
-      return `Botanical scientific monograph illustration of ${context.name} (${context.botanicalName || 'Ayurvedic botanical'}). Vintage naturalist watercolor and fine ink style on textured cream parchment. Detailed botanical anatomy of leaves, flowers, and seeds with elegant calligraphy. Brand palette of dark green and antique gold.`;
-
-    case 'collection':
-      return `${baseStyle} Harmonious collection display for category "${context.name}". Multiple complementary botanical items neatly arranged on a rustic marble and wood surface. Subtle warm sunlight, premium boutique shelf display.`;
-
-    case 'social':
-    default:
-      return `${baseStyle} Hero social media editorial visual showcasing ${context.name}. Striking visual composition, beautiful negative space for text overlay, premium luxury aesthetic celebrating Sojat Rajasthan agricultural craftsmanship.`;
-  }
-}
-
-// ============================================================================
-// 5. ENGINE EXECUTION — ASYNC & ADMIN TRIGGERED ONLY
-// ============================================================================
 
 export async function generateAndSaveVisualForEntity(
   request: VisualGenerationRequest
@@ -306,33 +480,49 @@ export async function generateAndSaveVisualForEntity(
   asset: MediaAsset;
   promptUsed: string;
   provider: string;
+  tier: ProviderTier;
+  cost: string;
 }> {
-  const provider = getActiveVisualProvider();
+  // 1. Resolve Provider
+  const provider = customActiveProvider || getProviderById(request.providerId);
 
-  // 1. Verify provider availability (fail-closed, never invent placeholder)
+  // FAIL-CLOSED ZERO-COST GUARD:
   const isAvail = await provider.isAvailable();
   if (!isAvail) {
     throw new Error(
-      `Visual Engine Provider "${provider.name}" is unconfigured or unavailable. Set the required API credentials to generate AI visuals.`
+      `Visual Engine Provider "${provider.name}" is unconfigured or unavailable. The website operates free-first; please use the Free AI Studio (₹0) or configure the required credentials.`
     );
   }
 
-  // 2. Resolve canonical facts to ground prompt
-  const facts = await resolveEntityCanonicalFacts(request.entityType, request.entityId);
-  const variant = request.variant || 'packshot';
-  const prompt = buildVisualPrompt(facts, variant, request.promptOverride);
-
-  // 3. Generate visual via provider
-  const result = await provider.generateImage(prompt, {
-    aspectRatio: request.role === 'HERO' ? '16:9' : '1:1',
+  // 2. Compose strictly grounded canonical prompt (never hallucinated claims)
+  const promptResult = await composeVisualPrompt({
+    entityType: request.entityType,
+    entityId: request.entityId,
+    variant: request.variant,
+    role: request.role,
+    promptOverride: request.promptOverride,
+    hasSuppliedReferenceImage: Boolean(request.imageBuffer),
   });
 
-  // 4. Compute SHA-256 binary hash for deduplication
+  const variant = promptResult.variant;
+  const role = promptResult.role;
+  const prompt = promptResult.finalPrompt;
+
+  // 3. Generate or process image via selected provider
+  const result = await provider.generateImage(prompt, {
+    aspectRatio: promptResult.aspectRatio,
+    imageBuffer: request.imageBuffer,
+    imageMimeType: request.imageMimeType,
+    imageFileName: request.imageFileName,
+  });
+
+  // 4. Compute SHA-256 binary hash for storage deduplication
   const fileHash = crypto.createHash('sha256').update(result.buffer).digest('hex');
 
   // 5. Storage Upload
   let publicUrl = '';
-  let storagePath = `ai-generated/${request.entityType.toLowerCase()}/${request.entityId}/${Date.now()}-${variant}.jpg`;
+  const fileExtension = result.mimeType.includes('png') ? 'png' : 'jpg';
+  const storagePath = `ai-generated/${request.entityType.toLowerCase()}/${request.entityId}/${Date.now()}-${variant}.${fileExtension}`;
   const bucketName = 'product-images';
 
   const supabaseAdmin = getSupabaseAdmin();
@@ -354,7 +544,7 @@ export async function generateAndSaveVisualForEntity(
     }
   }
 
-  // Fallback data URL if storage is unconfigured (allows offline testing/dev)
+  // Fallback data URL if storage is unconfigured (offline / local dev safety)
   if (!publicUrl) {
     publicUrl = `data:${result.mimeType};base64,${result.buffer.toString('base64')}`;
   }
@@ -365,7 +555,6 @@ export async function generateAndSaveVisualForEntity(
   // - status = 'suggested' (NEVER auto-approved, NEVER auto-published!)
   // - isLocked = false
   // - anti-hallucination locking guard in saveMediaAsset() prevents overwriting locked manual primary
-  const role = request.role || 'GALLERY';
   const { asset } = await saveMediaAsset({
     entityType: request.entityType,
     entityId: request.entityId,
@@ -373,7 +562,7 @@ export async function generateAndSaveVisualForEntity(
     storageBucket: bucketName,
     storagePath,
     fileHash,
-    fileName: `${request.entityType.toLowerCase()}-${request.entityId}-${variant}.jpg`,
+    fileName: `${request.entityType.toLowerCase()}-${request.entityId}-${variant}.${fileExtension}`,
     mimeType: result.mimeType,
     fileSizeBytes: result.buffer.length,
     width: result.width,
@@ -383,18 +572,25 @@ export async function generateAndSaveVisualForEntity(
     source: 'AI_GENERATED',
     status: 'suggested', // STRICTLY SUGGESTED!
     isLocked: false,
-    title: `AI Generated ${variant.toUpperCase()} — ${facts.name}`,
-    altText: `AI suggested ${variant} visual for ${facts.name}`,
-    caption: `Generated with ${result.modelName}`,
+    title: `AI Generated ${variant.toUpperCase()} — ${promptResult.facts.name}`,
+    altText: `AI suggested ${variant} visual for ${promptResult.facts.name}`,
+    caption: `Generated via ${result.modelName} (${result.tier})`,
     visualContext: {
       variant,
-      facts,
-      formFactor: facts.formFactor,
+      facts: promptResult.facts,
+      formFactor: promptResult.facts.formFactor,
+      isOverride: promptResult.isOverride,
     },
     aiMetadata: {
       provider: result.provider,
+      providerId: result.providerId || provider.id || 'custom',
+      tier: result.tier || provider.tier || 'FREE',
+      cost: provider.costPerImage || '₹0',
       model: result.modelName,
       promptUsed: result.promptUsed,
+      canonicalPrompt: promptResult.canonicalPrompt,
+      isOverride: promptResult.isOverride,
+      promptOverride: promptResult.promptOverride,
       generatedAt: new Date().toISOString(),
       variant,
     },
@@ -405,5 +601,7 @@ export async function generateAndSaveVisualForEntity(
     asset,
     promptUsed: result.promptUsed,
     provider: result.provider,
+    tier: result.tier || provider.tier || 'FREE',
+    cost: provider.costPerImage || '₹0',
   };
 }

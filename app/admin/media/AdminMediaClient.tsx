@@ -97,6 +97,12 @@ export default function AdminMediaClient({
   const [genVariant, setGenVariant] = useState<string>('packshot');
   const [genRole, setGenRole] = useState<MediaAssetRole>('GALLERY');
   const [genPromptOverride, setGenPromptOverride] = useState<string>('');
+  const [genProviderId, setGenProviderId] = useState<string>('manual-studio');
+  const [genStudioFile, setGenStudioFile] = useState<File | null>(null);
+  const [genPromptPreview, setGenPromptPreview] = useState<string>('');
+  const [promptCopied, setPromptCopied] = useState<boolean>(false);
+  const [capabilities, setCapabilities] = useState<any[]>([]);
+  const [loadingCapabilities, setLoadingCapabilities] = useState<boolean>(false);
   const [generating, setGenerating] = useState<boolean>(false);
   const [genError, setGenError] = useState<string>('');
   const [genSuccessNotice, setGenSuccessNotice] = useState<string>('');
@@ -208,6 +214,47 @@ export default function AdminMediaClient({
     }
   }, [genEntityType, entityOptions]);
 
+  // Load capabilities and dynamic prompt preview when AI Visual modal is active
+  useEffect(() => {
+    if (!showGenerateModal) return;
+
+    let isMounted = true;
+    const fetchCapabilitiesAndPrompt = async () => {
+      setLoadingCapabilities(true);
+      try {
+        const queryParams = new URLSearchParams({
+          entityType: genEntityType,
+          entityId: genEntityId || '',
+          variant: genVariant,
+          role: genRole,
+        });
+        if (genPromptOverride.trim()) {
+          queryParams.set('promptOverride', genPromptOverride.trim());
+        }
+
+        const res = await fetch(`/api/admin/media-assets/generate?${queryParams.toString()}`);
+        const data = await res.json();
+        if (isMounted && data.success) {
+          if (Array.isArray(data.capabilities)) {
+            setCapabilities(data.capabilities);
+          }
+          if (data.promptPreview?.finalPrompt) {
+            setGenPromptPreview(data.promptPreview.finalPrompt);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load visual capabilities or preview:', err);
+      } finally {
+        if (isMounted) setLoadingCapabilities(false);
+      }
+    };
+
+    fetchCapabilitiesAndPrompt();
+    return () => {
+      isMounted = false;
+    };
+  }, [showGenerateModal, genEntityType, genEntityId, genVariant, genRole, genPromptOverride]);
+
   // Upload handler
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -267,35 +314,63 @@ export default function AdminMediaClient({
       return;
     }
 
+    if (genProviderId === 'manual-studio' && !genStudioFile) {
+      setGenError('Please select or drop the generated image file to import into the Free AI Studio.');
+      return;
+    }
+
     setGenerating(true);
     setGenError('');
     setGenSuccessNotice('');
 
     try {
-      const res = await fetch('/api/admin/media-assets/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          entityType: genEntityType,
-          entityId: genEntityId,
-          role: genRole,
-          variant: genVariant,
-          promptOverride: genPromptOverride.trim() || undefined,
-        }),
-      });
+      let res: Response;
+
+      if (genProviderId === 'manual-studio' && genStudioFile) {
+        const formData = new FormData();
+        formData.append('file', genStudioFile);
+        formData.append('entityType', genEntityType);
+        formData.append('entityId', genEntityId);
+        formData.append('role', genRole);
+        formData.append('variant', genVariant);
+        formData.append('providerId', 'manual-studio');
+        if (genPromptOverride.trim()) {
+          formData.append('promptOverride', genPromptOverride.trim());
+        }
+
+        res = await fetch('/api/admin/media-assets/generate', {
+          method: 'POST',
+          body: formData,
+        });
+      } else {
+        res = await fetch('/api/admin/media-assets/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            entityType: genEntityType,
+            entityId: genEntityId,
+            role: genRole,
+            variant: genVariant,
+            promptOverride: genPromptOverride.trim() || undefined,
+            providerId: genProviderId,
+          }),
+        });
+      }
 
       const data = await res.json();
       if (data.success && data.asset) {
+        const costNotice = data.cost ? ` (${data.tier} • ${data.cost})` : '';
         setGenSuccessNotice(
-          'AI visual successfully generated! Saved as SUGGESTED. You must review and approve it below before it becomes public.'
+          `AI visual successfully registered${costNotice}! Saved as SUGGESTED. You must review and approve it below before it becomes public.`
         );
         refreshCanonicalAssets();
+        setGenStudioFile(null);
         setTimeout(() => {
           setShowGenerateModal(false);
           setGenSuccessNotice('');
         }, 2200);
       } else {
-        setGenError(data.error || 'Failed to generate visual with AI.');
+        setGenError(data.error || 'Failed to generate/import visual with AI provider.');
       }
     } catch (err: any) {
       setGenError('Network error while requesting AI generation.');
@@ -481,9 +556,14 @@ export default function AdminMediaClient({
               <ImageIcon className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="font-serif-heading font-bold text-2xl text-[#0f2d22]">
-                Universal Media & Visual Studio
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="font-serif-heading font-bold text-2xl text-[#0f2d22]">
+                  Universal Media & Visual Studio
+                </h1>
+                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                  FREE / ₹0 GUARANTEE
+                </span>
+              </div>
               <p className="text-xs text-gray-500 mt-0.5">
                 Authoritative media DAL for Products, Categories, Guides, Knowledge entities, and Brand visuals.
               </p>
@@ -1072,11 +1152,18 @@ export default function AdminMediaClient({
         {/* AI VISUAL GENERATOR MODAL */}
         {showGenerateModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-            <div className="bg-white border border-[#e8e2d5] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
-              <div className="p-5 border-b border-[#e8e2d5] flex items-center justify-between bg-[#0f2d22] text-white">
+            <div className="bg-white border border-[#e8e2d5] rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+              <div className="p-5 border-b border-[#e8e2d5] flex items-center justify-between bg-[#0f2d22] text-white shrink-0">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-[#c5a059]" />
-                  <h3 className="font-serif-heading font-bold text-lg text-white">AI Visual Generation Studio</h3>
+                  <div>
+                    <h3 className="font-serif-heading font-bold text-lg text-white">
+                      AI Visual Generation Studio
+                    </h3>
+                    <p className="text-[11px] text-[#c5a059]">
+                      Zero-Cost Free-First Architecture • Factual Anti-Hallucination Prompts
+                    </p>
+                  </div>
                 </div>
                 <button
                   onClick={() => setShowGenerateModal(false)}
@@ -1086,7 +1173,7 @@ export default function AdminMediaClient({
                 </button>
               </div>
 
-              <form onSubmit={handleGenerateSubmit} className="p-6 space-y-4 text-xs">
+              <form onSubmit={handleGenerateSubmit} className="p-6 overflow-y-auto space-y-4 text-xs">
                 {genError && (
                   <div className="p-3 bg-rose-50 border border-rose-300 text-rose-800 rounded-xl font-medium">
                     {genError}
@@ -1099,38 +1186,41 @@ export default function AdminMediaClient({
                   </div>
                 )}
 
-                <div>
-                  <label className="block text-[#0f2d22] font-bold mb-1">Entity Classification</label>
-                  <select
-                    value={genEntityType}
-                    onChange={(e) => setGenEntityType(e.target.value as MediaEntityType)}
-                    className="w-full p-2.5 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl font-medium"
-                  >
-                    <option value="PRODUCT">PRODUCT (Product Render / Packshot)</option>
-                    <option value="CATEGORY">CATEGORY (Collection Scene)</option>
-                    <option value="GUIDE">GUIDE (Instructional Infographic)</option>
-                    <option value="KNOWLEDGE">KNOWLEDGE (Educational Monograph)</option>
-                    <option value="BRAND">BRAND (Brand Story Heritage)</option>
-                    <option value="MARKETING">MARKETING (Social / Banners)</option>
-                  </select>
+                {/* Target Entity & Classification */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[#0f2d22] font-bold mb-1">Entity Classification</label>
+                    <select
+                      value={genEntityType}
+                      onChange={(e) => setGenEntityType(e.target.value as MediaEntityType)}
+                      className="w-full p-2.5 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl font-medium"
+                    >
+                      <option value="PRODUCT">PRODUCT (Product Render / Packshot)</option>
+                      <option value="CATEGORY">CATEGORY (Collection Scene)</option>
+                      <option value="GUIDE">GUIDE (Instructional Infographic)</option>
+                      <option value="KNOWLEDGE">KNOWLEDGE (Educational Monograph)</option>
+                      <option value="BRAND">BRAND (Brand Story Heritage)</option>
+                      <option value="MARKETING">MARKETING (Social / Banners)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[#0f2d22] font-bold mb-1">Target Entity Record</label>
+                    <select
+                      value={genEntityId}
+                      onChange={(e) => setGenEntityId(e.target.value)}
+                      className="w-full p-2.5 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl font-medium"
+                    >
+                      {entityOptions.map((opt) => (
+                        <option key={opt.id} value={opt.id}>
+                          {opt.name} ({opt.id})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-[#0f2d22] font-bold mb-1">Target Entity Record</label>
-                  <select
-                    value={genEntityId}
-                    onChange={(e) => setGenEntityId(e.target.value)}
-                    className="w-full p-2.5 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl font-medium"
-                  >
-                    {entityOptions.map((opt) => (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.name} ({opt.id})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[#0f2d22] font-bold mb-1">Visual Variant</label>
                     <select
@@ -1138,14 +1228,14 @@ export default function AdminMediaClient({
                       onChange={(e) => setGenVariant(e.target.value)}
                       className="w-full p-2.5 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl font-medium"
                     >
-                      <option value="packshot">Packshot (Studio Clean)</option>
-                      <option value="lifestyle">Lifestyle (Natural Courtyard)</option>
-                      <option value="ingredient">Ingredient (Raw Botanicals)</option>
-                      <option value="usage">Usage / Application Ritual</option>
-                      <option value="infographic">Infographic / Layers</option>
-                      <option value="illustration">Monograph Illustration</option>
-                      <option value="collection">Collection Display</option>
-                      <option value="social">Social Hero Visual</option>
+                      <option value="packshot">Packshot (Clean Commercial Studio)</option>
+                      <option value="lifestyle">Lifestyle (Sunlit Rajasthani Courtyard)</option>
+                      <option value="ingredient">Ingredient (Macro Botanicals & Stone Mortar)</option>
+                      <option value="usage">Usage / Authentic Application Ritual</option>
+                      <option value="infographic">Infographic (Museum Botanical Layers)</option>
+                      <option value="illustration">Monograph Illustration (Watercolor & Archival Ink)</option>
+                      <option value="collection">Collection Display (Harmonious Boutique Shelf)</option>
+                      <option value="social">Social Hero Visual (High Impact Editorial)</option>
                     </select>
                   </div>
 
@@ -1156,8 +1246,8 @@ export default function AdminMediaClient({
                       onChange={(e) => setGenRole(e.target.value as MediaAssetRole)}
                       className="w-full p-2.5 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl font-medium"
                     >
-                      <option value="GALLERY">GALLERY</option>
-                      <option value="PRIMARY">PRIMARY (Demoted if locked)</option>
+                      <option value="GALLERY">GALLERY (Catalog)</option>
+                      <option value="PRIMARY">PRIMARY (Demoted if locked primary exists)</option>
                       <option value="PACKAGING">PACKAGING</option>
                       <option value="LIFESTYLE">LIFESTYLE</option>
                       <option value="INGREDIENTS">INGREDIENTS</option>
@@ -1167,6 +1257,113 @@ export default function AdminMediaClient({
                   </div>
                 </div>
 
+                {/* Provider Tier Selector */}
+                <div>
+                  <label className="block text-[#0f2d22] font-bold mb-1.5">
+                    Select AI Generation Provider (Free-First)
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {/* Free Studio Option */}
+                    <button
+                      type="button"
+                      onClick={() => setGenProviderId('manual-studio')}
+                      className={`p-3 text-left rounded-xl border transition-all ${
+                        genProviderId === 'manual-studio'
+                          ? 'border-[#1b4332] bg-[#f5f1e8] ring-1 ring-[#1b4332]'
+                          : 'border-[#e8e2d5] bg-white hover:bg-[#fcfbf7]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-[#0f2d22]">Free AI Studio</span>
+                        <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
+                          FREE • ₹0
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-gray-600 line-clamp-2">
+                        Use prompt with any free AI generator and import directly.
+                      </p>
+                    </button>
+
+                    {/* Local Self-Hosted Option */}
+                    <button
+                      type="button"
+                      onClick={() => setGenProviderId('local-sd')}
+                      className={`p-3 text-left rounded-xl border transition-all ${
+                        genProviderId === 'local-sd'
+                          ? 'border-[#1b4332] bg-[#f5f1e8] ring-1 ring-[#1b4332]'
+                          : 'border-[#e8e2d5] bg-white hover:bg-[#fcfbf7]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-[#0f2d22]">Local AI</span>
+                        <span className="text-[9px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded">
+                          LOCAL • ₹0
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-gray-600 line-clamp-2">
+                        Stable Diffusion / ComfyUI on local server.
+                      </p>
+                    </button>
+
+                    {/* Google Gemini Option */}
+                    <button
+                      type="button"
+                      onClick={() => setGenProviderId('gemini')}
+                      className={`p-3 text-left rounded-xl border transition-all ${
+                        genProviderId === 'gemini'
+                          ? 'border-[#1b4332] bg-[#f5f1e8] ring-1 ring-[#1b4332]'
+                          : 'border-[#e8e2d5] bg-white hover:bg-[#fcfbf7]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-[#0f2d22]">Gemini Flash</span>
+                        <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded">
+                          OPTIONAL PAID
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-gray-600 line-clamp-2">
+                        Native Gemini 3.1 Flash Image model via API key.
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Grounded Factual Prompt Preview & 1-Click Copy */}
+                <div className="bg-[#f5f1e8] border border-[#e8e2d5] rounded-xl p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-[#0f2d22] font-bold">
+                      <Sparkles className="w-3.5 h-3.5 text-[#c5a059]" />
+                      <span>Factual Grounded Prompt (Anti-Hallucination)</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const textToCopy = genPromptOverride.trim() || genPromptPreview;
+                        navigator.clipboard.writeText(textToCopy);
+                        setPromptCopied(true);
+                        setTimeout(() => setPromptCopied(false), 2500);
+                      }}
+                      className="inline-flex items-center gap-1 bg-white hover:bg-[#0f2d22] hover:text-white border border-[#e8e2d5] px-2.5 py-1 rounded-lg text-[11px] font-bold text-[#1b4332] transition-colors shadow-2xs"
+                    >
+                      {promptCopied ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          <span>Copied Prompt!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3 text-[#c5a059]" />
+                          <span>Copy Prompt</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-[#0f2d22]/90 italic bg-white/80 p-2.5 rounded-lg border border-[#e8e2d5]/60 font-serif max-h-28 overflow-y-auto select-all">
+                    {genPromptOverride.trim() || genPromptPreview || 'Generating grounded prompt from DB facts...'}
+                  </p>
+                </div>
+
+                {/* Custom Prompt Override */}
                 <div>
                   <label className="block text-[#0f2d22] font-bold mb-1">
                     Custom Prompt Override (Optional)
@@ -1174,20 +1371,58 @@ export default function AdminMediaClient({
                   <textarea
                     value={genPromptOverride}
                     onChange={(e) => setGenPromptOverride(e.target.value)}
-                    placeholder="Leave blank to use the strict grounded canonical prompt..."
+                    placeholder="Leave blank to use the strict factual prompt above..."
                     rows={2}
                     className="w-full p-2.5 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl"
                   />
                 </div>
 
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 space-y-1">
+                {/* Free Studio Image Import Dropzone (when manual-studio is active) */}
+                {genProviderId === 'manual-studio' && (
+                  <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-emerald-950 text-[11px]">
+                        Import AI Image (₹0 Operation)
+                      </span>
+                      <span className="text-[10px] text-emerald-800 font-medium">
+                        ChatGPT Free • Bing • Fooocus • HuggingFace
+                      </span>
+                    </div>
+                    <div className="border-2 border-dashed border-emerald-300 hover:border-emerald-600 rounded-xl p-4 text-center bg-white relative cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/avif"
+                        onChange={(e) => setGenStudioFile(e.target.files?.[0] || null)}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      />
+                      <Upload className="w-6 h-6 text-emerald-700 mx-auto mb-1.5" />
+                      {genStudioFile ? (
+                        <div>
+                          <p className="font-bold text-emerald-900">{genStudioFile.name}</p>
+                          <p className="text-[10px] text-gray-500 mt-0.5">
+                            {(genStudioFile.size / 1024).toFixed(1)} KB — Click to change
+                          </p>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="font-bold text-[#0f2d22]">Choose or Drag Generated Image Here</p>
+                          <p className="text-[10px] text-gray-500 mt-0.5">
+                            Saves to canonical media_assets as &quot;suggested&quot; with SHA-256 deduplication
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Governance Guardrails Reminder */}
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 space-y-0.5">
                   <p className="font-bold flex items-center gap-1">
                     <ShieldCheck className="w-3.5 h-3.5 text-amber-700" />
-                    <span>AI Governance Guardrails Active</span>
+                    <span>Strict AI Governance & Zero-Mandatory-Cost Guarantee</span>
                   </p>
                   <p>
-                    Visual generation is strictly admin-triggered. Generated assets are tagged as{' '}
-                    <strong>suggested</strong> and will NEVER be publicly visible until you approve them.
+                    All generated visual assets are registered with status <strong>suggested</strong> and <strong>is_locked = false</strong>. They will never appear publicly on the storefront until you review and approve them.
                   </p>
                 </div>
 
@@ -1202,11 +1437,17 @@ export default function AdminMediaClient({
 
                   <button
                     type="submit"
-                    disabled={generating}
+                    disabled={generating || (genProviderId === 'manual-studio' && !genStudioFile)}
                     className="inline-flex items-center gap-1.5 bg-[#0f2d22] text-[#c5a059] border border-[#c5a059]/40 px-5 py-2.5 rounded-xl font-bold shadow hover:bg-[#1b4332] disabled:opacity-50"
                   >
                     <Sparkles className="w-4 h-4" />
-                    <span>{generating ? 'Generating Visual...' : 'Generate Visual'}</span>
+                    <span>
+                      {generating
+                        ? 'Processing Visual...'
+                        : genProviderId === 'manual-studio'
+                        ? 'Register Visual (₹0)'
+                        : `Generate via ${genProviderId === 'local-sd' ? 'Local AI' : 'Gemini'}`}
+                    </span>
                   </button>
                 </div>
               </form>
