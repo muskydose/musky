@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       status: autoApprove ? 'approved' : 'suggested',
       is_locked: autoApprove && role === 'PRIMARY',
       title: `${entityType} ${role} Asset`,
-      altText: `${entityType} ${role} image`,
+      alt_text: `${entityType} ${role} image`,
       sort_order: role === 'PRIMARY' ? 1 : 10,
       visual_context: {
         slotKey,
