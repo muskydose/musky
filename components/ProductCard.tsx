@@ -16,6 +16,7 @@ import { SPRINGS } from '@/lib/motion';
 import { startPageTransition } from '@/lib/navigation';
 import { resolveCanonicalProductOffer } from '@/lib/growth/product-catalog-governance';
 import { resolveAuthoritativeProductMedia } from '@/lib/growth/product-media-governance';
+import { isSafeInternalMediaUrl } from '@/lib/db/media';
 import { resolveCanonicalCategoryName } from '@/lib/category-resolver';
 import { Category } from '@/lib/types';
 
@@ -49,7 +50,8 @@ export default function ProductCard({
     return resolveAuthoritativeProductMedia(product);
   }, [product]);
 
-  const rawImage = (product as any)?.canonicalPrimaryUrl || mediaResolution.primaryImage || product.images?.[0];
+  const candidateImage = (product as any)?.canonicalPrimaryUrl || mediaResolution.primaryImage;
+  const rawImage = isSafeInternalMediaUrl(candidateImage) ? candidateImage : BRANDED_FALLBACK_IMAGE;
   const primaryImage = sanitizeImageUrl(rawImage, BRANDED_FALLBACK_IMAGE);
   const [imgSrc, setImgSrc] = React.useState(primaryImage);
   const [isAddingToCart, setIsAddingToCart] = React.useState(false);

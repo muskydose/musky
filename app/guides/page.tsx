@@ -7,7 +7,7 @@ import { getPublishedGuides } from '@/lib/db/guides';
 import { getSiteSettings } from '@/lib/db/settings';
 import { getProducts } from '@/lib/db/products';
 import { resolvePageSeoMetadata } from '@/lib/db/seo';
-import { getBatchPrimaryMedia } from '@/lib/db/media';
+import { getBatchPrimaryMedia, isSafeInternalMediaUrl } from '@/lib/db/media';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
@@ -93,7 +93,10 @@ export default async function ProductGuidesPage() {
                     {/* Cover Image */}
                     <Link href={`/guides/${guide.slug}`} className="relative aspect-[16/9] bg-[#f0ebe0] overflow-hidden block">
                       <Image
-                        src={guideMediaMap.get(guide.id)?.url || guide.coverImage || '/images/fallback.svg'}
+                        src={(() => {
+                          const candidate = guideMediaMap.get(guide.id)?.url || (guide as any)?.canonicalPrimaryUrl || guide.coverImage;
+                          return isSafeInternalMediaUrl(candidate) ? candidate! : '/images/fallback.svg';
+                        })()}
                         alt={guide.title}
                         fill
                         sizes="(max-width: 768px) 100vw, 33vw"

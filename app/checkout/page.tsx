@@ -9,6 +9,7 @@ import { Order, SiteSettings, CheckoutFieldConfig, CouponValidationResult } from
 import { DEFAULT_CHECKOUT_FIELD_CONFIG } from '@/lib/data-store';
 import { getClientSiteSettings } from '@/lib/api-client';
 import { sanitizeImageUrl, formatPrice } from '@/lib/utils';
+import { isSafeInternalMediaUrl } from '@/lib/db/media';
 import CouponInput from '@/components/CouponInput';
 import Navbar from '@/components/Navbar';
 import { trackCheckoutStarted, trackCheckoutValidationError, trackOrderCreated, trackWhatsAppClick } from '@/lib/analytics';
@@ -883,17 +884,18 @@ export default function CheckoutPage() {
                   return (
                     <div key={cartItemId} className="flex gap-3 text-sm pb-3 border-b border-gray-100 last:border-0 last:pb-0">
                       <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 relative border border-gray-200">
-                        {item.product.images && item.product.images[0] ? (
-                          <Image
-                            src={sanitizeImageUrl(item.product.images[0])}
-                            alt={item.product.name}
-                            fill
-                            className="object-cover"
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">No Image</div>
-                        )}
+                        <Image
+                          src={(() => {
+                            const candidate = (item.product as any)?.canonicalPrimaryUrl ||
+                              (Array.isArray(item.product.media) && item.product.media[0]?.url) ||
+                              item.product.images?.[0];
+                            return isSafeInternalMediaUrl(candidate) ? sanitizeImageUrl(candidate) : '/images/fallback.svg';
+                          })()}
+                          alt={item.product.name}
+                          fill
+                          className="object-cover"
+                          referrerPolicy="no-referrer"
+                        />
                       </div>
 
                       <div className="flex-1 min-w-0">

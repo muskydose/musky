@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Leaf, ShieldCheck, Sparkles, Truck, ArrowRight, MapPin, CheckCircle2 } from 'lucide-react';
 import { SiteSettings, HomepageSectionConfig } from '@/lib/types';
 import { sanitizeImageUrl } from '@/lib/utils';
+import { isSafeInternalMediaUrl } from '@/lib/db/media';
 
 interface SojatHeritageStoryProps {
   section: HomepageSectionConfig;
@@ -11,7 +12,8 @@ interface SojatHeritageStoryProps {
 }
 
 export default function SojatHeritageStory({ section, siteSettings }: SojatHeritageStoryProps) {
-  const rawImage = siteSettings.factoryImageUrl || siteSettings.aboutImageUrl || '';
+  const candidateImage = siteSettings.factoryImageUrl || siteSettings.aboutImageUrl || '';
+  const rawImage = isSafeInternalMediaUrl(candidateImage) ? candidateImage : '';
   const isCustomImage = Boolean(rawImage && !rawImage.endsWith('.svg') && !rawImage.includes('fallback.svg'));
 
   // Authoritative CMS / repository-backed fields with strict claim-safe fallbacks

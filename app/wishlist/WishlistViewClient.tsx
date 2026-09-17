@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useWishlist } from '@/context/WishlistContext';
 import { useCart } from '@/context/CartContext';
 import { sanitizeImageUrl } from '@/lib/utils';
+import { isSafeInternalMediaUrl } from '@/lib/db/media';
 import { Heart, Trash2, ShoppingBag, ArrowRight, ArrowLeft } from 'lucide-react';
 
 export default function WishlistViewClient() {
@@ -69,7 +70,12 @@ export default function WishlistViewClient() {
             <div className="space-y-3">
               <div className="relative aspect-square rounded-xl overflow-hidden bg-[#f5f1e8] border border-[#e8e2d5]">
                 <Image
-                  src={sanitizeImageUrl(product.images?.[0])}
+                  src={(() => {
+                    const candidate = (product as any)?.canonicalPrimaryUrl ||
+                      (Array.isArray(product.media) && product.media[0]?.url) ||
+                      product.images?.[0];
+                    return isSafeInternalMediaUrl(candidate) ? sanitizeImageUrl(candidate) : '/images/fallback.svg';
+                  })()}
                   alt={product.name}
                   fill
                   className="object-cover"

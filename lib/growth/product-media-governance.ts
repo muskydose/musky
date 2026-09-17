@@ -16,6 +16,7 @@
  */
 
 import { Product, ProductMediaItem, ProductMediaType, ProductMediaRole } from '../types';
+import { isSafeInternalMediaUrl } from '@/lib/db/media';
 
 export interface MediaPlacementSpec {
   id: string;
@@ -231,10 +232,10 @@ export function resolveAuthoritativeProductMedia(
 
   const structuredMedia: ProductMediaItem[] = [];
 
-  // 1. Ingest existing structured media if present
+  // 1. Ingest existing structured media if present (ONLY safe internal canonical assets)
   if (Array.isArray(product.media) && product.media.length > 0) {
     for (const item of product.media) {
-      if (item && item.url && item.enabled !== false) {
+      if (item && item.url && item.enabled !== false && isSafeInternalMediaUrl(item.url)) {
         let embedUrl = item.embedUrl;
         let posterUrl = item.posterUrl || item.thumbnailUrl;
         let thumbnailUrl = item.thumbnailUrl || item.posterUrl;
@@ -260,11 +261,11 @@ export function resolveAuthoritativeProductMedia(
     }
   }
 
-  // 2. Ingest legacy product.images strings if not already in structured media
+  // 2. Ingest legacy product.images strings if not already in structured media (ONLY safe internal URLs)
   const existingUrls = new Set(structuredMedia.map((m) => m.url));
   if (Array.isArray(product.images)) {
     product.images.forEach((imgUrl, index) => {
-      if (imgUrl && typeof imgUrl === 'string' && imgUrl.trim() && !existingUrls.has(imgUrl)) {
+      if (imgUrl && typeof imgUrl === 'string' && imgUrl.trim() && isSafeInternalMediaUrl(imgUrl.trim()) && !existingUrls.has(imgUrl.trim())) {
         structuredMedia.push({
           id: `legacy-img-${index}-${Date.now()}`,
           type: 'image',

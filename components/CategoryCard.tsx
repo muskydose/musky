@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Category } from '@/lib/types';
 import { sanitizeImageUrl } from '@/lib/utils';
+import { isSafeInternalMediaUrl } from '@/lib/db/media';
 import { ArrowUpRight, Leaf, Sparkles, Droplets, Heart, Flower2, Package } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { SPRINGS } from '@/lib/motion';
@@ -26,8 +27,9 @@ function getCategoryIcon(slugOrName: string) {
 
 export default function CategoryCard({ category, canonicalImage }: CategoryCardProps) {
   const shouldReduceMotion = useReducedMotion();
-  const rawImage = canonicalImage || (category as any)?.canonicalPrimaryUrl || category.image || '';
-  const isCustomImage = rawImage && !rawImage.endsWith('.svg') && !rawImage.includes('fallback.svg');
+  const candidateImage = canonicalImage || (category as any)?.canonicalPrimaryUrl || category.image || '';
+  const rawImage = isSafeInternalMediaUrl(candidateImage) ? candidateImage : '';
+  const isCustomImage = Boolean(rawImage && !rawImage.endsWith('.svg') && !rawImage.includes('fallback.svg'));
 
   return (
     <motion.div

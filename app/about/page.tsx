@@ -7,6 +7,7 @@ import { Leaf, ShieldCheck, Award, Heart, MapPin, CheckCircle } from 'lucide-rea
 import { getSiteSettings } from '@/lib/db/settings';
 import { resolvePageSeoMetadata } from '@/lib/db/seo';
 import { sanitizeImageUrl, safeJsonLd } from '@/lib/utils';
+import { isSafeInternalMediaUrl } from '@/lib/db/media';
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/Motion';
 
 export const revalidate = 60;
@@ -15,9 +16,9 @@ export async function generateMetadata() {
   return await resolvePageSeoMetadata({
     targetType: 'about',
     targetUrl: '/about',
-    defaultTitle: 'About Us — Sojat Henna Heritage',
-    defaultDescription: 'Learn about Musky Dose, our family farms in Sojat, Rajasthan, and our commitment to pure, natural, plant-based henna.',
-    defaultKeywords: ['About Musky Dose', 'Sojat Henna Heritage', 'Natural Mehendi Farms'],
+    defaultTitle: 'About Musky Dose — 100% Pure Sojat Henna Heritage',
+    defaultDescription: 'Learn about our origin in Sojat, Rajasthan, the Henna Capital of India. Discover our commitment to pure, unadulterated botanical hair care and mehendi.',
+    defaultKeywords: ['About Musky Dose', 'Sojat Henna Story', 'Rajasthani Mehendi Purity', 'Lawsonia Inermis Heritage'],
   });
 }
 
@@ -31,7 +32,7 @@ export default async function AboutPage() {
     '@id': `${baseUrl}/#localbusiness`,
     name: siteSettings.brandName || 'Musky Dose',
     description: siteSettings.aboutHeroSubtitle || 'Delivering authentic, highest-pigment Henna & pure Indian herbal wellness directly from Sojat, Rajasthan.',
-    image: siteSettings.heroImageUrl ? (siteSettings.heroImageUrl.startsWith('http') ? siteSettings.heroImageUrl : `${baseUrl}${siteSettings.heroImageUrl}`) : `${baseUrl}/logo.png`,
+    image: siteSettings.heroImageUrl && isSafeInternalMediaUrl(siteSettings.heroImageUrl) ? (siteSettings.heroImageUrl.startsWith('http') ? siteSettings.heroImageUrl : `${baseUrl}${siteSettings.heroImageUrl}`) : `${baseUrl}/logo.png`,
     url: baseUrl,
     telephone: siteSettings.displayPhone || '+91 82337 03080',
     priceRange: '₹₹',
@@ -95,7 +96,7 @@ export default async function AboutPage() {
             <FadeIn direction="right" delay={0.2}>
               <div className="relative aspect-square rounded-2xl overflow-hidden border border-[#e8e2d5] shadow-md">
                 <Image
-                  src={sanitizeImageUrl(siteSettings.aboutImageUrl)}
+                  src={isSafeInternalMediaUrl(siteSettings.aboutImageUrl) ? sanitizeImageUrl(siteSettings.aboutImageUrl) : '/images/fallback.svg'}
                   alt={siteSettings.aboutSectionHeading || 'Sojat Henna Field'}
                   fill
                   className="object-cover hover:scale-105 transition-transform duration-700 ease-out"

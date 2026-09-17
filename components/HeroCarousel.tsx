@@ -13,13 +13,15 @@ import { getCmsText } from '@/lib/cms';
 import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
 import BrandLogo from '@/components/BrandLogo';
 import { sanitizeImageUrl } from '@/lib/utils';
+import { isSafeInternalMediaUrl } from '@/lib/db/media';
 
 interface HeroCarouselProps {
   siteSettings: SiteSettings;
   whatsappUrl?: string;
+  canonicalHeroImage?: string;
 }
 
-export default function HeroCarousel({ siteSettings, whatsappUrl }: HeroCarouselProps) {
+export default function HeroCarousel({ siteSettings, whatsappUrl, canonicalHeroImage }: HeroCarouselProps) {
   const cms = getCmsText(siteSettings);
   const whatsappNum = getConfiguredWhatsAppNumber(siteSettings);
   const defaultWhatsAppLink = whatsappUrl || `https://wa.me/${whatsappNum}?text=${encodeURIComponent('Hello Musky Dose! I am visiting your website and would like to order fresh Sojat Henna products.')}`;
@@ -41,7 +43,8 @@ export default function HeroCarousel({ siteSettings, whatsappUrl }: HeroCarousel
   const secondaryCtaLink = isLegacySecondaryWhatsAppOrExplore || !siteSettings.heroSecondaryCtaLink || siteSettings.heroSecondaryCtaLink.includes('wa.me')
     ? '/wholesale'
     : siteSettings.heroSecondaryCtaLink;
-  const imageUrl = siteSettings.heroImageUrl || '/images/fallback.svg';
+  const candidateUrl = canonicalHeroImage || siteSettings.heroImageUrl;
+  const imageUrl = isSafeInternalMediaUrl(candidateUrl) ? candidateUrl! : '/images/fallback.svg';
 
   return (
     <section className="relative bg-gradient-to-b from-[#0a1f17] via-[#0f2d22] to-[#13382b] text-[#faf5e8] hero-responsive-section pt-4 pb-8 sm:pt-10 sm:pb-14 px-3 sm:px-6 lg:px-8 overflow-hidden">

@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { sanitizeImageUrl, formatPrice } from '@/lib/utils';
+import { isSafeInternalMediaUrl } from '@/lib/db/media';
 import { SiteSettings } from '@/lib/types';
 import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
 import { trackViewCart, trackRemoveFromCart, trackWhatsAppClick } from '@/lib/analytics';
@@ -117,7 +118,12 @@ export default function CartViewClient({ siteSettings }: CartViewClientProps) {
                   <div className="flex items-center gap-4 w-full sm:w-auto">
                     <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-[#e8e2d5] bg-[#f5f1e8] shrink-0">
                       <Image
-                        src={sanitizeImageUrl(item.product.images?.[0])}
+                        src={(() => {
+                          const candidate = (item.product as any)?.canonicalPrimaryUrl ||
+                            (Array.isArray(item.product.media) && item.product.media[0]?.url) ||
+                            item.product.images?.[0];
+                          return isSafeInternalMediaUrl(candidate) ? sanitizeImageUrl(candidate) : '/images/fallback.svg';
+                        })()}
                         alt={item.product.name}
                         fill
                         className="object-cover"

@@ -429,7 +429,7 @@ export default function ProductDetailClient({
                 className="w-full h-full relative cursor-zoom-in bg-[#faf8f5]"
               >
                 <Image
-                  src={activeMedia?.url || product.images?.[0] || '/images/fallback.svg'}
+                  src={activeMedia?.url || (product as any)?.canonicalPrimaryUrl || '/images/fallback.svg'}
                   alt={activeMedia?.altText || product.name}
                   fill
                   priority
@@ -1329,7 +1329,7 @@ export default function ProductDetailClient({
               ) : (
                 <div className="relative w-full h-full bg-white">
                   <Image
-                    src={activeMedia?.url || product.images?.[0] || '/images/fallback.svg'}
+                    src={activeMedia?.url || (product as any)?.canonicalPrimaryUrl || '/images/fallback.svg'}
                     alt={activeMedia?.altText || product.name}
                     fill
                     priority

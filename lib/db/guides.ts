@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { sanitizeSlug } from './custom-pages';
 import { UniversalGovernanceCore } from '@/lib/governance';
 import { revalidateCatalogSurfaces } from '@/lib/revalidation';
-import { attachCanonicalMediaToGuides } from './media';
+import { attachCanonicalMediaToGuides, isSafeInternalMediaUrl } from './media';
 
 let cachedGuidesMemory: ProductGuide[] | null = null;
 
@@ -24,11 +24,14 @@ export async function getGuides(): Promise<ProductGuide[]> {
       return [];
     }
 
-    const mapped: ProductGuide[] = data.map((row: any) => ({
-      id: row.id,
-      title: row.title,
-      slug: row.slug,
-      coverImage: row.cover_image || row.coverImage || '/images/fallback.svg',
+    const mapped: ProductGuide[] = data.map((row: any) => {
+      const rawCover = row.cover_image || row.coverImage;
+      const safeCover = isSafeInternalMediaUrl(rawCover) ? rawCover : '/images/fallback.svg';
+      return {
+        id: row.id,
+        title: row.title,
+        slug: row.slug,
+        coverImage: safeCover,
       shortIntro: row.short_intro || row.shortIntro || '',
       productId: row.product_id || row.productId || undefined,
       productIds: Array.isArray(row.product_ids) ? row.product_ids : Array.isArray(row.productIds) ? row.productIds : undefined,
@@ -53,7 +56,8 @@ export async function getGuides(): Promise<ProductGuide[]> {
       source: row.source || 'AUTO',
       createdAt: row.created_at || row.createdAt || new Date().toISOString(),
       updatedAt: row.updated_at || row.updatedAt || new Date().toISOString(),
-    }));
+    };
+  });
 
     const enriched = await attachCanonicalMediaToGuides(mapped);
     cachedGuidesMemory = enriched;

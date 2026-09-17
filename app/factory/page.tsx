@@ -7,6 +7,7 @@ import { Factory, CheckCircle, Shield, Droplets, Sparkles } from 'lucide-react';
 import { getSiteSettings } from '@/lib/db/settings';
 import { resolvePageSeoMetadata } from '@/lib/db/seo';
 import { safeJsonLd } from '@/lib/utils';
+import { isSafeInternalMediaUrl } from '@/lib/db/media';
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/Motion';
 
 export const revalidate = 60;
@@ -31,7 +32,7 @@ export default async function FactoryPage() {
     '@id': `${baseUrl}/factory#facility`,
     name: `${siteSettings.brandName || 'Musky Dose'} — Sojat Processing Plant`,
     description: siteSettings.factoryHeroSubtitle || 'Where traditional Rajasthani herbal expertise meets modern hygienic processing in Sojat City, Rajasthan.',
-    image: siteSettings.factoryImageUrl ? (siteSettings.factoryImageUrl.startsWith('http') ? siteSettings.factoryImageUrl : `${baseUrl}${siteSettings.factoryImageUrl}`) : `${baseUrl}/logo.png`,
+    image: siteSettings.factoryImageUrl && isSafeInternalMediaUrl(siteSettings.factoryImageUrl) ? (siteSettings.factoryImageUrl.startsWith('http') ? siteSettings.factoryImageUrl : `${baseUrl}${siteSettings.factoryImageUrl}`) : `${baseUrl}/logo.png`,
     url: `${baseUrl}/factory`,
     telephone: siteSettings.displayPhone || '+91 82337 03080',
     priceRange: '₹₹',

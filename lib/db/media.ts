@@ -601,7 +601,7 @@ export async function getMediaForEntity(options: {
     if (includeDrafts) {
       return a.status !== 'archived';
     }
-    return a.status === 'approved';
+    return a.status === 'approved' && isSafeInternalMediaUrl(a.url);
   });
 
   // Sort by priority score descending

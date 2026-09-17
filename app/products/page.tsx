@@ -10,6 +10,7 @@ import { resolvePageSeoMetadata } from '@/lib/db/seo';
 import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
 import { getCmsText } from '@/lib/cms';
 import { safeJsonLd } from '@/lib/utils';
+import { isSafeInternalMediaUrl } from '@/lib/db/media';
 import ProductsClientView from './ProductsClientView';
 
 export async function generateMetadata() {
@@ -137,7 +138,13 @@ export default async function ProductsPage({
             isBestSeller: p.isBestSeller,
             categoryId: p.categoryId,
             categoryName: p.categoryName || '',
-            images: p.images && p.images.length > 0 ? [p.images[0]] : ['/images/fallback.svg'],
+            images: Array.isArray(p.media) && p.media.length > 0 && p.media[0].url && isSafeInternalMediaUrl(p.media[0].url)
+              ? [p.media[0].url]
+              : ((p as any).canonicalPrimaryUrl && isSafeInternalMediaUrl((p as any).canonicalPrimaryUrl)
+                ? [(p as any).canonicalPrimaryUrl]
+                : (p.images && p.images.length > 0 && isSafeInternalMediaUrl(p.images[0])
+                  ? [p.images[0]]
+                  : ['/images/fallback.svg'])),
             shortDescription: p.shortDescription || '',
             quantityOrWeight: p.quantityOrWeight || '',
             productType: p.productType,

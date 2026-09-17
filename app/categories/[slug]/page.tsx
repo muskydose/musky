@@ -16,7 +16,7 @@ import { safeJsonLd } from '@/lib/utils';
 import { ArrowLeft, PackageX, Sparkles, CheckCircle2, Leaf, ArrowRight, MessageCircle } from 'lucide-react';
 import { resolveCategoryIntelligence } from '@/lib/growth/category-intelligence';
 import { resolveCategorySlugRedirect } from '@/lib/db/category-redirects';
-import { getPrimaryMedia } from '@/lib/db/media';
+import { getPrimaryMedia, isSafeInternalMediaUrl } from '@/lib/db/media';
 
 export const dynamic = 'force-dynamic';
 export const dynamicParams = true;
@@ -75,8 +75,10 @@ export async function generateMetadata({
   const primaryMedia = await getPrimaryMedia({
     entityType: 'CATEGORY',
     entityId: category.id,
-    legacyFallbackUrl: category.image || '/images/hero-bg.jpg',
   });
+
+  const rawDefaultImg = primaryMedia.url || (category as any)?.canonicalPrimaryUrl || (isSafeInternalMediaUrl(category.image) ? category.image : undefined);
+  const defaultImage = rawDefaultImg && !rawDefaultImg.includes('fallback.svg') ? rawDefaultImg : undefined;
 
   return await resolvePageSeoMetadata({
     targetType: 'category',
@@ -84,7 +86,7 @@ export async function generateMetadata({
     targetUrl: `/categories/${category.slug}`,
     defaultTitle: `${category.name} — Pure Sojat Botanical Care`,
     defaultDescription: customDesc || `Explore ${category.name} handcrafted directly in Sojat, Rajasthan. 100% natural, chemical-free botanicals.`,
-    defaultImage: primaryMedia.url || category.image || '/images/hero-bg.jpg',
+    defaultImage,
   });
 }
 
@@ -201,7 +203,7 @@ export default async function CategoryPage({
 
           <div className="md:col-span-4 relative aspect-[4/3] rounded-2xl overflow-hidden border-2 border-[#c5a059]/30 shadow-xl">
             <Image
-              src={categoryPrimaryMedia.url || category.image || '/images/fallback.svg'}
+              src={isSafeInternalMediaUrl(categoryPrimaryMedia.url) ? categoryPrimaryMedia.url : ((category as any)?.canonicalPrimaryUrl || (isSafeInternalMediaUrl(category.image) ? category.image : '/images/fallback.svg'))}
               alt={category.name}
               fill
               className="object-cover"

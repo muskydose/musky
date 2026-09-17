@@ -7,6 +7,7 @@ import { Play, Volume2, VolumeX, ArrowRight, Sparkles, Film } from 'lucide-react
 import { SiteSettings, HomepageSectionConfig, HomepageVideoConfig } from '@/lib/types';
 import { DEFAULT_HOMEPAGE_VIDEO } from '@/lib/data-store';
 import { sanitizeImageUrl } from '@/lib/utils';
+import { isSafeInternalMediaUrl } from '@/lib/db/media';
 
 interface HomepageVideoSectionProps {
   section?: HomepageSectionConfig;
@@ -48,7 +49,8 @@ export default function HomepageVideoSection({
       ? videoConfig.ctaUrl
       : '/categories');
 
-  const rawPoster = videoConfig.posterUrl || section?.imageUrl || section?.image || siteSettings?.factoryImageUrl;
+  const candidatePoster = videoConfig.posterUrl || section?.imageUrl || section?.image || siteSettings?.factoryImageUrl;
+  const rawPoster = isSafeInternalMediaUrl(candidatePoster) ? candidatePoster : '';
   const isCustomPoster = Boolean(rawPoster && !rawPoster.endsWith('.svg') && !rawPoster.includes('fallback.svg') && !rawPoster.includes('hero-1.webp'));
   const posterUrl = sanitizeImageUrl(rawPoster, '/images/fallback.svg');
   const videoUrl = videoConfig.videoUrl?.trim() || '';

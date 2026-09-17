@@ -3,6 +3,7 @@
 // Preserves PNG as first-class primary asset format.
 
 import { SiteSettings } from './types';
+import { isSafeInternalMediaUrl } from '@/lib/db/media';
 
 export const DEFAULT_LOGO_URL = '/logo.png';
 export const DEFAULT_FAVICON_URL = '/favicon.png';
@@ -22,7 +23,8 @@ export function getSiteLogo(settings?: Partial<SiteSettings> | null): string {
     url !== '' &&
     !url.includes('fallback.svg') &&
     !url.endsWith('.svg') &&
-    !url.includes('logo.svg')
+    !url.includes('logo.svg') &&
+    isSafeInternalMediaUrl(url)
   ) {
     return url;
   }
@@ -36,7 +38,7 @@ export function getSiteLogo(settings?: Partial<SiteSettings> | null): string {
 export function getSiteFavicon(settings?: Partial<SiteSettings> | null): string {
   if (!settings) return DEFAULT_FAVICON_URL;
   const url = settings.faviconUrl?.trim();
-  const rawUrl = (url && url !== '' && !url.includes('fallback.svg')) ? url : DEFAULT_FAVICON_URL;
+  const rawUrl = (url && url !== '' && !url.includes('fallback.svg') && isSafeInternalMediaUrl(url)) ? url : DEFAULT_FAVICON_URL;
   
   // Attach cache-busting version parameter if timestamp exists or default version
   const version = (settings as any)?.updatedAt || settings.layoutControls?.lastUpdated || 'v1';
@@ -53,7 +55,7 @@ export function getSiteFavicon(settings?: Partial<SiteSettings> | null): string 
 export function getSiteAppleIcon(settings?: Partial<SiteSettings> | null): string {
   if (!settings) return DEFAULT_APPLE_ICON_URL;
   const url = settings.faviconUrl?.trim();
-  if (url && url !== '' && !url.includes('fallback.svg')) {
+  if (url && url !== '' && !url.includes('fallback.svg') && isSafeInternalMediaUrl(url)) {
     return url;
   }
   return DEFAULT_APPLE_ICON_URL;

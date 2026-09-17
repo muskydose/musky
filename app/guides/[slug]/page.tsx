@@ -23,7 +23,7 @@ import { getGuideBySlug, getPublishedGuides } from '@/lib/db/guides';
 import { getSiteSettings } from '@/lib/db/settings';
 import { getProducts } from '@/lib/db/products';
 import { resolvePageSeoMetadata } from '@/lib/db/seo';
-import { getPrimaryMedia } from '@/lib/db/media';
+import { getPrimaryMedia, isSafeInternalMediaUrl } from '@/lib/db/media';
 import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -39,21 +39,25 @@ export const revalidate = 60; // Revalidate every 60s
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = await params;
-  const guide = await getGuideBySlug(resolvedParams.slug);
-  const settings = await getSiteSettings();
-  const siteName = settings.brandName || 'Musky Dose';
+  const [guide, settings] = await Promise.all([
+    getGuideBySlug(resolvedParams.slug),
+    getSiteSettings(),
+  ]);
 
-  if (!guide) {
+  if (!guide || guide.published === false) {
     return {
-      title: `Guide Not Found | ${siteName}`,
+      title: 'Guide Not Found | Musky Dose',
+      description: 'The requested product guide does not exist.',
     };
   }
 
   const primaryMedia = await getPrimaryMedia({
     entityType: 'GUIDE',
     entityId: guide.id,
-    legacyFallbackUrl: guide.coverImage || settings.ogImageUrl || '/images/fallback.svg',
   });
+
+  const rawGuideCover = primaryMedia.url || (guide as any)?.canonicalPrimaryUrl || (isSafeInternalMediaUrl(guide.coverImage) ? guide.coverImage : undefined);
+  const defaultImage = rawGuideCover && !rawGuideCover.includes('fallback.svg') ? rawGuideCover : undefined;
 
   return await resolvePageSeoMetadata({
     targetType: 'guide',
@@ -61,7 +65,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     targetUrl: `/guides/${guide.slug}`,
     defaultTitle: guide.seoTitle ? guide.seoTitle.replace(/\s*\|\s*Musky\s*Dose.*$/i, '').trim() : guide.title,
     defaultDescription: guide.seoDescription || guide.shortIntro || `Read complete guide about ${guide.title} from Musky Dose.`,
-    defaultImage: primaryMedia.url || guide.coverImage || settings.ogImageUrl || '/images/fallback.svg',
+    defaultImage,
     defaultKeywords: [guide.title, 'Henna Guide', 'Sojat Henna Care', 'Musky Dose'],
   });
 }
@@ -86,7 +90,6 @@ export default async function ProductGuideDetailPage({
   const primaryGuideMedia = await getPrimaryMedia({
     entityType: 'GUIDE',
     entityId: guide.id,
-    legacyFallbackUrl: guide.coverImage || '/images/fallback.svg',
   });
 
   const activeProducts = allProducts.filter((p) => p.isActive !== false);
@@ -116,10 +119,11 @@ export default async function ProductGuideDetailPage({
   const whatsappPhone = getConfiguredWhatsAppNumber(siteSettings);
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
-  const resolvedCoverUrl = primaryGuideMedia.url || guide.coverImage || '/images/fallback.svg';
-  const guideImageUrl = resolvedCoverUrl.startsWith('http')
-    ? resolvedCoverUrl
-    : `${baseUrl}${resolvedCoverUrl.startsWith('/') ? '' : '/'}${resolvedCoverUrl}`;
+  const rawGuideCover = primaryGuideMedia.url || (guide as any)?.canonicalPrimaryUrl || (isSafeInternalMediaUrl(guide.coverImage) ? guide.coverImage : '/images/fallback.svg');
+  const safeCoverUrl = isSafeInternalMediaUrl(rawGuideCover) ? rawGuideCover : '/images/fallback.svg';
+  const guideImageUrl = safeCoverUrl.startsWith('http')
+    ? safeCoverUrl
+    : `${baseUrl}${safeCoverUrl.startsWith('/') ? '' : '/'}${safeCoverUrl}`;
 
   const articleLd = {
     '@context': 'https://schema.org',
@@ -250,7 +254,7 @@ export default async function ProductGuideDetailPage({
           {/* COVER IMAGE */}
           <div className="relative aspect-[16/9] bg-[#f0ebe0] rounded-2xl overflow-hidden border border-[#e8e2d5] shadow-lg mb-8">
             <Image
-              src={primaryGuideMedia.url || guide.coverImage || '/images/fallback.svg'}
+              src={safeCoverUrl}
               alt={guide.title}
               fill
               priority
@@ -268,7 +272,12 @@ export default async function ProductGuideDetailPage({
               <div className="flex flex-col sm:flex-row items-center gap-5">
                 <div className="relative w-20 h-20 sm:w-24 sm:h-24 bg-[#f5f1e8] rounded-xl overflow-hidden border border-[#e8e2d5] shrink-0">
                   <Image
-                    src={primaryProduct.images?.[0] || '/images/fallback.svg'}
+                    src={(() => {
+                      const prodCandidate = (primaryProduct as any)?.canonicalPrimaryUrl ||
+                        (Array.isArray(primaryProduct.media) && primaryProduct.media[0]?.url) ||
+                        primaryProduct.images?.[0];
+                      return isSafeInternalMediaUrl(prodCandidate) ? prodCandidate! : '/images/fallback.svg';
+                    })()}
                     alt={primaryProduct.name}
                     fill
                     sizes="96px"

@@ -8,6 +8,7 @@ import { getSiteSettings } from '@/lib/db/settings';
 import { DEFAULT_BRAND_COLORS } from '@/lib/data-store';
 import { safeJsonLd } from '@/lib/utils';
 import { getSiteFavicon, getSiteLogo, getSiteAppleIcon } from '@/lib/brand-assets';
+import { isSafeInternalMediaUrl } from '@/lib/db/media';
 
 const karla = Karla({
   subsets: ['latin'],
@@ -27,18 +28,17 @@ export const revalidate = 60;
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteSettings = await getSiteSettings();
-  const baseUrl = siteSettings.websiteUrl || 'https://muskydose.in';
-  const title = siteSettings.seoTitle || 'Musky Dose | Premium Henna & Herbal Products from Sojat, Rajasthan';
-  const description =
-    siteSettings.seoDescription ||
-    'Pure Botanical, Ultra-Fine Sifted Sojat Mehendi, Pure Natural Henna, Hair Care & Herbal Wellness Products direct from Sojat, Rajasthan, India.';
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
+  const title = siteSettings.brandName ? `${siteSettings.brandName} - Pure Sojat Henna & Botanical Wellness` : 'Musky Dose - Pure Sojat Henna & Natural Botanicals';
+  const description = siteSettings.seoDescription || 'Authentic 100% Pure Sojat Henna & Natural Herbal Care, sourced directly from Sojat, Rajasthan.';
   const keywords = siteSettings.seoKeywords
     ? siteSettings.seoKeywords.split(',').map((k: string) => k.trim())
     : ['Musky Dose', 'Sojat Henna', 'Natural Henna Powder', 'Pure Mehendi', 'Herbal Hair Care', 'Rajasthan Henna', 'Pure Mehendi Powder'];
   const favicon = getSiteFavicon(siteSettings);
   const appleIcon = getSiteAppleIcon(siteSettings);
   const logo = getSiteLogo(siteSettings);
-  const ogImage = siteSettings.ogImageUrl || logo || '/images/fallback.svg';
+  const rawOg = siteSettings.ogImageUrl;
+  const ogImage = isSafeInternalMediaUrl(rawOg) ? rawOg! : (logo || '/images/fallback.svg');
 
   return {
     metadataBase: new URL(baseUrl),

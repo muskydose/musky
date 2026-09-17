@@ -5,7 +5,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { sanitizeImageUrl } from '@/lib/utils';
 import { UniversalGovernanceCore } from '@/lib/governance';
 import { revalidateCatalogSurfaces } from '@/lib/revalidation';
-import { attachCanonicalMediaToCategories } from './media';
+import { attachCanonicalMediaToCategories, isSafeInternalMediaUrl } from './media';
 
 function requireSupabaseAdmin(): SupabaseClient {
   const client = getSupabaseAdmin();
@@ -18,12 +18,13 @@ function requireSupabaseAdmin(): SupabaseClient {
 }
 
 export function mapRowToCategory(row: any): Category {
+  const safeImage = isSafeInternalMediaUrl(row.image) ? sanitizeImageUrl(row.image) : '';
   return {
     id: row.id,
     name: row.name,
     slug: row.slug,
     description: row.description || '',
-    image: sanitizeImageUrl(row.image),
+    image: safeImage,
     sortOrder: row.sort_order ?? row.sortOrder ?? 0,
     isActive: row.is_active ?? row.isActive ?? true,
   };

@@ -15,7 +15,7 @@ import {
   getPublishedKnowledgeEntities,
   KnowledgeEntity,
 } from '@/lib/db/knowledge';
-import { getPrimaryMedia } from '@/lib/db/media';
+import { getPrimaryMedia, isSafeInternalMediaUrl } from '@/lib/db/media';
 import {
   getRelatedProductsForKnowledge,
   getRelatedGuidesForKnowledge,
@@ -88,7 +88,6 @@ export async function generateMetadata(props: KnowledgePageProps): Promise<Metad
   const primaryMedia = await getPrimaryMedia({
     entityType: 'KNOWLEDGE',
     entityId: record.id || record.entityKey,
-    legacyFallbackUrl: record.ogImageUrl || '/images/og-default.jpg',
   });
 
   return {
@@ -111,7 +110,8 @@ export async function generateMetadata(props: KnowledgePageProps): Promise<Metad
       type: 'article',
       locale: 'en_IN',
       ...(() => {
-        const ogUrl = primaryMedia.url || record.ogImageUrl;
+        const ogCandidate = primaryMedia.url || (isSafeInternalMediaUrl(record.ogImageUrl) ? record.ogImageUrl : undefined);
+        const ogUrl = isSafeInternalMediaUrl(ogCandidate) ? ogCandidate : undefined;
         return ogUrl ? { images: [{ url: ogUrl }] } : {};
       })(),
     },
@@ -169,11 +169,11 @@ export default async function KnowledgeEntityPage(props: KnowledgePageProps) {
     getPrimaryMedia({
       entityType: 'KNOWLEDGE',
       entityId: record.id || record.entityKey,
-      legacyFallbackUrl: record.ogImageUrl,
     }),
   ]);
 
-  const resolvedImage = primaryMedia.url || record.ogImageUrl;
+  const imgCandidate = primaryMedia.url || (isSafeInternalMediaUrl(record.ogImageUrl) ? record.ogImageUrl : undefined);
+  const resolvedImage = isSafeInternalMediaUrl(imgCandidate) ? imgCandidate : undefined;
 
   // Structured Data (AboutPage + ItemPage)
   const jsonLd = {
