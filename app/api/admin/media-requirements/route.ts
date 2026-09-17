@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin, getSupabase } from '@/lib/supabase';
 import { buildEntityRequirements, EntityMediaHealth, SiteMediaRequirementsSummary } from '@/lib/growth/media-requirements-engine';
-import { CANONICAL_ENTITY_REGISTRY } from '@/lib/growth/entity-registry';
+import { getAllKnowledgeEntitiesAdmin } from '@/lib/db/knowledge';
 import { MediaAsset, mapRowToMediaAsset } from '@/lib/db/media';
 
 export const dynamic = 'force-dynamic';
@@ -14,11 +14,12 @@ export async function GET() {
     }
 
     // 1. Fetch all catalog entities in parallel
-    const [productsRes, categoriesRes, guidesRes, mediaRes] = await Promise.all([
+    const [productsRes, categoriesRes, guidesRes, mediaRes, knowEntities] = await Promise.all([
       supabase.from('products').select('id, name, slug, is_active').order('name'),
       supabase.from('categories').select('id, name, slug').order('name'),
       supabase.from('product_guides').select('id, title, slug').order('title'),
       supabase.from('media_assets').select('*').order('created_at', { ascending: false }),
+      getAllKnowledgeEntitiesAdmin(),
     ]);
 
     const allMediaAssets: MediaAsset[] = Array.isArray(mediaRes.data)
@@ -64,12 +65,10 @@ export async function GET() {
     }
 
     // Knowledge Entities
-    for (const [key, entry] of Object.entries(CANONICAL_ENTITY_REGISTRY)) {
-      if (key === 'UNKNOWN') continue;
-      const slug = entry.canonicalName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      const knowAssets = allMediaAssets.filter((a) => a.entityType === 'KNOWLEDGE' && (String(a.entityId) === key || String(a.entityId) === `ent-${slug}`));
+    for (const k of knowEntities) {
+      const knowAssets = allMediaAssets.filter((a) => a.entityType === 'KNOWLEDGE' && (String(a.entityId) === k.id || String(a.entityId) === k.entityKey));
       entityHealthList.push(
-        buildEntityRequirements('KNOWLEDGE', key, entry.canonicalName, slug, knowAssets)
+        buildEntityRequirements('KNOWLEDGE', k.id, k.canonicalName, k.slug, knowAssets)
       );
     }
 

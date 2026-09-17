@@ -273,15 +273,21 @@ async function runMediaRequirementsPurityTests() {
     assert.ok(supabase, 'Supabase admin client required');
 
     const [productsRes, categoriesRes, guidesRes, mediaRes] = await Promise.all([
-      supabase.from('products').select('id, name, slug').limit(20),
-      supabase.from('categories').select('id, name, slug').limit(10),
-      supabase.from('product_guides').select('id, title, slug').limit(10),
+      supabase.from('products').select('id, name, slug').order('name'),
+      supabase.from('categories').select('id, name, slug').order('name'),
+      supabase.from('product_guides').select('id, title, slug').order('title'),
       supabase.from('media_assets').select('*'),
     ]);
 
     const allMedia: MediaAsset[] = (mediaRes.data || []).map(mapRowToMediaAsset);
 
     const entityHealthList: EntityMediaHealth[] = [];
+
+    // Brand
+    const brandAssets = allMedia.filter((a) => a.entityType === 'BRAND');
+    entityHealthList.push(
+      buildEntityRequirements('BRAND', 'musky-dose-brand', 'Musky Dose Brand & Heritage', '', brandAssets)
+    );
 
     // Products
     for (const p of productsRes.data || []) {
@@ -299,6 +305,16 @@ async function runMediaRequirementsPurityTests() {
     for (const g of guidesRes.data || []) {
       const gAssets = allMedia.filter((a) => a.entityType === 'GUIDE' && String(a.entityId) === String(g.id));
       entityHealthList.push(buildEntityRequirements('GUIDE', g.id, g.title, g.slug, gAssets));
+    }
+
+    // Knowledge Entities from Admin DAL (matches page.tsx exactly)
+    const { getAllKnowledgeEntitiesAdmin } = await import('../lib/db/knowledge');
+    const knowEntities = await getAllKnowledgeEntitiesAdmin();
+    for (const k of knowEntities) {
+      const knowAssets = allMedia.filter((a) => a.entityType === 'KNOWLEDGE' && (String(a.entityId) === k.id || String(a.entityId) === k.entityKey));
+      entityHealthList.push(
+        buildEntityRequirements('KNOWLEDGE', k.id, k.canonicalName, k.slug, knowAssets)
+      );
     }
 
     // Assert on every single slot across all checked entities
