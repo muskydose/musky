@@ -25,23 +25,15 @@ console.log('================================================================\n'
 let totalTests = 0;
 let passedTests = 0;
 
-function runTest(name: string, testFn: () => void | Promise<void>) {
+async function runTest(name: string, testFn: () => void | Promise<void>) {
   totalTests++;
   try {
     const res = testFn();
     if (res instanceof Promise) {
-      return res.then(() => {
-        passedTests++;
-        console.log(`  ✓ [PASS] ${name}`);
-      }).catch((err) => {
-        console.error(`  ✗ [FAIL] ${name}`);
-        console.error(`    ${err.message}`);
-        process.exitCode = 1;
-      });
-    } else {
-      passedTests++;
-      console.log(`  ✓ [PASS] ${name}`);
+      await res;
     }
+    passedTests++;
+    console.log(`  ✓ [PASS] ${name}`);
   } catch (err: any) {
     console.error(`  ✗ [FAIL] ${name}`);
     console.error(`    ${err.message}`);
@@ -88,7 +80,7 @@ async function main() {
     assert.strictEqual(isSafeInternalMediaUrl(supabaseUrl), true, 'Supabase storage URLs are safe');
   });
 
-  runTest('2.6: getPrimaryMedia() never returns an Unsplash URL even if passed as legacy fallback', async () => {
+  await runTest('2.6: getPrimaryMedia() never returns an Unsplash URL even if passed as legacy fallback', async () => {
     const asset = await getPrimaryMedia({
       entityType: 'PRODUCT',
       entityId: 'prod-nonexistent-test',
@@ -363,7 +355,7 @@ async function main() {
     assert.strictEqual(primarySlot?.isLivePublic, true);
   });
 
-  runTest('6.2: A rejected asset is marked INVALID and never marked LIVE', () => {
+  runTest('6.2: A rejected asset results in MISSING (MEDIA REQUIRED) and is never marked LIVE', () => {
     const mockRejectedAsset: MediaAsset = {
       id: 'med-rejected-1',
       entityType: 'PRODUCT',
@@ -392,11 +384,13 @@ async function main() {
     );
 
     const primarySlot = health.slots.find((s) => s.slotKey === 'PRODUCT_PRIMARY');
-    assert.strictEqual(primarySlot?.status, 'INVALID');
+    assert.strictEqual(primarySlot?.status, 'MISSING');
     assert.strictEqual(primarySlot?.isLivePublic, false);
+    assert.strictEqual(primarySlot?.currentAssetUrl, undefined);
+    assert.strictEqual(health.filledSlots, 0);
   });
 
-  runTest('6.3: A draft/suggested asset is marked READY (awaits approval) and is not LIVE', () => {
+  runTest('6.3: A draft/suggested asset without approval results in MISSING and is not LIVE or filled', () => {
     const mockSuggestedAsset: MediaAsset = {
       id: 'med-suggested-1',
       entityType: 'PRODUCT',
@@ -425,8 +419,10 @@ async function main() {
     );
 
     const primarySlot = health.slots.find((s) => s.slotKey === 'PRODUCT_PRIMARY');
-    assert.strictEqual(primarySlot?.status, 'READY');
+    assert.strictEqual(primarySlot?.status, 'MISSING');
     assert.strictEqual(primarySlot?.isLivePublic, false);
+    assert.strictEqual(primarySlot?.currentAssetUrl, undefined);
+    assert.strictEqual(health.filledSlots, 0);
   });
 
   console.log('\n----------------------------------------------------------------');

@@ -9,7 +9,7 @@ import {
   buildEntityRequirements,
 } from '@/lib/growth/media-requirements-engine';
 import { STANDARD_MEDIA_SPECS } from '@/lib/growth/media-specs';
-import { MediaAsset, MediaEntityType, MediaAssetRole } from '@/lib/db/media';
+import { MediaAsset, MediaEntityType, MediaAssetRole, isSafeInternalMediaUrl } from '@/lib/db/media';
 import { Product, Category, ProductGuide } from '@/lib/types';
 import { KnowledgeEntity } from '@/lib/db/knowledge';
 import { BrandedMediaPlaceholder } from '@/components/ui/BrandedMediaPlaceholder';
@@ -580,7 +580,7 @@ export default function MediaRequirementsClient({
 
                       {/* Visual Preview or Branded Placeholder */}
                       <div className="my-3 w-full rounded-lg overflow-hidden border border-[#e2d9cc] bg-[#faf5e8]">
-                        {slot.currentAssetUrl && slot.status !== 'MISSING' ? (
+                        {slot.currentAssetUrl && isSafeInternalMediaUrl(slot.currentAssetUrl) && (slot.status === 'LIVE' || slot.status === 'NEEDS_REVIEW') ? (
                           <div className="relative w-full aspect-square bg-[#1b4332]/5 flex items-center justify-center">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
@@ -598,6 +598,7 @@ export default function MediaRequirementsClient({
                             slotName={`${slot.role} (${slot.aspectRatio})`}
                             entityName={ent.entityName}
                             aspectRatio={slot.aspectRatio}
+                            hasLegacyAsset={slot.hasLegacyOrInvalidAsset}
                             className="w-full"
                           />
                         )}

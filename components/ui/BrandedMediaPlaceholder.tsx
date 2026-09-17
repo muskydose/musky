@@ -5,6 +5,7 @@ interface BrandedMediaPlaceholderProps {
   slotName?: string;
   entityName?: string;
   aspectRatio?: string;
+  hasLegacyAsset?: boolean;
   className?: string;
 }
 
@@ -18,6 +19,7 @@ export const BrandedMediaPlaceholder: React.FC<BrandedMediaPlaceholderProps> = (
   slotName,
   entityName,
   aspectRatio = '1:1',
+  hasLegacyAsset = false,
   className = '',
 }) => {
   return (
@@ -54,7 +56,7 @@ export const BrandedMediaPlaceholder: React.FC<BrandedMediaPlaceholderProps> = (
         <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#1b4332]/10 border border-[#1b4332]/20 mb-2">
           <span className="w-1.5 h-1.5 rounded-full bg-[#d4af37] animate-pulse" />
           <span className="text-[9px] font-semibold tracking-wider text-[#1b4332] uppercase">
-            MEDIA REQUIRED
+            {hasLegacyAsset ? 'MEDIA REQUIRED — REPLACE OLD ASSET' : 'MEDIA REQUIRED'}
           </span>
         </div>
 

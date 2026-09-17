@@ -1,4 +1,4 @@
-import { MediaAsset, MediaEntityType, MediaAssetRole } from '@/lib/db/media';
+import { MediaAsset, MediaEntityType, MediaAssetRole, isSafeInternalMediaUrl } from '@/lib/db/media';
 import { STANDARD_MEDIA_SPECS, SlotSpecification, checkAspectRatioMatch, PROTECTED_OFFICIAL_BRAND_ASSETS } from './media-specs';
 import { Product, Category, ProductGuide } from '@/lib/types';
 import { KnowledgeEntity } from '@/lib/db/knowledge';
@@ -30,6 +30,7 @@ export interface MediaSlotRequirement {
   currentAssetId?: string;
   currentAssetUrl?: string;
   isLivePublic: boolean;
+  hasLegacyOrInvalidAsset?: boolean;
   whatToCreate: string;
   why: string;
   whereUsed: string;
@@ -69,6 +70,29 @@ export interface SiteMediaRequirementsSummary {
 }
 
 /**
+ * Strict validator for canonical assigned media assets.
+ * Only a VERIFIED, APPROVED, CURRENT CANONICAL media_assets record may appear as an assigned/live asset.
+ * NEVER allows Unsplash, external URLs, fallback.svg, archived media, rejected media, test/mock media.
+ */
+export function isCanonicalApprovedMediaAsset(asset: MediaAsset | undefined | null): boolean {
+  if (!asset) return false;
+  // Status must strictly be 'approved'
+  if (asset.status !== 'approved') return false;
+  // URL must be a non-empty string
+  if (!asset.url || typeof asset.url !== 'string') return false;
+  const cleanUrl = asset.url.trim();
+  // NEVER fallback.svg (fallback.svg is a UI placeholder, NEVER an assigned media asset)
+  if (cleanUrl.includes('fallback.svg') || cleanUrl.includes('/fallback')) return false;
+  // NEVER unsplash
+  if (cleanUrl.includes('unsplash.com')) return false;
+  // NEVER test/mock CDN
+  if (cleanUrl.includes('cdn.muskydose.in')) return false;
+  // Must satisfy canonical safe internal / Supabase URL
+  if (!isSafeInternalMediaUrl(cleanUrl)) return false;
+  return true;
+}
+
+/**
  * Universal Media Requirement Engine
  * Automatically derives all media requirements for any entity using canonical specs.
  */
@@ -95,57 +119,63 @@ export function buildEntityRequirements(
   for (const def of slotDefs) {
     if (def.isRequired) requiredCount++;
 
-    // Find assigned media asset for this role/slot
-    const assigned = assignedAssets.find((a) => {
+    // 1. Find verified, approved canonical media asset for this role/slot
+    const approvedAsset = assignedAssets.find((a) => {
       if (a.entityType !== normType || String(a.entityId) !== cleanId) return false;
-      return a.role === def.role;
+      if (a.role !== def.role) return false;
+      return isCanonicalApprovedMediaAsset(a);
+    });
+
+    // 2. Detect if there is any historical/legacy/archived/invalid asset for this role
+    const hadLegacyOrInvalid = !approvedAsset && assignedAssets.some((a) => {
+      if (a.entityType !== normType || String(a.entityId) !== cleanId) return false;
+      if (a.role !== def.role) return false;
+      return !isCanonicalApprovedMediaAsset(a);
     });
 
     let status: SlotRequirementStatus = 'MISSING';
     let isLivePublic = false;
+    let currentAssetId: string | undefined = undefined;
+    let currentAssetUrl: string | undefined = undefined;
     const issues: string[] = [];
 
-    if (assigned) {
-      // Validate assigned asset
-      const hasValidUrl = assigned.url && !assigned.url.includes('fallback.svg') && !assigned.url.includes('unsplash');
-      const isApproved = assigned.status === 'approved';
-      const isLive = assigned.isLocked || (isApproved && hasValidUrl);
+    if (approvedAsset) {
+      currentAssetId = approvedAsset.id;
+      currentAssetUrl = approvedAsset.url;
 
-      if (!hasValidUrl) {
-        status = def.isRequired ? 'MISSING' : 'NEEDS_REVIEW';
-        issues.push('Assigned asset is a placeholder or legacy fallback.');
-      } else if (assigned.status === 'rejected') {
-        status = 'INVALID';
-        invalidCount++;
-        issues.push('Asset was rejected in governance review.');
-      } else if (assigned.status === 'suggested') {
-        status = 'READY';
-        issues.push('Draft/Suggested asset awaits admin approval.');
-      } else if (isApproved) {
-        // Check dimensions and aspect ratio
-        if (assigned.width && assigned.height) {
-          if (assigned.width < def.minWidth || assigned.height < def.minHeight) {
-            issues.push(`Dimensions (${assigned.width}×${assigned.height}) are below required minimum of ${def.minWidth}×${def.minHeight}.`);
+      // Check dimensions and aspect ratio
+      if (approvedAsset.width && approvedAsset.height) {
+        if (approvedAsset.width < def.minWidth || approvedAsset.height < def.minHeight) {
+          issues.push(`Dimensions (${approvedAsset.width}×${approvedAsset.height}) are below required minimum of ${def.minWidth}×${def.minHeight}.`);
+          status = 'NEEDS_REVIEW';
+          invalidCount++;
+          filledCount++;
+        } else {
+          const ratioCheck = checkAspectRatioMatch(approvedAsset.width, approvedAsset.height, def.aspectRatio as any);
+          if (!ratioCheck.isMatch) {
+            issues.push(`Aspect ratio ${approvedAsset.aspectRatio} differs from required ${def.aspectRatio} by ${ratioCheck.diffPercent}%.`);
             status = 'NEEDS_REVIEW';
-          } else {
-            const ratioCheck = checkAspectRatioMatch(assigned.width, assigned.height, def.aspectRatio as any);
-            if (!ratioCheck.isMatch) {
-              issues.push(`Aspect ratio ${assigned.aspectRatio} differs from required ${def.aspectRatio} by ${ratioCheck.diffPercent}%.`);
-              status = 'NEEDS_REVIEW';
-            }
+            invalidCount++;
+            filledCount++;
           }
         }
+      }
 
-        if (issues.length === 0) {
-          status = 'LIVE';
-          isLivePublic = true;
-          liveCount++;
-          filledCount++;
-        }
+      if (issues.length === 0) {
+        status = 'LIVE';
+        isLivePublic = true;
+        liveCount++;
+        filledCount++;
       }
     } else {
+      // Strictly MISSING when no approved canonical asset exists
+      status = 'MISSING';
       if (def.isRequired) {
         missingRequiredCount++;
+      }
+
+      if (hadLegacyOrInvalid) {
+        issues.push('MEDIA REQUIRED — REPLACE OLD ASSET');
       }
     }
 
@@ -173,9 +203,10 @@ export function buildEntityRequirements(
       maxFileSizeBytes: def.maxFileSizeBytes,
       deviceTarget: def.deviceTarget,
       status,
-      currentAssetId: assigned?.id,
-      currentAssetUrl: assigned?.url,
+      currentAssetId,
+      currentAssetUrl,
       isLivePublic,
+      hasLegacyOrInvalidAsset: hadLegacyOrInvalid,
       whatToCreate: `Create a ${def.supportedMediaTypes.join('/')} asset with exact ${def.aspectRatio} ratio (${def.recommendedWidth}×${def.recommendedHeight}px recommended, min ${def.minWidth}×${def.minHeight}px).`,
       why: def.purpose,
       whereUsed: `${routeInfo.page} (${routeInfo.section})`,
