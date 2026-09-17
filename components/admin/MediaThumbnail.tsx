@@ -12,6 +12,9 @@ interface MediaThumbnailProps {
   allowToggleFit?: boolean;
   priority?: boolean;
   role?: string;
+  source?: string;
+  storagePath?: string | null;
+  fileSizeBytes?: number | null;
 }
 
 export default function MediaThumbnail({
@@ -22,6 +25,9 @@ export default function MediaThumbnail({
   allowToggleFit = true,
   priority = false,
   role,
+  source,
+  storagePath,
+  fileSizeBytes,
 }: MediaThumbnailProps) {
   const [loadState, setLoadState] = useState<'loading' | 'loaded' | 'error'>('loading');
   const [fit, setFit] = useState<'cover' | 'contain'>(defaultFit);
@@ -38,8 +44,11 @@ export default function MediaThumbnail({
   const cleanSrc = src ? src.trim() : '';
   const isInvalidUrl = !cleanSrc || cleanSrc === 'undefined' || cleanSrc === 'null';
 
-  // Parse hostname for helpful diagnostic display if error
+  // Compute exact diagnostic reason
+  let diagnosticLabel = 'Asset Unavailable';
+  let diagnosticBadgeClass = 'bg-amber-100 text-amber-900 border-amber-300';
   let hostDisplay = 'Remote Host';
+
   try {
     if (cleanSrc.startsWith('http')) {
       const parsed = new URL(cleanSrc);
@@ -53,20 +62,39 @@ export default function MediaThumbnail({
     hostDisplay = 'Invalid URL';
   }
 
+  if (source === 'AI_GENERATED' && !storagePath) {
+    diagnosticLabel = 'NOT GENERATED (PROMPT ONLY)';
+    diagnosticBadgeClass = 'bg-blue-100 text-blue-900 border-blue-300';
+  } else if (fileSizeBytes !== null && fileSizeBytes !== undefined && fileSizeBytes < 1024) {
+    diagnosticLabel = `INVALID IMAGE (${fileSizeBytes} B)`;
+    diagnosticBadgeClass = 'bg-red-100 text-red-900 border-red-300';
+  } else if (cleanSrc.includes('muskydose.in') || hostDisplay === 'Invalid URL') {
+    diagnosticLabel = 'URL UNREACHABLE';
+    diagnosticBadgeClass = 'bg-purple-100 text-purple-900 border-purple-300';
+  } else if (cleanSrc.includes('supabase.co') && loadState === 'error') {
+    diagnosticLabel = 'MISSING STORAGE OBJECT';
+    diagnosticBadgeClass = 'bg-rose-100 text-rose-900 border-rose-300';
+  } else if (loadState === 'error') {
+    diagnosticLabel = 'IMAGE DECODE FAILED';
+    diagnosticBadgeClass = 'bg-amber-100 text-amber-900 border-amber-300';
+  }
+
   if (isInvalidUrl || loadState === 'error') {
     return (
       <div
         className={`relative w-full h-full bg-[#f5f1e8] border border-dashed border-[#e8e2d5] flex flex-col items-center justify-center p-3 text-center select-none overflow-hidden ${className}`}
       >
-        <div className="w-9 h-9 rounded-xl bg-amber-100/80 text-amber-800 flex items-center justify-center mb-1.5 shadow-2xs">
+        <div className="w-8 h-8 rounded-xl bg-amber-100/80 text-amber-800 flex items-center justify-center mb-1 shadow-2xs">
           <ImageOff className="w-4 h-4" />
         </div>
-        <p className="text-[11px] font-bold text-[#0f2d22] leading-tight">Asset Unavailable</p>
-        <span className="text-[9px] text-gray-500 font-mono mt-0.5 truncate max-w-[90%] px-1 py-0.5 bg-white/70 rounded border border-gray-200">
+        <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full border mb-1 tracking-wide ${diagnosticBadgeClass}`}>
+          {diagnosticLabel}
+        </span>
+        <span className="text-[9px] text-gray-500 font-mono truncate max-w-[90%] px-1 py-0.5 bg-white/80 rounded border border-gray-200">
           {hostDisplay}
         </span>
         {role && (
-          <span className="text-[8px] font-bold text-gray-400 uppercase mt-1">
+          <span className="text-[8px] font-bold text-gray-400 uppercase mt-0.5">
             Slot: {role}
           </span>
         )}

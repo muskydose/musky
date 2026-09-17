@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { GoogleGenAI } from '@google/genai';
 import { MediaEntityType, MediaAssetRole, MediaAsset, saveMediaAsset } from '@/lib/db/media';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { validateImageBinary } from '@/lib/ai/image-integrity';
 import {
   VisualVariant,
   EntityCanonicalFacts,
@@ -144,15 +145,21 @@ export class ManualAiStudioProvider implements VisualProvider {
   ): Promise<GeneratedVisualResult> {
     if (!options?.imageBuffer || options.imageBuffer.length === 0) {
       throw new Error(
-        'Free AI Studio requires an uploaded image file generated from the prompt. Copy the prompt to generate in your preferred free tool, then drop the image here to import.'
+        'Free AI Studio is a prompt-first manual workflow: copy the grounded prompt to generate in your preferred free tool (ChatGPT, Bing, Fooocus, etc.), then drop the resulting image here to import.'
       );
     }
 
-    const mimeType = options.imageMimeType || 'image/jpeg';
+    const validation = validateImageBinary(options.imageBuffer);
+    if (!validation.isValid) {
+      throw new Error(`Imported file failed binary image validation: ${validation.error}`);
+    }
+
+    const mimeType = validation.mimeType || options.imageMimeType || 'image/jpeg';
     const aspectRatio = options.aspectRatio || '1:1';
     const width = options.width || (aspectRatio === '16:9' ? 1280 : 1024);
     const height = options.height || (aspectRatio === '16:9' ? 720 : 1024);
-    const fileName = options.imageFileName || `free-studio-${Date.now()}.jpg`;
+    const ext = validation.format === 'png' ? 'png' : validation.format === 'webp' ? 'webp' : 'jpg';
+    const fileName = options.imageFileName || `free-studio-${Date.now()}.${ext}`;
 
     return {
       buffer: options.imageBuffer,
@@ -221,18 +228,58 @@ export class LocalSelfHostedProvider implements VisualProvider {
 
   public async generateImage(
     prompt: string,
-    options?: { aspectRatio?: string; width?: number; height?: number }
-  ): Promise<GeneratedVisualResult> {
-    const endpoint = this.getEndpoint();
-    if (!endpoint) {
-      throw new Error(
-        'Local AI generation is unavailable: LOCAL_AI_IMAGE_URL environment variable is not configured.'
-      );
+    options?: {
+      aspectRatio?: string;
+      width?: number;
+      height?: number;
+      imageBuffer?: Buffer;
+      imageMimeType?: string;
+      imageFileName?: string;
     }
-
+  ): Promise<GeneratedVisualResult> {
     const aspectRatio = options?.aspectRatio || '1:1';
     const width = options?.width || (aspectRatio === '16:9' ? 1280 : 1024);
     const height = options?.height || (aspectRatio === '16:9' ? 720 : 1024);
+
+    // 1. Direct browser-orchestrated upload path (bypasses Vercel-to-localhost boundary)
+    if (options?.imageBuffer && options.imageBuffer.length > 0) {
+      const validation = validateImageBinary(options.imageBuffer);
+      if (!validation.isValid) {
+        throw new Error(`Local AI image failed binary validation: ${validation.error}`);
+      }
+
+      const mimeType = validation.mimeType || options.imageMimeType || 'image/png';
+      const ext = validation.format === 'jpeg' ? 'jpg' : validation.format === 'webp' ? 'webp' : 'png';
+      const fileName = options.imageFileName || `local-comfyui-${Date.now()}.${ext}`;
+
+      return {
+        buffer: options.imageBuffer,
+        mimeType,
+        width,
+        height,
+        aspectRatio,
+        fileName,
+        promptUsed: prompt,
+        modelName: 'Local ComfyUI / SD (Browser-Client Orchestrated)',
+        provider: this.name,
+        providerId: this.id,
+        tier: this.tier,
+      };
+    }
+
+    // 2. Server-side HTTP fetch path (when endpoint is accessible to server)
+    const endpoint = this.getEndpoint();
+    if (!endpoint) {
+      throw new Error(
+        'Local AI generation is unavailable: LOCAL_AI_IMAGE_URL environment variable is not configured, and no client-generated image was supplied.'
+      );
+    }
+
+    if (endpoint.includes('127.0.0.1') || endpoint.includes('localhost')) {
+      throw new Error(
+        'The server environment cannot reach 127.0.0.1 (localhost). Please generate the image directly using the Local AI client connector in your browser on the Admin Media page.'
+      );
+    }
 
     try {
       // Standard SD txt2img or generic local image generation endpoint
@@ -262,10 +309,14 @@ export class LocalSelfHostedProvider implements VisualProvider {
       }
 
       const buffer = Buffer.from(base64Image.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+      const validation = validateImageBinary(buffer);
+      if (!validation.isValid) {
+        throw new Error(`Local AI server returned invalid image data: ${validation.error}`);
+      }
 
       return {
         buffer,
-        mimeType: 'image/png',
+        mimeType: validation.mimeType || 'image/png',
         width,
         height,
         aspectRatio,
@@ -516,37 +567,38 @@ export async function generateAndSaveVisualForEntity(
     imageFileName: request.imageFileName,
   });
 
-  // 4. Compute SHA-256 binary hash for storage deduplication
-  const fileHash = crypto.createHash('sha256').update(result.buffer).digest('hex');
+  // 4. Strict Binary Integrity Check (>1KB, valid JPEG/PNG/WebP magic bytes)
+  const validation = validateImageBinary(result.buffer);
+  if (!validation.isValid) {
+    throw new Error(`AI generated output failed binary image validation: ${validation.error}`);
+  }
 
-  // 5. Storage Upload
-  let publicUrl = '';
-  const fileExtension = result.mimeType.includes('png') ? 'png' : 'jpg';
+  // 5. Mandatory Storage Upload Verification (Zero DB records created if upload fails!)
+  const fileExtension = validation.format === 'png' ? 'png' : validation.format === 'webp' ? 'webp' : 'jpg';
   const storagePath = `ai-generated/${request.entityType.toLowerCase()}/${request.entityId}/${Date.now()}-${variant}.${fileExtension}`;
   const bucketName = 'product-images';
 
   const supabaseAdmin = getSupabaseAdmin();
-  if (supabaseAdmin) {
-    try {
-      const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-        .from(bucketName)
-        .upload(storagePath, result.buffer, {
-          contentType: result.mimeType,
-          upsert: true,
-        });
-
-      if (!uploadError && uploadData) {
-        const { data: urlData } = supabaseAdmin.storage.from(bucketName).getPublicUrl(storagePath);
-        publicUrl = urlData.publicUrl;
-      }
-    } catch (storageErr) {
-      console.warn('Storage upload exception in Visual Engine:', storageErr);
-    }
+  if (!supabaseAdmin) {
+    throw new Error('Supabase storage client is unavailable. Cannot register AI media without storage persistence.');
   }
 
-  // Fallback data URL if storage is unconfigured (offline / local dev safety)
+  const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+    .from(bucketName)
+    .upload(storagePath, result.buffer, {
+      contentType: validation.mimeType || result.mimeType,
+      upsert: true,
+    });
+
+  if (uploadError || !uploadData) {
+    throw new Error(`Supabase storage upload failed for generated visual: ${uploadError?.message || 'No upload response'}`);
+  }
+
+  const { data: urlData } = supabaseAdmin.storage.from(bucketName).getPublicUrl(storagePath);
+  const publicUrl = urlData?.publicUrl;
+
   if (!publicUrl) {
-    publicUrl = `data:${result.mimeType};base64,${result.buffer.toString('base64')}`;
+    throw new Error('Failed to resolve public URL for stored AI visual object.');
   }
 
   // 6. Save through canonical Media DAL
@@ -561,10 +613,10 @@ export async function generateAndSaveVisualForEntity(
     url: publicUrl,
     storageBucket: bucketName,
     storagePath,
-    fileHash,
+    fileHash: validation.hash,
     fileName: `${request.entityType.toLowerCase()}-${request.entityId}-${variant}.${fileExtension}`,
-    mimeType: result.mimeType,
-    fileSizeBytes: result.buffer.length,
+    mimeType: validation.mimeType || result.mimeType,
+    fileSizeBytes: validation.byteLength,
     width: result.width,
     height: result.height,
     aspectRatio: result.aspectRatio,
@@ -591,6 +643,9 @@ export async function generateAndSaveVisualForEntity(
       canonicalPrompt: promptResult.canonicalPrompt,
       isOverride: promptResult.isOverride,
       promptOverride: promptResult.promptOverride,
+      storagePath,
+      fileHash: validation.hash,
+      byteLength: validation.byteLength,
       generatedAt: new Date().toISOString(),
       variant,
     },

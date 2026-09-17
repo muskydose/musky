@@ -23,8 +23,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const entityType = searchParams.get('entityType') as MediaEntityType | null;
     const entityId = searchParams.get('entityId');
-    const variant = (searchParams.get('variant') as VisualVariant) || 'packshot';
-    const role = (searchParams.get('role') as MediaAssetRole) || 'GALLERY';
+    const variant = (searchParams.get('variant') as VisualVariant) || (entityType === 'KNOWLEDGE' ? 'illustration' : 'packshot');
+    const role = (searchParams.get('role') as MediaAssetRole) || (entityType === 'KNOWLEDGE' ? 'PRIMARY' : 'GALLERY');
     const promptOverride = searchParams.get('promptOverride') || undefined;
 
     const capabilities = await getProviderCapabilities();

@@ -47,8 +47,16 @@ import {
   Grid,
   ImageOff,
   Maximize2,
+  Cpu,
+  Terminal,
 } from 'lucide-react';
 import MediaThumbnail from '@/components/admin/MediaThumbnail';
+import {
+  checkComfyUIHealth,
+  generateComfyUIImage,
+  ComfyUIHealthStatus,
+  DEFAULT_COMFYUI_ENDPOINT,
+} from '@/lib/ai/comfyui-client';
 import {
   resolveMediaAssetUsage,
   getUsedAsDescription,
@@ -135,8 +143,26 @@ export default function AdminMediaClient({
   const [capabilities, setCapabilities] = useState<any[]>([]);
   const [loadingCapabilities, setLoadingCapabilities] = useState<boolean>(false);
   const [generating, setGenerating] = useState<boolean>(false);
+  const [genProgressMessage, setGenProgressMessage] = useState<string>('');
   const [genError, setGenError] = useState<string>('');
   const [genSuccessNotice, setGenSuccessNotice] = useState<string>('');
+
+  // Local ComfyUI Connector State
+  const [comfyStatus, setComfyStatus] = useState<ComfyUIHealthStatus | null>(null);
+  const [showComfyModal, setShowComfyModal] = useState<boolean>(false);
+  const [comfyEndpoint, setComfyEndpoint] = useState<string>(DEFAULT_COMFYUI_ENDPOINT);
+
+  // Check ComfyUI Health periodically and on mount
+  const refreshComfyHealth = useCallback(async () => {
+    const status = await checkComfyUIHealth(comfyEndpoint);
+    setComfyStatus(status);
+  }, [comfyEndpoint]);
+
+  useEffect(() => {
+    refreshComfyHealth();
+    const interval = setInterval(refreshComfyHealth, 15000);
+    return () => clearInterval(interval);
+  }, [refreshComfyHealth]);
 
   // Legacy Media Items State
   const [legacyMedia, setLegacyMedia] = useState<MediaItem[]>(initialSettings.mediaLibrary || []);
@@ -252,10 +278,13 @@ export default function AdminMediaClient({
     }
   }, [genEntityType, initialProducts, initialCategories, initialGuides, initialKnowledgeEntities]);
 
-  // Sync genEntityId when genEntityType changes
+  // Sync genEntityId when genEntityType changes (only if current selection is invalid)
   useEffect(() => {
     if (entityOptions.length > 0) {
-      setGenEntityId(entityOptions[0].id);
+      setGenEntityId((current) => {
+        const exists = entityOptions.some((opt) => opt.id === current);
+        return exists ? current : entityOptions[0].id;
+      });
     } else {
       setGenEntityId('');
     }
@@ -362,18 +391,55 @@ export default function AdminMediaClient({
     }
 
     if (genProviderId === 'manual-studio' && !genStudioFile) {
-      setGenError('Please select or drop the generated image file to import into the Free AI Studio.');
+      setGenError(
+        'Free AI Studio is a prompt-first manual workflow: copy the grounded prompt below, generate in your preferred free tool (ChatGPT, Bing, Fooocus), then drop the resulting image file here to import.'
+      );
+      return;
+    }
+
+    if (genProviderId === 'local-sd' && !comfyStatus?.online) {
+      setGenError(
+        'Local ComfyUI is currently OFFLINE. Please start ComfyUI with: python main.py --listen 127.0.0.1 --enable-cors-header (or click the LOCAL AI badge in the header for instructions).'
+      );
       return;
     }
 
     setGenerating(true);
+    setGenProgressMessage('Preparing visual prompt and context...');
     setGenError('');
     setGenSuccessNotice('');
 
     try {
       let res: Response;
 
-      if (genProviderId === 'manual-studio' && genStudioFile) {
+      if (genProviderId === 'local-sd') {
+        // Path A: Browser -> ComfyUI ₹0 generation directly from client machine
+        setGenProgressMessage('Executing generation workflow on local ComfyUI instance...');
+        const comfyResult = await generateComfyUIImage({
+          endpoint: comfyEndpoint,
+          prompt: genPromptOverride.trim() || genPromptPreview,
+          width: 1024,
+          height: 1024,
+        });
+
+        setGenProgressMessage('Image rendered! Uploading verified binary to Supabase storage...');
+        const formData = new FormData();
+        formData.append('file', comfyResult.blob, comfyResult.fileName);
+        formData.append('entityType', genEntityType);
+        formData.append('entityId', genEntityId);
+        formData.append('role', genRole);
+        formData.append('variant', genVariant);
+        formData.append('providerId', 'local-sd');
+        if (genPromptOverride.trim()) {
+          formData.append('promptOverride', genPromptOverride.trim());
+        }
+
+        res = await fetch('/api/admin/media-assets/generate', {
+          method: 'POST',
+          body: formData,
+        });
+      } else if (genProviderId === 'manual-studio' && genStudioFile) {
+        setGenProgressMessage('Uploading and validating imported visual...');
         const formData = new FormData();
         formData.append('file', genStudioFile);
         formData.append('entityType', genEntityType);
@@ -390,6 +456,7 @@ export default function AdminMediaClient({
           body: formData,
         });
       } else {
+        setGenProgressMessage('Requesting visual generation from provider...');
         res = await fetch('/api/admin/media-assets/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -420,9 +487,10 @@ export default function AdminMediaClient({
         setGenError(data.error || 'Failed to generate/import visual with AI provider.');
       }
     } catch (err: any) {
-      setGenError('Network error while requesting AI generation.');
+      setGenError(err?.message || 'Error occurred while requesting AI generation.');
     } finally {
       setGenerating(false);
+      setGenProgressMessage('');
     }
   };
 
@@ -632,6 +700,27 @@ export default function AdminMediaClient({
     setGenEntityType(entityType);
     setGenEntityId(entityId);
     setGenRole(role);
+    switch (entityType) {
+      case 'KNOWLEDGE':
+        setGenVariant('illustration');
+        break;
+      case 'CATEGORY':
+        setGenVariant('collection');
+        break;
+      case 'GUIDE':
+        setGenVariant('usage');
+        break;
+      case 'BRAND':
+      case 'MARKETING':
+        setGenVariant('social');
+        break;
+      case 'PRODUCT':
+      default:
+        setGenVariant('packshot');
+        break;
+    }
+    setGenPromptOverride('');
+    setGenError('');
     setShowGenerateModal(true);
   };
 
@@ -841,6 +930,26 @@ export default function AdminMediaClient({
               <RefreshCw className={`w-4 h-4 ${loading || legacyLoading ? 'animate-spin' : ''}`} />
             </button>
 
+            {/* Local AI Status Indicator (ComfyUI ₹0 Connector) */}
+            <button
+              type="button"
+              onClick={() => setShowComfyModal(true)}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+                comfyStatus?.online
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                  : 'bg-[#fcfbf7] text-gray-700 border-[#e8e2d5] hover:bg-[#f5f1e8]'
+              }`}
+              title="Click to view Local ComfyUI connection status & Windows setup instructions"
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  comfyStatus?.online ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'
+                }`}
+              />
+              <Cpu className="w-3.5 h-3.5 text-[#1b4332]" />
+              <span>LOCAL AI: {comfyStatus?.online ? 'CONNECTED' : 'OFFLINE'}</span>
+            </button>
+
             <button
               onClick={() => setShowGenerateModal(true)}
               className="inline-flex items-center gap-2 bg-[#0f2d22] text-[#c5a059] border border-[#c5a059]/40 px-4 py-2.5 rounded-xl text-xs font-bold shadow hover:bg-[#1b4332] transition-colors"
@@ -908,7 +1017,15 @@ export default function AdminMediaClient({
                     onClick={() => setSelectedAssetForDetail(asset)}
                     title="Click to inspect"
                   >
-                    <MediaThumbnail src={asset.url} alt={asset.title || 'AI Visual'} defaultFit="cover" role={asset.role} />
+                    <MediaThumbnail
+                      src={asset.url}
+                      alt={asset.title || 'AI Visual'}
+                      defaultFit="cover"
+                      role={asset.role}
+                      source={asset.source}
+                      storagePath={asset.storagePath}
+                      fileSizeBytes={asset.fileSizeBytes}
+                    />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p
@@ -1206,6 +1323,9 @@ export default function AdminMediaClient({
                                           alt={cluster.primaryAsset.title || cluster.name}
                                           defaultFit="cover"
                                           role="PRIMARY"
+                                          source={cluster.primaryAsset.source}
+                                          storagePath={cluster.primaryAsset.storagePath}
+                                          fileSizeBytes={cluster.primaryAsset.fileSizeBytes}
                                         />
                                         <div className="absolute top-2 left-2 z-20">
                                           <span className="bg-[#0f2d22] text-[#c5a059] border border-[#c5a059]/50 text-[10px] font-black px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">
@@ -1331,6 +1451,9 @@ export default function AdminMediaClient({
                                         alt={asset.title || asset.fileName || 'Gallery Asset'}
                                         defaultFit="cover"
                                         role="GALLERY"
+                                        source={asset.source}
+                                        storagePath={asset.storagePath}
+                                        fileSizeBytes={asset.fileSizeBytes}
                                       />
                                       <div className="absolute top-2 left-2 z-20">
                                         <span className="bg-[#0f2d22]/90 backdrop-blur-xs text-white text-[9px] font-bold px-2 py-0.5 rounded-md shadow-xs">
@@ -1443,6 +1566,9 @@ export default function AdminMediaClient({
                                           alt={asset.title || asset.fileName || 'Asset'}
                                           defaultFit="cover"
                                           role={asset.role}
+                                          source={asset.source}
+                                          storagePath={asset.storagePath}
+                                          fileSizeBytes={asset.fileSizeBytes}
                                         />
                                         <div className="absolute top-2 left-2 z-20">
                                           <span className="bg-blue-900 text-blue-100 text-[9px] font-bold px-2 py-0.5 rounded-md shadow-xs">
@@ -1510,6 +1636,9 @@ export default function AdminMediaClient({
                                         alt={asset.title || 'AI Visual'}
                                         defaultFit="cover"
                                         role={asset.role}
+                                        source={asset.source}
+                                        storagePath={asset.storagePath}
+                                        fileSizeBytes={asset.fileSizeBytes}
                                       />
                                     </div>
                                     <div className="flex-1 min-w-0">
@@ -1595,6 +1724,9 @@ export default function AdminMediaClient({
                               alt={asset.title || asset.fileName || 'Media Asset'}
                               defaultFit="cover"
                               role={asset.role}
+                              source={asset.source}
+                              storagePath={asset.storagePath}
+                              fileSizeBytes={asset.fileSizeBytes}
                             />
 
                             {/* Top-Left: Entity Type */}
@@ -2206,6 +2338,9 @@ export default function AdminMediaClient({
                     alt={selectedAssetForDetail.title || selectedAssetForDetail.fileName || 'Asset'}
                     defaultFit="contain"
                     role={selectedAssetForDetail.role}
+                    source={selectedAssetForDetail.source}
+                    storagePath={selectedAssetForDetail.storagePath}
+                    fileSizeBytes={selectedAssetForDetail.fileSizeBytes}
                   />
                 </div>
 
@@ -2328,17 +2463,54 @@ export default function AdminMediaClient({
 
                 {/* AI Provenance / Metadata (if generated) */}
                 {selectedAssetForDetail.source === 'AI_GENERATED' && selectedAssetForDetail.aiMetadata && (
-                  <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl space-y-1.5">
-                    <p className="font-bold text-purple-900 flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4 text-purple-600" />
-                      <span>AI Generation Provenance</span>
-                    </p>
-                    <p className="text-[11px] text-purple-800">
-                      <strong>Model:</strong> {selectedAssetForDetail.aiMetadata.model || 'Gemini Imagen'}
-                    </p>
-                    <p className="text-[11px] text-purple-800">
-                      <strong>Prompt Used:</strong> {selectedAssetForDetail.aiMetadata.promptUsed || 'Default grounded prompt'}
-                    </p>
+                  <div className="p-4 bg-purple-50/80 border border-purple-200 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="font-bold text-purple-950 flex items-center gap-1.5 text-xs">
+                        <Sparkles className="w-4 h-4 text-purple-600" />
+                        <span>AI Visual Provenance &amp; Lineage</span>
+                      </p>
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-purple-200/80 text-purple-900">
+                        {selectedAssetForDetail.aiMetadata.tier || 'FREE'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-purple-900 bg-white/70 p-3 rounded-xl border border-purple-200/60">
+                      <div>
+                        <span className="text-purple-700/80 font-bold block text-[9px] uppercase">Engine / Provider</span>
+                        <span className="font-semibold">{selectedAssetForDetail.aiMetadata.provider || selectedAssetForDetail.aiMetadata.providerId || 'Custom'}</span>
+                      </div>
+                      <div>
+                        <span className="text-purple-700/80 font-bold block text-[9px] uppercase">Model</span>
+                        <span className="font-semibold">{selectedAssetForDetail.aiMetadata.model || 'Unknown Model'}</span>
+                      </div>
+                      <div>
+                        <span className="text-purple-700/80 font-bold block text-[9px] uppercase">Cost Per Visual</span>
+                        <span className="font-semibold text-emerald-800">{selectedAssetForDetail.aiMetadata.cost || '₹0'}</span>
+                      </div>
+                      <div>
+                        <span className="text-purple-700/80 font-bold block text-[9px] uppercase">Generated Timestamp</span>
+                        <span className="font-mono text-[10px]">{selectedAssetForDetail.aiMetadata.generatedAt ? new Date(selectedAssetForDetail.aiMetadata.generatedAt).toLocaleString() : 'N/A'}</span>
+                      </div>
+                      {selectedAssetForDetail.storagePath && (
+                        <div className="col-span-2">
+                          <span className="text-purple-700/80 font-bold block text-[9px] uppercase">Storage Object Path</span>
+                          <span className="font-mono text-[10px] truncate block text-gray-700">{selectedAssetForDetail.storagePath}</span>
+                        </div>
+                      )}
+                      {selectedAssetForDetail.fileHash && (
+                        <div className="col-span-2">
+                          <span className="text-purple-700/80 font-bold block text-[9px] uppercase">SHA-256 Binary Hash</span>
+                          <span className="font-mono text-[9px] truncate block text-gray-600 select-all">{selectedAssetForDetail.fileHash}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <span className="text-purple-900 font-bold block text-[10px] uppercase mb-1">Grounded Prompt Used:</span>
+                      <p className="text-[11px] text-purple-950 font-serif italic bg-white/80 p-2.5 rounded-xl border border-purple-200/60 select-all leading-relaxed max-h-32 overflow-y-auto">
+                        {selectedAssetForDetail.aiMetadata.promptUsed || 'No prompt recorded'}
+                      </p>
+                    </div>
                   </div>
                 )}
 
@@ -2483,14 +2655,37 @@ export default function AdminMediaClient({
                       onChange={(e) => setGenVariant(e.target.value)}
                       className="w-full p-2.5 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl font-medium"
                     >
-                      <option value="packshot">Packshot (Clean Commercial Studio)</option>
-                      <option value="lifestyle">Lifestyle (Sunlit Rajasthani Courtyard)</option>
-                      <option value="ingredient">Ingredient (Macro Botanicals & Stone Mortar)</option>
-                      <option value="usage">Usage / Authentic Application Ritual</option>
-                      <option value="infographic">Infographic (Museum Botanical Layers)</option>
-                      <option value="illustration">Monograph Illustration (Watercolor & Archival Ink)</option>
-                      <option value="collection">Collection Display (Harmonious Boutique Shelf)</option>
-                      <option value="social">Social Hero Visual (High Impact Editorial)</option>
+                      {genEntityType === 'KNOWLEDGE' ? (
+                        <>
+                          <option value="illustration">Monograph Illustration (Archival Watercolor & Ink)</option>
+                          <option value="ingredient">Botanical Specimen (Fresh Leaves & Terroir)</option>
+                          <option value="infographic">Infographic (Museum Botanical Anatomy & Taxonomy)</option>
+                          <option value="lifestyle">Botanical Study (Sunlit Courtyard Still Life)</option>
+                        </>
+                      ) : genEntityType === 'CATEGORY' ? (
+                        <>
+                          <option value="collection">Collection Display (Harmonious Boutique Shelf)</option>
+                          <option value="lifestyle">Lifestyle (Sunlit Rajasthani Courtyard)</option>
+                          <option value="social">Social Hero Visual (High Impact Editorial)</option>
+                        </>
+                      ) : genEntityType === 'GUIDE' ? (
+                        <>
+                          <option value="usage">Usage / Authentic Application Ritual</option>
+                          <option value="infographic">Infographic (Instructional Sequence & Steps)</option>
+                          <option value="lifestyle">Lifestyle (Sunlit Courtyard Self-Care)</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="packshot">Packshot (Clean Commercial Studio)</option>
+                          <option value="lifestyle">Lifestyle (Sunlit Rajasthani Courtyard)</option>
+                          <option value="ingredient">Ingredient (Macro Botanicals & Stone Mortar)</option>
+                          <option value="usage">Usage / Authentic Application Ritual</option>
+                          <option value="infographic">Infographic (Museum Botanical Layers)</option>
+                          <option value="illustration">Monograph Illustration (Watercolor & Archival Ink)</option>
+                          <option value="collection">Collection Display (Harmonious Boutique Shelf)</option>
+                          <option value="social">Social Hero Visual (High Impact Editorial)</option>
+                        </>
+                      )}
                     </select>
                   </div>
 
@@ -2580,6 +2775,83 @@ export default function AdminMediaClient({
                         Native Gemini 3.1 Flash Image model via API key.
                       </p>
                     </button>
+                  </div>
+                </div>
+
+                {/* Local ComfyUI Link Status Card (when local-sd is selected) */}
+                {genProviderId === 'local-sd' && (
+                  <div className="p-3.5 rounded-xl border bg-[#fcfbf7] border-[#e8e2d5] space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`w-2.5 h-2.5 rounded-full ${
+                            comfyStatus?.online ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
+                          }`}
+                        />
+                        <span className="font-bold text-[#0f2d22] text-[11px]">
+                          Hardware Link: {comfyStatus?.online ? 'CONNECTED (Local ₹0 Generation)' : 'OFFLINE'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={refreshComfyHealth}
+                        className="text-[10px] text-emerald-800 font-bold hover:underline flex items-center gap-1"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Re-test</span>
+                      </button>
+                    </div>
+
+                    {!comfyStatus?.online ? (
+                      <div className="text-[11px] text-amber-900 bg-amber-50 p-2.5 rounded-lg border border-amber-200 space-y-1">
+                        <p className="font-bold">ComfyUI is not reachable at {comfyEndpoint}</p>
+                        <p className="text-[10px] text-gray-700">
+                          To generate directly on your local GPU with ₹0 API cost, launch ComfyUI with CORS enabled:
+                        </p>
+                        <code className="block p-1.5 bg-black text-amber-300 rounded font-mono text-[10px] select-all">
+                          python main.py --listen 127.0.0.1 --enable-cors-header
+                        </code>
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-emerald-800">
+                        Connected to ComfyUI at {comfyEndpoint}. Generation will run locally on your GPU/CPU with zero cloud quota consumption.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Pre-Generation Provenance & Fact Grounding Preview */}
+                <div className="p-3 bg-[#f5f1e8] border border-[#e8e2d5] rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-[#0f2d22] flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5 text-[#c5a059]" />
+                      <span>Pre-Generation Provenance Plan</span>
+                    </span>
+                    <span className="text-[10px] font-mono bg-white px-2 py-0.5 rounded border border-[#e8e2d5]">
+                      {genEntityType} • {genEntityId}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] text-gray-700 bg-white/80 p-2.5 rounded-lg border border-[#e8e2d5]/60">
+                    <div>
+                      <span className="text-gray-400 block font-bold uppercase text-[8px]">Target Entity</span>
+                      <span className="font-bold text-[#0f2d22] truncate block" title={getEntityLabel(genEntityType, genEntityId)}>
+                        {getEntityLabel(genEntityType, genEntityId)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block font-bold uppercase text-[8px]">Visual Variant</span>
+                      <span className="font-bold text-[#1b4332] block">{genVariant.toUpperCase()}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block font-bold uppercase text-[8px]">Assigned Slot</span>
+                      <span className="font-bold text-[#0f2d22] block">{genRole}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block font-bold uppercase text-[8px]">Provider Mode</span>
+                      <span className="font-bold text-emerald-800 block">
+                        {genProviderId === 'local-sd' ? 'Local ComfyUI (₹0)' : genProviderId === 'manual-studio' ? 'Free Studio (₹0)' : 'Gemini Flash'}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -2681,6 +2953,17 @@ export default function AdminMediaClient({
                   </p>
                 </div>
 
+                {/* Real-Time Generation Progress Banner */}
+                {generating && (
+                  <div className="p-3.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-xl flex items-center gap-3 font-medium shadow-xs animate-pulse">
+                    <div className="w-5 h-5 border-2 border-blue-700 border-t-transparent rounded-full animate-spin shrink-0" />
+                    <div>
+                      <p className="font-bold text-xs">{genProgressMessage || 'Generating visual...'}</p>
+                      <p className="text-[10px] text-blue-700">Please do not close this window while the image is rendering and uploading.</p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="pt-2 flex justify-end gap-2 border-t border-[#e8e2d5]">
                   <button
                     type="button"
@@ -2706,6 +2989,109 @@ export default function AdminMediaClient({
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* LOCAL COMFYUI SETUP & HARDWARE LINK MODAL */}
+        {showComfyModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+            <div className="bg-white border border-[#e8e2d5] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+              <div className="p-5 bg-[#0f2d22] text-white flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Cpu className="w-5 h-5 text-[#c5a059]" />
+                  <div>
+                    <h3 className="font-bold text-base">Local AI (ComfyUI) Connector</h3>
+                    <p className="text-[11px] text-[#c5a059]">₹0 Local Hardware Image Generation Link</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowComfyModal(false)}
+                  className="p-1 hover:bg-[#1b4332] rounded-lg text-gray-300 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 text-xs">
+                <div className="p-4 rounded-xl border flex items-center justify-between gap-3 bg-[#fcfbf7] border-[#e8e2d5]">
+                  <div>
+                    <div className="font-bold text-[#0f2d22] text-sm flex items-center gap-2">
+                      <span
+                        className={`w-2.5 h-2.5 rounded-full ${
+                          comfyStatus?.online ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
+                        }`}
+                      />
+                      <span>Status: {comfyStatus?.online ? 'Connected & Ready' : 'Offline / Unreachable'}</span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      {comfyStatus?.online
+                        ? 'Ready for ₹0 browser-orchestrated visual generation.'
+                        : comfyStatus?.error || 'Cannot connect to local ComfyUI instance.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={refreshComfyHealth}
+                    className="p-2 bg-white hover:bg-gray-100 border border-[#e8e2d5] rounded-lg text-[#0f2d22] font-bold"
+                    title="Retry connection"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div>
+                  <label className="block text-[#0f2d22] font-bold mb-1">ComfyUI Endpoint URL</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={comfyEndpoint}
+                      onChange={(e) => setComfyEndpoint(e.target.value)}
+                      className="flex-1 p-2 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl font-mono text-xs"
+                      placeholder="http://127.0.0.1:8188"
+                    />
+                    <button
+                      type="button"
+                      onClick={refreshComfyHealth}
+                      className="px-3 py-2 bg-[#1b4332] text-white rounded-xl font-bold hover:bg-[#0f2d22]"
+                    >
+                      Test
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-gray-900 text-gray-100 rounded-xl space-y-2 font-mono text-[11px]">
+                  <div className="flex items-center gap-1.5 text-[#c5a059] font-bold">
+                    <Terminal className="w-4 h-4" />
+                    <span>Windows PowerShell Setup (₹0 Local Generation)</span>
+                  </div>
+                  <ol className="list-decimal list-inside space-y-1 text-gray-300">
+                    <li>Open PowerShell or CMD on your Windows PC.</li>
+                    <li>Navigate to your ComfyUI directory:
+                      <div className="bg-black/80 text-emerald-400 p-1.5 rounded my-1 select-all">
+                        cd C:\ComfyUI_windows_portable
+                      </div>
+                    </li>
+                    <li>Launch with CORS enabled so browser can connect:
+                      <div className="bg-black/80 text-amber-300 p-1.5 rounded my-1 select-all">
+                        python main.py --listen 127.0.0.1 --enable-cors-header
+                      </div>
+                    </li>
+                    <li>Status indicator in the header will update to <strong>CONNECTED</strong>!</li>
+                  </ol>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowComfyModal(false)}
+                    className="px-5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold rounded-xl"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

@@ -4,6 +4,7 @@ import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
 import { recordAuditLog } from '@/lib/auth';
 import { sanitizeAdminError } from '@/lib/api-errors';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { validateImageBinary } from '@/lib/ai/image-integrity';
 import {
   MediaAsset,
   MediaEntityType,
@@ -185,7 +186,15 @@ export async function POST(req: NextRequest) {
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());
-      if (!validateMagicBytes(buffer, mimeType)) {
+      if (!isVideo && mimeType !== 'image/svg+xml') {
+        const imgValidation = validateImageBinary(buffer);
+        if (!imgValidation.isValid) {
+          return NextResponse.json(
+            { success: false, error: `Image validation failed: ${imgValidation.error}` },
+            { status: 400 }
+          );
+        }
+      } else if (!validateMagicBytes(buffer, mimeType)) {
         return NextResponse.json(
           { success: false, error: 'Security alert: File signature mismatch.' },
           { status: 400 }

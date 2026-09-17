@@ -2,7 +2,7 @@ import { MediaEntityType, MediaAssetRole } from '@/lib/db/media';
 import { getProductByIdOrSlug } from '@/lib/db/products';
 import { getCategories } from '@/lib/db/categories';
 import { getGuides } from '@/lib/db/guides';
-import { getKnowledgeById, getKnowledgeByKey } from '@/lib/db/knowledge';
+import { getKnowledgeById, getKnowledgeByKey, getKnowledgeBySlug } from '@/lib/db/knowledge';
 import { getSiteSettings } from '@/lib/db/settings';
 
 // ============================================================================
@@ -174,7 +174,11 @@ export async function resolveEntityCanonicalFacts(
   }
 
   if (entityType === 'KNOWLEDGE') {
-    const knowledge = (await getKnowledgeById(cleanId)) || (await getKnowledgeByKey(cleanId));
+    const knowledge =
+      (await getKnowledgeById(cleanId, { includeDrafts: true })) ||
+      (await getKnowledgeByKey(cleanId, { includeDrafts: true })) ||
+      (await getKnowledgeBySlug(cleanId, { includeDrafts: true })).entity;
+
     if (knowledge) {
       return {
         entityType,
@@ -189,6 +193,21 @@ export async function resolveEntityCanonicalFacts(
         hasSuppliedReferenceImage,
       };
     }
+
+    // Grounded fallback specifically for knowledge entities (NEVER packshot / packaging)
+    const displayName = cleanId.replace(/^ent-/, '').replace(/[-_]/g, ' ');
+    return {
+      entityType,
+      entityId: cleanId,
+      name: displayName,
+      botanicalName: undefined,
+      formFactor: 'authoritative botanical illustration monograph',
+      ingredients: [],
+      description: `Botanical knowledge entity for ${displayName}`,
+      brandName: defaultBrand.brandName,
+      brandColors: defaultBrand.brandColors,
+      hasSuppliedReferenceImage,
+    };
   }
 
   // Generic Brand / Marketing context
@@ -230,6 +249,18 @@ export function buildCanonicalVisualPrompt(
 
   switch (variant) {
     case 'packshot':
+      // Safety guarantee: KNOWLEDGE must NEVER produce a commercial product packshot
+      if (facts.entityType === 'KNOWLEDGE') {
+        return [
+          `Fine botanical scientific monograph illustration of "${facts.name}".`,
+          facts.botanicalName ? `Taxonomical classification: ${facts.botanicalName}.` : '',
+          'Naturalist vintage watercolor and fine ink etching on textured cream archival parchment.',
+          'Detailed botanical anatomy showing whole plant morphology, leaf venation, delicate botanical flowers, and seed pods with classical naturalist scientific annotation style.',
+          `Authentic botanical precision, museum herbarium archive style. Deep forest green (${facts.brandColors.primary}) and antique gold accents. ZERO commercial packaging, zero bottles, zero pouches, zero plastic, zero retail elements, zero digital distortion.`,
+        ]
+          .filter(Boolean)
+          .join(' ');
+      }
       return [
         brandPalette,
         `Clean commercial product packshot of "${facts.name}".`,
@@ -295,8 +326,8 @@ export function buildCanonicalVisualPrompt(
         `Fine botanical scientific monograph illustration of "${facts.name}".`,
         facts.botanicalName ? `Taxonomical classification: ${facts.botanicalName}.` : '',
         'Naturalist vintage watercolor and fine ink etching on textured cream archival parchment.',
-        'Detailed botanical anatomy showing leaf venation, delicate flowers, and seed pods with elegant classical naturalist annotation style.',
-        `Heritage palette of deep forest green (${facts.brandColors.primary}) and antique gold accents. Authentic scientific botanical accuracy.`,
+        'Detailed botanical anatomy showing whole plant morphology, leaf venation, delicate botanical flowers, and seed pods with classical naturalist scientific annotation style.',
+        `Authentic botanical precision, museum herbarium archive style. Deep forest green (${facts.brandColors.primary}) and antique gold accents. ZERO commercial packaging, zero bottles, zero pouches, zero plastic, zero retail elements, zero digital distortion.`,
       ]
         .filter(Boolean)
         .join(' ');
@@ -341,7 +372,35 @@ export async function composeVisualPrompt(options: {
   promptOverride?: string;
   hasSuppliedReferenceImage?: boolean;
 }): Promise<PromptBuildResult> {
-  const variant = options.variant || 'packshot';
+  // Appropriate default variant per entity type
+  let variant = options.variant;
+  if (!variant) {
+    switch (options.entityType) {
+      case 'KNOWLEDGE':
+        variant = 'illustration';
+        break;
+      case 'CATEGORY':
+        variant = 'collection';
+        break;
+      case 'GUIDE':
+        variant = 'usage';
+        break;
+      case 'BRAND':
+      case 'MARKETING':
+        variant = 'social';
+        break;
+      case 'PRODUCT':
+      default:
+        variant = 'packshot';
+        break;
+    }
+  }
+
+  // Safety guard: KNOWLEDGE must NEVER generate a commercial product packshot
+  if (options.entityType === 'KNOWLEDGE' && variant === 'packshot') {
+    variant = 'illustration';
+  }
+
   const role = options.role || (variant === 'collection' || variant === 'social' ? 'HERO' : 'GALLERY');
   const aspectRatio = role === 'HERO' || variant === 'collection' || variant === 'social' ? '16:9' : '1:1';
 
