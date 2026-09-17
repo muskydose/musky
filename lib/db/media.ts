@@ -253,6 +253,22 @@ export function generateDeterministicAssetId(
 }
 
 /**
+ * Checks whether a URL is a safe canonical Musky Dose asset.
+ * Rejects Unsplash, external stock, mock CDNs, and arbitrary external URLs.
+ */
+export function isSafeInternalMediaUrl(url: string | undefined): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const clean = url.trim();
+  if (clean.includes('fallback.svg')) return true;
+  if (clean.includes('unsplash.com')) return false;
+  if (clean.includes('cdn.muskydose.in')) return false;
+  if (clean.includes('googleusercontent.com') || clean.includes('images.google.com')) return false;
+  if (clean.startsWith('/')) return true; // local public asset like /logo.png
+  if (clean.includes('.supabase.co/storage/v1/object/public/')) return true; // valid Supabase storage
+  return false;
+}
+
+/**
  * Dynamically synthesizes canonical media assets from live catalog entities (products, categories, guides, settings)
  * when public.media_assets table is pending DDL migration or empty.
  */
@@ -277,7 +293,7 @@ async function deriveCatalogFallbackMediaAssets(): Promise<MediaAsset[]> {
         if (Array.isArray(p.images)) {
           p.images.forEach((img: any, idx: number) => {
             const url = typeof img === 'string' ? img : img?.url;
-            if (url && typeof url === 'string' && url.trim()) {
+            if (url && typeof url === 'string' && isSafeInternalMediaUrl(url)) {
               const role: MediaAssetRole = idx === 0 ? 'PRIMARY' : 'GALLERY';
               const id = generateDeterministicAssetId('PRODUCT', p.id, role, idx);
               assets.push({
@@ -309,7 +325,7 @@ async function deriveCatalogFallbackMediaAssets(): Promise<MediaAsset[]> {
     // 2. Categories
     if (Array.isArray(categoriesRes.data)) {
       categoriesRes.data.forEach((c) => {
-        if (c.image && typeof c.image === 'string' && c.image.trim()) {
+        if (c.image && typeof c.image === 'string' && isSafeInternalMediaUrl(c.image)) {
           const id = generateDeterministicAssetId('CATEGORY', c.id, 'HERO', 0);
           assets.push({
             id,
@@ -338,7 +354,7 @@ async function deriveCatalogFallbackMediaAssets(): Promise<MediaAsset[]> {
     // 3. Guides
     if (Array.isArray(guidesRes.data)) {
       guidesRes.data.forEach((g) => {
-        if (g.cover_image && typeof g.cover_image === 'string' && g.cover_image.trim()) {
+        if (g.cover_image && typeof g.cover_image === 'string' && isSafeInternalMediaUrl(g.cover_image)) {
           const id = generateDeterministicAssetId('GUIDE', g.id, 'HERO', 0);
           assets.push({
             id,
@@ -368,7 +384,7 @@ async function deriveCatalogFallbackMediaAssets(): Promise<MediaAsset[]> {
     const settingsData = settingsRes?.data?.[0]?.data;
     if (settingsData && Array.isArray(settingsData.mediaLibrary)) {
       settingsData.mediaLibrary.forEach((m: any, idx: number) => {
-        if (m.url && typeof m.url === 'string' && m.url.trim()) {
+        if (m.url && typeof m.url === 'string' && isSafeInternalMediaUrl(m.url)) {
           const exists = assets.some((a) => a.url === m.url.trim());
           if (!exists) {
             let role: MediaAssetRole = 'GALLERY';
@@ -508,11 +524,12 @@ function createSyntheticFallbackAsset(
 ): MediaAsset {
   const now = new Date().toISOString();
   const safeType = entityType ? String(entityType).toLowerCase() : 'product';
+  const safeUrl = isSafeInternalMediaUrl(customFallbackUrl) ? customFallbackUrl! : DEFAULT_FALLBACK_URL;
   return {
     id: `fallback-${safeType}-${entityId || 'global'}`,
     entityType: entityType || 'PRODUCT',
     entityId,
-    url: customFallbackUrl || DEFAULT_FALLBACK_URL,
+    url: safeUrl,
     storageBucket: 'product-images',
     aspectRatio: '1:1',
     role: 'PRIMARY',

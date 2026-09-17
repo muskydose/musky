@@ -847,50 +847,44 @@ export async function runAutopilotCycle(options?: {
       }
     }
 
-    // 4D. Autonomous AI Media Candidate Generation (Strictly Suggested & Unlocked)
-    const activeProvider = getActiveVisualProvider();
-    if (activeProvider && (await activeProvider.isAvailable())) {
-      const productNeedingMedia = products.find((p) => !p.images || p.images.length === 0);
-      if (productNeedingMedia) {
-        const existingAssets = await getMediaForEntity({
+    // 4D. Autonomous Detection of Missing Media Requirements (Strictly Detection & Recommendation Only)
+    // Autopilot NEVER generates, imports, replaces, approves, or publishes media!
+    const productNeedingMedia = products.find((p) => !p.images || p.images.length === 0 || p.images.every((img: any) => typeof img === 'string' && img.includes('fallback.svg')));
+    if (productNeedingMedia) {
+      const existingAssets = await getMediaForEntity({
+        entityType: 'PRODUCT',
+        entityId: productNeedingMedia.id,
+        includeDrafts: true,
+      });
+
+      const hasApprovedPrimary = existingAssets.some((a) => a.role === 'PRIMARY' && a.status === 'approved' && !a.url.includes('fallback.svg'));
+      if (!hasApprovedPrimary) {
+        const actionId = `act-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+        const actionRecord: AutopilotActionRecord = {
+          id: actionId,
+          actionType: 'CONTENT_BRIEF_DRAFT',
           entityType: 'PRODUCT',
           entityId: productNeedingMedia.id,
-          includeDrafts: true,
-        });
-
-        const hasSuggestedAi = existingAssets.some((a) => a.source === 'AI_GENERATED');
-        if (!hasSuggestedAi) {
-          const promptResult = await composeVisualPrompt({
+          riskLevel: 'LOW',
+          status: 'PENDING_APPROVAL',
+          baseline: { beforeSnapshot: { mediaCount: existingAssets.length } },
+          hypothesis: 'Product is missing authoritative Primary media. Recommended manual upload via /admin/media-requirements.',
+          actionPayload: {
             entityType: 'PRODUCT',
             entityId: productNeedingMedia.id,
-            variant: 'packshot',
-          });
+            recommendedSlot: 'PRODUCT_PRIMARY',
+            recommendedRatio: '1:1',
+            recommendedDimensions: '1200x1200px',
+            note: 'Manual-first media required under From Earth to Ritual aesthetic.',
+          },
+          confidenceScore: 0.95,
+          learningCategory: 'FACT',
+          isRollbackable: false,
+          createdAt: new Date().toISOString(),
+        };
 
-          const actionId = `act-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-          const actionRecord: AutopilotActionRecord = {
-            id: actionId,
-            actionType: 'AI_MEDIA_CANDIDATE',
-            entityType: 'PRODUCT',
-            entityId: productNeedingMedia.id,
-            riskLevel: 'LOW', // Generating candidate is LOW risk because it's tagged suggested!
-            status: 'AUTO_EXECUTED',
-            baseline: { beforeSnapshot: { mediaCount: existingAssets.length } },
-            hypothesis: 'Providing a high-resolution suggested AI visual candidate for product with missing media.',
-            actionPayload: {
-              promptUsed: promptResult.finalPrompt,
-              variant: 'packshot',
-              provider: activeProvider.name,
-            },
-            confidenceScore: 0.9,
-            learningCategory: 'FACT',
-            isRollbackable: true,
-            createdAt: new Date().toISOString(),
-            executedAt: new Date().toISOString(),
-          };
-
-          actionsExecuted++;
-          await saveAutopilotAction(actionRecord);
-        }
+        actionsExecuted++;
+        await saveAutopilotAction(actionRecord);
       }
     }
 

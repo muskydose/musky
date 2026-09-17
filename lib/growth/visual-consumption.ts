@@ -4,6 +4,7 @@ import {
   MediaAsset,
   getMediaForEntity,
   getPrimaryMedia,
+  isSafeInternalMediaUrl,
 } from '@/lib/db/media';
 import {
   resolveVisualRequirements,
@@ -57,12 +58,13 @@ export async function resolveEntityVisuals(
   });
 
   // 2. Primary asset resolution
+  const safeLegacyFallback = isSafeInternalMediaUrl(legacyFallbackUrl) ? legacyFallbackUrl : undefined;
   let primaryAsset = allAssets.find((a) => a.role === 'PRIMARY');
   if (!primaryAsset) {
     primaryAsset = await getPrimaryMedia({
       entityType: normType,
       entityId: cleanId,
-      legacyFallbackUrl,
+      legacyFallbackUrl: safeLegacyFallback,
     });
   }
 

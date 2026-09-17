@@ -80,6 +80,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
     { name: 'Offers & Festival', href: '/admin/offers', icon: Tag },
     { name: 'Bulk Pricing', href: '/admin/bulk-pricing', icon: Percent },
     { name: 'Media Library', href: '/admin/media', icon: ImageIcon },
+    { name: 'Media Requirements', href: '/admin/media-requirements', icon: CheckCircle },
     { name: 'Wholesale Enquiries', href: '/admin/wholesale', icon: Building2 },
     { name: 'Growth AI', href: '/admin/growth', icon: TrendingUp },
     { name: 'Growth Autopilot', href: '/admin/autopilot', icon: Zap },
