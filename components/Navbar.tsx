@@ -116,8 +116,8 @@ function NavbarContent({ siteSettings: initialSettings }: NavbarProps) {
 
       {/* ROW 1 — RUNNING ANNOUNCEMENT (STICKY TOP-0) */}
       {announcementEnabled && (
-        <div className="sticky top-0 z-50 bg-[#0f2d22] text-[#e8f3ed] border-b border-[#2d6a4f]/30 h-[28px] sm:h-[32px] flex items-center px-3 sm:px-6 overflow-hidden">
-          <div className="max-w-7xl mx-auto w-full">
+        <div className="sticky top-0 z-50 bg-[#0f2d22] text-[#e8f3ed] border-b border-[#2d6a4f]/30 h-[28px] sm:h-[32px] flex items-center px-3 sm:px-6 overflow-hidden max-w-full">
+          <div className="max-w-7xl mx-auto w-full overflow-hidden">
             <AnnouncementTicker
               announcements={settings?.announcements}
               fallbackText={announcementText}

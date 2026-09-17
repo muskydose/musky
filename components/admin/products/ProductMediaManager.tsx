@@ -805,7 +805,7 @@ export default function ProductMediaManager({
                       </div>
 
                       <div className="flex items-center justify-between text-[11px] text-gray-500 pt-1">
-                        <span className="truncate max-w-[200px]">URL: {vid.url}</span>
+                        <span className="truncate max-w-48">URL: {vid.url}</span>
                         {vid.duration && <span>Duration: {vid.duration}s</span>}
                       </div>
                     </div>

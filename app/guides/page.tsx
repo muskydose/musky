@@ -11,6 +11,14 @@ import { getBatchPrimaryMedia, isSafeInternalMediaUrl } from '@/lib/db/media';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
+import Container from '@/components/ui/Container';
+import Section from '@/components/ui/Section';
+import Heading from '@/components/ui/Heading';
+import Text from '@/components/ui/Text';
+import Badge from '@/components/ui/Badge';
+import Card from '@/components/ui/Card';
+import ImageFrame from '@/components/ui/ImageFrame';
+import EmptyState from '@/components/ui/EmptyState';
 
 export const revalidate = 60; // Revalidate every 60s
 
@@ -42,111 +50,119 @@ export default async function ProductGuidesPage() {
 
       <main className="flex-grow">
         {/* HERO HEADER */}
-        <section className="bg-gradient-to-b from-[#0f2d22] to-[#1b4332] text-white pt-8 pb-12 sm:pt-12 sm:pb-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-          <div className="max-w-5xl mx-auto text-center relative z-10 space-y-3 sm:space-y-4">
-            <div className="inline-flex items-center gap-1.5 bg-[#1b4332]/90 border border-[#c5a059]/40 px-3.5 py-1 rounded-full text-[11px] sm:text-xs font-bold text-[#c5a059] uppercase tracking-wider shadow-sm">
-              <BookOpen className="w-3.5 h-3.5 text-[#c5a059]" />
-              <span>Sojat Botanical Knowledge Base</span>
+        <Section background="forest" spacing="lg" className="text-white relative overflow-hidden">
+          <Container size="lg" className="text-center relative z-10 space-y-3 sm:space-y-4">
+            <div className="inline-flex items-center gap-1.5">
+              <Badge variant="gold" size="md">
+                <BookOpen className="w-3.5 h-3.5 text-[#c5a059]" />
+                <span>Sojat Botanical Knowledge Base</span>
+              </Badge>
             </div>
 
-            <h1 className="font-momo-display text-2xl sm:text-4xl lg:text-5xl font-normal tracking-tight text-white leading-tight">
+            <Heading level="h1" className="text-white leading-tight">
               Musky Dose Product Guides & Herbal Instructions
-            </h1>
+            </Heading>
 
-            <p className="text-xs sm:text-base text-[#c5d4cc] max-w-2xl mx-auto leading-relaxed">
+            <Text variant="lead" className="text-[#c5d4cc] max-w-2xl mx-auto leading-relaxed">
               Master dye release times, powder ratios, and step-by-step application techniques for 100% natural, unadulterated Sojat Henna and botanical remedies.
-            </p>
-          </div>
-        </section>
+            </Text>
+          </Container>
+        </Section>
 
         {/* MAIN GUIDES GRID */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-14">
-          <div className="flex items-center justify-between mb-6 sm:mb-8 pb-3 border-b border-[#e8e2d5]">
-            <div>
-              <h2 className="font-serif-heading text-xl sm:text-2xl font-bold text-[#0f2d22]">
-                Featured Product Guides ({guides.length})
-              </h2>
-              <p className="text-xs sm:text-sm text-gray-600 mt-0.5">
-                Detailed step-by-step instructions for pure Sojat Henna, Indigo, and botanical care.
-              </p>
+        <Section background="canvas" spacing="lg">
+          <Container size="xl">
+            <div className="flex items-center justify-between mb-6 sm:mb-8 pb-3 border-b border-[#e8e2d5]">
+              <div>
+                <Heading level="h2" className="text-forest">
+                  Featured Product Guides ({guides.length})
+                </Heading>
+                <Text variant="bodySm" className="text-forest/70 mt-0.5">
+                  Detailed step-by-step instructions for pure Sojat Henna, Indigo, and botanical care.
+                </Text>
+              </div>
             </div>
-          </div>
 
-          {guides.length === 0 ? (
-            <div className="bg-white rounded-2xl p-8 text-center border border-[#e8e2d5] max-w-md mx-auto my-8">
-              <BookOpen className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-sm font-semibold text-gray-700">No published guides available yet.</p>
-              <p className="text-xs text-gray-500 mt-1">Check back soon for new herbal application tutorials.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {guides.map((guide) => {
-                const linkedProduct = guide.productId
-                  ? activeProducts.find((p) => p.id === guide.productId)
-                  : null;
+            {guides.length === 0 ? (
+              <EmptyState
+                icon={<BookOpen className="w-full h-full stroke-[1.5]" />}
+                title="No published guides available yet."
+                description="Check back soon for new herbal application tutorials."
+                size="md"
+                className="max-w-md mx-auto my-8"
+              />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {guides.map((guide) => {
+                  const linkedProduct = guide.productId
+                    ? activeProducts.find((p) => p.id === guide.productId)
+                    : null;
+                  const candidate = guideMediaMap.get(guide.id)?.url || (guide as any)?.canonicalPrimaryUrl || guide.coverImage;
+                  const coverSrc = isSafeInternalMediaUrl(candidate) ? candidate! : '/images/fallback.svg';
 
-                return (
-                  <article
-                    key={guide.id}
-                    className="bg-white rounded-2xl border border-[#e8e2d5] overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col group"
-                  >
-                    {/* Cover Image */}
-                    <Link href={`/guides/${guide.slug}`} className="relative aspect-[16/9] bg-[#f0ebe0] overflow-hidden block">
-                      <Image
-                        src={(() => {
-                          const candidate = guideMediaMap.get(guide.id)?.url || (guide as any)?.canonicalPrimaryUrl || guide.coverImage;
-                          return isSafeInternalMediaUrl(candidate) ? candidate! : '/images/fallback.svg';
-                        })()}
-                        alt={guide.title}
-                        fill
-                        sizes="(max-width: 768px) 100vw, 33vw"
-                        className="object-cover group-hover:scale-105 transition-transform duration-500"
-                        referrerPolicy="no-referrer"
-                      />
-                      <div className="absolute top-3 left-3 bg-[#0f2d22]/90 backdrop-blur-md text-[#c5a059] text-[10px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider border border-[#c5a059]/30">
-                        Product Guide
-                      </div>
-                    </Link>
-
-                    {/* Content */}
-                    <div className="p-5 flex flex-col flex-grow space-y-3">
-                      {linkedProduct && (
-                        <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#1b4332] bg-[#f5f1e8] px-2.5 py-1 rounded-lg w-fit border border-[#e8e2d5]">
-                          <Leaf className="w-3 h-3 text-[#1b4332]" />
-                          <span>For {linkedProduct.name}</span>
+                  return (
+                    <Card
+                      key={guide.id}
+                      hoverLift={true}
+                      className="overflow-hidden flex flex-col group h-full"
+                    >
+                      {/* Cover Image */}
+                      <Link href={`/guides/${guide.slug}`} className="relative aspect-[16/9] bg-canvas overflow-hidden block">
+                        <ImageFrame
+                          src={coverSrc}
+                          alt={guide.title}
+                          aspectRatio="16:9"
+                          zoomOnHover={true}
+                        />
+                        <div className="absolute top-3 left-3 z-10">
+                          <Badge variant="forest" size="sm">
+                            Product Guide
+                          </Badge>
                         </div>
-                      )}
+                      </Link>
 
-                      <h3 className="font-serif-heading text-base sm:text-lg font-bold text-[#0f2d22] group-hover:text-[#1b4332] transition-colors leading-snug line-clamp-2">
-                        <Link href={`/guides/${guide.slug}`}>
-                          {guide.title}
+                      {/* Content */}
+                      <div className="p-5 flex flex-col flex-grow space-y-3">
+                        {linkedProduct && (
+                          <div className="inline-flex items-center gap-1.5">
+                            <Badge variant="leaf" size="sm">
+                              <Leaf className="w-3 h-3 text-leaf" />
+                              <span>For {linkedProduct.name}</span>
+                            </Badge>
+                          </div>
+                        )}
+
+                        <Link href={`/guides/${guide.slug}`} className="block group/title">
+                          <Heading level="h4" className="text-forest group-hover/title:text-leaf transition-colors leading-snug line-clamp-2">
+                            {guide.title}
+                          </Heading>
                         </Link>
-                      </h3>
 
-                      <p className="text-xs sm:text-sm text-gray-600 leading-relaxed line-clamp-3 flex-grow">
-                        {guide.shortIntro}
-                      </p>
+                        <Text variant="bodySm" className="text-forest/70 leading-relaxed line-clamp-3 flex-grow font-sans">
+                          {guide.shortIntro}
+                        </Text>
 
-                      {/* Footer CTA */}
-                      <div className="pt-3 border-t border-[#f0ebe0] flex items-center justify-between">
-                        <span className="text-[11px] font-semibold text-[#c5a059] uppercase tracking-wider">
-                          Sojat Formula
-                        </span>
-                        <Link
-                          href={`/guides/${guide.slug}`}
-                          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1b4332] hover:text-[#0f2d22] group-hover:translate-x-1 transition-all"
-                        >
-                          <span>Read Guide</span>
-                          <ArrowRight className="w-3.5 h-3.5 text-[#c5a059]" />
-                        </Link>
+                        {/* Footer CTA */}
+                        <div className="pt-3 border-t border-border-neutral/60 flex items-center justify-between">
+                          <Badge variant="gold" size="sm">
+                            Sojat Formula
+                          </Badge>
+                          <Link
+                            href={`/guides/${guide.slug}`}
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-forest hover:text-leaf group-hover:translate-x-1 transition-all"
+                          >
+                            <span>Read Guide</span>
+                            <ArrowRight className="w-3.5 h-3.5 text-gold" />
+                          </Link>
+                        </div>
                       </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </Container>
+        </Section>
 
         {/* WHY TRUST MUSKY DOSE GUIDES */}
         <section className="bg-[#f5f1e8] border-y border-[#e8e2d5] py-10 sm:py-14 px-4 sm:px-6 lg:px-8">

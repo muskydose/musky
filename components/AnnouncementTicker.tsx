@@ -114,6 +114,7 @@ export default function AnnouncementTicker({
   return (
     <div
       className="w-full overflow-hidden py-0.5 group relative select-none"
+      style={{ contain: 'paint' }}
       role="region"
       aria-label="Store Announcements"
     >

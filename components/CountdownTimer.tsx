@@ -61,26 +61,26 @@ export default function CountdownTimer({ endDate, className = '', compact = fals
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       <div className="flex items-center gap-1.5 font-mono text-xs">
-        <div className="bg-black/20 backdrop-blur-xs px-2 py-1 rounded-md text-center min-w-[36px]">
+        <div className="bg-black/20 backdrop-blur-xs px-2 py-1 rounded-md text-center min-w-9">
           <span className="block font-bold text-sm leading-tight text-white">{timeLeft.days}</span>
           <span className="text-[9px] uppercase tracking-wider text-stone-300 block">Days</span>
         </div>
         <span className="font-bold text-stone-300">:</span>
-        <div className="bg-black/20 backdrop-blur-xs px-2 py-1 rounded-md text-center min-w-[36px]">
+        <div className="bg-black/20 backdrop-blur-xs px-2 py-1 rounded-md text-center min-w-9">
           <span className="block font-bold text-sm leading-tight text-white">
             {String(timeLeft.hours).padStart(2, '0')}
           </span>
           <span className="text-[9px] uppercase tracking-wider text-stone-300 block">Hrs</span>
         </div>
         <span className="font-bold text-stone-300">:</span>
-        <div className="bg-black/20 backdrop-blur-xs px-2 py-1 rounded-md text-center min-w-[36px]">
+        <div className="bg-black/20 backdrop-blur-xs px-2 py-1 rounded-md text-center min-w-9">
           <span className="block font-bold text-sm leading-tight text-white">
             {String(timeLeft.minutes).padStart(2, '0')}
           </span>
           <span className="text-[9px] uppercase tracking-wider text-stone-300 block">Min</span>
         </div>
         <span className="font-bold text-stone-300">:</span>
-        <div className="bg-black/20 backdrop-blur-xs px-2 py-1 rounded-md text-center min-w-[36px]">
+        <div className="bg-black/20 backdrop-blur-xs px-2 py-1 rounded-md text-center min-w-9">
           <span className="block font-bold text-sm leading-tight text-white">
             {String(timeLeft.seconds).padStart(2, '0')}
           </span>

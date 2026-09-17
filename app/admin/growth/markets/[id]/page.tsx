@@ -74,7 +74,7 @@ export default async function MarketDetailPage({ params }: { params: Promise<{ i
               </p>
             </div>
 
-            <div className="bg-[#f0f7f3] border border-[#c2e2d0] p-4 rounded-xl text-center min-w-[180px]">
+            <div className="bg-[#f0f7f3] border border-[#c2e2d0] p-4 rounded-xl text-center min-w-44">
               <span className="text-xs font-bold uppercase tracking-wider text-[#1b4332] block">Market Opportunity Score</span>
               <span className="text-3xl font-black text-[#0f2d22]">{market.marketOpportunityScore}/100</span>
             </div>

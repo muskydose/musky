@@ -128,7 +128,7 @@ export default async function GrowthOverviewPage() {
               </p>
               <FreshnessBadge tier="DERIVED" showIcon={false} />
             </div>
-            <h3 className="font-serif-heading text-xl font-bold text-[#0f2d22] mt-1 truncate max-w-[150px]">
+            <h3 className="font-serif-heading text-xl font-bold text-[#0f2d22] mt-1 truncate max-w-36">
               {topMarket ? topMarket.marketName : 'No Verified Data'}
             </h3>
             <p className="text-[11px] text-[#626c66] font-medium mt-1">
@@ -149,7 +149,7 @@ export default async function GrowthOverviewPage() {
               </p>
               <FreshnessBadge tier="DERIVED" showIcon={false} />
             </div>
-            <h3 className="font-serif-heading text-xl font-bold text-[#0f2d22] mt-1 truncate max-w-[150px]">
+            <h3 className="font-serif-heading text-xl font-bold text-[#0f2d22] mt-1 truncate max-w-36">
               {highestOppMarket ? highestOppMarket.marketName : 'No Verified Data'}
             </h3>
             <p className="text-[11px] text-emerald-700 font-medium mt-1">

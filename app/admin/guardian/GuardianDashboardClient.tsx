@@ -413,7 +413,7 @@ export default function GuardianDashboardClient() {
             <span>Recent Diagnostic Probes</span>
             <span className="text-gray-400 font-normal">Last cycle: {summary?.lastRunAt ? new Date(summary.lastRunAt).toLocaleTimeString() : 'N/A'}</span>
           </div>
-          <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto">
+          <div className="divide-y divide-gray-100 max-h-128 overflow-y-auto">
             {recentChecks.map((chk, i) => (
               <div key={chk.checkId + i} className="p-3 text-xs flex items-center justify-between hover:bg-gray-50">
                 <div className="space-y-0.5">

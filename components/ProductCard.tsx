@@ -19,6 +19,8 @@ import { resolveAuthoritativeProductMedia } from '@/lib/growth/product-media-gov
 import { isSafeInternalMediaUrl } from '@/lib/db/media';
 import { resolveCanonicalCategoryName } from '@/lib/category-resolver';
 import { Category } from '@/lib/types';
+import Badge from '@/components/ui/Badge';
+import Button from '@/components/ui/Button';
 
 interface ProductCardProps {
   product: Product;
@@ -170,13 +172,13 @@ export default function ProductCard({
         {/* Badges */}
         <div className="absolute top-2 sm:top-2.5 left-2 sm:left-2.5 flex flex-wrap items-center gap-1 z-10 max-w-[70%]">
           {product.isFeatured ? (
-            <span className="bg-[#1b4332] text-[#faf5e8] text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1 border border-[#c5a059]/30">
+            <Badge variant="forest" size="sm" className="gap-1 border border-[#c5a059]/30">
               <ShieldCheck className="w-2.5 h-2.5 text-[#c5a059]" /> {cms.productCardHeritageBadge || 'Sojat Original'}
-            </span>
+            </Badge>
           ) : discountPercent > 0 ? (
-            <span className="bg-[#c5a059] text-[#0f2d22] text-[9px] sm:text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-2xs">
+            <Badge variant="gold" size="sm">
               {formatPercent(discountPercent)} OFF
-            </span>
+            </Badge>
           ) : null}
         </div>
 
@@ -276,37 +278,30 @@ export default function ProductCard({
 
           {/* CART | BUY 50/50 BUTTONS */}
           <div className="grid grid-cols-2 gap-1.5 pt-1">
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="sm"
               onClick={handleAddToCart}
-              disabled={isOutOfStock || isAddingToCart}
-              className={`w-full h-9 sm:h-10 flex items-center justify-center text-xs font-extrabold tracking-wide rounded-xl border transition-all shadow-2xs touch-manipulation active:scale-[0.98] ${
-                isOutOfStock
-                  ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                  : isAddingToCart
-                  ? 'bg-[#1b4332] text-[#c5a059] border-[#1b4332] opacity-70 cursor-wait'
-                  : 'bg-[#1b4332] hover:bg-[#0f2d22] text-[#faf5e8] border-[#1b4332] cursor-pointer'
-              }`}
+              disabled={isOutOfStock}
+              isLoading={isAddingToCart}
+              className="w-full text-xs font-extrabold tracking-wide"
               title={isOutOfStock ? cms.productCardOutOfStockBadge : 'Add to Cart'}
               aria-label="Add to Cart"
             >
-              <span>CART</span>
-            </button>
+              CART
+            </Button>
 
-            <button
-              type="button"
+            <Button
+              variant="gold"
+              size="sm"
               onClick={handleWhatsAppOrder}
               disabled={isOutOfStock}
-              className={`w-full h-9 sm:h-10 flex items-center justify-center text-xs font-extrabold tracking-wide rounded-xl border transition-all shadow-2xs touch-manipulation active:scale-[0.98] ${
-                isOutOfStock
-                  ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                  : 'bg-[#c5a059] hover:bg-[#b38e46] text-[#0f2d22] border-[#c5a059] cursor-pointer'
-              }`}
+              className="w-full text-xs font-extrabold tracking-wide"
               title="Buy Now"
               aria-label="Buy Now"
             >
-              <span>BUY</span>
-            </button>
+              BUY
+            </Button>
           </div>
         </div>
       </div>

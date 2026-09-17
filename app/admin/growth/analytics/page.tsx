@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '@/components/AdminLayout';
@@ -417,7 +417,7 @@ export default function GrowthAnalyticsPage() {
                     <tbody className="divide-y divide-gray-100 font-medium">
                       {productFunnel.map((p) => (
                         <tr key={p.id} className="hover:bg-[#fcfbf7]">
-                          <td className="py-2.5 font-bold text-[#0f2d22] max-w-[200px] truncate">
+                          <td className="py-2.5 font-bold text-[#0f2d22] max-w-48 truncate">
                             {p.name}
                           </td>
                           <td className="py-2.5 text-center text-gray-600">{p.views}</td>

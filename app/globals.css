@@ -94,6 +94,13 @@
     /* Focus ring — accessible keyboard navigation */
     --md-focus-ring: 0 0 0 3px rgb(27 67 50 / 0.30);
 
+    /* Layout container tokens */
+    --md-container-sm:  640px;
+    --md-container-md:  768px;
+    --md-container-lg:  1024px;
+    --md-container-xl:  1280px;
+    --md-container-2xl: 1440px;
+
     /* Mobile layout heights — critical for PDP sticky bar architecture */
     --md-bottom-nav-h:     56px;   /* MobileBottomNav total height */
     --md-pdp-sticky-cta-h: 64px;   /* PDP sticky purchase CTA bar height */
@@ -124,12 +131,12 @@
     --m-phone-icon: 12.5px;
   }
 
-  body {
+  html, body {
     background-color: var(--bg-cream);
     color: var(--text-body);
     font-family: var(--font-body), 'Karla', system-ui, sans-serif;
     font-size: var(--site-body-fs-base, 16px);
-    overflow-x: hidden;
+    overflow-x: clip;
     max-width: 100vw;
   }
 

@@ -62,7 +62,7 @@ export default function SeoPageConfigTab({
         {/* Page List Sidebar */}
         <div className="bg-white border border-[#e8e2d5] p-4 rounded-2xl space-y-3 h-fit">
           <h3 className="text-xs font-bold uppercase text-[#626c66] tracking-wider">Select Page to Configure</h3>
-          <div className="space-y-1 max-h-[500px] overflow-y-auto pr-1">
+          <div className="space-y-1 max-h-128 overflow-y-auto pr-1">
             {pageConfigs.map((p) => {
               const isSelected = p.id === selectedPageId;
               return (

@@ -6,35 +6,28 @@ import Link from 'next/link';
 import { Category } from '@/lib/types';
 import { sanitizeImageUrl } from '@/lib/utils';
 import { isSafeInternalMediaUrl } from '@/lib/db/media';
-import { ArrowUpRight, Leaf, Sparkles, Droplets, Heart, Flower2, Package } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
-import { SPRINGS } from '@/lib/motion';
+import { universalCardHoverMotion } from '@/lib/design-system/motion';
+import { resolveCategoryPresentation } from '@/lib/design-system/category-presentation';
 
 interface CategoryCardProps {
   category: Category;
   canonicalImage?: string;
+  icon?: React.ReactNode;
 }
 
-function getCategoryIcon(slugOrName: string) {
-  const s = (slugOrName || '').toLowerCase();
-  if (s.includes('henna') || s.includes('mehendi')) return <Flower2 className="w-8 h-8 text-[#c5a059]" />;
-  if (s.includes('hair') || s.includes('indigo') || s.includes('oil')) return <Droplets className="w-8 h-8 text-[#c5a059]" />;
-  if (s.includes('face') || s.includes('rose') || s.includes('skin')) return <Heart className="w-8 h-8 text-[#c5a059]" />;
-  if (s.includes('beauty')) return <Sparkles className="w-8 h-8 text-[#c5a059]" />;
-  if (s.includes('raw') || s.includes('leaf') || s.includes('bulk')) return <Package className="w-8 h-8 text-[#c5a059]" />;
-  return <Leaf className="w-8 h-8 text-[#c5a059]" />;
-}
-
-export default function CategoryCard({ category, canonicalImage }: CategoryCardProps) {
+export default function CategoryCard({ category, canonicalImage, icon }: CategoryCardProps) {
   const shouldReduceMotion = useReducedMotion();
   const candidateImage = canonicalImage || (category as any)?.canonicalPrimaryUrl || category.image || '';
   const rawImage = isSafeInternalMediaUrl(candidateImage) ? candidateImage : '';
   const isCustomImage = Boolean(rawImage && !rawImage.endsWith('.svg') && !rawImage.includes('fallback.svg'));
+  const presentation = React.useMemo(() => resolveCategoryPresentation(category as any), [category]);
+  const FallbackIcon = presentation.icon;
 
   return (
     <motion.div
-      whileHover={shouldReduceMotion ? undefined : { y: -4 }}
-      transition={SPRINGS.card}
+      whileHover={shouldReduceMotion ? undefined : universalCardHoverMotion.hover}
       className="h-full"
     >
       <Link
@@ -53,10 +46,10 @@ export default function CategoryCard({ category, canonicalImage }: CategoryCardP
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-[#1b4332] via-[#0f2d22] to-[#0a1f17] flex flex-col items-center justify-center p-6 text-center">
             <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-xs border border-[#c5a059]/30 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:border-[#c5a059] transition-transform duration-300">
-              {getCategoryIcon(category.slug || category.name)}
+              {icon || <FallbackIcon className="w-8 h-8 text-[#c5a059]" />}
             </div>
             <div className="text-[10px] font-bold text-[#c5a059] uppercase tracking-widest">
-              Sojat Botanical
+              {presentation.badgeText}
             </div>
           </div>
         )}

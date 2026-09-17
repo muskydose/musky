@@ -1408,13 +1408,13 @@ export default function AdminMediaClient({
                                 })()
                               ) : (
                                 /* Missing Primary Placeholder */
-                                <div className="border-2 border-dashed border-amber-300 bg-amber-50/40 rounded-2xl p-5 text-center flex flex-col items-center justify-center min-h-[260px] space-y-2">
+                                <div className="border-2 border-dashed border-amber-300 bg-amber-50/40 rounded-2xl p-5 text-center flex flex-col items-center justify-center min-h-64 space-y-2">
                                   <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
                                     <ImageIcon className="w-5 h-5" />
                                   </div>
                                   <div>
                                     <p className="font-bold text-amber-950 text-xs">Missing Primary Packshot</p>
-                                    <p className="text-[10px] text-amber-800/80 mt-0.5 max-w-[180px]">
+                                    <p className="text-[10px] text-amber-800/80 mt-0.5 max-w-44">
                                       Storefront PDP hero is using legacy/fallback image.
                                     </p>
                                   </div>
@@ -1529,7 +1529,7 @@ export default function AdminMediaClient({
                                 <button
                                   type="button"
                                   onClick={() => handleOpenUploadForEntity(cluster.entityType, cluster.entityId, 'GALLERY')}
-                                  className="border-2 border-dashed border-[#e8e2d5] hover:border-[#1b4332] bg-[#fcfbf7] hover:bg-white rounded-2xl p-5 text-center flex flex-col items-center justify-center min-h-[260px] space-y-2 transition-all cursor-pointer group"
+                                  className="border-2 border-dashed border-[#e8e2d5] hover:border-[#1b4332] bg-[#fcfbf7] hover:bg-white rounded-2xl p-5 text-center flex flex-col items-center justify-center min-h-64 space-y-2 transition-all cursor-pointer group"
                                 >
                                   <div className="w-10 h-10 rounded-xl bg-[#f5f1e8] group-hover:bg-[#1b4332] text-[#1b4332] group-hover:text-white flex items-center justify-center transition-colors">
                                     <Plus className="w-5 h-5" />
@@ -1826,7 +1826,7 @@ export default function AdminMediaClient({
                                 <span className="font-mono text-[9px] text-gray-400 uppercase tracking-wider">
                                   {asset.role}
                                 </span>
-                                <span className="font-mono text-[9px] text-gray-400 truncate max-w-[80px]" title={asset.id}>
+                                <span className="font-mono text-[9px] text-gray-400 truncate max-w-20" title={asset.id}>
                                   {asset.id.slice(0, 12)}...
                                 </span>
                               </div>

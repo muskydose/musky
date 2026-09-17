@@ -395,7 +395,7 @@ export default async function OrganicHealthPage() {
                 <tbody className="divide-y divide-neutral-200">
                   {catalogAudit.items.map((item) => (
                     <tr key={item.id} className="hover:bg-neutral-50/50">
-                      <td className="px-4 py-3.5 max-w-[200px]">
+                      <td className="px-4 py-3.5 max-w-48">
                         <div className="font-bold text-neutral-900 truncate" title={item.name}>{item.name}</div>
                         <div className="text-[11px] text-neutral-400 font-mono mt-0.5 truncate">{item.id}</div>
                       </td>
@@ -452,13 +452,13 @@ export default async function OrganicHealthPage() {
                         )}
                       </td>
 
-                      <td className="px-4 py-3.5 text-neutral-600 max-w-[220px]">
+                      <td className="px-4 py-3.5 text-neutral-600 max-w-56">
                         <span className="text-[11px] leading-relaxed line-clamp-2" title={item.exactReason}>
                           {item.exactReason}
                         </span>
                       </td>
 
-                      <td className="px-4 py-3.5 text-neutral-700 max-w-[200px]">
+                      <td className="px-4 py-3.5 text-neutral-700 max-w-48">
                         <span className="text-[11px] font-medium text-neutral-800 leading-relaxed">
                           {item.action}
                         </span>

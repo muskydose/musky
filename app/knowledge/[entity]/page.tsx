@@ -6,6 +6,10 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
 import WhatsAppFloat from '@/components/WhatsAppFloat';
+import Badge from '@/components/ui/Badge';
+import Heading from '@/components/ui/Heading';
+import Text from '@/components/ui/Text';
+import Card from '@/components/ui/Card';
 import { getProducts } from '@/lib/db/products';
 import { getPublishedGuides } from '@/lib/db/guides';
 import { getCategories } from '@/lib/db/categories';
@@ -258,24 +262,24 @@ export default async function KnowledgeEntityPage(props: KnowledgePageProps) {
           <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
             <div className="max-w-3xl">
               <div className="mb-3 flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 border border-emerald-200">
+                <Badge variant="leaf" size="md">
                   <Leaf className="h-3.5 w-3.5" />
                   Botanical Knowledge
-                </span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">
+                </Badge>
+                <Badge variant="neutral" size="md">
                   {record.productFamily.replace(/_/g, ' ')}
-                </span>
+                </Badge>
                 {record.status === 'KNOWN' && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 border border-blue-200">
+                  <Badge variant="forest" size="md">
                     <ShieldCheck className="h-3.5 w-3.5" />
                     Verified Entity
-                  </span>
+                  </Badge>
                 )}
               </div>
 
-              <h1 className="text-3xl font-extrabold tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
+              <Heading level="h1" className="text-forest tracking-tight">
                 {record.canonicalName}
-              </h1>
+              </Heading>
 
               {record.scientificName && (
                 <p className="mt-2 text-lg font-serif italic text-emerald-800 sm:text-xl">
@@ -288,9 +292,9 @@ export default async function KnowledgeEntityPage(props: KnowledgePageProps) {
                 </p>
               )}
 
-              <p className="mt-4 text-base leading-relaxed text-neutral-750 sm:text-lg">
+              <Text variant="lead" className="mt-4 text-forest/80 font-normal">
                 {record.description}
-              </p>
+              </Text>
 
               {/* Scopes Badges */}
               <div className="mt-6 flex flex-wrap items-center gap-2">

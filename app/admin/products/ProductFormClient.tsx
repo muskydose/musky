@@ -1426,7 +1426,7 @@ export default function ProductFormClient({
                       updateForm('productType', selected);
                     }
                   }}
-                  className="w-full min-h-[44px] p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
+                  className="w-full min-h-11 p-3 bg-[#fcfbf7] border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
                 >
                   <option value="">Select Commercial Product Type...</option>
                   <optgroup label="Predefined Commercial Types">
@@ -1462,7 +1462,7 @@ export default function ProductFormClient({
                       value={formData.productType || ''}
                       onChange={(e) => updateForm('productType', e.target.value)}
                       placeholder="e.g. Balm, Serum, Hair Mask, Soap"
-                      className="w-full min-h-[44px] p-3 bg-white border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
+                      className="w-full min-h-11 p-3 bg-white border border-[#e8e2d5] rounded-xl text-xs font-semibold text-[#0f2d22] focus:outline-none focus:border-[#1b4332]"
                     />
                     <p className="text-[11px] text-[#556960] leading-relaxed">
                       Commercial product classification only. Preserves exact admin wording. Does not invent botanical entities or alter verified SEO claims. Max 60 characters.
@@ -2687,7 +2687,7 @@ export default function ProductFormClient({
                         <div className="text-[11px] text-gray-600 italic mt-0.5">&ldquo;{link.anchorText}&rdquo;</div>
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t border-stone-200/60 text-[10px] text-stone-500">
-                        <span className="font-mono truncate max-w-[120px]">{link.targetUrl}</span>
+                        <span className="font-mono truncate max-w-32">{link.targetUrl}</span>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <button
                             type="button"

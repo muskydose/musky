@@ -217,7 +217,7 @@ export default async function ProductGuideDetailPage({
               <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
               <Link href="/guides" className="hover:text-[#1b4332] shrink-0">Guides</Link>
               <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-              <span className="text-[#0f2d22] font-semibold truncate max-w-[180px] sm:max-w-xs">{guide.title}</span>
+              <span className="text-[#0f2d22] font-semibold truncate max-w-44 sm:max-w-xs">{guide.title}</span>
             </nav>
 
             <Link

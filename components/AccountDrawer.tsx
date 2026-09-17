@@ -568,7 +568,7 @@ export default function AccountDrawer() {
                         <div className="text-[11px] text-gray-600 space-y-0.5">
                           {order.items.slice(0, 2).map((item, idx) => (
                             <div key={idx} className="flex justify-between truncate">
-                              <span className="truncate max-w-[200px]">{item.productName}</span>
+                              <span className="truncate max-w-48">{item.productName}</span>
                               <span className="font-medium text-gray-400">×{item.quantity}</span>
                             </div>
                           ))}

@@ -197,7 +197,7 @@ export default function DocumentsClient({ initialItems, siteSettings }: Document
           </div>
 
           {/* Search Bar */}
-          <div className="relative min-w-[260px]">
+          <div className="relative min-w-64">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
