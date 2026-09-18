@@ -329,7 +329,12 @@ export class SeoIntelligenceEngine {
           suggestedTitle: `${q.charAt(0).toUpperCase() + q.slice(1)} | 100% Pure Sojat Henna | Musky Dose`,
           status: 'OPEN',
           detectedAt: now,
-          source: 'GOOGLE_SEARCH_CONSOLE',
+          source: 'GSC_OBSERVED',
+          confidence: totalImp >= 100 ? 'HIGH' : totalImp >= 40 ? 'MEDIUM' : 'LOW',
+          isActualGscQuery: true,
+          isActualGscPage: true,
+          evidence: `GSC observed query [${q}] with ${totalImp} impressions, ${totalClicks} clicks, CTR ${(ctr * 100).toFixed(1)}%, average position ${avgPos.toFixed(1)}.`,
+          reason: 'High impressions with suboptimal CTR on page 1',
           requiresApproval: false,
           createdAt: now,
           updatedAt: now,
@@ -374,7 +379,12 @@ export class SeoIntelligenceEngine {
             ],
             status: 'OPEN',
             detectedAt: now,
-            source: 'GOOGLE_SEARCH_CONSOLE',
+            source: 'GSC_OBSERVED',
+            confidence: totalImp >= 50 ? 'MEDIUM' : 'LOW',
+            isActualGscQuery: true,
+            isActualGscPage: true,
+            evidence: `GSC observed query [${q}] with ${totalImp} impressions at average position ${avgPos.toFixed(1)}.`,
+            reason: 'Striking distance keyword ranking between positions 4 and 20',
             requiresApproval: false,
             createdAt: now,
             updatedAt: now,
@@ -417,7 +427,12 @@ export class SeoIntelligenceEngine {
             recommendedAction: `Review declining performance for [${q}] on ${canonicalPage} (impressions dropped from ${imp1} to ${imp2}). Inspect competing URLs and content freshness.`,
             status: 'OPEN',
             detectedAt: now,
-            source: 'GOOGLE_SEARCH_CONSOLE',
+            source: 'GSC_OBSERVED',
+            confidence: imp1 >= 50 ? 'MEDIUM' : 'LOW',
+            isActualGscQuery: true,
+            isActualGscPage: true,
+            evidence: `GSC observed impression decline from ${imp1} to ${imp2} across snapshot window for query [${q}].`,
+            reason: 'Performance decline detected across snapshot comparison',
             requiresApproval: true, // Declining page changes require owner review rather than automatic alteration
             approvalReason: 'Declining page review requires editorial validation before updating canonical copy.',
             createdAt: now,
@@ -454,7 +469,12 @@ export class SeoIntelligenceEngine {
           relatedProducts: [product.name],
           status: 'OPEN',
           detectedAt: now,
-          source: 'CATALOG_AUDIT',
+          source: 'CATALOG_DERIVED',
+          confidence: 'HIGH',
+          isActualGscQuery: false,
+          isActualGscPage: true,
+          evidence: `Catalog audit: Product [${product.name}] is missing required SEO fields (${missingFields.join(', ') || 'meta title / description'}).`,
+          reason: 'Catalog metadata hygiene check',
           requiresApproval: false,
           createdAt: now,
           updatedAt: now,
@@ -493,7 +513,12 @@ export class SeoIntelligenceEngine {
           relatedProducts: [product.name],
           status: 'OPEN',
           detectedAt: now,
-          source: 'CATALOG_AUDIT',
+          source: 'INTERNAL_GRAPH_DERIVED',
+          confidence: 'HIGH',
+          isActualGscQuery: false,
+          isActualGscPage: true,
+          evidence: `Internal link graph audit: Product [${product.name}] is not linked from any published botanical guide (orphan risk).`,
+          reason: 'Internal topology mesh completeness',
           requiresApproval: false,
           createdAt: now,
           updatedAt: now,
@@ -517,16 +542,16 @@ export class SeoIntelligenceEngine {
         query: targetQuery,
         pageUrl: '/wholesale',
         clicks: 0,
-        impressions: 15,
+        impressions: 0,
         ctr: 0,
-        averagePosition: 14.5,
-        dateRange: 'intent_analysis',
+        averagePosition: 0,
+        dateRange: 'heuristic_hypothesis',
         country: 'IND',
         device: 'ALL',
         opportunityType: 'CONTENT_GAP',
         opportunityScore: 78,
         searchIntent: intent,
-        recommendedAction: `Create structured editorial guide addressing [${targetQuery}] to capture uncaptured wholesale and educational search demand.`,
+        recommendedAction: `Create structured editorial guide addressing [${targetQuery}] as an early search signal / content opportunity hypothesis (pending GSC search volume validation).`,
         suggestedTitle: `${targetQuery.charAt(0).toUpperCase() + targetQuery.slice(1)} | Musky Dose Direct`,
         suggestedOutline: [
           'Direct farm sourcing from Sojat, Rajasthan',
@@ -536,7 +561,12 @@ export class SeoIntelligenceEngine {
         internalLinkTargets: ['/wholesale', '/products/pure-henna'],
         status: 'OPEN',
         detectedAt: now,
-        source: 'FIRST_PARTY_SEARCH',
+        source: 'HEURISTIC_HYPOTHESIS',
+        confidence: 'INSUFFICIENT_DATA',
+        isActualGscQuery: false,
+        isActualGscPage: false,
+        evidence: `Heuristic content hypothesis based on botanical domain taxonomy and wholesale trade queries; unconfirmed by active GSC query rows.`,
+        reason: 'Hypothetical content gap for owner review',
         requiresApproval: true, // Content creation requires owner approval
         approvalReason: 'New guide publication requires owner review of editorial outline.',
         createdAt: now,
@@ -602,21 +632,34 @@ export class SeoIntelligenceEngine {
         ? [{ entity: 'Overall Catalog', change: `${gscData.deltas.clicksDelta} clicks (${gscData.deltas.clickChangePercent}%)`, metric: 'Clicks' }]
         : [],
       newQueries: opportunities
-        .filter((o) => o.opportunityType === 'NEW_KEYWORD' || o.opportunityType === 'CONTENT_GAP')
+        .filter((o) => (o.opportunityType === 'NEW_KEYWORD' || o.opportunityType === 'CONTENT_GAP') && o.source === 'GSC_OBSERVED')
         .slice(0, 5)
         .map((o) => ({ query: o.query, impressions: o.impressions, position: o.averagePosition })),
     };
 
     // Section 3: Top Opportunities
-    const topOpportunities = opportunities.slice(0, 8).map((o) => ({
-      opportunity: o.opportunityType.replace(/_/g, ' '),
-      url: o.pageUrl,
-      query: o.query,
-      whyItMatters: `Opportunity score: ${o.opportunityScore}/100. Intent: ${o.searchIntent}. ${o.impressions > 0 ? `Captured ${o.impressions} impressions at position ${o.averagePosition}.` : 'Identified via catalog completeness audit.'}`,
-      recommendedAction: o.recommendedAction,
-      priority: o.opportunityScore >= 80 ? ('P1_HIGH' as const) : o.opportunityScore >= 60 ? ('P2_MEDIUM' as const) : ('P3_LOW' as const),
-      requiresApproval: o.requiresApproval,
-    }));
+    const topOpportunities = opportunities.slice(0, 8).map((o) => {
+      let whyItMatters = `Opportunity score: ${o.opportunityScore}/100. Intent: ${o.searchIntent}. `;
+      if (o.source === 'GSC_OBSERVED') {
+        whyItMatters += `GSC observed: ${o.impressions} impressions, position ${o.averagePosition} (Confidence: ${o.confidence || 'LOW'}).`;
+      } else if (o.source === 'CATALOG_DERIVED') {
+        whyItMatters += `Catalog audit: Metadata completeness gap identified (Confidence: HIGH - first-party data).`;
+      } else if (o.source === 'INTERNAL_GRAPH_DERIVED') {
+        whyItMatters += `Internal link graph: Entity unlinked from botanical guides (Confidence: HIGH - first-party data).`;
+      } else {
+        whyItMatters += `Heuristic hypothesis: Domain-relevant topic without active GSC query volume (Confidence: INSUFFICIENT_DATA).`;
+      }
+
+      return {
+        opportunity: o.opportunityType.replace(/_/g, ' '),
+        url: o.pageUrl,
+        query: o.query,
+        whyItMatters,
+        recommendedAction: o.recommendedAction,
+        priority: o.opportunityScore >= 80 ? ('P1_HIGH' as const) : o.opportunityScore >= 60 ? ('P2_MEDIUM' as const) : ('P3_LOW' as const),
+        requiresApproval: o.requiresApproval,
+      };
+    });
 
     // Section 4: Content Opportunities
     const contentOpportunities = opportunities
@@ -631,7 +674,9 @@ export class SeoIntelligenceEngine {
         internalLinkTargets: o.internalLinkTargets || ['/products/pure-henna'],
         relatedProducts: o.relatedProducts || ['Pure Sojat Henna'],
         priority: 'HIGH' as const,
-        reason: o.recommendedAction,
+        reason: o.source === 'GSC_OBSERVED'
+          ? `GSC search signal: ${o.impressions} impressions observed.`
+          : 'Content opportunity hypothesis (unconfirmed by active GSC query rows; requires owner validation).',
       }));
 
     // Section 5: Product SEO Opportunities

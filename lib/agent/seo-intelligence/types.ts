@@ -31,6 +31,21 @@ export type SeoOpportunityStatus =
   | 'DISMISSED'
   | 'PENDING_APPROVAL';
 
+export type OpportunitySource =
+  | 'GSC_OBSERVED'
+  | 'CATALOG_DERIVED'
+  | 'INTERNAL_GRAPH_DERIVED'
+  | 'HEURISTIC_HYPOTHESIS'
+  | 'GOOGLE_SEARCH_CONSOLE'
+  | 'CATALOG_AUDIT'
+  | 'FIRST_PARTY_SEARCH';
+
+export type DataConfidence =
+  | 'HIGH'
+  | 'MEDIUM'
+  | 'LOW'
+  | 'INSUFFICIENT_DATA';
+
 export interface SeoOpportunity {
   id: string;
   query: string;
@@ -52,7 +67,12 @@ export interface SeoOpportunity {
   relatedProducts?: string[];
   status: SeoOpportunityStatus;
   detectedAt: string;
-  source: 'GOOGLE_SEARCH_CONSOLE' | 'FIRST_PARTY_SEARCH' | 'CATALOG_AUDIT';
+  source: OpportunitySource;
+  confidence?: DataConfidence;
+  evidence?: string;
+  isActualGscQuery?: boolean;
+  isActualGscPage?: boolean;
+  reason?: string;
   taskId?: string;
   requiresApproval: boolean;
   approvalReason?: string;

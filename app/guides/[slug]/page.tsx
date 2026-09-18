@@ -6,6 +6,7 @@ import { getSiteLogo } from '@/lib/brand-assets';
 import {
   BookOpen,
   ArrowLeft,
+  ArrowRight,
   MessageCircle,
   CheckCircle2,
   AlertCircle,
@@ -20,6 +21,7 @@ import {
   Box,
 } from 'lucide-react';
 import { getGuideBySlug, getPublishedGuides } from '@/lib/db/guides';
+import { getCategories } from '@/lib/db/categories';
 import { getSiteSettings } from '@/lib/db/settings';
 import { getProducts } from '@/lib/db/products';
 import { resolvePageSeoMetadata } from '@/lib/db/seo';
@@ -76,11 +78,12 @@ export default async function ProductGuideDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const resolvedParams = await params;
-  const [guide, siteSettings, allProducts, allGuides] = await Promise.all([
+  const [guide, siteSettings, allProducts, allGuides, categories] = await Promise.all([
     getGuideBySlug(resolvedParams.slug),
     getSiteSettings(),
     getProducts(),
     getPublishedGuides(),
+    getCategories(),
   ]);
 
   if (!guide || guide.published === false) {
@@ -115,6 +118,13 @@ export default async function ProductGuideDetailPage({
     : null;
 
   const displayProducts = canonicalRelatedProducts;
+
+  const guideCategory = categories.find(
+    (c) =>
+      c.id === primaryProduct?.categoryId ||
+      (guide.category && c.name.toLowerCase() === guide.category.toLowerCase()) ||
+      (guide.category && c.slug.toLowerCase() === guide.category.toLowerCase())
+  );
 
   const whatsappPhone = getConfiguredWhatsAppNumber(siteSettings);
 
@@ -165,29 +175,47 @@ export default async function ProductGuideDetailPage({
     })),
   } : null;
 
+  const breadcrumbItems = [
+    {
+      '@type': 'ListItem',
+      position: 1,
+      name: 'Home',
+      item: baseUrl,
+    },
+    {
+      '@type': 'ListItem',
+      position: 2,
+      name: 'Guides',
+      item: `${baseUrl}/guides`,
+    },
+  ];
+
+  if (guideCategory) {
+    breadcrumbItems.push({
+      '@type': 'ListItem',
+      position: 3,
+      name: guideCategory.name,
+      item: `${baseUrl}/categories/${guideCategory.slug}`,
+    });
+    breadcrumbItems.push({
+      '@type': 'ListItem',
+      position: 4,
+      name: guide.title,
+      item: `${baseUrl}/guides/${guide.slug}`,
+    });
+  } else {
+    breadcrumbItems.push({
+      '@type': 'ListItem',
+      position: 3,
+      name: guide.title,
+      item: `${baseUrl}/guides/${guide.slug}`,
+    });
+  }
+
   const breadcrumbLd = {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
-    itemListElement: [
-      {
-        '@type': 'ListItem',
-        position: 1,
-        name: 'Home',
-        item: baseUrl,
-      },
-      {
-        '@type': 'ListItem',
-        position: 2,
-        name: 'Guides',
-        item: `${baseUrl}/guides`,
-      },
-      {
-        '@type': 'ListItem',
-        position: 3,
-        name: guide.title,
-        item: `${baseUrl}/guides/${guide.slug}`,
-      },
-    ],
+    itemListElement: breadcrumbItems,
   };
 
   return (
@@ -216,6 +244,14 @@ export default async function ProductGuideDetailPage({
               <Link href="/" className="hover:text-[#1b4332] shrink-0">Home</Link>
               <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
               <Link href="/guides" className="hover:text-[#1b4332] shrink-0">Guides</Link>
+              {guideCategory && (
+                <>
+                  <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  <Link href={`/categories/${guideCategory.slug}`} className="hover:text-[#1b4332] shrink-0">
+                    {guideCategory.name}
+                  </Link>
+                </>
+              )}
               <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
               <span className="text-[#0f2d22] font-semibold truncate max-w-44 sm:max-w-xs">{guide.title}</span>
             </nav>
@@ -571,6 +607,50 @@ export default async function ProductGuideDetailPage({
                       siteSettings={siteSettings}
                     />
                   </GuideProductClickTracker>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* BOTANICAL SCIENCE & HERITAGE ENTITIES */}
+          {canonicalRelatedKnowledge && canonicalRelatedKnowledge.length > 0 && (
+            <section className="mt-12 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-[#e8e2d5]">
+                <div className="flex items-center gap-2">
+                  <Leaf className="w-5 h-5 text-[#1b4332]" />
+                  <h3 className="font-serif-heading text-lg sm:text-xl font-bold text-[#0f2d22]">
+                    Botanical Science & Heritage
+                  </h3>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {canonicalRelatedKnowledge.map((entity) => (
+                  <Link
+                    key={entity.entityKey}
+                    href={`/knowledge/${entity.entityKey.toLowerCase().replace(/_/g, '-')}`}
+                    className="group block p-4 rounded-xl border border-[#e8e2d5] hover:border-[#1b4332] bg-white hover:shadow-xs transition-all space-y-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-bold text-[#8c6b2d] bg-[#f4ede2] px-2 py-0.5 rounded-full">
+                        {entity.productFamily || 'Botanical Entity'}
+                      </span>
+                      <span className="text-xs font-bold text-[#1b4332] group-hover:translate-x-0.5 transition-transform flex items-center">
+                        Explore <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                      </span>
+                    </div>
+                    <h4 className="font-bold text-sm text-[#0f2d22] group-hover:text-[#1b4332]">
+                      {entity.canonicalName}
+                      {entity.scientificName && (
+                        <span className="text-xs font-normal italic text-gray-500 ml-1.5">
+                          ({entity.scientificName})
+                        </span>
+                      )}
+                    </h4>
+                    <p className="text-xs text-[#556059] line-clamp-2 leading-relaxed">
+                      {entity.description || entity.safeUseCases?.[0] || 'Botanical profile, active constituents, and traditional Rajasthani heritage.'}
+                    </p>
+                  </Link>
                 ))}
               </div>
             </section>

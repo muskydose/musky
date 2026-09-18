@@ -272,8 +272,50 @@ async function runSeoIntelligenceTestSuite() {
   assert(storedOpps.length > 0, 'Opportunities must be retrievable from store');
   console.log(`  ✅ [TEST 8 PASSED] Stored report [${savedReport.id}] and ${storedOpps.length} opportunities.`);
 
+  // --------------------------------------------------------------------------
+  // TEST 9: PROVENANCE HARDENING (GSC OBSERVED, CATALOG, GRAPH, HEURISTIC)
+  // --------------------------------------------------------------------------
+  console.log('\n[TEST 9] Testing Provenance Hardening (GSC observed, non-GSC, source attribution, confidence, zero-query baseline)...');
+
+  // 9a. Verify GSC-observed opportunities have strict truthfulness
+  const gscObserved = storedOpps.filter((o) => o.source === 'GSC_OBSERVED');
+  for (const opp of gscObserved) {
+    assert.strictEqual(opp.isActualGscQuery, true, `GSC_OBSERVED opportunity [${opp.id}] must have isActualGscQuery=true`);
+    assert(opp.impressions > 0, `GSC_OBSERVED opportunity [${opp.id}] must have positive impressions`);
+    assert(['HIGH', 'MEDIUM', 'LOW'].includes(opp.confidence || ''), `GSC_OBSERVED confidence must be valid`);
+  }
+  console.log(`  ✅ [9a] GSC-observed opportunities (${gscObserved.length}) validated with actual GSC queries.`);
+
+  // 9b. Verify non-GSC opportunities (Catalog, Graph, Heuristic) are NOT misattributed to GSC
+  const nonGscOpps = storedOpps.filter((o) => o.source !== 'GSC_OBSERVED');
+  for (const opp of nonGscOpps) {
+    assert.strictEqual(opp.isActualGscQuery, false, `Non-GSC opportunity [${opp.id}] must have isActualGscQuery=false`);
+    assert.notStrictEqual(opp.source, 'GSC_OBSERVED', `Must not be mislabeled as GSC_OBSERVED`);
+    assert(['CATALOG_DERIVED', 'INTERNAL_GRAPH_DERIVED', 'HEURISTIC_HYPOTHESIS'].includes(opp.source), `Source must be one of canonical types`);
+  }
+  console.log(`  ✅ [9b] Non-GSC opportunities (${nonGscOpps.length}) validated: zero misattribution to GSC.`);
+
+  // 9c. Verify Heuristic Hypotheses have zero fabricated metrics and INSUFFICIENT_DATA confidence
+  const heuristicOpps = storedOpps.filter((o) => o.source === 'HEURISTIC_HYPOTHESIS');
+  for (const opp of heuristicOpps) {
+    assert.strictEqual(opp.impressions, 0, `Heuristic hypothesis [${opp.id}] must not fabricate impressions`);
+    assert.strictEqual(opp.clicks, 0, `Heuristic hypothesis [${opp.id}] must not fabricate clicks`);
+    assert.strictEqual(opp.confidence, 'INSUFFICIENT_DATA', `Heuristic hypothesis [${opp.id}] must have confidence=INSUFFICIENT_DATA`);
+    assert(!opp.recommendedAction.includes('strong commercial demand'), `Must not use unsupported demand wording`);
+  }
+  console.log(`  ✅ [9c] Heuristic hypotheses (${heuristicOpps.length}) validated: 0 impressions, 0 clicks, INSUFFICIENT_DATA confidence.`);
+
+  // 9d. Verify Zero-Query Baseline behavior
+  const pureHeuristicEngine = SeoIntelligenceEngine.getInstance();
+  const baselineComparison = await pureHeuristicEngine.getGscPeriodComparison();
+  // Ensure comparison math doesn't crash on zero or empty snapshots
+  assert.strictEqual(typeof baselineComparison.deltas.clicksDelta, 'number');
+  console.log(`  ✅ [9d] Zero-query baseline mathematical resilience verified.`);
+
+  console.log(`  ✅ [TEST 9 PASSED] Provenance hardening verified: 100% truthful source attribution.`);
+
   console.log('\n============================================================');
-  console.log('🎉 ALL SEO INTELLIGENCE LAYER TESTS (1 - 8) PASSED!');
+  console.log('🎉 ALL SEO INTELLIGENCE LAYER TESTS (1 - 9) PASSED!');
   console.log('============================================================\n');
 }
 

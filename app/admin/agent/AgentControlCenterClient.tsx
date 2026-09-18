@@ -962,6 +962,32 @@ export default function AgentControlCenterClient({
                           <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-zinc-200 text-zinc-800">
                             {opp.searchIntent}
                           </span>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                              opp.source === 'GSC_OBSERVED'
+                                ? 'bg-blue-100 text-blue-800'
+                                : opp.source === 'CATALOG_DERIVED'
+                                ? 'bg-purple-100 text-purple-800'
+                                : opp.source === 'INTERNAL_GRAPH_DERIVED'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-zinc-100 text-zinc-700'
+                            }`}
+                          >
+                            {opp.source.replace(/_/g, ' ')}
+                          </span>
+                          {opp.confidence && (
+                            <span
+                              className={`text-[10px] font-medium px-2 py-0.5 rounded ${
+                                opp.confidence === 'HIGH'
+                                  ? 'bg-emerald-50 text-emerald-700'
+                                  : opp.confidence === 'MEDIUM'
+                                  ? 'bg-sky-50 text-sky-700'
+                                  : 'bg-zinc-100 text-zinc-600'
+                              }`}
+                            >
+                              {opp.confidence}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-[#C49A45]">

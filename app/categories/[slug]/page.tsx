@@ -10,10 +10,11 @@ import CategoryTracker from '@/components/CategoryTracker';
 import { getCategories } from '@/lib/db/categories';
 import { getProductsByCategory } from '@/lib/db/products';
 import { getSiteSettings } from '@/lib/db/settings';
+import { getPublishedGuides } from '@/lib/db/guides';
 import { resolvePageSeoMetadata } from '@/lib/db/seo';
 import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
 import { safeJsonLd } from '@/lib/utils';
-import { ArrowLeft, PackageX, Sparkles, CheckCircle2, Leaf, ArrowRight, MessageCircle } from 'lucide-react';
+import { ArrowLeft, PackageX, Sparkles, CheckCircle2, Leaf, ArrowRight, MessageCircle, BookOpen, HelpCircle } from 'lucide-react';
 import { resolveCategoryIntelligence } from '@/lib/growth/category-intelligence';
 import { resolveCategorySlugRedirect } from '@/lib/db/category-redirects';
 import { getPrimaryMedia, isSafeInternalMediaUrl } from '@/lib/db/media';
@@ -42,6 +43,51 @@ const CATEGORY_EDITORIAL_INTRODUCTIONS: Record<string, { lead: string; body: str
     lead: 'Holistic Botanical Beauty Formulations for Conscious Personal Care',
     body: 'Discover our complete catalog of natural beauty essentials, ranging from artisanal ready-to-use mehendi cones to herbal hair cleansing powders and pure floral waters. Each product is crafted with authentic natural ingredients direct from Sojat, ensuring uncompromised purity and gentle care.',
   },
+};
+
+const CATEGORY_FAQS: Record<string, { question: string; answer: string }[]> = {
+  henna: [
+    {
+      question: 'What makes Sojat henna superior to other henna varieties?',
+      answer: 'Sojat, Rajasthan possesses an ideal semi-arid climate and soil composition that stimulates Lawsonia Inermis to produce exceptionally high lawsone dye pigment (often 2.5% to 3.2%+). This results in richer, faster-oxidizing, and longer-lasting natural stains.',
+    },
+    {
+      question: 'Is Musky Dose Sojat henna 100% pure and chemical-free?',
+      answer: 'Yes. Our henna is 100% natural leaf powder, shade-dried and micro-cloth sifted up to three times. It contains zero PPD, ammonia, synthetic dyes, or heavy metallic salts.',
+    },
+    {
+      question: 'How should pure henna powder be stored for maximum freshness?',
+      answer: 'Store your henna powder in an airtight, moisture-proof pouch or tin in a cool, dry, dark environment. Sealed packages retain peak dye potency for up to 24 months.',
+    },
+  ],
+  'hair-care': [
+    {
+      question: 'How do I use Indigo powder with henna for dark brown or black hair?',
+      answer: 'For natural black hair, use the traditional two-step method: first apply pure Sojat henna for 2–3 hours and rinse with plain water. Next, mix fresh indigo paste and apply immediately for 60–90 minutes. For warm brown tones, mix henna and indigo together in a single application.',
+    },
+    {
+      question: 'Can Ayurvedic hair powders like Amla and Shikakai be used on color-treated hair?',
+      answer: 'Yes. Pure botanical conditioners like Amla, Shikakai, and Bhringraj gently cleanse and nourish the scalp without stripping hair of moisture or altering color treatments. Always perform a strand test first.',
+    },
+  ],
+  'face-care': [
+    {
+      question: 'What are hydro-distilled floral waters (hydrosols)?',
+      answer: 'Hydro-distilled floral waters are pure steam-condensed distillates captured from fresh flower petals (such as Rajasthani Damask Rose). They deliver gentle botanical hydration without alcohol, parabens, or artificial fragrances.',
+    },
+  ],
+  'herbal-products': [
+    {
+      question: 'Where are Musky Dose herbal products sourced?',
+      answer: 'All our whole solar-dried botanicals, herbs, and powders are sourced directly from trusted family growers and botanical farms in Sojat and adjacent regions in Rajasthan.',
+    },
+  ],
+  'beauty-category': [
+    {
+      question: 'Do you offer bulk or wholesale rates for salons and bridal artists?',
+      answer: 'Yes, we supply bulk quantities ranging from 5 kg to 1000 kg+ directly from our Sojat milling facility with pan-India express logistics and wholesale pricing tiers.',
+    },
+  ],
 };
 
 export async function generateMetadata({
@@ -116,15 +162,32 @@ export default async function CategoryPage({
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
-  const [categoryProducts, categoryPrimaryMedia] = await Promise.all([
+  const [categoryProducts, categoryPrimaryMedia, allGuides] = await Promise.all([
     getProductsByCategory(category.id),
     getPrimaryMedia({
       entityType: 'CATEGORY',
       entityId: category.id,
       legacyFallbackUrl: category.image,
     }),
+    getPublishedGuides(),
   ]);
   const categoryInsight = resolveCategoryIntelligence(category, categoryProducts);
+
+  const matchingGuides = allGuides.filter(
+    (g) =>
+      (g.category && (
+        g.category.toLowerCase() === category.name.toLowerCase() ||
+        g.category.toLowerCase() === category.slug.toLowerCase()
+      )) ||
+      categoryProducts.some(
+        (p) =>
+          p.id === g.productId ||
+          (g.productIds && g.productIds.includes(p.id)) ||
+          (g.relatedProductIds && g.relatedProductIds.includes(p.id))
+      )
+  );
+  const displayGuides = (matchingGuides.length > 0 ? matchingGuides : allGuides).slice(0, 3);
+  const categoryFaqs = CATEGORY_FAQS[category.slug] || [];
 
   const jsonLdCategory = {
     '@context': 'https://schema.org',
@@ -168,6 +231,21 @@ export default async function CategoryPage({
           },
         ],
       },
+      ...(categoryFaqs.length > 0
+        ? [
+            {
+              '@type': 'FAQPage',
+              mainEntity: categoryFaqs.map((f) => ({
+                '@type': 'Question',
+                name: f.question,
+                acceptedAnswer: {
+                  '@type': 'Answer',
+                  text: f.answer,
+                },
+              })),
+            },
+          ]
+        : []),
     ],
   };
 
@@ -323,6 +401,81 @@ export default async function CategoryPage({
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {/* Botanical Rituals & Application Guides */}
+        {displayGuides.length > 0 && (
+          <div className="mt-14 space-y-6">
+            <div className="flex items-center justify-between pb-3 border-b border-[#e8e2d5]">
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-[#1b4332]" />
+                <h3 className="font-momo-display text-xl sm:text-2xl font-normal text-[#0f2d22]">
+                  Botanical Rituals & Application Guides
+                </h3>
+              </div>
+              <Link
+                href="/guides"
+                className="text-xs font-bold text-[#1b4332] hover:text-[#0f2d22] flex items-center gap-1"
+              >
+                <span>All Guides</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+              {displayGuides.map((guide) => (
+                <Link
+                  key={guide.id}
+                  href={`/guides/${guide.slug}`}
+                  className="group bg-white rounded-2xl border border-[#e8e2d5] p-5 hover:border-[#1b4332] hover:shadow-md transition-all flex flex-col justify-between"
+                >
+                  <div className="space-y-2">
+                    <span className="inline-block px-2 py-0.5 rounded-full bg-[#f4ede2] text-[#8c6b2d] text-[10px] font-bold uppercase tracking-wider">
+                      {guide.category || category.name}
+                    </span>
+                    <h4 className="font-bold text-sm sm:text-base text-[#0f2d22] group-hover:text-[#1b4332] line-clamp-2 leading-snug">
+                      {guide.title}
+                    </h4>
+                    <p className="text-xs text-[#626c66] line-clamp-2 leading-relaxed">
+                      {guide.shortIntro || guide.seoDescription || 'Step-by-step botanical preparation, mixing ratios, and application ritual.'}
+                    </p>
+                  </div>
+                  <div className="pt-4 flex items-center text-xs font-bold text-[#1b4332] group-hover:translate-x-0.5 transition-transform">
+                    <span>Read Guide</span>
+                    <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Category FAQ Section */}
+        {categoryFaqs.length > 0 && (
+          <div className="mt-14 space-y-6">
+            <div className="flex items-center gap-2 pb-3 border-b border-[#e8e2d5]">
+              <HelpCircle className="w-5 h-5 text-[#c5a059]" />
+              <h3 className="font-momo-display text-xl sm:text-2xl font-normal text-[#0f2d22]">
+                Frequently Asked Questions about {category.name}
+              </h3>
+            </div>
+
+            <div className="space-y-3">
+              {categoryFaqs.map((faq, idx) => (
+                <div
+                  key={idx}
+                  className="p-5 rounded-2xl bg-white border border-[#e8e2d5] space-y-1.5 shadow-xs"
+                >
+                  <h4 className="font-bold text-sm text-[#0f2d22]">
+                    {faq.question}
+                  </h4>
+                  <p className="text-xs text-[#556059] leading-relaxed pl-3 border-l-2 border-[#c5a059]">
+                    {faq.answer}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

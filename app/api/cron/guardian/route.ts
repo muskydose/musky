@@ -10,7 +10,7 @@ import { WebsiteGuardian } from '@/lib/guardian/guardian-core';
 import { sanitizeAdminError } from '@/lib/api-errors';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 30; // 30 seconds max duration
+export const maxDuration = 60; // 60 seconds max duration (aligned with master-agent and seo-report)
 
 function secureCompare(a: string, b: string): boolean {
   if (!a || !b) return false;

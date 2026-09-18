@@ -1,5 +1,7 @@
 import React from 'react';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { BookOpen, Leaf, ArrowRight } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
@@ -226,6 +228,79 @@ export default async function ProductDetailPage({
           relevantGuides={relevantGuides}
           categoryName={matchedCategory?.name || product.categoryName}
         />
+
+        {/* Botanical Ritual Guides & Botanical Knowledge Section */}
+        {((relevantGuides && relevantGuides.length > 0) || (relevantKnowledge && relevantKnowledge.length > 0)) && (
+          <div className="mt-16 pt-10 border-t border-[#e8e2d5]">
+            <div className="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+              <div>
+                <span className="text-xs font-bold text-[#c5a059] uppercase tracking-widest">
+                  BOTANICAL USAGE & RITUALS
+                </span>
+                <h2 className="font-momo-display text-2xl sm:text-3xl font-normal text-[#0f2d22] mt-1">
+                  Preparation Rituals & Botanical Guides
+                </h2>
+              </div>
+              <Link href="/guides" className="text-xs font-bold text-[#1b4332] hover:underline shrink-0">
+                Explore All Guides →
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {relevantGuides?.map((guide: any) => (
+                <Link
+                  key={guide.id}
+                  href={`/guides/${guide.slug}`}
+                  className="p-5 rounded-2xl bg-white border border-[#e8e2d5] hover:border-[#1b4332] transition-colors shadow-xs group flex flex-col justify-between"
+                >
+                  <div className="space-y-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#f5f1e8] text-[#1b4332] text-[11px] font-bold">
+                      <BookOpen className="w-3 h-3 text-[#c5a059]" />
+                      <span>Ritual Guide</span>
+                    </span>
+                    <h3 className="font-momo-display text-lg font-normal text-[#0f2d22] group-hover:text-[#1b4332] transition-colors">
+                      {guide.title}
+                    </h3>
+                    {guide.shortIntro && (
+                      <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">
+                        {guide.shortIntro}
+                      </p>
+                    )}
+                  </div>
+                  <div className="pt-4 flex items-center text-xs font-bold text-[#1b4332] group-hover:translate-x-1 transition-transform">
+                    <span>Read Preparation Ritual</span>
+                    <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                  </div>
+                </Link>
+              ))}
+              {relevantKnowledge?.map((k: any) => (
+                <Link
+                  key={k.id}
+                  href={`/knowledge/${k.slug}`}
+                  className="p-5 rounded-2xl bg-white border border-[#e8e2d5] hover:border-[#1b4332] transition-colors shadow-xs group flex flex-col justify-between"
+                >
+                  <div className="space-y-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[11px] font-bold">
+                      <Leaf className="w-3 h-3 text-emerald-600" />
+                      <span>Botanical Origin</span>
+                    </span>
+                    <h3 className="font-momo-display text-lg font-normal text-[#0f2d22] group-hover:text-[#1b4332] transition-colors">
+                      {k.title}
+                    </h3>
+                    {k.shortSummary && (
+                      <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">
+                        {k.shortSummary}
+                      </p>
+                    )}
+                  </div>
+                  <div className="pt-4 flex items-center text-xs font-bold text-[#1b4332] group-hover:translate-x-1 transition-transform">
+                    <span>Explore Herb Origin</span>
+                    <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Related Products Section */}
         {relatedProducts.length > 0 && (

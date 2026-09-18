@@ -42,9 +42,18 @@ export async function generateMetadata() {
   return await resolvePageSeoMetadata({
     targetType: 'homepage',
     targetUrl: '/',
-    defaultTitle: 'Musky Dose — Premium Natural Henna & Herbal Products from Sojat',
-    defaultDescription: 'Rooted in Nature. Made for You. Pure Sojat Henna Powder, Natural Indigo & Herbal Products directly from Sojat, Rajasthan.',
-    defaultKeywords: ['Musky Dose', 'Sojat Henna', 'Natural Mehendi', 'Herbal Care', 'Rajasthan Henna'],
+    defaultTitle: 'Musky Dose — Pure Sojat Henna & Natural Botanical Care | Manufacturer Rajasthan',
+    defaultDescription: 'Authentic 100% natural Sojat Henna powder, organic Indigo, and Ayurvedic hair care directly from the farms of Sojat, Rajasthan. Wholesale and retail direct sourcing.',
+    defaultKeywords: [
+      'Musky Dose',
+      'Sojat Henna',
+      'Sojat Henna Powder',
+      'Natural Mehendi Rajasthan',
+      'Henna Manufacturer Sojat',
+      'Wholesale Henna Supplier',
+      'Herbal Hair Care',
+      'Pure Indigo Powder',
+    ],
     defaultImage: '/images/hero-bg.jpg',
   });
 }

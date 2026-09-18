@@ -7,6 +7,8 @@ import {
   SeoOpportunity,
   DailySeoBriefReport,
   SeoOpportunityStatus,
+  OpportunitySource,
+  DataConfidence,
 } from './types';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
@@ -43,6 +45,30 @@ export class SeoIntelligenceStore {
         if (!error && data) {
           this.memoryOpportunities.clear();
           for (const row of data) {
+            let canonicalSource: OpportunitySource = 'HEURISTIC_HYPOTHESIS';
+            if (row.source === 'GSC_OBSERVED' || (row.source === 'GOOGLE_SEARCH_CONSOLE' && row.is_actual_gsc_query)) {
+              canonicalSource = 'GSC_OBSERVED';
+            } else if (row.source === 'CATALOG_DERIVED' || (row.source === 'CATALOG_AUDIT' && row.opportunity_type === 'PRODUCT_SEO_OPPORTUNITY')) {
+              canonicalSource = 'CATALOG_DERIVED';
+            } else if (row.source === 'INTERNAL_GRAPH_DERIVED' || (row.source === 'CATALOG_AUDIT' && row.opportunity_type === 'INTERNAL_LINK_OPPORTUNITY')) {
+              canonicalSource = 'INTERNAL_GRAPH_DERIVED';
+            } else if (row.source === 'HEURISTIC_HYPOTHESIS' || row.source === 'FIRST_PARTY_SEARCH') {
+              canonicalSource = 'HEURISTIC_HYPOTHESIS';
+            } else if (row.source === 'GOOGLE_SEARCH_CONSOLE') {
+              canonicalSource = (row.clicks > 0 || row.impressions > 0) ? 'GSC_OBSERVED' : 'HEURISTIC_HYPOTHESIS';
+            }
+
+            let canonicalConfidence: DataConfidence = row.confidence;
+            if (!canonicalConfidence) {
+              if (canonicalSource === 'CATALOG_DERIVED' || canonicalSource === 'INTERNAL_GRAPH_DERIVED') {
+                canonicalConfidence = 'HIGH';
+              } else if (canonicalSource === 'GSC_OBSERVED') {
+                canonicalConfidence = row.impressions >= 100 ? 'HIGH' : row.impressions >= 40 ? 'MEDIUM' : 'LOW';
+              } else {
+                canonicalConfidence = 'INSUFFICIENT_DATA';
+              }
+            }
+
             const opp: SeoOpportunity = {
               id: row.id,
               query: row.query,
@@ -64,7 +90,12 @@ export class SeoIntelligenceStore {
               relatedProducts: row.related_products || [],
               status: row.status,
               detectedAt: row.detected_at,
-              source: row.source,
+              source: canonicalSource,
+              confidence: canonicalConfidence,
+              evidence: row.evidence || (canonicalSource === 'GSC_OBSERVED' ? `GSC query observed with ${row.impressions} impressions.` : canonicalSource === 'CATALOG_DERIVED' ? 'Catalog completeness audit.' : canonicalSource === 'INTERNAL_GRAPH_DERIVED' ? 'Internal link graph audit.' : 'Heuristic content opportunity hypothesis.'),
+              isActualGscQuery: row.is_actual_gsc_query ?? (canonicalSource === 'GSC_OBSERVED'),
+              isActualGscPage: row.is_actual_gsc_page ?? (canonicalSource !== 'HEURISTIC_HYPOTHESIS'),
+              reason: row.reason || row.recommended_action,
               taskId: row.task_id,
               requiresApproval: row.requires_approval,
               approvalReason: row.approval_reason,
