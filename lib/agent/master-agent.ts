@@ -17,6 +17,7 @@ import {
 import { logger } from '@/lib/logger';
 import { SeoIntelligenceEngine } from './seo-intelligence/seo-intelligence-engine';
 import { SeoIntelligenceStore } from './seo-intelligence/seo-store';
+import { KeywordUniverseEngine } from './seo-intelligence/keyword-universe-engine';
 
 export { getNextDaily2AmIstTimestamp };
 
@@ -824,10 +825,60 @@ export class MuskyDoseMasterAgent {
     // 1. Reclaim stuck tasks from prior worker/serverless crashes
     await this.store.reclaimStuckTasks();
 
-    // 2. Scan full website and enqueue safe work across all pillars
+    // 2. Keyword Universe Engine: Run autonomous keyword discovery, catalog onboarding, and cannibalization detection
+    let keywordUniverseSweepResult = {
+      started: true,
+      completed: false,
+      totalKeywords: 0,
+      newlyAdded: 0,
+      gscObserved: 0,
+      catalogDerived: 0,
+      cannibalizationIssues: 0,
+      errorIfAny: null as string | null,
+    };
+
+    try {
+      const kwEngine = KeywordUniverseEngine.getInstance();
+      const sweep = await kwEngine.runAutonomousKeywordSweep();
+
+      keywordUniverseSweepResult = {
+        started: true,
+        completed: true,
+        totalKeywords: sweep.totalKeywords,
+        newlyAdded: sweep.newlyAddedCount,
+        gscObserved: sweep.gscObservedCount,
+        catalogDerived: sweep.catalogDerivedCount,
+        cannibalizationIssues: sweep.cannibalizationIssues.length,
+        errorIfAny: null,
+      };
+
+      // Record audit entry into durable AgentStore
+      await this.store.recordAudit({
+        objectiveId: 'daily-autonomous-sweep',
+        worker: 'seo_guardian',
+        action: 'KEYWORD_UNIVERSE_SWEEP_EXECUTED',
+        filesAffected: [],
+        dataAffected: {
+          totalKeywords: sweep.totalKeywords,
+          newlyAdded: sweep.newlyAddedCount,
+          gscObserved: sweep.gscObservedCount,
+          catalogDerived: sweep.catalogDerivedCount,
+          cannibalizationCount: sweep.cannibalizationIssues.length,
+          onboardedProducts: sweep.onboardedProducts,
+        },
+        result: `Keyword Universe sweep completed: ${sweep.totalKeywords} total keywords, ${sweep.newlyAddedCount} newly added, ${sweep.cannibalizationIssues.length} cannibalization issues.`,
+        testOutcome: 'PASS',
+        nextAction: 'EXECUTE_DAILY_SWEEP_TASKS',
+      });
+    } catch (kwErr: any) {
+      logger.warn('[MasterAgent] Autonomous keyword sweep notice:', { error: kwErr?.message });
+      keywordUniverseSweepResult.errorIfAny = kwErr?.message || String(kwErr);
+    }
+
+    // 3. Scan full website and enqueue safe work across all pillars (including SEO opportunities)
     const identified = await this.scanAndEnqueueSafeWork();
 
-    // 3. Batch execution loop respecting dependency ordering and execution budget
+    // 4. Batch execution loop respecting dependency ordering and execution budget
     const executedSummaries: TickExecutionSummary[] = [];
 
     while (Date.now() - startTime < timeLimitMs && executedSummaries.length < maxBatch) {
@@ -844,13 +895,13 @@ export class MuskyDoseMasterAgent {
       }
     }
 
-    // 4. Inspect remaining unfinished tasks in the durable store
+    // 5. Inspect remaining unfinished tasks in the durable store
     const allTasks = this.store.getAllTasks();
     const unfinishedTasks = allTasks.filter(
       (t) => t.status === 'QUEUED' || t.status === 'RUNNING' || t.status === 'RETRYING'
     );
 
-    // 5. Update agent state with next daily 2:00 AM IST scheduled run
+    // 6. Update agent state with next daily 2:00 AM IST scheduled run
     const nextScheduled = getNextDaily2AmIstTimestamp();
     await this.store.updateState({
       lastRunAt: new Date().toISOString(),
@@ -880,6 +931,7 @@ export class MuskyDoseMasterAgent {
       nextScheduledRunAt: nextScheduled,
       tasksExecuted: executedSummaries,
       status,
+      keywordUniverseSweep: keywordUniverseSweepResult,
     };
   }
 

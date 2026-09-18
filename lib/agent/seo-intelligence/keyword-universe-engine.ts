@@ -6,7 +6,7 @@
 
 import { Product, Category, ProductGuide } from '@/lib/types';
 import { SeoIntelligenceEngine } from './seo-intelligence-engine';
-import { KeywordUniverseStore } from './keyword-universe-store';
+import { KeywordUniverseStore, generateDeterministicKeywordId } from './keyword-universe-store';
 import {
   KeywordUniverseEntry,
   KeywordClusterId,
@@ -242,7 +242,7 @@ export class KeywordUniverseEngine {
       const intent = overrideIntent || this.seoEngine.classifySearchIntent(clean);
       const cluster = this.resolveCluster(clean, product.categoryId);
       const language = this.detectLanguage(clean);
-      const id = `kw-${slug}-${normalized.replace(/[^a-z0-9]+/g, '-').slice(0, 36)}`;
+      const id = generateDeterministicKeywordId(normalized, targetUrl);
 
       entries.push({
         id,
@@ -384,27 +384,31 @@ export class KeywordUniverseEngine {
     const now = new Date().toISOString();
     const gscEntries: KeywordUniverseEntry[] = [];
 
-    // Group snapshots by query
-    const queryMap = new Map<string, GrowthGscSnapshot[]>();
+    // Group snapshots by normalized query and canonical page to preserve distinct (query, page) tuples
+    const snapshotMap = new Map<string, GrowthGscSnapshot[]>();
     for (const s of snapshots) {
       if (!s.query || !s.query.trim()) continue;
-      const existing = queryMap.get(s.query) || [];
+      const normalized = this.normalizeKeyword(s.query);
+      const canonicalPage = s.canonicalPage || '/';
+      const groupKey = `${normalized}::${canonicalPage.toLowerCase().trim()}`;
+      const existing = snapshotMap.get(groupKey) || [];
       existing.push(s);
-      queryMap.set(s.query, existing);
+      snapshotMap.set(groupKey, existing);
     }
 
-    for (const [query, snaps] of queryMap.entries()) {
+    for (const snaps of snapshotMap.values()) {
+      const query = snaps[0].query;
+      const canonicalPage = snaps[0]?.canonicalPage || '/';
       const totalImp = snaps.reduce((acc, x) => acc + x.impressions, 0);
       const totalClicks = snaps.reduce((acc, x) => acc + x.clicks, 0);
       const avgPos = snaps.reduce((acc, x) => acc + x.averagePosition, 0) / snaps.length;
       const ctr = totalImp > 0 ? totalClicks / totalImp : 0;
-      const canonicalPage = snaps[0]?.canonicalPage || '/';
 
       const normalized = this.normalizeKeyword(query);
       const intent = this.seoEngine.classifySearchIntent(query);
       const cluster = this.resolveCluster(query);
       const language = this.detectLanguage(query);
-      const id = `gsc-${normalized.replace(/[^a-z0-9]+/g, '-').slice(0, 36)}`;
+      const id = generateDeterministicKeywordId(normalized, canonicalPage);
 
       const confidence = totalImp >= 100 ? 'HIGH' : totalImp >= 40 ? 'MEDIUM' : 'LOW';
 
@@ -528,23 +532,99 @@ export class KeywordUniverseEngine {
   public async getDynamicContentGaps(): Promise<{ query: string; intent: SeoSearchIntent; cluster: KeywordClusterId }[]> {
     await this.store.ensureLoaded();
     const existing = this.store.getAll();
-    const publishedGuides = await getPublishedGuides();
-    const publishedSlugs = new Set(publishedGuides.map((g) => g.slug));
+    const publishedGuides = await getPublishedGuides().catch(() => [] as ProductGuide[]);
+    const publishedSlugs = new Set(publishedGuides.map((g) => g.slug.toLowerCase().trim()));
+    const publishedTitles = new Set(publishedGuides.map((g) => this.normalizeKeyword(g.title)));
 
-    // Candidate high-intent botanical topics
-    const seedTopics: { query: string; intent: SeoSearchIntent; cluster: KeywordClusterId }[] = [
-      { query: 'sojat henna wholesale supplier rajasthan', intent: 'WHOLESALE', cluster: 'wholesale-b2b' },
-      { query: 'how to store natural mehndi powder for freshness', intent: 'INFORMATIONAL', cluster: 'sojat-henna' },
-      { query: 'triple sifted microfine henna vs ordinary henna', intent: 'COMMERCIAL', cluster: 'henna-powder' },
-      { query: 'natural indigo powder for permanent black hair', intent: 'COMMERCIAL', cluster: 'indigo' },
-      { query: 'how to test pure henna for chemical ppd additives', intent: 'INFORMATIONAL', cluster: 'natural-henna' },
-    ];
+    const candidateMap = new Map<string, { query: string; intent: SeoSearchIntent; cluster: KeywordClusterId; priority: number }>();
 
-    // Filter to those without an exact published guide
-    return seedTopics.filter((topic) => {
-      const topicSlug = topic.query.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      return !publishedSlugs.has(topicSlug);
-    });
+    const isCoveredByGuide = (term: string): boolean => {
+      const norm = this.normalizeKeyword(term);
+      if (publishedTitles.has(norm)) return true;
+      const slug = norm.replace(/[^a-z0-9]+/g, '-');
+      if (publishedSlugs.has(slug)) return true;
+      for (const title of publishedTitles) {
+        if (title && (title.includes(norm) || norm.includes(title))) return true;
+      }
+      return false;
+    };
+
+    // 1. GSC observed opportunity queries without guides (highest priority real demand)
+    for (const e of existing) {
+      if (e.source === 'GSC_OBSERVED' && (e.intent === 'INFORMATIONAL' || e.intent === 'COMMERCIAL' || e.intent === 'WHOLESALE')) {
+        if (!isCoveredByGuide(e.keyword)) {
+          candidateMap.set(e.normalizedKeyword, {
+            query: e.keyword,
+            intent: e.intent,
+            cluster: e.cluster,
+            priority: 100 + (e.gscImpressions || 0),
+          });
+        }
+      }
+    }
+
+    // 2. High-intent informational/commercial/wholesale catalog terms without guides
+    for (const e of existing) {
+      if (e.intent === 'INFORMATIONAL' || e.intent === 'COMMERCIAL' || e.intent === 'WHOLESALE') {
+        if (!candidateMap.has(e.normalizedKeyword) && !isCoveredByGuide(e.keyword)) {
+          const priority = e.primaryOrSecondary === 'PRIMARY' ? 80 : e.primaryOrSecondary === 'SECONDARY' ? 60 : 40;
+          candidateMap.set(e.normalizedKeyword, {
+            query: e.keyword,
+            intent: e.intent,
+            cluster: e.cluster,
+            priority,
+          });
+        }
+      }
+    }
+
+    // 3. Taxonomy relationships and unserved clusters from BOTANICAL_DOMAIN_TAXONOMY
+    for (const tax of BOTANICAL_DOMAIN_TAXONOMY) {
+      const norm = this.normalizeKeyword(tax);
+      if (!candidateMap.has(norm) && !isCoveredByGuide(tax)) {
+        const intent = this.seoEngine.classifySearchIntent(tax);
+        const cluster = this.resolveCluster(tax);
+        candidateMap.set(norm, {
+          query: tax,
+          intent: intent === 'NAVIGATIONAL' ? 'INFORMATIONAL' : intent,
+          cluster,
+          priority: 50,
+        });
+      }
+    }
+
+    // Hindi & Hinglish unserved clusters from HINDI_HINGLISH_DICTIONARY
+    for (const [, dict] of Object.entries(HINDI_HINGLISH_DICTIONARY)) {
+      for (const hinglishTerm of dict.hinglish) {
+        const norm = this.normalizeKeyword(hinglishTerm);
+        if (!candidateMap.has(norm) && !isCoveredByGuide(hinglishTerm)) {
+          const intent = this.seoEngine.classifySearchIntent(hinglishTerm);
+          candidateMap.set(norm, {
+            query: hinglishTerm,
+            intent,
+            cluster: dict.cluster,
+            priority: 45,
+          });
+        }
+      }
+    }
+
+    // Fallback only if candidateMap is completely empty (e.g. empty universe and empty taxonomy)
+    if (candidateMap.size === 0) {
+      const fallbackTopics: { query: string; intent: SeoSearchIntent; cluster: KeywordClusterId }[] = [
+        { query: 'sojat henna wholesale supplier rajasthan', intent: 'WHOLESALE', cluster: 'wholesale-b2b' },
+        { query: 'how to store natural mehndi powder for freshness', intent: 'INFORMATIONAL', cluster: 'sojat-henna' },
+        { query: 'triple sifted microfine henna vs ordinary henna', intent: 'COMMERCIAL', cluster: 'natural-henna' },
+        { query: 'natural indigo powder for permanent black hair', intent: 'COMMERCIAL', cluster: 'indigo' },
+        { query: 'how to test pure henna for chemical ppd additives', intent: 'INFORMATIONAL', cluster: 'natural-henna' },
+      ];
+      return fallbackTopics.filter((topic) => !isCoveredByGuide(topic.query));
+    }
+
+    // Return top candidates sorted by priority descending
+    return Array.from(candidateMap.values())
+      .sort((a, b) => b.priority - a.priority)
+      .map(({ query, intent, cluster }) => ({ query, intent, cluster }));
   }
 
   // --------------------------------------------------------------------------
@@ -557,7 +637,10 @@ export class KeywordUniverseEngine {
   public async runAutonomousKeywordSweep(): Promise<{
     totalKeywords: number;
     newlyAddedCount: number;
+    gscObservedCount: number;
+    catalogDerivedCount: number;
     cannibalizationIssues: CannibalizationIssue[];
+    onboardedProducts: string[];
   }> {
     await this.store.ensureLoaded();
     const [products, categories, snapshots] = await Promise.all([
@@ -567,11 +650,21 @@ export class KeywordUniverseEngine {
     ]);
 
     const initialCount = this.store.getAll().length;
+    const existingEntries = this.store.getAll();
+    const coveredProductSlugs = new Set(
+      existingEntries.filter((e) => e.productSlug).map((e) => e.productSlug!)
+    );
 
-    // 1. Onboard / Refresh all catalog products
+    const onboardedProducts: string[] = [];
+
+    // 1. Onboard / Refresh all catalog products, detecting new additions
     for (const prod of products) {
+      const isNew = !coveredProductSlugs.has(prod.slug);
       const cat = categories.find((c) => c.id === prod.categoryId);
       await this.onboardProduct(prod, cat?.name);
+      if (isNew) {
+        onboardedProducts.push(prod.slug);
+      }
     }
 
     // 2. Ingest GSC queries
@@ -580,19 +673,27 @@ export class KeywordUniverseEngine {
     // 3. Detect Cannibalization
     const cannibalizationIssues = this.detectCannibalization();
 
-    const finalCount = this.store.getAll().length;
+    const finalEntries = this.store.getAll();
+    const finalCount = finalEntries.length;
     const newlyAddedCount = Math.max(0, finalCount - initialCount);
+    const summaryStats = this.store.getSummaryStats(products.length);
 
     logger.info('[KeywordUniverseEngine] Autonomous keyword sweep complete:', {
       totalKeywords: finalCount,
       newlyAddedCount,
+      gscObservedCount: summaryStats.gscObservedCount,
+      catalogDerivedCount: summaryStats.catalogDerivedCount,
       cannibalizationIssues: cannibalizationIssues.length,
+      onboardedProductsCount: onboardedProducts.length,
     });
 
     return {
       totalKeywords: finalCount,
       newlyAddedCount,
+      gscObservedCount: summaryStats.gscObservedCount,
+      catalogDerivedCount: summaryStats.catalogDerivedCount,
       cannibalizationIssues,
+      onboardedProducts,
     };
   }
 

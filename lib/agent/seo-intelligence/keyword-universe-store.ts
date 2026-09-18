@@ -3,6 +3,7 @@
 // In-Memory Ring Buffer + Supabase Resilience Persistence
 // ============================================================================
 
+import crypto from 'crypto';
 import {
   KeywordUniverseEntry,
   KeywordUniverseSummaryStats,
@@ -10,6 +11,18 @@ import {
 } from './keyword-universe-types';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
+
+/**
+ * Generates a deterministic, reproducible identity for a keyword-to-page relationship.
+ * Guarantees that the same query on different pages has distinct durable IDs.
+ */
+export function generateDeterministicKeywordId(normalizedKeyword: string, targetUrl: string): string {
+  const normKey = (normalizedKeyword || '').toLowerCase().trim();
+  const normUrl = (targetUrl || '/').trim();
+  const hash = crypto.createHash('sha256').update(`${normKey}::${normUrl}`).digest('hex').slice(0, 16);
+  const slugPart = normKey.replace(/[^a-z0-9]+/g, '-').slice(0, 24).replace(/^-+|-+$/g, '');
+  return `kw_${slugPart || 'term'}_${hash}`;
+}
 
 export class KeywordUniverseStore {
   private static instance: KeywordUniverseStore | null = null;
@@ -30,11 +43,14 @@ export class KeywordUniverseStore {
    * Generates a deterministic key for deduplication and indexing
    */
   public generateKey(entry: Pick<KeywordUniverseEntry, 'normalizedKeyword' | 'targetUrl'>): string {
-    return `${entry.normalizedKeyword}::${entry.targetUrl}`;
+    const normKey = (entry.normalizedKeyword || '').toLowerCase().trim();
+    const normUrl = (entry.targetUrl || '/').trim();
+    return `${normKey}::${normUrl}`;
   }
 
   /**
-   * Ensures data is loaded from Supabase or initialized in memory.
+   * Ensures data is loaded from Supabase or initialized in memory with batched pagination.
+   * Eliminates the 1000-row cap and prevents silent truncation.
    */
   public async ensureLoaded(forceRefresh: boolean = false): Promise<void> {
     if (this.isLoaded && !forceRefresh) return;
@@ -42,17 +58,35 @@ export class KeywordUniverseStore {
     const supabase = getSupabaseAdmin();
     if (supabase) {
       try {
-        const { data, error } = await supabase
-          .from('master_agent_keyword_universe')
-          .select('*')
-          .limit(1000);
+        const BATCH_SIZE = 1000;
+        let from = 0;
+        let hasMore = true;
 
-        if (!error && data && data.length > 0) {
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from('master_agent_keyword_universe')
+            .select('*')
+            .range(from, from + BATCH_SIZE - 1);
+
+          if (error) {
+            logger.warn('[KeywordUniverseStore] Supabase load notice (operating in-memory):', { error: error.message });
+            break;
+          }
+
+          if (!data || data.length === 0) {
+            hasMore = false;
+            break;
+          }
+
           for (const row of data) {
+            const normalizedKey = row.normalized_keyword || (row.keyword ? row.keyword.toLowerCase().trim() : '');
+            const targetUrl = row.target_url || '/';
+            const deterministicId = row.id || generateDeterministicKeywordId(normalizedKey, targetUrl);
+
             const entry: KeywordUniverseEntry = {
-              id: row.id,
+              id: deterministicId,
               keyword: row.keyword,
-              normalizedKeyword: row.normalized_keyword || row.keyword.toLowerCase().trim(),
+              normalizedKeyword: normalizedKey,
               language: row.language || 'en',
               locale: row.locale || 'en-IN',
               country: row.country || 'IND',
@@ -64,7 +98,7 @@ export class KeywordUniverseStore {
               entityId: row.entity_id || '',
               productSlug: row.product_slug,
               categorySlug: row.category_slug,
-              targetUrl: row.target_url || '/',
+              targetUrl,
               primaryOrSecondary: row.primary_or_secondary || 'SECONDARY',
               status: row.status || 'ACTIVE',
               firstSeenAt: row.first_seen_at || new Date().toISOString(),
@@ -85,6 +119,12 @@ export class KeywordUniverseStore {
             };
             const key = this.generateKey(entry);
             this.memoryEntries.set(key, entry);
+          }
+
+          if (data.length < BATCH_SIZE) {
+            hasMore = false;
+          } else {
+            from += BATCH_SIZE;
           }
         }
       } catch (err: any) {
@@ -154,10 +194,12 @@ export class KeywordUniverseStore {
     for (const entry of entries) {
       const key = this.generateKey(entry);
       const existing = this.memoryEntries.get(key);
+      const deterministicId = generateDeterministicKeywordId(entry.normalizedKeyword, entry.targetUrl);
 
       const merged: KeywordUniverseEntry = {
         ...existing,
         ...entry,
+        id: deterministicId,
         firstSeenAt: existing?.firstSeenAt || entry.firstSeenAt || now,
         lastSeenAt: now,
         createdAt: existing?.createdAt || entry.createdAt || now,
@@ -222,8 +264,9 @@ export class KeywordUniverseStore {
 
   /**
    * Generates real-time summary statistics of the universe.
+   * Derives real catalog count dynamically without hardcoded assumptions.
    */
-  public getSummaryStats(totalCatalogProducts: number = 4): KeywordUniverseSummaryStats {
+  public getSummaryStats(totalCatalogProducts?: number): KeywordUniverseSummaryStats {
     const all = this.getAll();
     let gscObserved = 0;
     let catalogDerived = 0;
@@ -261,6 +304,8 @@ export class KeywordUniverseStore {
       if (e.gscAveragePosition > 4 && e.gscAveragePosition <= 20) strikingDistance++;
     }
 
+    const realCatalogCount = totalCatalogProducts !== undefined ? totalCatalogProducts : coveredProducts.size;
+
     return {
       totalKeywords: all.length,
       gscObservedCount: gscObserved,
@@ -275,7 +320,7 @@ export class KeywordUniverseStore {
       newKeywordsCount: all.filter((e) => e.status === 'OPPORTUNITY').length,
       strikingDistanceCount: strikingDistance,
       productCoverageCount: coveredProducts.size,
-      totalProductsInCatalog: totalCatalogProducts,
+      totalProductsInCatalog: realCatalogCount,
     };
   }
 

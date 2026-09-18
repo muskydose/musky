@@ -174,6 +174,16 @@ export interface DailySweepSummary {
   nextScheduledRunAt: string;
   tasksExecuted: any[];
   status: 'COMPLETED' | 'PARTIAL' | 'IDLE';
+  keywordUniverseSweep?: {
+    started: boolean;
+    completed: boolean;
+    totalKeywords: number;
+    newlyAdded: number;
+    gscObserved: number;
+    catalogDerived: number;
+    cannibalizationIssues: number;
+    errorIfAny: string | null;
+  };
 }
 
 /**
