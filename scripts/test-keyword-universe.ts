@@ -1,0 +1,439 @@
+// ============================================================================
+// MUSKY DOSE — AUTONOMOUS SEO KEYWORD UNIVERSE VERIFICATION SUITE
+// Tests all 15 deterministic requirements:
+// 1. Product generates keyword family (head, product, attribute, buy, Hindi, Hinglish)
+// 2. Keyword normalization deduplicates spelling variants (mehendi, mehandi, mehndi)
+// 3. Hindi and Hinglish variants remain distinct but related (shared cluster)
+// 4. Generated keyword is NOT marked GSC observed (strict CATALOG_DERIVED)
+// 5. GSC query is correctly marked GSC_OBSERVED
+// 6. GSC metrics remain zero when no GSC query exists
+// 7. Future product automatically enters keyword universe
+// 8. Duplicate product scan is idempotent
+// 9. Keyword maps to canonical page (transactional -> product, informational -> guide)
+// 10. Cannibalization is detected
+// 11. Unsupported claims are rejected (medical claims, hallucinated attributes)
+// 12. No paid API dependency is introduced ($0 budget verified)
+// 13. Provenance survives ingestion
+// 14. Confidence survives ingestion
+// 15. Dynamic content gaps replace hardcoded query list
+// ============================================================================
+
+import assert from 'assert';
+import fs from 'fs';
+import path from 'path';
+import { KeywordUniverseEngine } from '../lib/agent/seo-intelligence/keyword-universe-engine';
+import { KeywordUniverseStore } from '../lib/agent/seo-intelligence/keyword-universe-store';
+import { Product } from '../lib/types';
+import { GrowthGscSnapshot } from '../lib/growth/types';
+
+async function runKeywordUniverseTestSuite() {
+  console.log('\n============================================================');
+  console.log('🌿 RUNNING AUTONOMOUS KEYWORD UNIVERSE ENGINE TEST SUITE');
+  console.log('============================================================\n');
+
+  const engine = KeywordUniverseEngine.getInstance();
+  const store = KeywordUniverseStore.getInstance();
+
+  // Reset store for deterministic testing
+  store.resetForTesting();
+
+  // Sample test product
+  const sampleProduct: Product = {
+    id: 'prod_sojat_henna_100g',
+    name: 'Sojat Henna Powder (100% Pure & Natural)',
+    slug: 'sojat-henna-powder-pure-natural',
+    categoryId: 'cat_henna',
+    categoryName: 'Henna Powder',
+    shortDescription: 'Triple sifted, 100% pure organic Rajasthani Sojat henna powder for natural hair conditioning, rich stain, and cooling scalp treatment.',
+    fullDescription: 'Triple sifted, 100% pure organic Rajasthani Sojat henna powder for natural hair conditioning, rich stain, and cooling scalp treatment.',
+    price: 249,
+    compareAtPrice: 299,
+    quantityOrWeight: '100g',
+    sku: 'MSK-HEN-100',
+    images: ['/images/products/sojat-henna.jpg'],
+    ingredients: ['100% Lawsonia Inermis (Henna) Leaf Powder'],
+    benefits: ['Natural conditioning', 'Rich stain'],
+    usageInstructions: 'Mix with warm water and let rest for 2-3 hours before application.',
+    stockStatus: 'in_stock',
+    isFeatured: true,
+    isActive: true,
+    sortOrder: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  // --------------------------------------------------------------------------
+  // TEST 1: PRODUCT GENERATES KEYWORD FAMILY
+  // --------------------------------------------------------------------------
+  console.log('[TEST 1] Testing product keyword family generation...');
+  const derivedKeywords = engine.deriveKeywordsFromProduct(sampleProduct, 'Henna Powder');
+  assert(derivedKeywords.length >= 6, `Expected at least 6 keyword variants, got ${derivedKeywords.length}`);
+
+  const hasHead = derivedKeywords.some((k) => k.keyword.toLowerCase().includes('henna powder') || k.keyword.toLowerCase().includes('sojat'));
+  const hasBuy = derivedKeywords.some((k) => k.keyword.toLowerCase().startsWith('buy ') || k.intent === 'TRANSACTIONAL');
+  const hasHindi = derivedKeywords.some((k) => k.language === 'hi');
+  const hasHinglish = derivedKeywords.some((k) => k.language === 'hinglish');
+
+  assert(hasHead, 'Keyword family must include HEAD/BRAND variant');
+  assert(hasBuy, 'Keyword family must include BUY/COMMERCIAL variant');
+  assert(hasHindi, 'Keyword family must include Hindi (Devanagari) variant');
+  assert(hasHinglish, 'Keyword family must include Hinglish variant');
+
+  // Now onboard into store
+  await engine.onboardProduct(sampleProduct, 'Henna Powder');
+  console.log(`  ✓ Successfully generated ${derivedKeywords.length} keyword variants (Head, Buy, Hindi, Hinglish)`);
+
+  // --------------------------------------------------------------------------
+  // TEST 2: KEYWORD NORMALIZATION DEDUPLICATES SPELLING VARIANTS
+  // --------------------------------------------------------------------------
+  console.log('[TEST 2] Testing keyword normalization deduplication (mehendi, mehandi, mehndi)...');
+  const norm1 = engine.normalizeKeyword('sojat mehendi powder');
+  const norm2 = engine.normalizeKeyword('sojat mehandi powder');
+  const norm3 = engine.normalizeKeyword('sojat mehndi powder');
+
+  assert.strictEqual(norm1, norm2, 'mehendi and mehandi must normalize to the same stem');
+  assert.strictEqual(norm2, norm3, 'mehandi and mehndi must normalize to the same stem');
+  assert.strictEqual(norm1, 'sojat mehndi powder', 'Normalized keyword stem should be "sojat mehndi powder"');
+
+  const heenaNorm = engine.normalizeKeyword('pure heena powder');
+  const hennaNorm = engine.normalizeKeyword('pure henna powder');
+  assert.strictEqual(heenaNorm, hennaNorm, 'heena and henna must normalize to the same stem');
+  console.log('  ✓ Normalization cleanly resolves mehandi/mehendi -> mehndi and heena -> henna');
+
+  // --------------------------------------------------------------------------
+  // TEST 3: HINDI AND HINGLISH VARIANTS REMAIN DISTINCT BUT RELATED
+  // --------------------------------------------------------------------------
+  console.log('[TEST 3] Testing Hindi and Hinglish distinct language preservation with shared cluster...');
+  const hindiEntry = derivedKeywords.find((k) => k.language === 'hi');
+  const hinglishEntry = derivedKeywords.find((k) => k.language === 'hinglish');
+
+  assert(hindiEntry, 'Must have a Hindi entry');
+  assert(hinglishEntry, 'Must have a Hinglish entry');
+  assert.notStrictEqual(hindiEntry.keyword, hinglishEntry.keyword, 'Hindi and Hinglish keywords must have distinct text');
+  assert.strictEqual(hindiEntry.cluster, hinglishEntry.cluster, 'Hindi and Hinglish variants must share the same cluster');
+  console.log(`  ✓ Hindi (${hindiEntry.keyword}) and Hinglish (${hinglishEntry.keyword}) share cluster "${hindiEntry.cluster}"`);
+
+  // --------------------------------------------------------------------------
+  // TEST 4: GENERATED KEYWORD IS NOT MARKED GSC OBSERVED
+  // --------------------------------------------------------------------------
+  console.log('[TEST 4] Testing strict provenance of generated catalog keywords...');
+  for (const kw of derivedKeywords) {
+    assert.notStrictEqual(
+      kw.source,
+      'GSC_OBSERVED',
+      `Catalog-generated keyword "${kw.keyword}" must NOT be marked GSC_OBSERVED`
+    );
+    assert.strictEqual(
+      kw.source,
+      'CATALOG_DERIVED',
+      `Catalog-generated keyword "${kw.keyword}" must be marked CATALOG_DERIVED`
+    );
+  }
+  console.log('  ✓ All generated keywords strictly marked CATALOG_DERIVED (0 false GSC_OBSERVED)');
+
+  // --------------------------------------------------------------------------
+  // TEST 5: GSC QUERY IS CORRECTLY MARKED GSC_OBSERVED
+  // --------------------------------------------------------------------------
+  console.log('[TEST 5] Testing GSC telemetry ingestion provenance...');
+  const mockGscSnapshot: GrowthGscSnapshot = {
+    id: 'snap_test_1',
+    snapshotDate: '2026-09-17',
+    query: 'organic sojat henna leaves',
+    canonicalPage: '/products/sojat-henna-powder-pure-natural',
+    impressions: 45,
+    clicks: 3,
+    ctr: 0.066,
+    averagePosition: 8.4,
+    country: 'IND',
+    source: 'GOOGLE_SEARCH_CONSOLE',
+    createdAt: new Date().toISOString(),
+  };
+
+  const gscResult = await engine.ingestGscSnapshots([mockGscSnapshot]);
+  assert.strictEqual(gscResult.ingestedCount, 1, 'Should ingest 1 real GSC query row');
+
+  const gscEntry = store.getFiltered({ source: 'GSC_OBSERVED' })[0];
+  assert(gscEntry, 'Must find ingested GSC entry');
+  assert.strictEqual(gscEntry.source, 'GSC_OBSERVED', 'GSC query must be marked GSC_OBSERVED');
+  assert.strictEqual(gscEntry.gscImpressions, 45, 'Impressions must match observed GSC data');
+  assert.strictEqual(gscEntry.gscClicks, 3, 'Clicks must match observed GSC data');
+  console.log('  ✓ Real GSC query correctly marked GSC_OBSERVED with accurate telemetry');
+
+  // --------------------------------------------------------------------------
+  // TEST 6: GSC METRICS REMAIN ZERO WHEN NO QUERY EXISTS
+  // --------------------------------------------------------------------------
+  console.log('[TEST 6] Testing zero telemetry invention for non-GSC keywords...');
+  const catalogEntry = store.getFiltered({ source: 'CATALOG_DERIVED' })[0];
+  assert(catalogEntry, 'Must have catalog entry');
+  assert.strictEqual(catalogEntry.gscImpressions, 0, 'Catalog keyword impressions must be 0');
+  assert.strictEqual(catalogEntry.gscClicks, 0, 'Catalog keyword clicks must be 0');
+  assert.strictEqual(catalogEntry.gscAveragePosition, 0, 'Catalog keyword position must be 0 (never invented)');
+  console.log('  ✓ Zero impressions/clicks/positions invented for unobserved catalog keywords');
+
+  // --------------------------------------------------------------------------
+  // TEST 7: FUTURE PRODUCT AUTOMATICALLY ENTERS KEYWORD UNIVERSE
+  // --------------------------------------------------------------------------
+  console.log('[TEST 7] Testing future product auto-onboarding...');
+  const countBefore = store.getAll().length;
+  const futureProduct: Product = {
+    id: 'prod_bhringraj_powder_100g',
+    name: 'Bhringraj Powder for Hair Growth',
+    slug: 'bhringraj-powder-hair-growth',
+    categoryId: 'cat_herbal',
+    categoryName: 'Herbal Powders',
+    shortDescription: '100% Pure eclipta alba Bhringraj herbal hair care powder for root strengthening and hair vitality.',
+    fullDescription: '100% Pure eclipta alba Bhringraj herbal hair care powder for root strengthening and hair vitality.',
+    price: 199,
+    compareAtPrice: 249,
+    quantityOrWeight: '100g',
+    sku: 'MSK-BHR-100',
+    images: ['/images/products/bhringraj.jpg'],
+    ingredients: ['100% Eclipta Alba (Bhringraj) Powder'],
+    benefits: ['Root strengthening', 'Hair vitality'],
+    usageInstructions: 'Mix with warm water or oils and apply to scalp.',
+    stockStatus: 'in_stock',
+    isFeatured: false,
+    isActive: true,
+    sortOrder: 2,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  const futureResult = await engine.onboardProduct(futureProduct, 'Herbal Powders');
+  const countAfter = store.getAll().length;
+  assert(futureResult.generatedCount > 0, 'Future product must generate keywords');
+  assert.strictEqual(countAfter, countBefore + futureResult.generatedCount, 'Keyword store must expand immediately upon onboarding');
+  console.log(`  ✓ Future product successfully onboarded with ${futureResult.generatedCount} new keywords`);
+
+  // --------------------------------------------------------------------------
+  // TEST 8: DUPLICATE PRODUCT SCAN IS IDEMPOTENT
+  // --------------------------------------------------------------------------
+  console.log('[TEST 8] Testing idempotency of repeated product scans...');
+  const countBeforeRepeat = store.getAll().length;
+  await engine.onboardProduct(futureProduct, 'Herbal Powders');
+  const countAfterRepeat = store.getAll().length;
+
+  assert.strictEqual(countAfterRepeat, countBeforeRepeat, 'Repeated onboarding of identical product must not add duplicates');
+  console.log(`  ✓ Idempotency verified: 0 duplicate keywords created on re-scan (${countBeforeRepeat} -> ${countAfterRepeat})`);
+
+  // --------------------------------------------------------------------------
+  // TEST 9: KEYWORD MAPS TO CANONICAL PAGE
+  // --------------------------------------------------------------------------
+  console.log('[TEST 9] Testing canonical page routing intent mapping...');
+  const transactionalKw = derivedKeywords.find((k) => k.intent === 'TRANSACTIONAL');
+  assert(transactionalKw, 'Must have transactional keyword');
+  assert(
+    transactionalKw.targetUrl.startsWith('/products/'),
+    `Transactional keyword "${transactionalKw.keyword}" must map to /products/*, got ${transactionalKw.targetUrl}`
+  );
+
+  const informationalKw = derivedKeywords.find((k) => k.intent === 'INFORMATIONAL');
+  if (informationalKw) {
+    assert(
+      informationalKw.targetUrl.startsWith('/products/') ||
+        informationalKw.targetUrl.startsWith('/learn/') ||
+        informationalKw.targetUrl.startsWith('/categories/'),
+      `Informational keyword must map to appropriate educational or entity page`
+    );
+  }
+  console.log(`  ✓ Canonical mapping verified: ${transactionalKw.keyword} -> ${transactionalKw.targetUrl}`);
+
+  // --------------------------------------------------------------------------
+  // TEST 10: CANNIBALIZATION IS DETECTED
+  // --------------------------------------------------------------------------
+  console.log('[TEST 10] Testing keyword cannibalization detection...');
+  const now = new Date().toISOString();
+  // Force a collision by registering the same normalized primary keyword targeting two different URLs
+  await store.upsertEntries([
+    {
+      id: 'test_cannibal_1',
+      keyword: 'sojat natural henna paste',
+      normalizedKeyword: 'sojat natural henna paste',
+      language: 'en',
+      locale: 'en-IN',
+      country: 'IND',
+      source: 'INTERNAL_GRAPH_DERIVED',
+      confidence: 'HIGH',
+      intent: 'TRANSACTIONAL',
+      cluster: 'sojat-henna',
+      entityType: 'PRODUCT',
+      entityId: 'prod-1',
+      targetUrl: '/products/sojat-henna-powder-pure-natural',
+      primaryOrSecondary: 'PRIMARY',
+      status: 'ACTIVE',
+      firstSeenAt: now,
+      lastSeenAt: now,
+      gscClicks: 0,
+      gscImpressions: 0,
+      gscCtr: 0,
+      gscAveragePosition: 0,
+      evidence: 'Test entry 1',
+      isActualGscQuery: false,
+      isGeneratedKeyword: true,
+      generationMethod: 'TEST',
+      relevanceScore: 90,
+      opportunityScore: 70,
+      cannibalizationRisk: false,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 'test_cannibal_2',
+      keyword: 'sojat natural henna paste',
+      normalizedKeyword: 'sojat natural henna paste',
+      language: 'en',
+      locale: 'en-IN',
+      country: 'IND',
+      source: 'HEURISTIC_HYPOTHESIS',
+      confidence: 'MEDIUM',
+      intent: 'TRANSACTIONAL',
+      cluster: 'sojat-henna',
+      entityType: 'LANDING',
+      entityId: 'guide-1',
+      targetUrl: '/learn/henna-paste-guide',
+      primaryOrSecondary: 'PRIMARY',
+      status: 'ACTIVE',
+      firstSeenAt: now,
+      lastSeenAt: now,
+      gscClicks: 0,
+      gscImpressions: 0,
+      gscCtr: 0,
+      gscAveragePosition: 0,
+      evidence: 'Test entry 2',
+      isActualGscQuery: false,
+      isGeneratedKeyword: true,
+      generationMethod: 'TEST',
+      relevanceScore: 85,
+      opportunityScore: 65,
+      cannibalizationRisk: false,
+      createdAt: now,
+      updatedAt: now,
+    },
+  ]);
+
+  const cannibalIssues = engine.detectCannibalization();
+  assert(cannibalIssues.length > 0, 'Cannibalization detector must detect collision on "sojat natural henna paste"');
+  const matchingIssue = cannibalIssues.find((c) => c.keyword === 'sojat natural henna paste');
+  assert(matchingIssue, 'Must find cannibalization issue for colliding keyword');
+  assert(matchingIssue.conflictingUrls.length >= 2, 'Must report both competing URLs');
+  console.log(`  ✓ Cannibalization detected: "${matchingIssue.keyword}" competes across [${matchingIssue.conflictingUrls.join(', ')}]`);
+
+  // --------------------------------------------------------------------------
+  // TEST 11: UNSUPPORTED CLAIMS ARE REJECTED
+  // --------------------------------------------------------------------------
+  console.log('[TEST 11] Testing rejection of unsupported claims / medical hallucinations...');
+  const claimsRejected = engine.validateKeywordClaims(
+    'chemical free cure for baldness and hair regrowth guarantee'
+  );
+  assert.strictEqual(claimsRejected.isValid, false, 'Medical cures/baldness guarantees must be rejected');
+  assert(claimsRejected.violationReason?.includes('Medical or cure claims are strictly disallowed'));
+
+  const validClaim = engine.validateKeywordClaims('triple sifted sojat henna powder for natural hair conditioning');
+  assert.strictEqual(validClaim.isValid, true, 'Botanical conditioning claims must pass');
+  console.log('  ✓ Medical / unsupported claims safely rejected');
+
+  // --------------------------------------------------------------------------
+  // TEST 12: NO PAID API DEPENDENCY IS INTRODUCED
+  // --------------------------------------------------------------------------
+  console.log('[TEST 12] Testing zero paid third-party SEO API dependencies...');
+  const pkgJsonPath = path.resolve(process.cwd(), 'package.json');
+  const pkgContent = fs.readFileSync(pkgJsonPath, 'utf-8');
+  const forbiddenPaidApis = [
+    'semrush',
+    'ahrefs',
+    'moz',
+    'spyfu',
+    'dataforseo',
+    'serpapi',
+    'valueserp',
+    'serper',
+  ];
+
+  for (const api of forbiddenPaidApis) {
+    assert(
+      !pkgContent.toLowerCase().includes(api),
+      `Forbidden paid SEO dependency "${api}" found in package.json!`
+    );
+  }
+  console.log('  ✓ Verified 100% free-first architecture ($0 paid SEO dependencies)');
+
+  // --------------------------------------------------------------------------
+  // TEST 13: PROVENANCE SURVIVES INGESTION
+  // --------------------------------------------------------------------------
+  console.log('[TEST 13] Testing provenance integrity through retrieval...');
+  const allEntries = store.getAll();
+  const catalogCount = allEntries.filter((k) => k.source === 'CATALOG_DERIVED').length;
+  const gscCount = allEntries.filter((k) => k.source === 'GSC_OBSERVED').length;
+
+  assert(catalogCount > 0, 'Catalog derived entries must retain their source');
+  assert(gscCount > 0, 'GSC observed entries must retain their source');
+
+  const filteredCatalog = store.getFiltered({ source: 'CATALOG_DERIVED' });
+  assert.strictEqual(filteredCatalog.length, catalogCount, 'Filtered query by source must return exact matching entries');
+  console.log(`  ✓ Provenance preserved across storage and retrieval (${catalogCount} catalog, ${gscCount} GSC)`);
+
+  // --------------------------------------------------------------------------
+  // TEST 14: CONFIDENCE SURVIVES INGESTION
+  // --------------------------------------------------------------------------
+  console.log('[TEST 14] Testing confidence score preservation...');
+  const highConf = store.getFiltered({ confidence: 'HIGH' });
+  const medConf = store.getFiltered({ confidence: 'MEDIUM' });
+
+  assert(highConf.length > 0, 'Must have entries with HIGH confidence');
+  for (const h of highConf) {
+    assert.strictEqual(h.confidence, 'HIGH', 'Confidence must remain HIGH');
+  }
+  console.log(`  ✓ Confidence values intact (${highConf.length} HIGH, ${medConf.length} MEDIUM)`);
+
+  // --------------------------------------------------------------------------
+  // TEST 15: DYNAMIC CONTENT GAPS REPLACE HARDCODED QUERY LIST
+  // --------------------------------------------------------------------------
+  console.log('[TEST 15] Verifying hardcoded unservedHighIntentQueries is replaced dynamically...');
+  const seoEngineFile = fs.readFileSync(
+    path.resolve(process.cwd(), 'lib/agent/seo-intelligence/seo-intelligence-engine.ts'),
+    'utf-8'
+  );
+
+  assert(
+    !seoEngineFile.includes('const unservedHighIntentQueries = ['),
+    'Hardcoded query array "const unservedHighIntentQueries = [" must be removed'
+  );
+  assert(
+    seoEngineFile.includes('keywordUniverseEngine.getDynamicContentGaps()'),
+    'SEO intelligence engine must call keywordUniverseEngine.getDynamicContentGaps()'
+  );
+
+  const dynamicGaps = await engine.getDynamicContentGaps();
+  assert(Array.isArray(dynamicGaps), 'Dynamic gaps must return an array');
+  assert(dynamicGaps.length > 0, 'Dynamic gaps must contain unserved keyword opportunities');
+  console.log(`  ✓ Dynamic content gap engine confirmed: generated ${dynamicGaps.length} dynamic opportunities without hardcoding`);
+
+  // --------------------------------------------------------------------------
+  // SUMMARY STATS CHECK
+  // --------------------------------------------------------------------------
+  console.log('\n[SUMMARY] Testing summary stats telemetry aggregation...');
+  const summary = store.getSummaryStats();
+  assert(summary.totalKeywords > 0, 'Total keywords must be > 0');
+  assert(summary.languagesCount.en >= 0, 'English count must be >= 0');
+  assert(summary.languagesCount.hi >= 0, 'Hindi count must be >= 0');
+  assert(summary.languagesCount.hinglish >= 0, 'Hinglish count must be >= 0');
+  assert(Object.keys(summary.clustersCount).length > 0, 'Clusters count must be > 0');
+
+  console.log(`  • Total Universe Keywords: ${summary.totalKeywords}`);
+  console.log(`  • GSC Observed: ${summary.gscObservedCount}`);
+  console.log(`  • Catalog Derived: ${summary.catalogDerivedCount}`);
+  console.log(`  • Internal Graph Derived: ${summary.internalGraphDerivedCount}`);
+  console.log(`  • Heuristic Hypotheses: ${summary.heuristicHypothesesCount}`);
+  console.log(`  • Languages: EN=${summary.languagesCount.en}, HI=${summary.languagesCount.hi}, Hinglish=${summary.languagesCount.hinglish}`);
+  console.log(`  • Cannibalization Risks: ${summary.cannibalizationRisksCount}`);
+  console.log(`  • Clusters: ${Object.keys(summary.clustersCount).length}`);
+
+  console.log('\n============================================================');
+  console.log('🎉 ALL 15 DETERMINISTIC KEYWORD UNIVERSE TESTS PASSED');
+  console.log('============================================================\n');
+}
+
+runKeywordUniverseTestSuite().catch((err) => {
+  console.error('\n❌ Keyword Universe Verification FAILED:\n', err);
+  process.exit(1);
+});

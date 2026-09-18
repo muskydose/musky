@@ -26,6 +26,7 @@ import { calculateProductSeoHealth } from '@/lib/growth/seo-opportunity-engine';
 import { AgentStore } from '@/lib/agent/agent-store';
 import { Product, ProductGuide } from '@/lib/types';
 import { logger } from '@/lib/logger';
+import { KeywordUniverseEngine } from './keyword-universe-engine';
 
 export class SeoIntelligenceEngine {
   private static instance: SeoIntelligenceEngine | null = null;
@@ -527,20 +528,29 @@ export class SeoIntelligenceEngine {
       }
     }
 
-    // F. Detect High-Value Content Gaps (High Wholesale / Informational Intent without Dedicated Page)
-    const unservedHighIntentQueries = [
-      'sojat henna wholesale supplier rajasthan',
-      'how to store natural mehndi powder for freshness',
-      'triple sifted microfine henna vs ordinary henna',
-    ];
+    // F. Dynamic Content Gaps (Derived from Autonomous Keyword Universe Engine)
+    const keywordUniverseEngine = KeywordUniverseEngine.getInstance();
 
-    for (const targetQuery of unservedHighIntentQueries) {
-      const intent = this.classifySearchIntent(targetQuery);
+    // Dynamically onboard / sync all catalog products into keyword universe
+    try {
+      for (const prod of products) {
+        await keywordUniverseEngine.onboardProduct(prod);
+      }
+    } catch {
+      // Non-blocking
+    }
+
+    const dynamicGaps = await keywordUniverseEngine.getDynamicContentGaps();
+
+    for (const gapItem of dynamicGaps) {
+      const targetQuery = gapItem.query;
+      const intent = gapItem.intent || this.classifySearchIntent(targetQuery);
       const gapSlug = targetQuery.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 36);
+      const targetPageUrl = intent === 'WHOLESALE' ? '/wholesale' : '/wholesale';
       const opp: SeoOpportunity = {
         id: `opp-gap-${gapSlug}`,
         query: targetQuery,
-        pageUrl: '/wholesale',
+        pageUrl: targetPageUrl,
         clicks: 0,
         impressions: 0,
         ctr: 0,

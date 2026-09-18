@@ -34,6 +34,10 @@ import {
   AgentTaskStatus,
 } from '@/lib/agent/types';
 import { SeoOpportunity, DailySeoBriefReport } from '@/lib/agent/seo-intelligence/types';
+import {
+  KeywordUniverseEntry,
+  KeywordUniverseSummaryStats,
+} from '@/lib/agent/seo-intelligence/keyword-universe-types';
 
 interface AgentControlCenterClientProps {
   initialState: MasterAgentState;
@@ -42,6 +46,7 @@ interface AgentControlCenterClientProps {
   initialAudit: AgentAuditEntry[];
   initialSeoOpportunities?: SeoOpportunity[];
   initialSeoReport?: DailySeoBriefReport | null;
+  initialKeywordSummary?: KeywordUniverseSummaryStats | null;
 }
 
 export default function AgentControlCenterClient({
@@ -51,6 +56,7 @@ export default function AgentControlCenterClient({
   initialAudit,
   initialSeoOpportunities,
   initialSeoReport,
+  initialKeywordSummary,
 }: AgentControlCenterClientProps) {
   const [state, setState] = useState<MasterAgentState>(initialState);
   const [tasks, setTasks] = useState<AgentTask[]>(initialTasks);
@@ -60,10 +66,20 @@ export default function AgentControlCenterClient({
   const [seoReport, setSeoReport] = useState<DailySeoBriefReport | null>(initialSeoReport || null);
   const [isScanningSeo, setIsScanningSeo] = useState(false);
 
+  const [keywordSummary, setKeywordSummary] = useState<KeywordUniverseSummaryStats | null>(initialKeywordSummary || null);
+  const [keywordItems, setKeywordItems] = useState<KeywordUniverseEntry[]>([]);
+  const [isLoadingKeywords, setIsLoadingKeywords] = useState(false);
+  const [isSweepingKeywords, setIsSweepingKeywords] = useState(false);
+  const [kwSearchQuery, setKwSearchQuery] = useState('');
+  const [kwSourceFilter, setKwSourceFilter] = useState<string>('ALL');
+  const [kwLanguageFilter, setKwLanguageFilter] = useState<string>('ALL');
+  const [kwIntentFilter, setKwIntentFilter] = useState<string>('ALL');
+  const [kwClusterFilter, setKwClusterFilter] = useState<string>('ALL');
+
   const [prompt, setPrompt] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRunningCycle, setIsRunningCycle] = useState(false);
-  const [activeTab, setActiveTab] = useState<'queue' | 'seo' | 'memory' | 'audit'>('queue');
+  const [activeTab, setActiveTab] = useState<'queue' | 'seo' | 'keywords' | 'memory' | 'audit'>('queue');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedTask, setSelectedTask] = useState<AgentTask | null>(null);
 
@@ -80,12 +96,63 @@ export default function AgentControlCenterClient({
           setAudit(data.audit);
           if (data.seoOpportunities) setSeoOpportunities(data.seoOpportunities);
           if (data.latestSeoReport) setSeoReport(data.latestSeoReport);
+          if (data.keywordUniverseSummary) setKeywordSummary(data.keywordUniverseSummary);
         }
       }
     } catch {
       // transient network error
     }
   }, []);
+
+  const fetchKeywords = useCallback(async () => {
+    setIsLoadingKeywords(true);
+    try {
+      const params = new URLSearchParams();
+      if (kwSourceFilter !== 'ALL') params.set('source', kwSourceFilter);
+      if (kwLanguageFilter !== 'ALL') params.set('language', kwLanguageFilter);
+      if (kwIntentFilter !== 'ALL') params.set('intent', kwIntentFilter);
+      if (kwClusterFilter !== 'ALL') params.set('cluster', kwClusterFilter);
+      if (kwSearchQuery.trim()) params.set('search', kwSearchQuery.trim());
+
+      const res = await fetch(`/api/admin/agent/keyword-universe?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setKeywordItems(data.keywords || []);
+          if (data.summary) setKeywordSummary(data.summary);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch keywords:', err);
+    } finally {
+      setIsLoadingKeywords(false);
+    }
+  }, [kwSourceFilter, kwLanguageFilter, kwIntentFilter, kwClusterFilter, kwSearchQuery]);
+
+  useEffect(() => {
+    if (activeTab === 'keywords') {
+      fetchKeywords();
+    }
+  }, [activeTab, fetchKeywords]);
+
+  const handleSweepKeywords = async () => {
+    if (isSweepingKeywords) return;
+    setIsSweepingKeywords(true);
+    try {
+      const res = await fetch('/api/admin/agent/keyword-universe', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          if (data.summary) setKeywordSummary(data.summary);
+          await fetchKeywords();
+        }
+      }
+    } catch (err) {
+      console.error('Failed to sweep keyword universe:', err);
+    } finally {
+      setIsSweepingKeywords(false);
+    }
+  };
 
   const handleScanSeo = async () => {
     if (isScanningSeo) return;
@@ -747,6 +814,16 @@ export default function AgentControlCenterClient({
             <TrendingUp className="w-4 h-4 text-[#C49A45]" /> SEO Intelligence ({seoOpportunities.length})
           </button>
           <button
+            onClick={() => setActiveTab('keywords')}
+            className={`flex items-center gap-2 px-6 py-3.5 text-xs font-semibold uppercase tracking-wider transition ${
+              activeTab === 'keywords'
+                ? 'border-b-2 border-[#0E2A1E] text-[#0E2A1E] bg-[#F5F1E8]/30'
+                : 'text-zinc-500 hover:text-zinc-800'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-[#C49A45]" /> Keyword Universe ({keywordSummary?.totalKeywords ?? 0})
+          </button>
+          <button
             onClick={() => setActiveTab('memory')}
             className={`flex items-center gap-2 px-6 py-3.5 text-xs font-semibold uppercase tracking-wider transition ${
               activeTab === 'memory'
@@ -1076,6 +1153,225 @@ export default function AgentControlCenterClient({
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Tab: Keyword Universe */}
+        {activeTab === 'keywords' && (
+          <div className="p-6 space-y-6">
+            {/* Header / Sweep Action */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-200">
+              <div>
+                <h3 className="text-base font-serif font-semibold text-[#0E2A1E]">
+                  Autonomous SEO Keyword Universe Engine
+                </h3>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  Continuously self-expanding, free-first keyword registry with multi-lingual Hindi/Hinglish normalization, URL cannibalization detection, and strict source provenance.
+                </p>
+              </div>
+              <button
+                onClick={handleSweepKeywords}
+                disabled={isSweepingKeywords}
+                className="flex items-center gap-2 px-4 py-2 bg-[#0E2A1E] hover:bg-[#1a4030] text-[#EDE8D0] text-xs font-semibold rounded-xl transition disabled:opacity-50"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#C49A45]" />
+                {isSweepingKeywords ? 'Discovering Keywords...' : 'Run Keyword Universe Sweep'}
+              </button>
+            </div>
+
+            {/* Universe Summary Telemetry Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+              <div className="p-3 bg-zinc-50 rounded-xl border border-zinc-200/80 text-center">
+                <span className="text-[10px] text-zinc-500 uppercase font-semibold block">Total Universe</span>
+                <span className="text-lg font-serif font-bold text-[#0E2A1E]">
+                  {keywordSummary?.totalKeywords ?? 0}
+                </span>
+                <span className="text-[9px] text-zinc-400 block mt-0.5">Registered</span>
+              </div>
+              <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-200/60 text-center">
+                <span className="text-[10px] text-blue-700 uppercase font-semibold block">GSC Observed</span>
+                <span className="text-lg font-serif font-bold text-blue-900">
+                  {keywordSummary?.gscObservedCount ?? 0}
+                </span>
+                <span className="text-[9px] text-blue-500 block mt-0.5">Real Telemetry</span>
+              </div>
+              <div className="p-3 bg-purple-50/50 rounded-xl border border-purple-200/60 text-center">
+                <span className="text-[10px] text-purple-700 uppercase font-semibold block">Catalog Derived</span>
+                <span className="text-lg font-serif font-bold text-purple-900">
+                  {keywordSummary?.catalogDerivedCount ?? 0}
+                </span>
+                <span className="text-[9px] text-purple-500 block mt-0.5">Product Factual</span>
+              </div>
+              <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-200/60 text-center">
+                <span className="text-[10px] text-amber-700 uppercase font-semibold block">Internal Graph</span>
+                <span className="text-lg font-serif font-bold text-amber-900">
+                  {keywordSummary?.internalGraphDerivedCount ?? 0}
+                </span>
+                <span className="text-[9px] text-amber-500 block mt-0.5">Taxonomy / Hubs</span>
+              </div>
+              <div className="p-3 bg-zinc-50 rounded-xl border border-zinc-200/80 text-center">
+                <span className="text-[10px] text-zinc-600 uppercase font-semibold block">Hypotheses</span>
+                <span className="text-lg font-serif font-bold text-zinc-800">
+                  {keywordSummary?.heuristicHypothesesCount ?? 0}
+                </span>
+                <span className="text-[9px] text-zinc-400 block mt-0.5">Needs Approval</span>
+              </div>
+              <div className="p-3 bg-red-50/50 rounded-xl border border-red-200/60 text-center">
+                <span className="text-[10px] text-red-700 uppercase font-semibold block">Cannibalization</span>
+                <span className="text-lg font-serif font-bold text-red-900">
+                  {keywordSummary?.cannibalizationRisksCount ?? 0}
+                </span>
+                <span className="text-[9px] text-red-500 block mt-0.5">Risks Detected</span>
+              </div>
+              <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-200/60 text-center">
+                <span className="text-[10px] text-emerald-700 uppercase font-semibold block">Striking Dist.</span>
+                <span className="text-lg font-serif font-bold text-emerald-900">
+                  {keywordSummary?.strikingDistanceCount ?? 0}
+                </span>
+                <span className="text-[9px] text-emerald-600 block mt-0.5">Pos 11–20</span>
+              </div>
+              <div className="p-3 bg-zinc-50 rounded-xl border border-zinc-200/80 text-center">
+                <span className="text-[10px] text-zinc-600 uppercase font-semibold block">Languages</span>
+                <div className="text-xs font-mono font-medium text-zinc-800 mt-1">
+                  <span>EN:{keywordSummary?.languagesCount?.en ?? 0} </span>
+                  <span className="text-emerald-700">HI:{keywordSummary?.languagesCount?.hi ?? 0} </span>
+                  <span className="text-blue-700">HG:{keywordSummary?.languagesCount?.hinglish ?? 0}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div className="flex flex-col md:flex-row gap-3 pt-2">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={kwSearchQuery}
+                  onChange={(e) => setKwSearchQuery(e.target.value)}
+                  placeholder="Search keywords, target URLs, or transliterations..."
+                  className="w-full pl-9 pr-3 py-2 text-xs bg-[#F5F1E8]/40 border border-[#0E2A1E]/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0E2A1E]/30 text-[#0E2A1E]"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs">
+                {/* Source Filter */}
+                <select
+                  value={kwSourceFilter}
+                  onChange={(e) => setKwSourceFilter(e.target.value)}
+                  aria-label="Filter by Source"
+                  className="px-2.5 py-1.5 bg-zinc-100 border border-zinc-200 rounded-xl text-zinc-700 font-medium focus:outline-none"
+                >
+                  <option value="ALL">All Sources</option>
+                  <option value="GSC_OBSERVED">GSC Observed</option>
+                  <option value="CATALOG_DERIVED">Catalog Derived</option>
+                  <option value="INTERNAL_GRAPH_DERIVED">Internal Graph</option>
+                  <option value="HEURISTIC_HYPOTHESIS">Hypothesis</option>
+                </select>
+
+                {/* Language Filter */}
+                <select
+                  value={kwLanguageFilter}
+                  onChange={(e) => setKwLanguageFilter(e.target.value)}
+                  aria-label="Filter by Language"
+                  className="px-2.5 py-1.5 bg-zinc-100 border border-zinc-200 rounded-xl text-zinc-700 font-medium focus:outline-none"
+                >
+                  <option value="ALL">All Languages</option>
+                  <option value="en">English</option>
+                  <option value="hi">Hindi (हिन्दी)</option>
+                  <option value="hinglish">Hinglish</option>
+                </select>
+
+                {/* Intent Filter */}
+                <select
+                  value={kwIntentFilter}
+                  onChange={(e) => setKwIntentFilter(e.target.value)}
+                  aria-label="Filter by Intent"
+                  className="px-2.5 py-1.5 bg-zinc-100 border border-zinc-200 rounded-xl text-zinc-700 font-medium focus:outline-none"
+                >
+                  <option value="ALL">All Intents</option>
+                  <option value="INFORMATIONAL">Informational</option>
+                  <option value="COMMERCIAL">Commercial</option>
+                  <option value="TRANSACTIONAL">Transactional</option>
+                  <option value="NAVIGATIONAL">Navigational</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Keyword Registry Table */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs text-zinc-500">
+                <span>Showing {keywordItems.length} keywords</span>
+                {isLoadingKeywords && <span className="text-[#C49A45] animate-pulse">Refreshing registry...</span>}
+              </div>
+
+              {keywordItems.length === 0 ? (
+                <div className="p-8 text-center bg-zinc-50 rounded-xl border border-dashed border-zinc-300">
+                  <p className="text-sm text-zinc-500">No keyword entries matching the current filter. Run a Keyword Sweep to generate and sync catalog entries.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-zinc-100 border border-zinc-200/80 rounded-xl overflow-hidden bg-white">
+                  {keywordItems.map((kw) => (
+                    <div key={kw.id} className="p-3.5 hover:bg-[#F5F1E8]/30 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                      <div className="space-y-1 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-sm text-[#0E2A1E] font-serif">{kw.keyword}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                            kw.language === 'hi'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : kw.language === 'hinglish'
+                              ? 'bg-sky-100 text-sky-800'
+                              : 'bg-zinc-100 text-zinc-700'
+                          }`}>
+                            {kw.language.toUpperCase()}
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                            kw.source === 'GSC_OBSERVED'
+                              ? 'bg-blue-100 text-blue-800'
+                              : kw.source === 'CATALOG_DERIVED'
+                              ? 'bg-purple-100 text-purple-800'
+                              : kw.source === 'INTERNAL_GRAPH_DERIVED'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-zinc-100 text-zinc-700'
+                          }`}>
+                            {kw.source.replace(/_/g, ' ')}
+                          </span>
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-zinc-100 text-zinc-700">
+                            {kw.intent}
+                          </span>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#EDE8D0]/60 text-[#0E2A1E]">
+                            {kw.cluster}
+                          </span>
+                          {kw.cannibalizationRisk && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-100 text-red-800 animate-pulse">
+                              Cannibalization Risk
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-3 text-zinc-500 font-mono text-[11px] truncate">
+                          <span className="truncate">Mapped URL: <span className="text-[#0E2A1E] font-medium">{kw.targetUrl}</span></span>
+                          {kw.productSlug && <span>• Product: {kw.productSlug}</span>}
+                          {kw.confidence && <span>• Confidence: {kw.confidence}</span>}
+                          <span>• Score: {kw.opportunityScore}/100</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4 text-right shrink-0">
+                        <div className="text-[11px] font-mono">
+                          {kw.source === 'GSC_OBSERVED' ? (
+                            <>
+                              <div className="text-[#0E2A1E] font-bold">{kw.gscImpressions} imp / {kw.gscClicks} clk</div>
+                              <div className="text-zinc-400">Pos: {kw.gscAveragePosition ? kw.gscAveragePosition.toFixed(1) : '-'}</div>
+                            </>
+                          ) : (
+                            <div className="text-zinc-400 italic">No GSC data yet</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
