@@ -161,3 +161,31 @@ export interface AgentSystemContext {
   recentLearnings: string[];
 }
 
+export interface DailySweepSummary {
+  timestamp: string;
+  schedule: {
+    cronUtc: string;
+    istExecutionTime: string;
+    timezone: string;
+  };
+  scannedWorkIdentified: number;
+  totalExecuted: number;
+  unfinishedTasksCount: number;
+  nextScheduledRunAt: string;
+  tasksExecuted: any[];
+  status: 'COMPLETED' | 'PARTIAL' | 'IDLE';
+}
+
+/**
+ * Calculates the exact ISO timestamp of the next daily 2:00 AM IST (20:30 UTC previous day) execution.
+ * IST is UTC+05:30. 2:00 AM IST corresponds to 20:30 UTC of the prior calendar day.
+ */
+export function getNextDaily2AmIstTimestamp(now: Date = new Date()): string {
+  const target = new Date(now.getTime());
+  target.setUTCHours(20, 30, 0, 0);
+  if (target.getTime() <= now.getTime()) {
+    target.setUTCDate(target.getUTCDate() + 1);
+  }
+  return target.toISOString();
+}
+

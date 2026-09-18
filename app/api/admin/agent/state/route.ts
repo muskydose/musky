@@ -6,6 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AgentStore } from '@/lib/agent/agent-store';
 import { MuskyDoseMasterAgent } from '@/lib/agent/master-agent';
+import { SeoIntelligenceStore } from '@/lib/agent/seo-intelligence/seo-store';
+import { SeoIntelligenceEngine } from '@/lib/agent/seo-intelligence/seo-intelligence-engine';
 import { sanitizeAdminError } from '@/lib/api-errors';
 
 export const dynamic = 'force-dynamic';
@@ -15,10 +17,15 @@ export async function GET(req: NextRequest) {
     const store = AgentStore.getInstance();
     await store.ensureLoaded();
 
+    const seoStore = SeoIntelligenceStore.getInstance();
+    await seoStore.ensureLoaded();
+
     const state = store.getState();
     const tasks = store.getAllTasks();
     const memory = store.getMemoryRecords();
     const audit = store.getAuditLogs(50);
+    const seoOpportunities = seoStore.getOpportunities();
+    const latestSeoReport = await seoStore.getLatestDailyReport();
 
     return NextResponse.json({
       success: true,
@@ -26,6 +33,8 @@ export async function GET(req: NextRequest) {
       tasks,
       memory,
       audit,
+      seoOpportunities,
+      latestSeoReport: latestSeoReport || null,
     });
   } catch (error: any) {
     return sanitizeAdminError(error, 'GET /api/admin/agent/state');
@@ -92,6 +101,21 @@ export async function POST(req: NextRequest) {
         await agent.stopCurrentTask();
         return NextResponse.json({
           success: true,
+          state: store.getState(),
+          tasks: store.getAllTasks(),
+        });
+      }
+
+      case 'scan_seo': {
+        const seoEngine = SeoIntelligenceEngine.getInstance();
+        const opps = await seoEngine.detectOpportunities();
+        const report = await seoEngine.generateDailySeoBrief();
+        const enqueuedTasks = await agent.scanAndEnqueueSeoWork();
+        return NextResponse.json({
+          success: true,
+          seoOpportunities: opps,
+          latestSeoReport: report,
+          enqueuedTasks,
           state: store.getState(),
           tasks: store.getAllTasks(),
         });

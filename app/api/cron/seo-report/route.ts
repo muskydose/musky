@@ -1,12 +1,13 @@
 // ============================================================================
-// MUSKY DOSE — AUTONOMOUS MASTER AGENT CRON ENDPOINT
-// Schedule: 30 20 * * * (Every 24 hours at 20:30 UTC / 2:00 AM IST via Vercel Cron)
+// MUSKY DOSE — SEO INTELLIGENCE DAILY BRIEF CRON ENDPOINT
+// Schedule: 30 2 * * * (Every day at 8:00 AM IST / 02:30 UTC via Vercel Cron)
 // Mandatory: Authorization: Bearer <CRON_SECRET>
+// Purpose: Daily SEO Brief & Intelligence Reporting (Does NOT re-run maintenance sweep)
 // ============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { MuskyDoseMasterAgent } from '@/lib/agent/master-agent';
+import { SeoIntelligenceEngine } from '@/lib/agent/seo-intelligence/seo-intelligence-engine';
 import { sanitizeAdminError } from '@/lib/api-errors';
 
 export const dynamic = 'force-dynamic';
@@ -45,29 +46,29 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const agent = MuskyDoseMasterAgent.getInstance();
-    // Daily Autonomous Maintenance Sweep:
-    // 1. Scans full website across all pillars
-    // 2. Identifies all safe work & prioritizes
-    // 3. Executes dependency-ordered tasks within execution limits
-    // 4. Validates each task & enforces safety gates
-    // 5. Verifies production integrity
-    // 6. Persists unfinished tasks for resumption on the next run
-    // 7. Saves verified lessons to durable memory
-    // 8. Returns to autonomous maintenance after owner-requested objectives
-    const sweep = await agent.runDailyAutonomousSweep({
-      timeLimitMs: 45000,
-      maxBatch: 12,
-    });
+    // 8:00 AM IST SEO Intelligence Brief:
+    // 1. Ingests GSC 7-day vs previous 7-day query/page snapshots
+    // 2. Evaluates deterministic opportunities (CTR, Ranking, Declines, Gaps, Links)
+    // 3. Summarizes overnight Master Agent autonomous work
+    // 4. Distinguishes Observed Data vs Recommendations vs Automatic Safe Actions vs Approval Required
+    const engine = SeoIntelligenceEngine.getInstance();
+    const brief = await engine.generateDailySeoBrief();
 
     return NextResponse.json({
       success: true,
-      timestamp: new Date().toISOString(),
-      schedule: sweep.schedule,
-      summary: sweep,
+      schedule: {
+        cronUtc: '30 2 * * *',
+        istExecutionTime: '08:00 AM IST daily',
+        timezone: 'Asia/Kolkata (UTC+05:30)',
+      },
+      report: brief,
     });
   } catch (error: any) {
-    return sanitizeAdminError(error, 'GET /api/cron/master-agent');
+    return sanitizeAdminError(error, 'GET /api/cron/seo-report');
   }
+}
+
+export async function POST(req: NextRequest) {
+  return GET(req);
 }
 

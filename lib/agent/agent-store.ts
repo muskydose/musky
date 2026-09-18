@@ -12,6 +12,7 @@ import {
   AgentTaskStatus,
   AgentHealthScores,
   AgentExecutionStats,
+  getNextDaily2AmIstTimestamp,
 } from './types';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
@@ -33,7 +34,7 @@ export class AgentStore {
     nextTaskId: null,
     lastRunAt: null,
     currentRunStartedAt: null,
-    nextScheduledRunAt: null,
+    nextScheduledRunAt: getNextDaily2AmIstTimestamp(),
     concurrencyLockUntil: null,
     healthScores: {
       seo: 92,

@@ -12,6 +12,10 @@ export const metadata = {
   alternates: {
     canonical: 'https://muskydose.in/cart',
   },
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default async function CartPage() {
