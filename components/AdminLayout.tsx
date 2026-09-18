@@ -31,6 +31,7 @@ import {
   Globe,
   TrendingUp,
   Zap,
+  Bot,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -75,6 +76,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
 
   const menuItems = [
     { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
+    { name: 'Master Agent', href: '/admin/agent', icon: Bot },
     { name: 'Products', href: '/admin/products', icon: Package },
     { name: 'Categories', href: '/admin/categories', icon: FolderTree },
     { name: 'Offers & Festival', href: '/admin/offers', icon: Tag },
