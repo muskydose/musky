@@ -138,6 +138,64 @@ export const mediaVisualWorker: WorkerHandler = async (task) => {
   const entityId = (task.payload?.entityId as string) || '';
   const strategy = task.payload?.strategy as any;
 
+  // Queue-maintenance tasks intentionally omit a concrete entity.
+  // In that case, consume one durable production media job through the same universal engine.
+  if (!entityId) {
+    const { processPendingMediaJobs } = await import('@/lib/growth/media-queue-consumer');
+    const summary = await processPendingMediaJobs({
+      limit: 1,
+      workerId: 'master-agent-media-queue',
+    });
+    const item = summary.details[0];
+
+    if (!item) {
+      return {
+        status: 'COMPLETED',
+        narrative: {
+          whyThisTask: 'Process one pending production media job through the Universal Media Execution Engine.',
+          whatDetected: 'No pending or waiting-provider media job was available.',
+          whatChanged: 'No media asset was created or modified.',
+          whatVerified: 'Durable queue inspected safely with zero fake completion.',
+          whatLearned: 'Media maintenance exits cleanly when the durable queue has no runnable work.',
+        },
+        result: {
+          workerState: 'QUEUE_EMPTY',
+          processed: 0,
+        },
+        filesAffected: ['lib/growth/media-queue-consumer.ts'],
+        dataAffected: { processed: 0 },
+      };
+    }
+
+    return {
+      status: item.afterStatus === 'FAILED' ? 'FAILED' : 'COMPLETED',
+      narrative: {
+        whyThisTask: `Process durable media job [${item.jobId}] through the Universal Media Execution Engine.`,
+        whatDetected: `${item.entityType} ${item.entityId} / ${item.slotKey}: ${item.beforeStatus} → ${item.afterStatus}.`,
+        whatChanged: item.resultAssetId
+          ? `Registered real media asset ${item.resultAssetId}.`
+          : 'Queue state advanced without fabricating an asset.',
+        whatVerified: item.resultAssetId
+          ? 'Universal engine returned a real resultAssetId.'
+          : 'No fake asset was claimed.',
+        whatLearned: 'Master Agent and manual media jobs share one durable execution path.',
+      },
+      result: {
+        workerState: item.afterStatus,
+        jobId: item.jobId,
+        resultAssetId: item.resultAssetId,
+        errorMessage: item.errorMessage,
+      },
+      filesAffected: ['lib/growth/media-queue-consumer.ts', 'lib/growth/media-execution-engine.ts'],
+      dataAffected: {
+        jobId: item.jobId,
+        beforeStatus: item.beforeStatus,
+        afterStatus: item.afterStatus,
+      },
+      errorMessage: item.errorMessage,
+    };
+  }
+
   const execResult = await executeUniversalMediaJob({
     entityType,
     entityId,
