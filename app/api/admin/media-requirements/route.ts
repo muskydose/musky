@@ -1,13 +1,16 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, getSupabase } from '@/lib/supabase';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
 import { buildEntityRequirements, EntityMediaHealth, SiteMediaRequirementsSummary } from '@/lib/growth/media-requirements-engine';
 import { getAllKnowledgeEntitiesAdmin } from '@/lib/db/knowledge';
 import { MediaAsset, mapRowToMediaAsset } from '@/lib/db/media';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) return authCheck.errorResponse!;
     const supabase = getSupabaseAdmin() || getSupabase();
     if (!supabase) {
       return NextResponse.json({ error: 'Database unavailable' }, { status: 500 });

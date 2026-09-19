@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
+import { sanitizeAdminError } from '@/lib/api-errors';
 import { performZeroDowntimeReplacement } from '@/lib/growth/media-replacement-engine';
 import { MediaEntityType, MediaAssetRole } from '@/lib/db/media';
+import { recordAuditLog } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) return authCheck.errorResponse!;
+
     const body = await req.json();
     const { entityType, entityId, role, assetId, consumingRoute, reason } = body;
 
@@ -26,10 +32,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: result.error }, { status: 400 });
     }
 
+    await recordAuditLog({
+      action: 'MEDIA_SLOT_ASSIGN',
+      resource: assetId,
+      details: {
+        entityType,
+        entityId,
+        role,
+        consumingRoute: consumingRoute || `/products/${entityId}`,
+        reason: reason || 'admin_assigned_slot',
+        previousAssetId: result.previousAssetId || null,
+      },
+    }).catch(() => null);
+
     return NextResponse.json({ success: true, result });
   } catch (error: any) {
-    console.error('Failed to assign media slot:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+    return sanitizeAdminError(error, 'Failed to assign media slot.');
   }
 }
 

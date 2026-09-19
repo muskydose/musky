@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, getSupabase } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import { validateUploadBuffer } from '@/lib/media/upload-validator';
 import { MediaEntityType, MediaAssetRole, resetMediaCache, saveMediaAsset } from '@/lib/db/media';
 import { performZeroDowntimeReplacement } from '@/lib/growth/media-replacement-engine';
 import { generateMediaDerivative } from '@/lib/media/derived-media-engine';
 import { reconcileCanonicalSlot } from '@/lib/growth/media-specs';
+import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
+import { recordAuditLog } from '@/lib/auth';
+import { sanitizeAdminError } from '@/lib/api-errors';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
+    const authCheck = requireAdminAuthAndCsrf(req);
+    if (!authCheck.authenticated) return authCheck.errorResponse!;
+
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const entityType = ((formData.get('entityType') as string) || 'PRODUCT').toUpperCase() as MediaEntityType;
@@ -42,7 +48,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supabase = getSupabaseAdmin() || getSupabase();
+    const supabase = getSupabaseAdmin();
     if (!supabase) {
       return NextResponse.json({ error: 'Database unavailable' }, { status: 500 });
     }
@@ -161,6 +167,20 @@ export async function POST(req: NextRequest) {
 
     resetMediaCache();
 
+    await recordAuditLog({
+      action: 'MEDIA_REQUIREMENT_UPLOAD',
+      resource: savedAsset.id,
+      details: {
+        entityType,
+        entityId,
+        slotKey: spec.slotKey,
+        role,
+        autoApprove,
+        isRealOwnerPhoto,
+        derivatives,
+      },
+    }).catch(() => null);
+
     return NextResponse.json({
       success: true,
       asset: savedAsset,
@@ -169,6 +189,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error('Failed to upload manual media:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+    return sanitizeAdminError(error, 'Failed to upload manual media.');
   }
 }
