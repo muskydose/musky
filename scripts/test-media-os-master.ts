@@ -62,6 +62,8 @@ import {
   findAssetByHash,
   computeFileHash,
   resetMediaCache,
+  mapMediaAssetToRow,
+  mapRowToMediaAsset,
 } from '../lib/db/media';
 import {
   reconcileCanonicalSlot,
@@ -670,6 +672,154 @@ async function runMasterMediaOSTests() {
     assert.strictEqual(primary.status, 'approved');
     assert.strictEqual(primary.isLocked, true);
     assert(primary.url.includes('.supabase.co/storage/v1/object/public/product-images/manual/product/prod-1786368977551-primary-'));
+  });
+
+  // --------------------------------------------------------------------------
+  // TEST 24: Canonical Media Metadata Column Persistence & Fallback
+  // --------------------------------------------------------------------------
+  console.log('\n--- TEST 24: Canonical Media Metadata Column Persistence & Fallback ---');
+  await test('mapMediaAssetToRow writes canonical metadata to top-level columns and mirrors in visual_context', () => {
+    const asset: MediaAsset = {
+      id: 'test-asset-meta-1',
+      url: 'https://example.com/test.webp',
+      mimeType: 'image/webp',
+      storageBucket: 'product-images',
+      aspectRatio: '1:1',
+      role: 'PRIMARY',
+      sortOrder: 0,
+      entityType: 'PRODUCT',
+      entityId: 'prod-meta-1',
+      source: 'MANUAL_UPLOAD',
+      status: 'approved',
+      isLocked: true,
+      assetOrigin: 'real_owner_photo',
+      slotKey: 'slot_primary_hero',
+      parentAssetId: 'parent-123',
+      derivativeType: 'THUMB_512',
+      healthStatus: 'UNHEALTHY',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const row = mapMediaAssetToRow(asset);
+
+    // Top-level canonical DB columns
+    assert.strictEqual(row.asset_origin, 'real_owner_photo');
+    assert.strictEqual(row.slot_key, 'slot_primary_hero');
+    assert.strictEqual(row.parent_asset_id, 'parent-123');
+    assert.strictEqual(row.derivative_type, 'THUMB_512');
+    assert.strictEqual(row.health_status, 'UNHEALTHY');
+
+    // Mirrored in visual_context for backward compatibility
+    assert.strictEqual(row.visual_context?.asset_origin, 'real_owner_photo');
+    assert.strictEqual(row.visual_context?.slot_key, 'slot_primary_hero');
+    assert.strictEqual(row.visual_context?.parent_asset_id, 'parent-123');
+    assert.strictEqual(row.visual_context?.derivative_type, 'THUMB_512');
+    assert.strictEqual(row.visual_context?.health_status, 'UNHEALTHY');
+  });
+
+  await test('mapRowToMediaAsset performs round-trip mapping across all canonical fields', () => {
+    const asset: MediaAsset = {
+      id: 'test-asset-meta-roundtrip',
+      url: 'https://example.com/test-rt.webp',
+      mimeType: 'image/webp',
+      storageBucket: 'product-images',
+      aspectRatio: '1:1',
+      role: 'PRIMARY',
+      sortOrder: 1,
+      entityType: 'PRODUCT',
+      entityId: 'prod-meta-rt',
+      source: 'AI_GENERATED',
+      status: 'approved',
+      isLocked: false,
+      assetOrigin: 'programmatic_template',
+      slotKey: 'slot_macro_texture',
+      parentAssetId: 'parent-hero-001',
+      derivativeType: 'SOCIAL_OG',
+      healthStatus: 'UNHEALTHY',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const row = mapMediaAssetToRow(asset);
+    const roundTripped = mapRowToMediaAsset(row);
+
+    assert.strictEqual(roundTripped.assetOrigin, 'programmatic_template');
+    assert.strictEqual(roundTripped.slotKey, 'slot_macro_texture');
+    assert.strictEqual(roundTripped.parentAssetId, 'parent-hero-001');
+    assert.strictEqual(roundTripped.derivativeType, 'SOCIAL_OG');
+    assert.strictEqual(roundTripped.healthStatus, 'UNHEALTHY');
+  });
+
+  await test('mapRowToMediaAsset strictly honors visual_context UNHEALTHY when top-level health_status is null/undefined', () => {
+    // Simulates legacy rows in Supabase before migration-012 backfill:
+    // top-level health_status is NULL, but visual_context has UNHEALTHY
+    const legacyRow = {
+      id: 'legacy-asset-001',
+      file_url: 'https://example.com/legacy.webp',
+      file_type: 'image/webp',
+      entity_type: 'PRODUCT',
+      entity_id: 'prod-legacy-1',
+      health_status: null, // explicit null
+      visual_context: {
+        health_status: 'UNHEALTHY',
+        asset_origin: 'derived_from_real',
+        slot_key: 'slot_application_routine',
+      },
+    };
+
+    const mapped = mapRowToMediaAsset(legacyRow);
+    assert.strictEqual(
+      mapped.healthStatus,
+      'UNHEALTHY',
+      'JSON health_status UNHEALTHY must NOT be overridden by a default HEALTHY when top-level is null'
+    );
+    assert.strictEqual(mapped.assetOrigin, 'derived_from_real');
+    assert.strictEqual(mapped.slotKey, 'slot_application_routine');
+
+    // Also verify when top-level health_status is undefined
+    const legacyRowUndefined = {
+      id: 'legacy-asset-002',
+      file_url: 'https://example.com/legacy.webp',
+      file_type: 'image/webp',
+      entity_type: 'PRODUCT',
+      entity_id: 'prod-legacy-2',
+      visual_context: {
+        health_status: 'UNHEALTHY',
+      },
+    };
+    const mappedUndefined = mapRowToMediaAsset(legacyRowUndefined);
+    assert.strictEqual(mappedUndefined.healthStatus, 'UNHEALTHY');
+  });
+
+  await test('mapRowToMediaAsset prioritizes top-level canonical columns over visual_context', () => {
+    const updatedRow = {
+      id: 'updated-asset-001',
+      file_url: 'https://example.com/updated.webp',
+      file_type: 'image/webp',
+      entity_type: 'PRODUCT',
+      entity_id: 'prod-updated-1',
+      health_status: 'HEALTHY',
+      asset_origin: 'manual_approved',
+      slot_key: 'slot_primary_hero',
+      parent_asset_id: 'parent-canonical-999',
+      derivative_type: 'THUMB_512',
+      visual_context: {
+        // Stale JSON data
+        health_status: 'UNHEALTHY',
+        asset_origin: 'ai_generated',
+        slot_key: 'old_slot',
+        parent_asset_id: 'old-parent',
+        derivative_type: 'OLD_DERIVATIVE',
+      },
+    };
+
+    const mapped = mapRowToMediaAsset(updatedRow);
+    assert.strictEqual(mapped.healthStatus, 'HEALTHY', 'Top-level HEALTHY must override stale visual_context UNHEALTHY');
+    assert.strictEqual(mapped.assetOrigin, 'manual_approved', 'Top-level asset_origin must override visual_context');
+    assert.strictEqual(mapped.slotKey, 'slot_primary_hero', 'Top-level slot_key must override visual_context');
+    assert.strictEqual(mapped.parentAssetId, 'parent-canonical-999', 'Top-level parent_asset_id must override visual_context');
+    assert.strictEqual(mapped.derivativeType, 'THUMB_512', 'Top-level derivative_type must override visual_context');
   });
 
   // --------------------------------------------------------------------------

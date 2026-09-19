@@ -182,40 +182,37 @@ export function mapRowToMediaAsset(row: any): MediaAsset {
     ? (Boolean(row.is_locked ?? row.isLocked) ? 'real_owner_photo' : 'manual_approved')
     : (row.status === 'archived' ? 'legacy_archived' : 'ai_generated');
 
+  // Top-level canonical columns are authoritative.
+  // Fallback to visual_context ONLY when a top-level value is NULL or undefined.
+  const rowOrigin = row.asset_origin !== undefined && row.asset_origin !== null ? row.asset_origin : row.assetOrigin;
   const assetOrigin: MediaAssetOrigin =
-    row.asset_origin ||
-    row.assetOrigin ||
-    visualContext.assetOrigin ||
-    visualContext.asset_origin ||
-    defaultOrigin;
+    (rowOrigin !== undefined && rowOrigin !== null && rowOrigin !== '')
+      ? rowOrigin
+      : (visualContext.asset_origin || visualContext.assetOrigin || defaultOrigin);
 
+  const rowSlot = row.slot_key !== undefined && row.slot_key !== null ? row.slot_key : row.slotKey;
   const slotKey: string | undefined =
-    row.slot_key ||
-    row.slotKey ||
-    visualContext.slotKey ||
-    visualContext.slot_key ||
-    undefined;
+    (rowSlot !== undefined && rowSlot !== null && rowSlot !== '')
+      ? rowSlot
+      : (visualContext.slot_key || visualContext.slotKey || undefined);
 
+  const rowParent = row.parent_asset_id !== undefined && row.parent_asset_id !== null ? row.parent_asset_id : row.parentAssetId;
   const parentAssetId: string | undefined =
-    row.parent_asset_id ||
-    row.parentAssetId ||
-    visualContext.parentAssetId ||
-    visualContext.parent_asset_id ||
-    undefined;
+    (rowParent !== undefined && rowParent !== null && rowParent !== '')
+      ? rowParent
+      : (visualContext.parent_asset_id || visualContext.parentAssetId || undefined);
 
+  const rowDerivative = row.derivative_type !== undefined && row.derivative_type !== null ? row.derivative_type : row.derivativeType;
   const derivativeType: string | undefined =
-    row.derivative_type ||
-    row.derivativeType ||
-    visualContext.derivativeType ||
-    visualContext.derivative_type ||
-    undefined;
+    (rowDerivative !== undefined && rowDerivative !== null && rowDerivative !== '')
+      ? rowDerivative
+      : (visualContext.derivative_type || visualContext.derivativeType || undefined);
 
+  const rowHealth = row.health_status !== undefined && row.health_status !== null ? row.health_status : row.healthStatus;
   const healthStatus: MediaHealthStatus =
-    row.health_status ||
-    row.healthStatus ||
-    visualContext.healthStatus ||
-    visualContext.health_status ||
-    'HEALTHY';
+    (rowHealth !== undefined && rowHealth !== null && rowHealth !== '')
+      ? rowHealth
+      : (visualContext.health_status || visualContext.healthStatus || 'HEALTHY');
 
   return {
     id: String(row.id || `med-${Date.now()}`),
@@ -259,10 +256,12 @@ export function mapMediaAssetToRow(asset: MediaAsset): any {
     ...(asset.licenseInfo ? { licenseInfo: asset.licenseInfo } : {}),
     ...(asset.motionLayer ? { motionLayer: asset.motionLayer } : {}),
     asset_origin: asset.assetOrigin || 'manual_approved',
-    ...(asset.slotKey ? { slot_key: asset.slotKey } : {}),
-    ...(asset.parentAssetId ? { parent_asset_id: asset.parentAssetId } : {}),
-    ...(asset.derivativeType ? { derivative_type: asset.derivativeType } : {}),
+    assetOrigin: asset.assetOrigin || 'manual_approved',
+    ...(asset.slotKey ? { slot_key: asset.slotKey, slotKey: asset.slotKey } : {}),
+    ...(asset.parentAssetId ? { parent_asset_id: asset.parentAssetId, parentAssetId: asset.parentAssetId } : {}),
+    ...(asset.derivativeType ? { derivative_type: asset.derivativeType, derivativeType: asset.derivativeType } : {}),
     health_status: asset.healthStatus || 'HEALTHY',
+    healthStatus: asset.healthStatus || 'HEALTHY',
   };
 
   return {
@@ -283,6 +282,11 @@ export function mapMediaAssetToRow(asset: MediaAsset): any {
     source: asset.source || 'MANUAL_UPLOAD',
     status: asset.status || 'approved',
     is_locked: asset.isLocked ?? false,
+    asset_origin: asset.assetOrigin || 'manual_approved',
+    slot_key: asset.slotKey || null,
+    parent_asset_id: asset.parentAssetId || null,
+    derivative_type: asset.derivativeType || null,
+    health_status: asset.healthStatus || 'HEALTHY',
     title: asset.title || null,
     alt_text: asset.altText || null,
     caption: asset.caption || null,
