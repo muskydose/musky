@@ -1,7 +1,7 @@
 import React from 'react';
 import { getAllMediaAssetsRaw } from '@/lib/db/media';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { getPendingMediaJobs } from '@/lib/growth/media-jobs-engine';
+import { getPendingMediaJobs, MediaJobRecord } from '@/lib/growth/media-jobs-engine';
 import { processPendingMediaJobs } from '@/lib/growth/media-queue-consumer';
 import MediaLibraryClient from './MediaLibraryClient';
 
@@ -21,6 +21,12 @@ export default async function AdminMediaPage() {
     getAllMediaAssetsRaw(),
     getPendingMediaJobs(500, { filterEligible: false }),
   ]);
+
+  const importableJobs: MediaJobRecord[] = pending.filter(
+    (j) =>
+      (j.status === 'PENDING' || j.status === 'WAITING_PROVIDER') &&
+      (j.strategy === 'AI' || j.strategy === 'TEMPORARY')
+  );
 
   const queueSummary = {
     pending: pending.filter((j) => j.status === 'PENDING').length,
@@ -45,5 +51,11 @@ export default async function AdminMediaPage() {
     }
   }
 
-  return <MediaLibraryClient initialAssets={assets} queueSummary={queueSummary} />;
+  return (
+    <MediaLibraryClient
+      initialAssets={assets}
+      queueSummary={queueSummary}
+      pendingJobs={importableJobs}
+    />
+  );
 }
