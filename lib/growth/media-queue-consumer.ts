@@ -1,4 +1,5 @@
 import { getPendingMediaJobs, completeMediaJob } from '@/lib/growth/media-jobs-engine';
+import { archiveDiagnosticMediaAssets } from '@/lib/db/media';
 import { executeUniversalMediaJob } from '@/lib/growth/media-execution-engine';
 
 export interface MediaQueueConsumerOptions {
@@ -8,6 +9,7 @@ export interface MediaQueueConsumerOptions {
 
 export interface MediaQueueConsumerResult {
   scanned: number;
+  diagnosticsArchived: number;
   attempted: number;
   completed: number;
   waitingProvider: number;
@@ -38,10 +40,12 @@ export async function processPendingMediaJobs(
     options.workerId ||
     `media-queue-consumer-${process.env.VERCEL_REGION || 'server'}`;
 
+  const diagnostics = await archiveDiagnosticMediaAssets();
   const jobs = await getPendingMediaJobs(limit, { filterEligible: true });
 
   const summary: MediaQueueConsumerResult = {
     scanned: jobs.length,
+    diagnosticsArchived: diagnostics.archived,
     attempted: 0,
     completed: 0,
     waitingProvider: 0,
