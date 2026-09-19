@@ -1,7 +1,8 @@
 import React from 'react';
 import { getAllMediaAssetsRaw } from '@/lib/db/media';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { getPendingMediaJobs, MediaJobRecord } from '@/lib/growth/media-jobs-engine';
+import { getPendingMediaJobs } from '@/lib/growth/media-jobs-engine';
+import type { MediaJobRecord } from '@/lib/growth/media-jobs-engine';
 import { processPendingMediaJobs } from '@/lib/growth/media-queue-consumer';
 import MediaLibraryClient from './MediaLibraryClient';
 
