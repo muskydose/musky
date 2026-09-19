@@ -43,6 +43,17 @@ export type MediaAssetSource =
 
 export type MediaAssetStatus = 'suggested' | 'approved' | 'rejected' | 'archived';
 
+export type MediaAssetOrigin =
+  | 'real_owner_photo'
+  | 'temporary_visual'
+  | 'ai_generated'
+  | 'derived_from_real'
+  | 'programmatic_template'
+  | 'manual_approved'
+  | 'legacy_archived';
+
+export type MediaHealthStatus = 'HEALTHY' | 'UNHEALTHY' | 'NEEDS_REVIEW';
+
 export interface MediaLicenseInfo {
   source: string;
   sourceUrl: string;
@@ -86,6 +97,11 @@ export interface MediaAsset {
   source: MediaAssetSource;
   status: MediaAssetStatus;
   isLocked: boolean;
+  assetOrigin?: MediaAssetOrigin;
+  slotKey?: string;
+  parentAssetId?: string;
+  derivativeType?: string;
+  healthStatus?: MediaHealthStatus;
   title?: string;
   altText?: string;
   caption?: string;
@@ -116,6 +132,11 @@ export interface SaveMediaAssetInput {
   source?: MediaAssetSource;
   status?: MediaAssetStatus;
   isLocked?: boolean;
+  assetOrigin?: MediaAssetOrigin;
+  slotKey?: string;
+  parentAssetId?: string;
+  derivativeType?: string;
+  healthStatus?: MediaHealthStatus;
   title?: string;
   altText?: string;
   caption?: string;
@@ -124,6 +145,7 @@ export interface SaveMediaAssetInput {
   visualContext?: Record<string, any>;
   aiMetadata?: Record<string, any>;
   sortOrder?: number;
+  existingAssets?: MediaAsset[];
 }
 
 export interface MediaResolutionResult {
@@ -156,6 +178,45 @@ export function mapRowToMediaAsset(row: any): MediaAsset {
   const licenseInfo = row.license_info || row.licenseInfo || visualContext.licenseInfo || undefined;
   const motionLayer = row.motion_layer || row.motionLayer || visualContext.motionLayer || undefined;
 
+  const defaultOrigin: MediaAssetOrigin = row.source === 'MANUAL_UPLOAD'
+    ? (Boolean(row.is_locked ?? row.isLocked) ? 'real_owner_photo' : 'manual_approved')
+    : (row.status === 'archived' ? 'legacy_archived' : 'ai_generated');
+
+  const assetOrigin: MediaAssetOrigin =
+    row.asset_origin ||
+    row.assetOrigin ||
+    visualContext.assetOrigin ||
+    visualContext.asset_origin ||
+    defaultOrigin;
+
+  const slotKey: string | undefined =
+    row.slot_key ||
+    row.slotKey ||
+    visualContext.slotKey ||
+    visualContext.slot_key ||
+    undefined;
+
+  const parentAssetId: string | undefined =
+    row.parent_asset_id ||
+    row.parentAssetId ||
+    visualContext.parentAssetId ||
+    visualContext.parent_asset_id ||
+    undefined;
+
+  const derivativeType: string | undefined =
+    row.derivative_type ||
+    row.derivativeType ||
+    visualContext.derivativeType ||
+    visualContext.derivative_type ||
+    undefined;
+
+  const healthStatus: MediaHealthStatus =
+    row.health_status ||
+    row.healthStatus ||
+    visualContext.healthStatus ||
+    visualContext.health_status ||
+    'HEALTHY';
+
   return {
     id: String(row.id || `med-${Date.now()}`),
     entityType: (row.entity_type || row.entityType || 'PRODUCT') as MediaEntityType,
@@ -174,6 +235,11 @@ export function mapRowToMediaAsset(row: any): MediaAsset {
     source: (row.source || 'MANUAL_UPLOAD') as MediaAssetSource,
     status: (row.status || 'approved') as MediaAssetStatus,
     isLocked: Boolean(row.is_locked ?? row.isLocked ?? false),
+    assetOrigin,
+    slotKey,
+    parentAssetId,
+    derivativeType,
+    healthStatus,
     title: row.title || undefined,
     altText: row.alt_text || row.altText || undefined,
     caption: row.caption || undefined,
@@ -192,6 +258,11 @@ export function mapMediaAssetToRow(asset: MediaAsset): any {
     ...(asset.visualContext || {}),
     ...(asset.licenseInfo ? { licenseInfo: asset.licenseInfo } : {}),
     ...(asset.motionLayer ? { motionLayer: asset.motionLayer } : {}),
+    asset_origin: asset.assetOrigin || 'manual_approved',
+    ...(asset.slotKey ? { slot_key: asset.slotKey } : {}),
+    ...(asset.parentAssetId ? { parent_asset_id: asset.parentAssetId } : {}),
+    ...(asset.derivativeType ? { derivative_type: asset.derivativeType } : {}),
+    health_status: asset.healthStatus || 'HEALTHY',
   };
 
   return {
@@ -222,6 +293,7 @@ export function mapMediaAssetToRow(asset: MediaAsset): any {
     updated_at: asset.updatedAt || new Date().toISOString(),
   };
 }
+
 
 // ============================================================================
 // 4. IN-MEMORY FALLBACK STORE & CACHE
@@ -472,28 +544,56 @@ export async function getAllMediaAssetsRaw(): Promise<{
 // ============================================================================
 
 /**
- * Priority Scoring Matrix:
- * Rank 1: REAL MANUAL APPROVED LOCKED (score ~ 7000+)
- * Rank 2: REAL MANUAL APPROVED (score ~ 3000 for PRIMARY, 1000 for others)
- * Rank 3: APPROVED ORIGINAL AI (score ~ 2600 for PRIMARY, 600 for others)
- * Rank 4: APPROVED VERIFIED FREE LICENSED (score ~ 2400 for PRIMARY, 400 for others)
- * Rank 5: APPROVED EXTERNAL IMPORT (score ~ 2200 for PRIMARY, 200 for others)
- * Rank 6: SYSTEM FALLBACK (score ~ 50)
+ * Checks whether an asset is a protected real owner photo or locked manual asset.
+ * When true, autonomous AI workflows MUST NOT replace, overwrite, archive, or regenerate it.
  */
-function computeAssetPriorityScore(asset: MediaAsset): number {
+export function isRealOwnerPhotoProtected(asset: MediaAsset | undefined | null): boolean {
+  if (!asset) return false;
+  if (asset.assetOrigin === 'real_owner_photo') return true;
+  if (asset.source === 'MANUAL_UPLOAD' && (asset.isLocked || asset.role === 'PRIMARY')) return true;
+  return Boolean(asset.isLocked);
+}
+
+/**
+ * Priority Scoring Matrix:
+ * Rank 1: REAL_OWNER_PHOTO (score ~ 10000+)
+ * Rank 2: APPROVED_MANUAL_ASSET (score ~ 7000+)
+ * Rank 3: DERIVED_FROM_REAL (score ~ 5000+)
+ * Rank 4: PROGRAMMATIC_TEMPLATE (score ~ 3500+)
+ * Rank 5: TEMPORARY_VISUAL (score ~ 2000+)
+ * Rank 6: AI_GENERATED (score ~ 1500)
+ * Rank 7: SYSTEM_FALLBACK (score ~ 50)
+ */
+export function computeAssetPriorityScore(asset: MediaAsset): number {
   if (asset.status !== 'approved') return -1; // Ineligible
+  if (asset.assetOrigin === 'legacy_archived') return -1;
 
   let score = 0;
+
+  // Origin weight (Highest Rank)
+  if (asset.assetOrigin === 'real_owner_photo') {
+    score += 10000;
+  } else if (asset.assetOrigin === 'manual_approved') {
+    score += 7000;
+  } else if (asset.assetOrigin === 'derived_from_real') {
+    score += 5000;
+  } else if (asset.assetOrigin === 'programmatic_template') {
+    score += 3500;
+  } else if (asset.assetOrigin === 'temporary_visual') {
+    score += 2000;
+  } else if (asset.assetOrigin === 'ai_generated') {
+    score += 1500;
+  }
 
   // Source weight
   if (asset.source === 'MANUAL_UPLOAD') {
     score += 1000;
-  } else if (asset.source === 'AI_GENERATED') {
-    score += 600;
   } else if (asset.source === 'VERIFIED_FREE_LICENSE') {
     score += 400;
-  } else if (asset.source === 'EXTERNAL_IMPORT') {
+  } else if (asset.source === 'AI_GENERATED') {
     score += 200;
+  } else if (asset.source === 'EXTERNAL_IMPORT') {
+    score += 100;
   } else {
     score += 50; // SYSTEM_FALLBACK
   }
@@ -504,7 +604,7 @@ function computeAssetPriorityScore(asset: MediaAsset): number {
   }
 
   // Locked override weight (Human manual lock)
-  if (asset.isLocked && asset.role === 'PRIMARY') {
+  if (asset.isLocked) {
     score += 4000;
   }
 
@@ -991,6 +1091,13 @@ export async function saveMediaAsset(input: SaveMediaAssetInput): Promise<{
   let role = input.role || 'GALLERY';
   let deduplicated = false;
 
+  // Derive assetOrigin
+  const assetOrigin: MediaAssetOrigin = input.assetOrigin || (
+    input.source === 'MANUAL_UPLOAD'
+      ? (input.isLocked || role === 'PRIMARY' ? 'real_owner_photo' : 'manual_approved')
+      : (input.source === 'AI_GENERATED' ? 'ai_generated' : 'manual_approved')
+  );
+
   // 1. Deduplication check via SHA-256 hash
   let finalUrl = input.url;
   let finalStoragePath = input.storagePath;
@@ -1003,22 +1110,27 @@ export async function saveMediaAsset(input: SaveMediaAssetInput): Promise<{
     }
   }
 
-  // 2. Anti-Hallucination Locking Guard:
-  // If an asset claims role='PRIMARY' via AI_GENERATED, check if current primary is locked
-  if (role === 'PRIMARY' && input.source === 'AI_GENERATED') {
-    const existingAssets = await getMediaForEntity({
+  // 2. Real Owner Photo Protection Guard:
+  // Autonomous AI / temporary visuals MUST NOT replace or demote a protected real owner photo
+  if (role === 'PRIMARY' && (input.source === 'AI_GENERATED' || assetOrigin === 'ai_generated' || assetOrigin === 'temporary_visual')) {
+    const existingAssets = input.existingAssets || await getMediaForEntity({
       entityType: input.entityType,
       entityId: input.entityId,
       includeDrafts: true,
     });
-    const lockedPrimary = existingAssets.find((a) => a.role === 'PRIMARY' && a.isLocked);
-    if (lockedPrimary) {
-      // Demote AI visual to GALLERY — Human locked primary is immutable to AI
+    const protectedPrimary = existingAssets.find((a) => 
+      (a.role === 'PRIMARY' || a.slotKey === 'PRODUCT_PRIMARY') && 
+      isRealOwnerPhotoProtected(a) && 
+      a.status === 'approved'
+    );
+    if (protectedPrimary) {
+      // Demote incoming AI visual to GALLERY — Human/Owner photo is immutable
       role = 'GALLERY';
     }
   }
 
   const assetId = input.id || `med-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  const isLocked = input.isLocked ?? (assetOrigin === 'real_owner_photo' || (role === 'PRIMARY' && input.source === 'MANUAL_UPLOAD'));
 
   const fullAsset: MediaAsset = {
     id: assetId,
@@ -1037,7 +1149,12 @@ export async function saveMediaAsset(input: SaveMediaAssetInput): Promise<{
     role,
     source: input.source || 'MANUAL_UPLOAD',
     status: input.status || 'approved',
-    isLocked: input.isLocked ?? (role === 'PRIMARY' && input.source === 'MANUAL_UPLOAD'),
+    isLocked,
+    assetOrigin,
+    slotKey: input.slotKey,
+    parentAssetId: input.parentAssetId,
+    derivativeType: input.derivativeType,
+    healthStatus: input.healthStatus || 'HEALTHY',
     title: input.title,
     altText: input.altText,
     caption: input.caption,

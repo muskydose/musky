@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, getSupabase } from '@/lib/supabase';
 import { validateUploadBuffer } from '@/lib/media/upload-validator';
-import { MediaEntityType, MediaAssetRole } from '@/lib/db/media';
+import { MediaEntityType, MediaAssetRole, resetMediaCache, saveMediaAsset } from '@/lib/db/media';
+import { performZeroDowntimeReplacement } from '@/lib/growth/media-replacement-engine';
+import { generateMediaDerivative } from '@/lib/media/derived-media-engine';
+import { reconcileCanonicalSlot } from '@/lib/growth/media-specs';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,28 +12,34 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
-    const entityType = (formData.get('entityType') as string || 'PRODUCT').toUpperCase() as MediaEntityType;
-    const entityId = formData.get('entityId') as string || 'global';
-    const slotKey = formData.get('slotKey') as string || '';
-    const role = (formData.get('role') as string || 'PRIMARY') as MediaAssetRole;
-    const autoApprove = formData.get('autoApprove') === 'true';
+    const entityType = ((formData.get('entityType') as string) || 'PRODUCT').toUpperCase() as MediaEntityType;
+    const entityId = (formData.get('entityId') as string) || 'global';
+    const rawSlot = (formData.get('slotKey') as string) || '';
+    const isRealOwnerPhoto = formData.get('isRealOwnerPhoto') === 'true' || formData.get('isRealOwner') === 'true';
+    const autoApprove = formData.get('autoApprove') !== 'false';
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
+    const spec = reconcileCanonicalSlot(rawSlot, entityType);
+    const role = (spec.role || 'PRIMARY') as MediaAssetRole;
+
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // 1. Rigorous Image Validation (binary, decode, dimensions, aspect ratio, hash)
-    const validationResult = await validateUploadBuffer(buffer, slotKey, file.type);
+    // 1. Rigorous Image Validation (magic bytes, decode, dimensions, aspect ratio, hash)
+    const validationResult = await validateUploadBuffer(buffer, spec.slotKey, file.type);
 
     if (!validationResult.isValid || validationResult.verdict === 'ERROR') {
-      return NextResponse.json({
-        success: false,
-        error: 'Validation failed. Upload rejected.',
-        validationResult,
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Validation failed. Upload rejected.',
+          validationResult,
+        },
+        { status: 400 }
+      );
     }
 
     const supabase = getSupabaseAdmin() || getSupabase();
@@ -41,9 +50,9 @@ export async function POST(req: NextRequest) {
     // 2. Upload to Supabase Storage
     const ext = validationResult.metadata.format || 'webp';
     const cleanEntityId = entityId.replace(/[^a-zA-Z0-9_-]/g, '-');
-    const storagePath = `manual/${entityType.toLowerCase()}/${cleanEntityId}-${role.toLowerCase()}-${Date.now()}.${ext}`;
+    const storagePath = `manual/${entityType.toLowerCase()}/${cleanEntityId}-${spec.slotKey.toLowerCase()}-${Date.now()}.${ext}`;
 
-    const { data: uploadData, error: uploadErr } = await supabase.storage
+    const { error: uploadErr } = await supabase.storage
       .from('product-images')
       .upload(storagePath, buffer, {
         contentType: validationResult.metadata.mimeType,
@@ -52,11 +61,14 @@ export async function POST(req: NextRequest) {
       });
 
     if (uploadErr) {
-      return NextResponse.json({
-        success: false,
-        error: `Storage upload failed: ${uploadErr.message}`,
-        validationResult,
-      }, { status: 500 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Storage upload failed: ${uploadErr.message}`,
+          validationResult,
+        },
+        { status: 500 }
+      );
     }
 
     const { data: urlData } = supabase.storage
@@ -65,61 +77,94 @@ export async function POST(req: NextRequest) {
 
     const publicUrl = urlData.publicUrl;
 
-    // 3. Create media_assets record
-    const assetId = `med-manual-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-    const now = new Date().toISOString();
+    // 3. Create canonical media_assets record
+    const isPrimary = role === 'PRIMARY';
+    const assetOrigin = isRealOwnerPhoto || isPrimary ? 'real_owner_photo' : 'manual_approved';
 
-    const newAssetRow = {
-      id: assetId,
-      entity_type: entityType,
-      entity_id: entityId,
-      url: publicUrl,
-      storage_path: storagePath,
-      storage_bucket: 'product-images',
-      file_hash: validationResult.metadata.hash,
-      file_name: file.name,
-      mime_type: validationResult.metadata.mimeType,
-      file_size_bytes: validationResult.metadata.byteLength,
-      width: validationResult.metadata.width,
-      height: validationResult.metadata.height,
-      aspect_ratio: validationResult.metadata.aspectRatio,
-      role,
-      source: 'MANUAL_UPLOAD',
-      status: autoApprove ? 'approved' : 'suggested',
-      is_locked: autoApprove && role === 'PRIMARY',
-      title: `${entityType} ${role} Asset`,
-      alt_text: `${entityType} ${role} image`,
-      sort_order: role === 'PRIMARY' ? 1 : 10,
-      visual_context: {
-        slotKey,
-        manualUpload: true,
-        originalFileName: file.name,
-      },
-      ai_metadata: {
-        validation: validationResult,
-        uploadedAt: now,
-      },
-      created_at: now,
-      updated_at: now,
-    };
-
-    const { data: insertData, error: insertErr } = await supabase
-      .from('media_assets')
-      .insert(newAssetRow)
-      .select()
-      .single();
-
-    if (insertErr) {
-      return NextResponse.json({
-        success: false,
-        error: `Database record creation failed: ${insertErr.message}`,
-        validationResult,
-      }, { status: 500 });
+    let savedAsset: any = null;
+    try {
+      const res = await saveMediaAsset({
+        entityType,
+        entityId,
+        url: publicUrl,
+        storagePath,
+        storageBucket: 'product-images',
+        fileHash: validationResult.metadata.hash,
+        fileName: file.name,
+        mimeType: validationResult.metadata.mimeType,
+        fileSizeBytes: validationResult.metadata.byteLength,
+        width: validationResult.metadata.width,
+        height: validationResult.metadata.height,
+        aspectRatio: validationResult.metadata.aspectRatio,
+        role,
+        source: 'MANUAL_UPLOAD',
+        status: autoApprove ? 'approved' : 'suggested',
+        isLocked: isPrimary || isRealOwnerPhoto,
+        assetOrigin,
+        slotKey: spec.slotKey,
+        title: `${entityType} ${spec.displayName} Asset`,
+        altText: `${entityType} ${spec.displayName.toLowerCase()}`,
+        sortOrder: isPrimary ? 1 : 10,
+        visualContext: {
+          slotKey: spec.slotKey,
+          manualUpload: true,
+          originalFileName: file.name,
+          isRealOwnerPhoto: assetOrigin === 'real_owner_photo',
+        },
+      });
+      savedAsset = res.asset;
+    } catch (saveErr: any) {
+      // Compensating rollback: Remove uploaded storage file to prevent storage orphans
+      console.warn(`[UploadRoute] Compensating rollback for storage orphan ${storagePath}:`, saveErr.message);
+      await supabase.storage.from('product-images').remove([storagePath]).catch(() => {});
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Database record creation failed: ${saveErr.message}. Storage orphan safely rolled back.`,
+          validationResult,
+        },
+        { status: 500 }
+      );
     }
+
+    // 4. If approved PRIMARY, perform zero-downtime switch and auto-derive OpenGraph & thumbnail
+    const derivatives: string[] = [];
+    if (autoApprove && isPrimary) {
+      await performZeroDowntimeReplacement({
+        entityType,
+        entityId,
+        role: 'PRIMARY',
+        newAssetId: savedAsset.id,
+        consumingRoute: `/${entityType.toLowerCase()}s/${entityId}`,
+        reason: 'admin_real_photo_upload',
+      });
+
+      // Derive OG and Thumbnail from master
+      try {
+        const ogRes = await generateMediaDerivative({
+          masterAsset: savedAsset,
+          derivativeType: 'OPENGRAPH',
+          sourceBuffer: buffer,
+        });
+        derivatives.push(`OPENGRAPH: ${ogRes.asset.id}`);
+
+        const thumbRes = await generateMediaDerivative({
+          masterAsset: savedAsset,
+          derivativeType: 'THUMBNAIL',
+          sourceBuffer: buffer,
+        });
+        derivatives.push(`THUMBNAIL: ${thumbRes.asset.id}`);
+      } catch (derivErr: any) {
+        console.warn(`[UploadRoute] Derivative creation notice for ${savedAsset.id}:`, derivErr.message);
+      }
+    }
+
+    resetMediaCache();
 
     return NextResponse.json({
       success: true,
-      asset: insertData,
+      asset: savedAsset,
+      derivatives,
       validationResult,
     });
   } catch (error: any) {
@@ -127,4 +172,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }
-

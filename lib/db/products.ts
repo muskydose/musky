@@ -13,6 +13,7 @@ import { validateProductTypeClassification } from '@/lib/growth/product-type-gov
 import { validateProductVariants } from '@/lib/product-variants';
 import { UniversalGovernanceCore } from '@/lib/governance';
 import { attachCanonicalMediaToProducts } from './media';
+import { reconcileProductMediaRequirements } from '@/lib/growth/media-requirements-engine';
 
 function requireSupabaseAdmin(): SupabaseClient {
   const client = getSupabaseAdmin();
@@ -770,6 +771,11 @@ export async function saveProduct(product: Partial<Product>): Promise<Product> {
 
   syncProductKeywordUniverse(savedProduct, transitionedFromReview).catch((kwErr) => {
     console.warn(`[saveProduct] Background keyword universe sync notice for ${savedProduct.id}:`, kwErr?.message);
+  });
+
+  // Background Media Requirements reconciliation (fast, non-blocking, idempotent)
+  reconcileProductMediaRequirements(savedProduct).catch((mediaErr) => {
+    console.warn(`[saveProduct] Background media reconciliation notice for ${savedProduct.id}:`, mediaErr?.message);
   });
 
   // Centralized catalog revalidation

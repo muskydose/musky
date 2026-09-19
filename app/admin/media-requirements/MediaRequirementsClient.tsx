@@ -46,7 +46,17 @@ export default function MediaRequirementsClient({
   const [isUploading, setIsUploading] = useState(false);
   const [validationResult, setValidationResult] = useState<DetailedUploadValidationResult | null>(null);
   const [autoApprove, setAutoApprove] = useState(true);
+  const [isRealOwnerPhoto, setIsRealOwnerPhoto] = useState(true);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Bulk upload modal state
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkFiles, setBulkFiles] = useState<File[]>([]);
+  const [isBulkUploading, setIsBulkUploading] = useState(false);
+  const [bulkResults, setBulkResults] = useState<any[] | null>(null);
+
+  // Health check state
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
 
   // Archival modal state
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
@@ -200,6 +210,7 @@ export default function MediaRequirementsClient({
       formData.append('slotKey', activeSlotReq.slotKey);
       formData.append('role', activeSlotReq.role);
       formData.append('autoApprove', String(autoApprove));
+      formData.append('isRealOwnerPhoto', String(isRealOwnerPhoto));
 
       const res = await fetch('/api/admin/media-requirements/upload', {
         method: 'POST',
@@ -261,6 +272,72 @@ export default function MediaRequirementsClient({
       setNotification({ type: 'error', message: err.message || 'Network error during upload.' });
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  // Run Broken Media Health Check & Self-Healing Scan
+  const handleRunHealthCheck = async () => {
+    setIsCheckingHealth(true);
+    setNotification(null);
+    try {
+      const res = await fetch('/api/admin/media-requirements/health-check', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok && data.summary) {
+        const s = data.summary;
+        setNotification({
+          type: s.brokenCount > 0 ? 'error' : 'success',
+          message: `Health Scan Completed: ${s.totalChecked} assets checked. ${s.healthyCount} healthy, ${s.brokenCount} broken detected (${s.repairedJobsEnqueued} self-healing repair tasks enqueued).`,
+        });
+        // Refresh assets
+        const refreshRes = await fetch('/api/admin/media-assets');
+        if (refreshRes.ok) {
+          const refData = await refreshRes.json();
+          if (Array.isArray(refData.assets)) setMediaAssets(refData.assets);
+        }
+      } else {
+        setNotification({ type: 'error', message: data.error || 'Health scan failed.' });
+      }
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'Error running health check.' });
+    } finally {
+      setIsCheckingHealth(false);
+    }
+  };
+
+  // Submit Bulk Upload Batch
+  const handleBulkUploadSubmit = async () => {
+    if (!bulkFiles || bulkFiles.length === 0) return;
+    setIsBulkUploading(true);
+    setBulkResults(null);
+    try {
+      const formData = new FormData();
+      bulkFiles.forEach((file) => formData.append('files', file));
+      formData.append('isRealOwnerPhoto', String(isRealOwnerPhoto));
+
+      const res = await fetch('/api/admin/media-requirements/bulk-upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setBulkResults(data.results);
+        setNotification({
+          type: 'success',
+          message: `Bulk Import Batch Processed: ${data.assignedCount} assigned, ${data.unmatchedCount} unmatched (for review), ${data.failedCount} validation errors.`,
+        });
+        // Refresh assets
+        const refreshRes = await fetch('/api/admin/media-assets');
+        if (refreshRes.ok) {
+          const refData = await refreshRes.json();
+          if (Array.isArray(refData.assets)) setMediaAssets(refData.assets);
+        }
+      } else {
+        setNotification({ type: 'error', message: data.error || 'Bulk upload failed.' });
+      }
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'Error during bulk upload.' });
+    } finally {
+      setIsBulkUploading(false);
     }
   };
 
@@ -332,16 +409,23 @@ export default function MediaRequirementsClient({
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Link
-            href="/admin/media"
-            className="px-4 py-2 rounded-lg border border-[#cbd5e0] bg-white text-xs font-semibold text-[#4a5568] hover:bg-[#f7fafc] transition-colors"
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleRunHealthCheck}
+            disabled={isCheckingHealth}
+            className="px-3.5 py-2 rounded-lg border border-[#cbd5e0] bg-white text-xs font-semibold text-[#2d3748] hover:bg-[#f7fafc] transition-colors shadow-sm flex items-center gap-1.5"
           >
-            ← Back to Media Library
-          </Link>
+            <span>{isCheckingHealth ? '⏳ Scanning...' : '🩺 Scan Media Health'}</span>
+          </button>
+          <button
+            onClick={() => setBulkModalOpen(true)}
+            className="px-3.5 py-2 rounded-lg bg-[#1b4332] text-[#d4af37] text-xs font-semibold hover:bg-[#143225] transition-colors shadow-sm flex items-center gap-1.5"
+          >
+            <span>📁 Bulk Upload Assets</span>
+          </button>
           <button
             onClick={() => setArchiveModalOpen(true)}
-            className="px-4 py-2 rounded-lg bg-[#742a2a] text-white text-xs font-semibold hover:bg-[#9b2c2c] transition-colors shadow-sm"
+            className="px-3.5 py-2 rounded-lg bg-[#742a2a] text-white text-xs font-semibold hover:bg-[#9b2c2c] transition-colors shadow-sm"
           >
             Safely Archive Old Media
           </button>
@@ -801,7 +885,7 @@ export default function MediaRequirementsClient({
             )}
 
             {/* Auto-Approve Checkbox */}
-            <div className="my-4 flex items-center gap-2 text-xs text-[#2d3748] bg-[#f7fafc] p-3 rounded-lg border border-[#e2e8f0]">
+            <div className="my-3 flex items-center gap-2 text-xs text-[#2d3748] bg-[#f7fafc] p-3 rounded-lg border border-[#e2e8f0]">
               <input
                 type="checkbox"
                 id="autoApproveCheck"
@@ -811,6 +895,20 @@ export default function MediaRequirementsClient({
               />
               <label htmlFor="autoApproveCheck" className="cursor-pointer select-none">
                 <strong>Zero-Downtime Live Switch:</strong> Automatically approve and assign as live public asset immediately upon successful validation.
+              </label>
+            </div>
+
+            {/* Real Owner Photo Checkbox */}
+            <div className="my-3 flex items-center gap-2 text-xs text-[#2d3748] bg-[#f0fff4] p-3 rounded-lg border border-[#c6f6d5]">
+              <input
+                type="checkbox"
+                id="isRealOwnerPhotoCheck"
+                checked={isRealOwnerPhoto}
+                onChange={(e) => setIsRealOwnerPhoto(e.target.checked)}
+                className="rounded text-[#1b4332] focus:ring-0"
+              />
+              <label htmlFor="isRealOwnerPhotoCheck" className="cursor-pointer select-none">
+                <strong className="text-[#22543d]">Real Owner Photograph:</strong> Mark as authentic owner photography. Permanently protected and locked against automated AI overwrite.
               </label>
             </div>
 
@@ -872,6 +970,110 @@ export default function MediaRequirementsClient({
                 className="px-4 py-2 bg-[#742a2a] text-white text-xs font-bold rounded-lg hover:bg-[#9b2c2c] transition-colors disabled:opacity-50"
               >
                 {isArchiving ? 'Archiving...' : 'Confirm Safe Archive'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Upload Modal */}
+      {bulkModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl max-w-xl w-full border border-[#e2d9cc] shadow-2xl overflow-hidden p-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-4 border-b border-[#e2d9cc]">
+              <div>
+                <h3 className="font-bold text-base text-[#1b4332]">Bulk Upload & Automated Slot Mapping</h3>
+                <p className="text-xs text-[#718096] mt-0.5">
+                  Accepts filename pattern: <code className="bg-[#f0f4f2] px-1 py-0.5 rounded text-[#1b4332] font-mono">&#123;entity-slug&#125;-&#123;slot-key&#125;.&#123;ext&#125;</code>
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setBulkModalOpen(false);
+                  setBulkFiles([]);
+                  setBulkResults(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="my-5">
+              <div
+                className="border-2 border-dashed border-[#cbd5e0] hover:border-[#1b4332] rounded-xl p-6 text-center cursor-pointer transition-colors bg-[#faf5e8]/40"
+                onClick={() => {
+                  const input = document.getElementById('bulkFileInput') as HTMLInputElement;
+                  input?.click();
+                }}
+              >
+                <input
+                  type="file"
+                  id="bulkFileInput"
+                  multiple
+                  accept="image/webp,image/jpeg,image/png"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      setBulkFiles(Array.from(e.target.files));
+                    }
+                  }}
+                />
+                <div className="w-10 h-10 mx-auto mb-2 text-[#1b4332] flex items-center justify-center">
+                  📁
+                </div>
+                <span className="text-xs font-bold text-[#1b4332] block">Select files or drag & drop</span>
+                <span className="text-[11px] text-[#718096]">
+                  Examples: <span className="font-mono">baq-henna-powder-primary.webp, hair-care-hero.webp</span>
+                </span>
+                {bulkFiles.length > 0 && (
+                  <div className="mt-3 text-xs font-semibold text-[#276749]">
+                    ✓ {bulkFiles.length} files selected for automated import
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Results Preview */}
+            {bulkResults && (
+              <div className="my-4 max-h-48 overflow-y-auto border border-[#e2d9cc] rounded-lg p-2 text-xs space-y-1">
+                {bulkResults.map((r, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex items-center justify-between p-1.5 rounded ${
+                      r.status === 'ASSIGNED'
+                        ? 'bg-emerald-50 text-emerald-900'
+                        : r.status === 'UNMATCHED_REVIEW'
+                        ? 'bg-amber-50 text-amber-900'
+                        : 'bg-red-50 text-red-900'
+                    }`}
+                  >
+                    <span className="font-mono text-[11px] truncate max-w-[200px]">{r.fileName}</span>
+                    <span className="text-[10px] font-bold uppercase">{r.status}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#e2d9cc]">
+              <button
+                type="button"
+                onClick={() => {
+                  setBulkModalOpen(false);
+                  setBulkFiles([]);
+                  setBulkResults(null);
+                }}
+                className="px-4 py-2 text-xs font-semibold text-[#4a5568] hover:bg-[#edf2f7] rounded-lg"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkUploadSubmit}
+                disabled={bulkFiles.length === 0 || isBulkUploading}
+                className="px-5 py-2.5 bg-[#1b4332] text-[#d4af37] text-xs font-bold rounded-lg hover:bg-[#143225] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              >
+                {isBulkUploading ? 'Processing Batch...' : `Import ${bulkFiles.length} Assets`}
               </button>
             </div>
           </div>

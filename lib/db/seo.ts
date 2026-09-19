@@ -424,7 +424,15 @@ export async function resolvePageSeoMetadata(input: PageSeoResolutionInput) {
 
   const ogTitle = pageConfig?.ogTitle?.trim() || cleanTitle;
   const ogDescription = pageConfig?.ogDescription?.trim() || description;
-  const ogImage = input.ogImage?.trim() || pageConfig?.ogImage?.trim() || input.defaultImage || siteSettings.ogImageUrl || siteSettings.heroImageUrl || '/images/hero-bg.jpg';
+
+  // Strict raster OpenGraph image resolver (Never allows .svg for OpenGraph)
+  const rawCandidate = input.ogImage?.trim() || pageConfig?.ogImage?.trim() || input.defaultImage || siteSettings.ogImageUrl;
+  let ogImage = '/logo.png';
+  if (rawCandidate && !rawCandidate.toLowerCase().includes('.svg') && !rawCandidate.toLowerCase().endsWith('.svg')) {
+    ogImage = rawCandidate;
+  } else if (siteSettings.ogImageUrl && !siteSettings.ogImageUrl.toLowerCase().includes('.svg')) {
+    ogImage = siteSettings.ogImageUrl;
+  }
 
   return {
     title: cleanTitle,

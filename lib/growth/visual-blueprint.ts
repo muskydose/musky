@@ -1,11 +1,17 @@
 import { MediaEntityType, MediaAssetRole, MediaAssetSource, MotionLayerType } from '@/lib/db/media';
 import { VisualVariant } from '@/lib/growth/visual-prompt-engine';
+import { STANDARD_MEDIA_SPECS, SlotSpecification, reconcileCanonicalSlot } from './media-specs';
 
 // ============================================================================
 // 1. BLUEPRINT TYPES & CONTRACTS
 // ============================================================================
 
 export type AspectRatioType = '1:1' | '4:5' | '16:9' | '9:16' | '3:2';
+
+export function getCanonicalSpecForVisualSlot(slot: VisualSlotDefinition | string): SlotSpecification {
+  const slotKey = typeof slot === 'string' ? slot : slot.slotId;
+  return reconcileCanonicalSlot(slotKey);
+}
 
 export type ResponsiveBehaviorType =
   | 'DESKTOP'

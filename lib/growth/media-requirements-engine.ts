@@ -1,7 +1,9 @@
-import { MediaAsset, MediaEntityType, MediaAssetRole, isSafeInternalMediaUrl } from '@/lib/db/media';
+import { MediaAsset, MediaEntityType, MediaAssetRole, isSafeInternalMediaUrl, getAllMediaAssetsRaw } from '@/lib/db/media';
 import { STANDARD_MEDIA_SPECS, SlotSpecification, checkAspectRatioMatch, PROTECTED_OFFICIAL_BRAND_ASSETS } from './media-specs';
 import { Product, Category, ProductGuide } from '@/lib/types';
 import { KnowledgeEntity } from '@/lib/db/knowledge';
+import { enqueueMediaJob } from '@/lib/growth/media-jobs-engine';
+import { getAllProductsAdmin } from '@/lib/db/products';
 
 export type SlotRequirementStatus = 'MISSING' | 'READY' | 'LIVE' | 'NEEDS_REVIEW' | 'INVALID';
 
@@ -392,4 +394,72 @@ function deriveExactConsumerRoute(
       };
   }
 }
+
+/**
+ * Idempotently reconciles media requirements for a given product.
+ * Evaluates active assets, detects gaps, and enqueues jobs in public.media_jobs.
+ * Never inserts fake assets or duplicates active jobs.
+ */
+export async function reconcileProductMediaRequirements(product: Product): Promise<{
+  health: EntityMediaHealth;
+  jobsEnqueued: number;
+}> {
+  const { assets } = await getAllMediaAssetsRaw();
+  const assigned = assets.filter((a) => a.entityType === 'PRODUCT' && String(a.entityId) === String(product.id));
+
+  const health = buildEntityRequirements(
+    'PRODUCT',
+    product.id,
+    product.name,
+    product.slug,
+    assigned
+  );
+
+  let jobsEnqueued = 0;
+  for (const slot of health.slots) {
+    if (slot.status === 'MISSING') {
+      const isPrimary = slot.slotKey === 'PRODUCT_PRIMARY';
+      const strategy = isPrimary ? 'TEMPORARY' : 'AI';
+      const enqueueRes = await enqueueMediaJob({
+        entityType: 'PRODUCT',
+        entityId: product.id,
+        slotKey: slot.slotKey,
+        strategy,
+        priority: slot.isRequired ? 'P1' : 'P2',
+        blueprintPrompt: `Generate visual for ${product.name} slot [${slot.slotKey}] (${slot.purpose}).`,
+      });
+      if (enqueueRes.wasCreated) {
+        jobsEnqueued++;
+      }
+    }
+  }
+
+  return { health, jobsEnqueued };
+}
+
+/**
+ * Idempotently reconciles all existing products across the catalog.
+ */
+export async function reconcileAllProductsMedia(): Promise<{
+  totalProducts: number;
+  totalGapsDetected: number;
+  totalJobsEnqueued: number;
+}> {
+  const products = await getAllProductsAdmin();
+  let totalGapsDetected = 0;
+  let totalJobsEnqueued = 0;
+
+  for (const p of products) {
+    const res = await reconcileProductMediaRequirements(p);
+    totalGapsDetected += res.health.missingRequiredSlots;
+    totalJobsEnqueued += res.jobsEnqueued;
+  }
+
+  return {
+    totalProducts: products.length,
+    totalGapsDetected,
+    totalJobsEnqueued,
+  };
+}
+
 

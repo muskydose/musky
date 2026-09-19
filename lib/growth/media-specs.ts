@@ -22,6 +22,7 @@ export type StandardAspectRatio = '1:1' | '4:5' | '16:9' | '9:16' | '1.91:1' | '
 export interface SlotSpecification {
   slotKey: string;
   role: string;
+  targetEntityType?: 'PRODUCT' | 'CATEGORY' | 'GUIDE' | 'KNOWLEDGE' | 'BRAND' | 'MARKETING' | 'UNIVERSAL';
   displayName: string;
   purpose: string;
   aspectRatio: StandardAspectRatio;
@@ -37,6 +38,8 @@ export interface SlotSpecification {
   isRequired: boolean;
   safeAreaGuide?: string;
   visualDirection: string;
+  canDeriveFrom?: string; // e.g. 'PRODUCT_PRIMARY'
+  derivativeType?: 'OPENGRAPH_1200x630' | 'THUMBNAIL_512x512' | 'SOCIAL_1080x1080';
 }
 
 /**
@@ -471,6 +474,8 @@ export const STANDARD_MEDIA_SPECS: Record<string, SlotSpecification> = {
     isRequired: false,
     safeAreaGuide: 'Keep all important graphic elements and text inside the center 1000×520 box.',
     visualDirection: 'Crisp brand presence, prominent product/topic presentation, high shareability.',
+    canDeriveFrom: 'PRODUCT_PRIMARY',
+    derivativeType: 'OPENGRAPH_1200x630',
   },
   SOCIAL_SQUARE: {
     slotKey: 'SOCIAL_SQUARE',
@@ -490,6 +495,8 @@ export const STANDARD_MEDIA_SPECS: Record<string, SlotSpecification> = {
     isRequired: false,
     safeAreaGuide: 'Center focal element with 10% perimeter padding.',
     visualDirection: 'Rich color, premium editorial composition, high contrast on mobile feeds.',
+    canDeriveFrom: 'PRODUCT_PRIMARY',
+    derivativeType: 'SOCIAL_1080x1080',
   },
   SOCIAL_PORTRAIT: {
     slotKey: 'SOCIAL_PORTRAIT',
@@ -575,4 +582,159 @@ export function checkAspectRatioMatch(
     diffPercent: Math.round(diffPercent * 10000) / 100,
   };
 }
+
+/**
+ * Authoritative Canonical Slot Reconciliation Mapping.
+ * Resolves legacy aliases, audit slot names, System 2 IDs, and roles to authoritative canonical slotKeys.
+ */
+export const SLOT_RECONCILIATION_MAP: Record<string, string> = {
+  // System 2 Visual Blueprint slotId aliases
+  'product-primary': 'PRODUCT_PRIMARY',
+  'product-gallery': 'PRODUCT_GALLERY',
+  'product-packaging': 'PRODUCT_PACKAGING',
+  'product-lifestyle': 'PRODUCT_LIFESTYLE',
+  'product-ritual': 'PRODUCT_USAGE',
+  'product-usage': 'PRODUCT_USAGE',
+  'product-macro': 'PRODUCT_DETAIL',
+  'product-detail': 'PRODUCT_DETAIL',
+  'product-botanical-source': 'PRODUCT_INGREDIENTS',
+  'product-ingredients': 'PRODUCT_INGREDIENTS',
+  'product-mobile': 'PRODUCT_MOBILE',
+  'category-hero': 'CATEGORY_HERO',
+  'category-mood': 'CATEGORY_COLLECTION',
+  'category-collection': 'CATEGORY_COLLECTION',
+  'category-botanical-origin': 'CATEGORY_COLLECTION',
+  'category-mobile': 'CATEGORY_MOBILE',
+  'guide-cover': 'GUIDE_HERO',
+  'guide-hero': 'GUIDE_HERO',
+  'guide-technique': 'GUIDE_PROCESS',
+  'guide-process': 'GUIDE_PROCESS',
+  'guide-infographic': 'GUIDE_INFOGRAPHIC',
+  'knowledge-herbarium-hero': 'KNOWLEDGE_HERO',
+  'knowledge-hero': 'KNOWLEDGE_HERO',
+  'knowledge-botanical-plate': 'KNOWLEDGE_BOTANICAL',
+  'knowledge-botanical': 'KNOWLEDGE_BOTANICAL',
+  'knowledge-infographic': 'KNOWLEDGE_INFOGRAPHIC',
+  'brand-sojat-heritage': 'BRAND_HERO',
+  'brand-hero': 'BRAND_HERO',
+  'brand-harvest-craft': 'BRAND_STORY',
+  'brand-story': 'BRAND_STORY',
+  'brand-cold-milling': 'BRAND_PROCESS',
+  'brand-process': 'BRAND_PROCESS',
+  'brand-seal-vector': 'BRAND_ICON',
+  'brand-icon': 'BRAND_ICON',
+  'brand-logo': 'BRAND_ICON',
+  'logo': 'BRAND_ICON',
+  'favicon': 'BRAND_ICON',
+  'opengraph-meta': 'OPENGRAPH_META',
+  'og-share': 'OPENGRAPH_META',
+  'og': 'OPENGRAPH_META',
+  'opengraph': 'OPENGRAPH_META',
+  'social-square': 'SOCIAL_SQUARE',
+  'social-portrait': 'SOCIAL_PORTRAIT',
+
+  // Forensic Audit aliases
+  'PRODUCT_GALLERY_1': 'PRODUCT_GALLERY',
+  'PRODUCT_GALLERY_2': 'PRODUCT_GALLERY',
+  'PRODUCT_BENEFITS': 'PRODUCT_LIFESTYLE',
+  'PRODUCT_HOW_TO_USE': 'PRODUCT_USAGE',
+  'PRODUCT_APPLICATION': 'PRODUCT_USAGE',
+  'PRODUCT_CERTIFICATE': 'PRODUCT_PACKAGING',
+  'PRODUCT_OG': 'OPENGRAPH_META',
+  'CATEGORY_ICON': 'BRAND_ICON',
+  'CATEGORY_LIFESTYLE': 'CATEGORY_COLLECTION',
+  'CATEGORY_OG': 'OPENGRAPH_META',
+  'GUIDE_STEP': 'GUIDE_PROCESS',
+  'GUIDE_OG': 'OPENGRAPH_META',
+  'BRAND_LOGO': 'BRAND_ICON',
+  'HERO_PRIMARY': 'PRODUCT_PRIMARY',
+  'BOTANICAL_RAW': 'PRODUCT_INGREDIENTS',
+
+  // Generic canonical roles
+  'PRIMARY': 'PRODUCT_PRIMARY',
+  'PACKAGING': 'PRODUCT_PACKAGING',
+  'LIFESTYLE': 'PRODUCT_LIFESTYLE',
+  'DETAIL': 'PRODUCT_DETAIL',
+  'USAGE': 'PRODUCT_USAGE',
+  'APPLICATION': 'PRODUCT_USAGE',
+  'application': 'PRODUCT_USAGE',
+  'product-application': 'PRODUCT_USAGE',
+  'INGREDIENTS': 'PRODUCT_INGREDIENTS',
+  'GALLERY': 'PRODUCT_GALLERY',
+  'HERO': 'CATEGORY_HERO',
+  'OG_SOCIAL': 'OPENGRAPH_META',
+  'ICON': 'BRAND_ICON',
+  'PROCESS': 'GUIDE_PROCESS',
+  'INFOGRAPHIC': 'GUIDE_INFOGRAPHIC',
+  'MOBILE_HERO': 'PRODUCT_MOBILE',
+};
+
+/**
+ * Reconciles any arbitrary slotKey, slotId, or role into an authoritative canonical SlotSpecification.
+ */
+export function reconcileCanonicalSlot(
+  rawSlotOrRole: string | undefined | null,
+  entityType?: string
+): SlotSpecification {
+  if (!rawSlotOrRole || typeof rawSlotOrRole !== 'string') {
+    return STANDARD_MEDIA_SPECS.PRODUCT_PRIMARY;
+  }
+
+  const clean = rawSlotOrRole.trim();
+  const upper = clean.toUpperCase();
+  const lower = clean.toLowerCase();
+
+  // 1. Direct standard key match
+  if (STANDARD_MEDIA_SPECS[upper]) {
+    return STANDARD_MEDIA_SPECS[upper];
+  }
+
+  // 2. Direct map lookup
+  if (SLOT_RECONCILIATION_MAP[clean]) {
+    const targetKey = SLOT_RECONCILIATION_MAP[clean];
+    if (STANDARD_MEDIA_SPECS[targetKey]) return STANDARD_MEDIA_SPECS[targetKey];
+  }
+
+  if (SLOT_RECONCILIATION_MAP[lower]) {
+    const targetKey = SLOT_RECONCILIATION_MAP[lower];
+    if (STANDARD_MEDIA_SPECS[targetKey]) return STANDARD_MEDIA_SPECS[targetKey];
+  }
+
+  if (SLOT_RECONCILIATION_MAP[upper]) {
+    const targetKey = SLOT_RECONCILIATION_MAP[upper];
+    if (STANDARD_MEDIA_SPECS[targetKey]) return STANDARD_MEDIA_SPECS[targetKey];
+  }
+
+  // 3. Entity-type contextual resolution for generic roles
+  const normEntity = (entityType || 'PRODUCT').toUpperCase();
+  if (upper === 'HERO') {
+    if (normEntity === 'CATEGORY') return STANDARD_MEDIA_SPECS.CATEGORY_HERO;
+    if (normEntity === 'GUIDE') return STANDARD_MEDIA_SPECS.GUIDE_HERO;
+    if (normEntity === 'KNOWLEDGE') return STANDARD_MEDIA_SPECS.KNOWLEDGE_HERO;
+    if (normEntity === 'BRAND') return STANDARD_MEDIA_SPECS.BRAND_HERO;
+    return STANDARD_MEDIA_SPECS.PRODUCT_PRIMARY;
+  }
+
+  if (upper === 'OG' || upper === 'OG_SOCIAL') {
+    return STANDARD_MEDIA_SPECS.OPENGRAPH_META;
+  }
+
+  if (upper === 'ICON') {
+    return STANDARD_MEDIA_SPECS.BRAND_ICON;
+  }
+
+  if (upper === 'PROCESS') {
+    if (normEntity === 'BRAND') return STANDARD_MEDIA_SPECS.BRAND_PROCESS;
+    return STANDARD_MEDIA_SPECS.GUIDE_PROCESS;
+  }
+
+  if (upper === 'MOBILE' || upper === 'MOBILE_HERO') {
+    if (normEntity === 'CATEGORY') return STANDARD_MEDIA_SPECS.CATEGORY_MOBILE;
+    return STANDARD_MEDIA_SPECS.PRODUCT_MOBILE;
+  }
+
+  // Default fallback
+  return STANDARD_MEDIA_SPECS.PRODUCT_PRIMARY;
+}
+
 

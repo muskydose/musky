@@ -1,5 +1,5 @@
 import { getSupabaseAdmin, getSupabase } from '@/lib/supabase';
-import { MediaAsset, MediaEntityType, MediaAssetRole } from '@/lib/db/media';
+import { MediaAsset, MediaEntityType, MediaAssetRole, resetMediaCache } from '@/lib/db/media';
 import { PROTECTED_OFFICIAL_BRAND_ASSETS } from './media-specs';
 
 export interface ReplacementResult {
@@ -101,6 +101,37 @@ export async function performZeroDowntimeReplacement(options: {
     };
   }
 
+  // Real Owner Photo Protection Guard
+  const previousIsProtected = Boolean(
+    previousAsset?.is_locked ||
+    previousAsset?.source === 'MANUAL_UPLOAD' ||
+    previousAsset?.asset_origin === 'real_owner_photo' ||
+    previousAsset?.visual_context?.asset_origin === 'real_owner_photo'
+  );
+
+  const newIsRealOwner = Boolean(
+    newAssetData.asset_origin === 'real_owner_photo' ||
+    newAssetData.visual_context?.asset_origin === 'real_owner_photo' ||
+    newAssetData.source === 'MANUAL_UPLOAD'
+  );
+
+  if (previousIsProtected && !newIsRealOwner) {
+    return {
+      success: false,
+      newAssetId,
+      archivedPreviousAsset: false,
+      error: `Cannot replace protected real owner photo with an automated/AI asset. Previous live asset remains active.`,
+      details: {
+        entityType,
+        entityId,
+        role,
+        newUrl: newAssetData.url,
+        oldUrl: previousAsset?.url,
+        switchTimestamp: now,
+      },
+    };
+  }
+
   // 3. Activate the new asset FIRST (Zero Downtime)
   const isPrimary = role === 'PRIMARY';
   const newAiMeta = {
@@ -169,6 +200,8 @@ export async function performZeroDowntimeReplacement(options: {
       }
     }
   }
+
+  resetMediaCache();
 
   return {
     success: true,
