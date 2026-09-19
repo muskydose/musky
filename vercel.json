@@ -17,6 +17,10 @@
       "schedule": "30 20 * * *"
     },
     {
+      "path": "/api/cron/media-queue",
+      "schedule": "35 20 * * *"
+    },
+    {
       "path": "/api/cron/seo-report",
       "schedule": "30 2 * * *"
     }
