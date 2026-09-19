@@ -3,7 +3,6 @@ import { GoogleGenAI } from '@google/genai';
 import { MediaEntityType, MediaAssetRole, MediaAsset, saveMediaAsset } from '@/lib/db/media';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { validateImageBinary } from '@/lib/ai/image-integrity';
-import sharp from 'sharp';
 import {
   VisualVariant,
   EntityCanonicalFacts,
@@ -156,11 +155,9 @@ export class ManualAiStudioProvider implements VisualProvider {
     }
 
     const mimeType = validation.mimeType || options.imageMimeType || 'image/jpeg';
-    const requestedAspectRatio = options.aspectRatio || '1:1';
-    const meta = await sharp(options.imageBuffer).metadata();
-    const width = meta.width || options.width || (requestedAspectRatio === '16:9' ? 1280 : 1024);
-    const height = meta.height || options.height || (requestedAspectRatio === '16:9' ? 720 : 1024);
-    const aspectRatio = `${width}:${height}`;
+    const aspectRatio = options.aspectRatio || '1:1';
+    const width = options.width || (aspectRatio === '16:9' ? 1280 : 1024);
+    const height = options.height || (aspectRatio === '16:9' ? 720 : 1024);
     const ext = validation.format === 'png' ? 'png' : validation.format === 'webp' ? 'webp' : 'jpg';
     const fileName = options.imageFileName || `free-studio-${Date.now()}.${ext}`;
 
