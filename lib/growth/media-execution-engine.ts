@@ -50,9 +50,6 @@ export interface UniversalMediaJobInput {
   promptOverride?: string;
   useSignatureWoman?: boolean;
   entityName?: string;
-  imageBuffer?: Buffer;
-  imageMimeType?: string;
-  imageFileName?: string;
 }
 
 export interface UniversalMediaJobExecutionResult {
@@ -441,9 +438,6 @@ export async function executeUniversalMediaJob(
       aspectRatio: spec.aspectRatio,
       width: spec.recommendedWidth,
       height: spec.recommendedHeight,
-      imageBuffer: input.imageBuffer,
-      imageMimeType: input.imageMimeType,
-      imageFileName: input.imageFileName,
     });
 
     // 6b. Validate binary
