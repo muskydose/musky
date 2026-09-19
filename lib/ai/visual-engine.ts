@@ -155,9 +155,10 @@ export class ManualAiStudioProvider implements VisualProvider {
     }
 
     const mimeType = validation.mimeType || options.imageMimeType || 'image/jpeg';
-    const aspectRatio = options.aspectRatio || '1:1';
-    const width = options.width || (aspectRatio === '16:9' ? 1280 : 1024);
-    const height = options.height || (aspectRatio === '16:9' ? 720 : 1024);
+    const requestedAspectRatio = options.aspectRatio || '1:1';
+    const width = validation.width || options.width || (requestedAspectRatio === '16:9' ? 1280 : 1024);
+    const height = validation.height || options.height || (requestedAspectRatio === '16:9' ? 720 : 1024);
+    const aspectRatio = `${width}:${height}`;
     const ext = validation.format === 'png' ? 'png' : validation.format === 'webp' ? 'webp' : 'jpg';
     const fileName = options.imageFileName || `free-studio-${Date.now()}.${ext}`;
 
