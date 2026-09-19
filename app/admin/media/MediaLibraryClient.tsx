@@ -56,8 +56,34 @@ export default function MediaLibraryClient({ initialAssets, queueSummary }: Prop
     };
   }, [assets]);
 
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
+  const [queueMessage, setQueueMessage] = useState<string | null>(null);
+
   const refreshAndProcess = async () => {
-    window.location.reload();
+    setIsProcessingQueue(true);
+    setQueueMessage(null);
+    try {
+      const res = await fetch('/api/admin/media-jobs/process', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: 1 }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || 'Queue processing failed');
+      }
+      const item = data?.summary?.details?.[0];
+      if (item) {
+        setQueueMessage(`Media job: ${item.beforeStatus} → ${item.afterStatus}${item.resultAssetId ? ` • Asset ${item.resultAssetId}` : ''}${item.errorMessage ? ` • ${item.errorMessage}` : ''}`);
+      } else {
+        setQueueMessage('Media queue checked — no runnable job found.');
+      }
+      setTimeout(() => window.location.reload(), 700);
+    } catch (error: any) {
+      setQueueMessage(error?.message || 'Queue processing failed');
+    } finally {
+      setIsProcessingQueue(false);
+    }
   };
 
   return (
@@ -81,10 +107,11 @@ export default function MediaLibraryClient({ initialAssets, queueSummary }: Prop
           </div>
           <div className="flex gap-2 flex-wrap">
             <button
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 rounded-lg bg-[#173b2d] text-[#d7b85a] text-xs font-semibold shadow-sm"
+              onClick={refreshAndProcess}
+              disabled={isProcessingQueue}
+              className="px-4 py-2 rounded-lg bg-[#173b2d] text-[#d7b85a] text-xs font-semibold shadow-sm disabled:opacity-60"
             >
-              Refresh Library
+              {isProcessingQueue ? 'Processing Media…' : 'Process Queue + Refresh'}
             </button>
           </div>
         </div>
@@ -103,6 +130,12 @@ export default function MediaLibraryClient({ initialAssets, queueSummary }: Prop
             </div>
           ))}
         </div>
+
+        {queueMessage && (
+          <div className="bg-[#173b2d] text-white rounded-xl p-3 mb-4 text-xs font-medium">
+            {queueMessage}
+          </div>
+        )}
 
         {queueSummary && (
           <div className="bg-white border border-[#ded7cb] rounded-xl p-4 mb-6 shadow-sm">
