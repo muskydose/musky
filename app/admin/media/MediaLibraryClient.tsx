@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { MediaAsset, MediaEntityType, isDiagnosticMediaAsset, isSafeInternalMediaUrl } from '@/lib/db/media';
-import { MediaJobRecord } from '@/lib/growth/media-jobs-engine';
+import type { MediaJobRecord } from '@/lib/growth/media-jobs-engine';
 
 interface Props {
   initialAssets: MediaAsset[];
