@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { MediaAsset, MediaEntityType, isSafeInternalMediaUrl } from '@/lib/db/media';
+import { MediaAsset, MediaEntityType, isDiagnosticMediaAsset, isSafeInternalMediaUrl } from '@/lib/db/media';
 
 interface Props {
   initialAssets: MediaAsset[];
@@ -22,10 +22,12 @@ export default function MediaLibraryClient({ initialAssets, queueSummary }: Prop
   const [sourceFilter, setSourceFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<MediaAsset | null>(null);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return assets.filter((asset) => {
+      if (!showDiagnostics && isDiagnosticMediaAsset(asset)) return false;
       if (entityFilter !== 'ALL' && asset.entityType !== entityFilter) return false;
       if (statusFilter !== 'ALL' && asset.status !== statusFilter) return false;
       if (sourceFilter !== 'ALL' && asset.source !== sourceFilter) return false;
@@ -44,7 +46,7 @@ export default function MediaLibraryClient({ initialAssets, queueSummary }: Prop
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(q));
     });
-  }, [assets, entityFilter, statusFilter, sourceFilter, search]);
+  }, [assets, entityFilter, statusFilter, sourceFilter, search, showDiagnostics]);
 
   const counts = useMemo(() => {
     return {
@@ -183,7 +185,23 @@ export default function MediaLibraryClient({ initialAssets, queueSummary }: Prop
           </div>
         </div>
 
-        <div className="mb-3 text-xs text-[#6c756e]">
+        <div className="mb-3 flex items-center justify-between gap-3 text-xs text-[#6c756e]">
+          <div>
+            Showing <span className="font-bold text-[#173b2d]">{filtered.length}</span> of {assets.length} assets
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showDiagnostics}
+              onChange={(e) => setShowDiagnostics(e.target.checked)}
+              className="rounded border-[#cfc7ba]"
+            />
+            Show diagnostic/test media
+          </label>
+        </div>
+
+        {/* filtered result count continues below */}
+        <div className="hidden mb-3 text-xs text-[#6c756e]">
           Showing <span className="font-bold text-[#173b2d]">{filtered.length}</span> of {assets.length} assets
         </div>
 
