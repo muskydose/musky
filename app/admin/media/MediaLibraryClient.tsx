@@ -27,6 +27,8 @@ export default function MediaLibraryClient({ initialAssets, queueSummary, pendin
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [importJobId, setImportJobId] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [studioPrompt, setStudioPrompt] = useState<string | null>(null);
+  const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -89,6 +91,23 @@ export default function MediaLibraryClient({ initialAssets, queueSummary, pendin
       setQueueMessage(error?.message || 'Queue processing failed');
     } finally {
       setIsProcessingQueue(false);
+    }
+  };
+
+  const loadStudioPrompt = async (jobId: string) => {
+    setIsLoadingPrompt(true);
+    setStudioPrompt(null);
+    try {
+      const res = await fetch('/api/admin/media-jobs/prompt?jobId=' + encodeURIComponent(jobId), {
+        headers: { 'x-csrf-token': '1' },
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) throw new Error(data?.error || 'Prompt generation failed');
+      setStudioPrompt(data.prompt || '');
+    } catch (error: any) {
+      setQueueMessage(error?.message || 'Prompt generation failed');
+    } finally {
+      setIsLoadingPrompt(false);
     }
   };
 
@@ -180,9 +199,10 @@ export default function MediaLibraryClient({ initialAssets, queueSummary, pendin
                   </div>
                   <div className="text-sm font-semibold text-[#28332c] mt-2 line-clamp-1">{job.entityId}</div>
                   <div className="text-[10px] text-[#737b75] mt-1">{job.slotKey} · {job.strategy}</div>
-                  <div className="mt-3 flex items-center gap-2">
-                    <button type="button" onClick={() => setImportJobId(job.id)} className="px-3 py-2 rounded-lg bg-[#173b2d] text-white text-[11px] font-semibold">Import Image</button>
-                    <span className="text-[10px] text-[#7b817c]">Free • validated</span>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={() => { setImportJobId(job.id); setStudioPrompt(null); }} className="px-3 py-2 rounded-lg bg-[#173b2d] text-white text-[11px] font-semibold">Import Image</button>
+                    <button type="button" onClick={() => { setImportJobId(job.id); loadStudioPrompt(job.id); }} className="px-3 py-2 rounded-lg border border-[#cfc7ba] bg-white text-[#173b2d] text-[11px] font-semibold">Get Free Prompt</button>
+                    <span className="text-[10px] text-[#7b817c]">₹0 • validated</span>
                   </div>
                 </div>
               ))}
@@ -296,6 +316,22 @@ export default function MediaLibraryClient({ initialAssets, queueSummary, pendin
                 <div className="font-semibold text-[#173b2d]">Selected queue job</div>
                 <div className="mt-1 break-all">{importJobId}</div>
               </div>
+              {isLoadingPrompt ? (
+                <div className="mt-4 rounded-xl border border-[#e3ddd3] bg-[#fbfaf7] p-3 text-xs text-[#6c756e]">Building grounded prompt…</div>
+              ) : studioPrompt ? (
+                <div className="mt-4">
+                  <div className="text-[10px] uppercase tracking-wider font-bold text-[#7a817c]">Grounded generation prompt</div>
+                  <textarea readOnly value={studioPrompt} className="mt-2 w-full min-h-40 rounded-xl border border-[#d7d1c7] bg-[#fbfaf7] p-3 text-xs leading-5 text-[#2d382f]" />
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard?.writeText(studioPrompt)}
+                    className="mt-2 px-3 py-2 rounded-lg border border-[#cfc7ba] bg-white text-[#173b2d] text-[11px] font-semibold"
+                  >
+                    Copy Prompt
+                  </button>
+                </div>
+              ) : null}
+
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
