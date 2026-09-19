@@ -381,6 +381,71 @@ export function isPubliclyEligibleMediaAsset(asset: MediaAsset | undefined | nul
 }
 
 /**
+ * Archives diagnostic/test media without deleting the underlying file.
+ * This is intentionally non-destructive and safe to run on every queue pass.
+ */
+export async function archiveDiagnosticMediaAssets(): Promise<{ scanned: number; archived: number }> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return { scanned: 0, archived: 0 };
+
+  try {
+    const { data, error } = await supabase
+      .from('media_assets')
+      .select('id,status,source,ai_metadata')
+      .neq('status', 'archived')
+      .limit(2000);
+
+    if (error || !Array.isArray(data) || data.length === 0) {
+      return { scanned: Array.isArray(data) ? data.length : 0, archived: 0 };
+    }
+
+    const diagnosticIds = data
+      .map((row: any) => ({
+        id: String(row.id || ''),
+        status: row.status,
+        source: row.source,
+        aiMetadata: row.ai_metadata || {},
+      }))
+      .filter((asset) => isDiagnosticMediaAsset(asset))
+      .map((asset) => asset.id)
+      .filter(Boolean);
+
+    if (diagnosticIds.length === 0) {
+      return { scanned: data.length, archived: 0 };
+    }
+
+    const { error: updateError } = await supabase
+      .from('media_assets')
+      .update({
+        status: 'archived',
+        health_status: 'NEEDS_REVIEW',
+        is_locked: false,
+        updated_at: new Date().toISOString(),
+      })
+      .in('id', diagnosticIds);
+
+    if (updateError) {
+      return { scanned: data.length, archived: 0 };
+    }
+
+    // Keep the local fallback/cache aligned with the durable DB state.
+    for (const asset of memoryMediaStore) {
+      if (diagnosticIds.includes(asset.id)) {
+        asset.status = 'archived';
+        asset.healthStatus = 'NEEDS_REVIEW';
+        asset.isLocked = false;
+        asset.updatedAt = new Date().toISOString();
+      }
+    }
+    resetMediaCache();
+
+    return { scanned: data.length, archived: diagnosticIds.length };
+  } catch {
+    return { scanned: 0, archived: 0 };
+  }
+}
+
+/**
  * Dynamically synthesizes canonical media assets from live catalog entities (products, categories, guides, settings)
  * when public.media_assets table is pending DDL migration or empty.
  */
