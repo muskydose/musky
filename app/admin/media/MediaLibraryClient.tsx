@@ -200,11 +200,6 @@ export default function MediaLibraryClient({ initialAssets, queueSummary }: Prop
           </label>
         </div>
 
-        {/* filtered result count continues below */}
-        <div className="hidden mb-3 text-xs text-[#6c756e]">
-          Showing <span className="font-bold text-[#173b2d]">{filtered.length}</span> of {assets.length} assets
-        </div>
-
         {filtered.length === 0 ? (
           <div className="bg-white border border-[#ded7cb] rounded-2xl p-12 text-center text-sm text-[#6c756e]">No media assets match these filters.</div>
         ) : (
