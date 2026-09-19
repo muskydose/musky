@@ -1,4 +1,4 @@
-import { getPendingMediaJobs, MediaJobRecord } from '@/lib/growth/media-jobs-engine';
+import { getPendingMediaJobs, completeMediaJob } from '@/lib/growth/media-jobs-engine';
 import { executeUniversalMediaJob } from '@/lib/growth/media-execution-engine';
 
 export interface MediaQueueConsumerOptions {
@@ -84,6 +84,12 @@ export async function processPendingMediaJobs(
         errorMessage: result.errorMessage,
       });
     } catch (error: any) {
+      const message = error?.message || 'Unknown queue consumer error';
+      await completeMediaJob({
+        jobId: job.id,
+        status: 'FAILED',
+        errorMessage: message,
+      });
       summary.failed += 1;
       summary.details.push({
         jobId: job.id,
@@ -93,7 +99,7 @@ export async function processPendingMediaJobs(
         beforeStatus,
         afterStatus: 'FAILED',
         resultAssetId: null,
-        errorMessage: error?.message || 'Unknown queue consumer error',
+        errorMessage: message,
       });
     }
   }
