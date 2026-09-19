@@ -345,6 +345,42 @@ export function isSafeInternalMediaUrl(url: string | undefined): boolean {
 }
 
 /**
+ * Identifies diagnostic/test-generated media that must never become public
+ * canonical media, even if an operator accidentally approves it.
+ */
+export function isDiagnosticMediaAsset(
+  asset: Pick<MediaAsset, 'status' | 'source' | 'aiMetadata'> | undefined | null
+): boolean {
+  if (!asset) return false;
+  const meta = asset.aiMetadata || {};
+  if (meta.testFixture === true || meta.test === true || meta.diagnostic === true) return true;
+
+  const providerId = String(meta.providerId || '').toLowerCase();
+  const modelName = String(meta.modelName || '').toLowerCase();
+  const provider = String(meta.provider || '').toLowerCase();
+  const fingerprint = `${providerId} ${modelName} ${provider}`;
+
+  return (
+    providerId.includes('mock') ||
+    modelName.includes('mock') ||
+    provider.includes('mock provider') ||
+    fingerprint.includes('universal-mock')
+  );
+}
+
+/**
+ * Public canonical media eligibility guard.
+ * Requires approved, healthy, safe internal media and rejects diagnostics.
+ */
+export function isPubliclyEligibleMediaAsset(asset: MediaAsset | undefined | null): boolean {
+  if (!asset) return false;
+  if (asset.status !== 'approved') return false;
+  if (asset.healthStatus === 'UNHEALTHY') return false;
+  if (isDiagnosticMediaAsset(asset)) return false;
+  return isSafeInternalMediaUrl(asset.url);
+}
+
+/**
  * Dynamically synthesizes canonical media assets from live catalog entities (products, categories, guides, settings)
  * when public.media_assets table is pending DDL migration or empty.
  */
@@ -705,7 +741,7 @@ export async function getMediaForEntity(options: {
     if (includeDrafts) {
       return a.status !== 'archived';
     }
-    return a.status === 'approved' && isSafeInternalMediaUrl(a.url);
+    return isPubliclyEligibleMediaAsset(a);
   });
 
   // Sort by priority score descending
@@ -793,7 +829,7 @@ export async function resolveAuthoritativeMedia(
   legacyFallbackUrl?: string
 ): Promise<MediaResolutionResult> {
   if (Array.isArray(optionsOrTypeOrAssets)) {
-    const allAssets = [...optionsOrTypeOrAssets].sort((a, b) => {
+    const allAssets = optionsOrTypeOrAssets.filter(isPubliclyEligibleMediaAsset).sort((a, b) => {
       const scoreA = computeAssetPriorityScore(a);
       const scoreB = computeAssetPriorityScore(b);
       if (scoreA !== scoreB) return scoreB - scoreA;
@@ -860,7 +896,7 @@ export async function getBatchResolvedMedia(
   entityIds?: string[]
 ): Promise<Map<string, MediaResolutionResult>> {
   const { assets } = await getAllMediaAssetsRaw();
-  const approved = assets.filter((a) => a.entityType === entityType && a.status === 'approved');
+  const approved = assets.filter((a) => a.entityType === entityType && isPubliclyEligibleMediaAsset(a));
 
   // Group by entityId
   const grouped = new Map<string, MediaAsset[]>();
