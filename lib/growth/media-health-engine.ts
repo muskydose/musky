@@ -159,7 +159,7 @@ export async function markMediaAssetUnhealthy(
       blueprintPrompt: `Repair broken visual asset for ${asset.entityType} ${asset.entityId}. Previous URL returned ${errorReason}.`,
     });
 
-    jobEnqueued = enqueueRes.wasCreated;
+    jobEnqueued = Boolean(enqueueRes.job);
   }
 
   return {

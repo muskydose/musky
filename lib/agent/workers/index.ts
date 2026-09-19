@@ -14,7 +14,7 @@ import { SIGNATURE_WOMAN_MASTER_IDENTITY, buildSignatureWomanPrompt } from '@/li
 import { reconcileCanonicalSlot } from '@/lib/growth/media-specs';
 import { getMediaForEntity, isRealOwnerPhotoProtected } from '@/lib/db/media';
 import { generateMediaDerivative } from '@/lib/media/derived-media-engine';
-import { enqueueMediaJob } from '@/lib/growth/media-jobs-engine';
+import { enqueueMediaJob, canProcessMediaJob } from '@/lib/growth/media-jobs-engine';
 import { buildTemporaryVisualBlueprint } from '@/lib/growth/media-temporary-visuals';
 import { LocalSelfHostedProvider } from '@/lib/ai/visual-engine';
 
@@ -135,6 +135,41 @@ export const mediaVisualWorker: WorkerHandler = async (task) => {
   const entityType = ((task.payload?.entityType as string) || 'PRODUCT').toUpperCase() as any;
   const entityId = (task.payload?.entityId as string) || '';
   const spec = reconcileCanonicalSlot(slotRole, entityType);
+  const strategy = (task.payload?.strategy as any) || (spec.role === 'PRIMARY' ? 'TEMPORARY' : 'AI');
+
+  // 0. Pre-flight queue and entity eligibility guard
+  const eligibility = await canProcessMediaJob({
+    entityType,
+    entityId,
+    slotKey: spec.slotKey,
+    role: spec.role,
+    strategy,
+  });
+
+  if (eligibility.decision === 'BLOCKED') {
+    return {
+      status: 'BLOCKED',
+      narrative: {
+        whyThisTask: `Audit visual slot [${spec.slotKey}] for ${entityType} ${entityId}.`,
+        whatDetected: `Media Queue Governance halted execution: ${eligibility.reason}`,
+        whatChanged: 'Zero assets created or modified. Task safely blocked.',
+        whatVerified: 'Queue governance prevented automated processing of non-production or protected entity.',
+        whatLearned: 'Autonomous media workers strictly reject test entities and non-existent catalog items.',
+      },
+      result: {
+        workerState: 'BLOCKED',
+        slotKey: spec.slotKey,
+        entityType,
+        entityId,
+        approvedAssetAttached: eligibility.statusCode === 'PROTECTED_REAL_OWNER',
+        reason: eligibility.reason,
+        statusCode: eligibility.statusCode,
+      },
+      filesAffected: ['lib/growth/media-jobs-engine.ts'],
+      dataAffected: { slotKey: spec.slotKey, entityType, status: 'BLOCKED' },
+      errorMessage: eligibility.reason,
+    };
+  }
 
   // 1. Audit & Fetch Existing Assets for Entity
   const existingAssets = entityId

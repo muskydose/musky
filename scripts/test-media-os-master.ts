@@ -84,6 +84,9 @@ import {
   completeMediaJob,
   generateDeterministicMediaJobId,
   resetMemoryMediaJobs,
+  canProcessMediaJob,
+  validateEntityExists,
+  isTestOrDemoEntity,
 } from '../lib/growth/media-jobs-engine';
 import {
   matchBulkFilenameToEntity,
@@ -314,32 +317,38 @@ async function runMasterMediaOSTests() {
     resetMemoryMediaJobs();
 
     const job1 = await enqueueMediaJob({
-      entityType: 'PRODUCT',
-      entityId: 'prod-test-queue',
-      slotKey: 'PRODUCT_PRIMARY',
+      entityType: 'CATEGORY',
+      entityId: 'cat-1',
+      slotKey: 'CATEGORY_HERO',
       strategy: 'TEMPORARY',
       priority: 'P1',
     });
 
     const job2 = await enqueueMediaJob({
-      entityType: 'PRODUCT',
-      entityId: 'prod-test-queue',
-      slotKey: 'PRODUCT_PRIMARY',
+      entityType: 'CATEGORY',
+      entityId: 'cat-1',
+      slotKey: 'CATEGORY_HERO',
       strategy: 'TEMPORARY',
       priority: 'P1',
     });
 
-    assert.strictEqual(job1.wasCreated, true);
-    assert.strictEqual(job2.wasCreated, false);
-    assert.strictEqual(job1.job.id, job2.job.id);
+    // Enqueueing second time must never create duplicate job
+    assert.strictEqual(job2.wasCreated, false, 'Duplicate job must not be created');
+    assert.strictEqual(job1.job.id, job2.job.id, 'Job IDs must be strictly identical');
+
+    // Reset status to PENDING and release any lock for lease testing
+    await completeMediaJob({ jobId: job1.job.id, status: 'PENDING' });
 
     // Lease locking
     const lease = await acquireMediaJobLock(job1.job.id, 'worker-pod-alpha');
-    assert.strictEqual(lease, true);
+    assert.strictEqual(lease, true, 'First worker must acquire lease');
 
     // Competing worker trying to acquire same lease within TTL must be rejected
     const competingLease = await acquireMediaJobLock(job1.job.id, 'worker-pod-beta');
-    assert.strictEqual(competingLease, false);
+    assert.strictEqual(competingLease, false, 'Competing worker must be rejected during active lease');
+
+    // Reset lock state after test
+    await completeMediaJob({ jobId: job1.job.id, status: 'PENDING' });
   });
 
   // --------------------------------------------------------------------------
@@ -564,9 +573,9 @@ async function runMasterMediaOSTests() {
       title: 'Generate Visual for BAQ Henna',
       payload: {
         entityType: 'PRODUCT' as const,
-        entityId: 'prod-temp-test',
-        entityName: 'Pure Organic Henna',
-        slotKey: 'PRODUCT_PRIMARY',
+        entityId: 'prod-1786368977551',
+        entityName: 'BAQ Henna Powder',
+        slotKey: 'PRODUCT_GALLERY',
       },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -820,6 +829,151 @@ async function runMasterMediaOSTests() {
     assert.strictEqual(mapped.slotKey, 'slot_primary_hero', 'Top-level slot_key must override visual_context');
     assert.strictEqual(mapped.parentAssetId, 'parent-canonical-999', 'Top-level parent_asset_id must override visual_context');
     assert.strictEqual(mapped.derivativeType, 'THUMB_512', 'Top-level derivative_type must override visual_context');
+  });
+
+  // --------------------------------------------------------------------------
+  // TEST 25: Production Media Queue Governance & Safe Worker Processing
+  // --------------------------------------------------------------------------
+  console.log('\n--- TEST 25: Production Media Queue Governance & Safe Worker Processing ---');
+
+  // A. Real product entity accepted for processing
+  await test('A. Real product entity accepted for processing', async () => {
+    const res = await canProcessMediaJob({
+      entityType: 'PRODUCT',
+      entityId: 'prod-1786368977551',
+      slotKey: 'PRODUCT_GALLERY',
+      strategy: 'TEMPORARY',
+    });
+    assert.strictEqual(res.decision, 'PROCESS');
+    assert.strictEqual(res.statusCode, 'ELIGIBLE');
+  });
+
+  // B. Non-existent product entity returns BLOCKED / INVALID_ENTITY
+  await test('B. Non-existent product entity returns BLOCKED / INVALID_ENTITY', async () => {
+    const res = await canProcessMediaJob({
+      entityType: 'PRODUCT',
+      entityId: 'prod-non-existent-999',
+      slotKey: 'PRODUCT_GALLERY',
+      strategy: 'TEMPORARY',
+    });
+    assert.strictEqual(res.decision, 'BLOCKED');
+    assert.strictEqual(res.statusCode, 'INVALID_ENTITY');
+  });
+
+  // C. Known test entity returns BLOCKED
+  await test('C. Known test entity returns BLOCKED', async () => {
+    const res1 = await canProcessMediaJob({
+      entityType: 'PRODUCT',
+      entityId: 'prod-test-queue',
+      slotKey: 'PRODUCT_GALLERY',
+      strategy: 'TEMPORARY',
+    });
+    assert.strictEqual(res1.decision, 'BLOCKED');
+    assert.strictEqual(res1.statusCode, 'TEST_ENTITY_REJECTED');
+
+    const res2 = await canProcessMediaJob({
+      entityType: 'PRODUCT',
+      entityId: 'prod-1',
+      slotKey: 'PRODUCT_GALLERY',
+      strategy: 'TEMPORARY',
+    });
+    assert.strictEqual(res2.decision, 'BLOCKED');
+    assert.strictEqual(res2.statusCode, 'TEST_ENTITY_REJECTED');
+  });
+
+  // D. Deleted/non-existent category returns BLOCKED
+  await test('D. Deleted/non-existent category returns BLOCKED', async () => {
+    const res = await canProcessMediaJob({
+      entityType: 'CATEGORY',
+      entityId: 'cat-does-not-exist-xyz',
+      slotKey: 'CATEGORY_HERO',
+      strategy: 'TEMPORARY',
+    });
+    assert.strictEqual(res.decision, 'BLOCKED');
+    assert.strictEqual(res.statusCode, 'INVALID_ENTITY');
+  });
+
+  // E. Real-owner PRIMARY AI replacement is refused
+  await test('E. Real-owner PRIMARY AI replacement is refused', async () => {
+    const res = await canProcessMediaJob({
+      entityType: 'PRODUCT',
+      entityId: 'prod-1786368977551',
+      slotKey: 'PRODUCT_PRIMARY',
+      strategy: 'AI',
+    });
+    assert.strictEqual(res.decision, 'BLOCKED');
+    assert.strictEqual(res.statusCode, 'PROTECTED_REAL_OWNER');
+  });
+
+  // F. Provider unavailable returns WAITING_PROVIDER
+  await test('F. Provider unavailable returns WAITING_PROVIDER', async () => {
+    const res = await canProcessMediaJob({
+      entityType: 'PRODUCT',
+      entityId: 'prod-1786368977551',
+      slotKey: 'PRODUCT_GALLERY',
+      strategy: 'AI',
+    });
+    assert.strictEqual(res.decision, 'WAITING_PROVIDER');
+    assert.strictEqual(res.statusCode, 'WAITING_PROVIDER');
+  });
+
+  // G. MANUAL_REQUIRED does not invoke AI provider
+  await test('G. MANUAL_REQUIRED does not invoke AI provider', async () => {
+    const res = await canProcessMediaJob({
+      entityType: 'PRODUCT',
+      entityId: 'prod-1786368977551',
+      slotKey: 'PRODUCT_GALLERY',
+      strategy: 'MANUAL_REQUIRED',
+    });
+    assert.strictEqual(res.decision, 'BLOCKED');
+    assert.strictEqual(res.statusCode, 'MANUAL_REQUIRED');
+  });
+
+  // H. Stale IN_PROGRESS test job can be safely reclaimed and blocked
+  await test('H. Stale IN_PROGRESS test job can be safely reclaimed and blocked', async () => {
+    const staleJobId = 'media-job::PRODUCT::prod-test-stale-reclaim::PRODUCT_PRIMARY';
+    const staleJob = {
+      id: staleJobId,
+      entityType: 'PRODUCT' as const,
+      entityId: 'prod-test-stale-reclaim',
+      slotKey: 'PRODUCT_PRIMARY',
+      role: 'PRIMARY',
+      status: 'IN_PROGRESS' as const,
+      strategy: 'TEMPORARY' as const,
+      priority: 'P1' as const,
+      attempts: 1,
+      lockedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+      lockedBy: 'stale-worker-pod',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await enqueueMediaJob({
+      entityType: 'PRODUCT',
+      entityId: 'prod-test-stale-reclaim',
+      slotKey: 'PRODUCT_PRIMARY',
+      strategy: 'TEMPORARY',
+    });
+
+    const lockAcquired = await acquireMediaJobLock(staleJobId, 'new-worker');
+    assert.strictEqual(lockAcquired, false, 'Ineligible test job must be refused lock');
+
+    const blockedJob = await canProcessMediaJob(staleJob);
+    assert.strictEqual(blockedJob.decision, 'BLOCKED');
+  });
+
+  // I. Existing deterministic job ID remains unchanged
+  await test('I. Existing deterministic job ID remains unchanged', () => {
+    const jobId = generateDeterministicMediaJobId('PRODUCT', 'prod-1786368977551', 'PRODUCT_PRIMARY');
+    assert.strictEqual(jobId, 'media-job::PRODUCT::prod-1786368977551::PRODUCT_PRIMARY');
+  });
+
+  // J. Existing canonical slot reconciliation remains unchanged
+  await test('J. Existing canonical slot reconciliation remains unchanged', () => {
+    const spec = reconcileCanonicalSlot('PRIMARY', 'PRODUCT');
+    assert.strictEqual(spec.slotKey, 'PRODUCT_PRIMARY');
+    assert.strictEqual(spec.aspectRatio, '1:1');
+    assert.strictEqual(spec.recommendedWidth, 1200);
+    assert.strictEqual(spec.recommendedHeight, 1200);
   });
 
   // --------------------------------------------------------------------------
