@@ -445,6 +445,14 @@ export async function acquireMediaJobLock(
     }
   }
 
+  // Terminal-state guard: completed jobs with a real result are immutable/idempotent.
+  if (job.status === 'COMPLETED' && job.resultAssetId) {
+    return false;
+  }
+  if (job.status === 'BLOCKED' || job.status === 'CANCELLED') {
+    return false;
+  }
+
   // Pre-acquisition eligibility check
   if (options?.enforceEligibility !== false) {
     const eligibility = await canProcessMediaJob(job);
@@ -462,6 +470,7 @@ export async function acquireMediaJobLock(
   job.lockedAt = now.toISOString();
   job.lockedBy = workerId;
   job.status = 'IN_PROGRESS';
+  job.attempts = Math.max(0, Number(job.attempts || 0)) + 1;
   job.updatedAt = now.toISOString();
 
   await persistMediaJob(job);
@@ -629,13 +638,20 @@ export async function getPendingMediaJobs(
 
   const eligibleList: MediaJobRecord[] = [];
   for (const job of rawList) {
-    if (isTestOrDemoEntity(job.entityId)) {
+    const eligibility = await canProcessMediaJob(job);
+
+    if (eligibility.decision === 'BLOCKED') {
       job.status = 'BLOCKED';
-      job.errorMessage = 'Non-production/test entity rejected by Media OS production worker.';
+      job.errorMessage = eligibility.reason;
+      job.lockedAt = null;
+      job.lockedBy = null;
       job.updatedAt = new Date().toISOString();
-      persistMediaJob(job).catch(() => {});
+      await persistMediaJob(job);
       continue;
     }
+
+    // WAITING_PROVIDER is intentionally retained for retry once the free local
+    // provider comes online; it is not silently discarded from the queue.
     eligibleList.push(job);
     if (eligibleList.length >= limit) break;
   }
