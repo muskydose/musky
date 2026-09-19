@@ -74,8 +74,11 @@ export function isTestOrDemoEntity(entityId: string): boolean {
   if (!entityId || typeof entityId !== 'string') return true;
   const clean = entityId.trim().toLowerCase();
   if (KNOWN_TEST_OR_DEMO_ENTITY_IDS.has(clean)) return true;
-  if (/^(prod-|cat-|guide-|knowledge-)?(test|temp-test|broken|demo|sample|mock|fixture)/i.test(clean)) return true;
+  if (/^(prod-|cat-|guide-|knowledge-|brand-|marketing-)?(test|temp-test|broken|demo|sample|mock|fixture)/i.test(clean)) return true;
   if (clean.includes('-test') || clean.includes('test-') || clean.endsWith('-test')) return true;
+  if (clean.includes('-demo') || clean.includes('demo-') || clean.endsWith('-demo')) return true;
+  if (clean.includes('-mock') || clean.includes('mock-') || clean.endsWith('-mock')) return true;
+  if (clean.includes('-sample') || clean.includes('sample-') || clean.endsWith('-sample')) return true;
   return false;
 }
 
@@ -369,11 +372,11 @@ export async function canProcessMediaJob(
       a.status === 'approved'
   );
 
-  if (protectedAsset && (spec.role === 'PRIMARY' || spec.slotKey === 'PRODUCT_PRIMARY')) {
+  if (protectedAsset) {
     return {
       decision: 'BLOCKED',
       statusCode: 'PROTECTED_REAL_OWNER',
-      reason: `Slot [${spec.slotKey}] is occupied by an approved real owner photo (${protectedAsset.id}). Automated overwrite is permanently refused.`,
+      reason: `Slot [${spec.slotKey}] is occupied by an approved protected asset (${protectedAsset.id}). Automated overwrite is permanently refused.`,
       canonicalSpec: spec,
     };
   }
@@ -640,7 +643,7 @@ export async function getPendingMediaJobs(
   return eligibleList;
 }
 
-async function persistMediaJob(job: MediaJobRecord): Promise<void> {
+export async function persistMediaJob(job: MediaJobRecord): Promise<void> {
   memoryMediaJobs.set(job.id, job);
 
   const supabase = getSupabaseAdmin();

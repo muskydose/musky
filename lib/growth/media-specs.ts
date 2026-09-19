@@ -7,6 +7,9 @@
  * Approved Concept: "From Earth to Ritual"
  */
 
+import { MediaAssetRole } from '@/lib/db/media';
+import { MediaJobStrategy } from '@/lib/growth/media-jobs-engine';
+
 export type MediaTypeSupported =
   | 'PHOTO'
   | 'ILLUSTRATION'
@@ -21,7 +24,7 @@ export type StandardAspectRatio = '1:1' | '4:5' | '16:9' | '9:16' | '1.91:1' | '
 
 export interface SlotSpecification {
   slotKey: string;
-  role: string;
+  role: MediaAssetRole;
   targetEntityType?: 'PRODUCT' | 'CATEGORY' | 'GUIDE' | 'KNOWLEDGE' | 'BRAND' | 'MARKETING' | 'UNIVERSAL';
   displayName: string;
   purpose: string;
@@ -40,6 +43,7 @@ export interface SlotSpecification {
   visualDirection: string;
   canDeriveFrom?: string; // e.g. 'PRODUCT_PRIMARY'
   derivativeType?: 'OPENGRAPH_1200x630' | 'THUMBNAIL_512x512' | 'SOCIAL_1080x1080';
+  requiredStrategy?: MediaJobStrategy;
 }
 
 /**
@@ -517,6 +521,81 @@ export const STANDARD_MEDIA_SPECS: Record<string, SlotSpecification> = {
     safeAreaGuide: 'Top 10% and bottom 15% free from vital details.',
     visualDirection: 'Vertical elegance, warm ambiance, storytelling depth.',
   },
+  PRODUCT_COMPARISON: {
+    slotKey: 'PRODUCT_COMPARISON',
+    role: 'COMPARISON',
+    displayName: 'Product / Formula Comparison Visual',
+    purpose: 'Comparison chart or visual demonstrating purity, mesh sift fineness, or lab assay versus generic powders.',
+    aspectRatio: '4:5',
+    aspectRatioNumeric: 0.8,
+    recommendedWidth: 1200,
+    recommendedHeight: 1500,
+    minWidth: 800,
+    minHeight: 1000,
+    maxFileSizeBytes: 8 * 1024 * 1024,
+    allowedMimeTypes: ['image/webp', 'image/jpeg', 'image/png'],
+    supportedMediaTypes: ['INFOGRAPHIC', 'ILLUSTRATION'],
+    deviceTarget: 'UNIVERSAL',
+    isRequired: false,
+    safeAreaGuide: 'Clean side-by-side or column layout with readable typography.',
+    visualDirection: 'Neutral botanical aesthetic, side-by-side comparison with authentic lab metrics.',
+  },
+  PRODUCT_THUMBNAIL: {
+    slotKey: 'PRODUCT_THUMBNAIL',
+    role: 'THUMBNAIL',
+    displayName: 'Product Compact Thumbnail (1:1)',
+    purpose: 'Compact thumbnail visual for cart, order summaries, search popovers, and quick-views.',
+    aspectRatio: '1:1',
+    aspectRatioNumeric: 1.0,
+    recommendedWidth: 512,
+    recommendedHeight: 512,
+    minWidth: 256,
+    minHeight: 256,
+    maxFileSizeBytes: 2 * 1024 * 1024,
+    allowedMimeTypes: ['image/webp', 'image/jpeg', 'image/png'],
+    supportedMediaTypes: ['PHOTO', 'PRODUCT_RENDER'],
+    deviceTarget: 'UNIVERSAL',
+    isRequired: false,
+    visualDirection: 'Crisp centered packshot on clean white or warm neutral backdrop.',
+    canDeriveFrom: 'PRODUCT_PRIMARY',
+    derivativeType: 'THUMBNAIL_512x512',
+  },
+  MARKETING_BANNER: {
+    slotKey: 'MARKETING_BANNER',
+    role: 'BANNER',
+    displayName: 'Marketing Campaign Banner (16:9)',
+    purpose: 'Wide horizontal display banner for marketing announcements, seasonal sales, and header strips.',
+    aspectRatio: '16:9',
+    aspectRatioNumeric: 16 / 9,
+    recommendedWidth: 1600,
+    recommendedHeight: 900,
+    minWidth: 1200,
+    minHeight: 675,
+    maxFileSizeBytes: 8 * 1024 * 1024,
+    allowedMimeTypes: ['image/webp', 'image/jpeg', 'image/png'],
+    supportedMediaTypes: ['PHOTO', 'LIFESTYLE', 'ILLUSTRATION'],
+    deviceTarget: 'UNIVERSAL',
+    isRequired: false,
+    visualDirection: 'Impactful widescreen composition with generous typography negative space.',
+  },
+  BRAND_DESKTOP_HERO: {
+    slotKey: 'BRAND_DESKTOP_HERO',
+    role: 'DESKTOP_HERO',
+    displayName: 'Desktop Widescreen Hero Banner (16:9)',
+    purpose: 'Large desktop viewport hero banner showcasing flagship botanical offerings.',
+    aspectRatio: '16:9',
+    aspectRatioNumeric: 16 / 9,
+    recommendedWidth: 1920,
+    recommendedHeight: 1080,
+    minWidth: 1440,
+    minHeight: 810,
+    maxFileSizeBytes: 8 * 1024 * 1024,
+    allowedMimeTypes: ['image/webp', 'image/jpeg', 'image/png'],
+    supportedMediaTypes: ['PHOTO', 'LIFESTYLE', 'ILLUSTRATION'],
+    deviceTarget: 'DESKTOP',
+    isRequired: false,
+    visualDirection: 'Cinematic widescreen hero image with high clarity and depth.',
+  },
 };
 
 /**
@@ -667,6 +746,20 @@ export const SLOT_RECONCILIATION_MAP: Record<string, string> = {
   'PROCESS': 'GUIDE_PROCESS',
   'INFOGRAPHIC': 'GUIDE_INFOGRAPHIC',
   'MOBILE_HERO': 'PRODUCT_MOBILE',
+  'COMPARISON': 'PRODUCT_COMPARISON',
+  'comparison': 'PRODUCT_COMPARISON',
+  'product-comparison': 'PRODUCT_COMPARISON',
+  'THUMBNAIL': 'PRODUCT_THUMBNAIL',
+  'thumbnail': 'PRODUCT_THUMBNAIL',
+  'BANNER': 'MARKETING_BANNER',
+  'banner': 'MARKETING_BANNER',
+  'DESKTOP_HERO': 'BRAND_DESKTOP_HERO',
+  'desktop_hero': 'BRAND_DESKTOP_HERO',
+  'desktop-hero': 'BRAND_DESKTOP_HERO',
+  'SOCIAL_SQUARE': 'SOCIAL_SQUARE',
+  'social_square': 'SOCIAL_SQUARE',
+  'SOCIAL_PORTRAIT': 'SOCIAL_PORTRAIT',
+  'social_portrait': 'SOCIAL_PORTRAIT',
 };
 
 /**
@@ -689,7 +782,71 @@ export function reconcileCanonicalSlot(
     return STANDARD_MEDIA_SPECS[upper];
   }
 
-  // 2. Direct map lookup
+  // 2. Entity-type contextual resolution for generic roles
+  const normEntity = (entityType || 'PRODUCT').toUpperCase();
+  if (upper === 'HERO') {
+    if (normEntity === 'CATEGORY') return STANDARD_MEDIA_SPECS.CATEGORY_HERO;
+    if (normEntity === 'GUIDE') return STANDARD_MEDIA_SPECS.GUIDE_HERO;
+    if (normEntity === 'KNOWLEDGE') return STANDARD_MEDIA_SPECS.KNOWLEDGE_HERO;
+    if (normEntity === 'BRAND' || normEntity === 'MARKETING') return STANDARD_MEDIA_SPECS.BRAND_HERO;
+    return STANDARD_MEDIA_SPECS.PRODUCT_PRIMARY;
+  }
+
+  if (upper === 'BANNER') {
+    if (normEntity === 'CATEGORY') return STANDARD_MEDIA_SPECS.CATEGORY_HERO;
+    if (normEntity === 'BRAND') return STANDARD_MEDIA_SPECS.BRAND_HERO;
+    if (normEntity === 'GUIDE') return STANDARD_MEDIA_SPECS.GUIDE_HERO;
+    if (normEntity === 'KNOWLEDGE') return STANDARD_MEDIA_SPECS.KNOWLEDGE_HERO;
+    return STANDARD_MEDIA_SPECS.MARKETING_BANNER;
+  }
+
+  if (upper === 'DESKTOP_HERO') {
+    if (normEntity === 'CATEGORY') return STANDARD_MEDIA_SPECS.CATEGORY_HERO;
+    if (normEntity === 'GUIDE') return STANDARD_MEDIA_SPECS.GUIDE_HERO;
+    if (normEntity === 'KNOWLEDGE') return STANDARD_MEDIA_SPECS.KNOWLEDGE_HERO;
+    return STANDARD_MEDIA_SPECS.BRAND_DESKTOP_HERO;
+  }
+
+  if (upper === 'THUMBNAIL') {
+    return STANDARD_MEDIA_SPECS.PRODUCT_THUMBNAIL;
+  }
+
+  if (upper === 'COMPARISON') {
+    return STANDARD_MEDIA_SPECS.PRODUCT_COMPARISON;
+  }
+
+  if (upper === 'OG' || upper === 'OG_SOCIAL') {
+    return STANDARD_MEDIA_SPECS.OPENGRAPH_META;
+  }
+
+  if (upper === 'ICON') {
+    return STANDARD_MEDIA_SPECS.BRAND_ICON;
+  }
+
+  if (upper === 'PROCESS') {
+    if (normEntity === 'BRAND' || normEntity === 'MARKETING') return STANDARD_MEDIA_SPECS.BRAND_PROCESS;
+    return STANDARD_MEDIA_SPECS.GUIDE_PROCESS;
+  }
+
+  if (upper === 'INFOGRAPHIC') {
+    if (normEntity === 'KNOWLEDGE') return STANDARD_MEDIA_SPECS.KNOWLEDGE_INFOGRAPHIC;
+    return STANDARD_MEDIA_SPECS.GUIDE_INFOGRAPHIC;
+  }
+
+  if (upper === 'MOBILE' || upper === 'MOBILE_HERO') {
+    if (normEntity === 'CATEGORY') return STANDARD_MEDIA_SPECS.CATEGORY_MOBILE;
+    return STANDARD_MEDIA_SPECS.PRODUCT_MOBILE;
+  }
+
+  if (upper === 'SOCIAL_SQUARE') {
+    return STANDARD_MEDIA_SPECS.SOCIAL_SQUARE;
+  }
+
+  if (upper === 'SOCIAL_PORTRAIT') {
+    return STANDARD_MEDIA_SPECS.SOCIAL_PORTRAIT;
+  }
+
+  // 3. Direct map lookup
   if (SLOT_RECONCILIATION_MAP[clean]) {
     const targetKey = SLOT_RECONCILIATION_MAP[clean];
     if (STANDARD_MEDIA_SPECS[targetKey]) return STANDARD_MEDIA_SPECS[targetKey];
@@ -703,34 +860,6 @@ export function reconcileCanonicalSlot(
   if (SLOT_RECONCILIATION_MAP[upper]) {
     const targetKey = SLOT_RECONCILIATION_MAP[upper];
     if (STANDARD_MEDIA_SPECS[targetKey]) return STANDARD_MEDIA_SPECS[targetKey];
-  }
-
-  // 3. Entity-type contextual resolution for generic roles
-  const normEntity = (entityType || 'PRODUCT').toUpperCase();
-  if (upper === 'HERO') {
-    if (normEntity === 'CATEGORY') return STANDARD_MEDIA_SPECS.CATEGORY_HERO;
-    if (normEntity === 'GUIDE') return STANDARD_MEDIA_SPECS.GUIDE_HERO;
-    if (normEntity === 'KNOWLEDGE') return STANDARD_MEDIA_SPECS.KNOWLEDGE_HERO;
-    if (normEntity === 'BRAND') return STANDARD_MEDIA_SPECS.BRAND_HERO;
-    return STANDARD_MEDIA_SPECS.PRODUCT_PRIMARY;
-  }
-
-  if (upper === 'OG' || upper === 'OG_SOCIAL') {
-    return STANDARD_MEDIA_SPECS.OPENGRAPH_META;
-  }
-
-  if (upper === 'ICON') {
-    return STANDARD_MEDIA_SPECS.BRAND_ICON;
-  }
-
-  if (upper === 'PROCESS') {
-    if (normEntity === 'BRAND') return STANDARD_MEDIA_SPECS.BRAND_PROCESS;
-    return STANDARD_MEDIA_SPECS.GUIDE_PROCESS;
-  }
-
-  if (upper === 'MOBILE' || upper === 'MOBILE_HERO') {
-    if (normEntity === 'CATEGORY') return STANDARD_MEDIA_SPECS.CATEGORY_MOBILE;
-    return STANDARD_MEDIA_SPECS.PRODUCT_MOBILE;
   }
 
   // Default fallback

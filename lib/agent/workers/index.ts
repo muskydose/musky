@@ -17,6 +17,7 @@ import { generateMediaDerivative } from '@/lib/media/derived-media-engine';
 import { enqueueMediaJob, canProcessMediaJob } from '@/lib/growth/media-jobs-engine';
 import { buildTemporaryVisualBlueprint } from '@/lib/growth/media-temporary-visuals';
 import { LocalSelfHostedProvider } from '@/lib/ai/visual-engine';
+import { executeUniversalMediaJob } from '@/lib/growth/media-execution-engine';
 
 export interface WorkerExecutionResult {
   status: 'COMPLETED' | 'FAILED' | 'BLOCKED';
@@ -29,7 +30,7 @@ export interface WorkerExecutionResult {
 
 export type WorkerHandler = (
   task: AgentTask,
-  context: AgentSystemContext
+  context?: AgentSystemContext
 ) => Promise<WorkerExecutionResult>;
 
 // ----------------------------------------------------------------------------
@@ -129,227 +130,119 @@ export const contentEngineWorker: WorkerHandler = async (task) => {
 
 // ----------------------------------------------------------------------------
 // 5. MEDIA & VISUAL WORKER
+// Thin Orchestrator delegating directly to authoritative Universal Execution Engine
 // ----------------------------------------------------------------------------
 export const mediaVisualWorker: WorkerHandler = async (task) => {
   const slotRole = (task.payload?.slotRole as string) || (task.payload?.slotKey as string) || 'PRIMARY';
   const entityType = ((task.payload?.entityType as string) || 'PRODUCT').toUpperCase() as any;
   const entityId = (task.payload?.entityId as string) || '';
-  const spec = reconcileCanonicalSlot(slotRole, entityType);
-  const strategy = (task.payload?.strategy as any) || (spec.role === 'PRIMARY' ? 'TEMPORARY' : 'AI');
+  const strategy = task.payload?.strategy as any;
 
-  // 0. Pre-flight queue and entity eligibility guard
-  const eligibility = await canProcessMediaJob({
+  const execResult = await executeUniversalMediaJob({
     entityType,
     entityId,
-    slotKey: spec.slotKey,
-    role: spec.role,
-    strategy,
+    slotKey: task.payload?.slotKey as string,
+    role: slotRole,
+    provider: task.payload?.provider as any,
+    promptOverride: task.payload?.promptOverride as string | undefined,
+    useSignatureWoman: task.payload?.useSignatureWoman === true,
+    entityName: task.payload?.entityName as string | undefined,
+    workerId: 'media-visual-worker',
   });
 
-  if (eligibility.decision === 'BLOCKED') {
+  if (execResult.status === 'BLOCKED') {
     return {
       status: 'BLOCKED',
-      narrative: {
-        whyThisTask: `Audit visual slot [${spec.slotKey}] for ${entityType} ${entityId}.`,
-        whatDetected: `Media Queue Governance halted execution: ${eligibility.reason}`,
+      narrative: execResult.narrative || {
+        whyThisTask: `Audit visual slot [${execResult.slotKey}] for ${entityType} ${entityId}.`,
+        whatDetected: `Execution halted: ${execResult.errorMessage}`,
         whatChanged: 'Zero assets created or modified. Task safely blocked.',
-        whatVerified: 'Queue governance prevented automated processing of non-production or protected entity.',
-        whatLearned: 'Autonomous media workers strictly reject test entities and non-existent catalog items.',
+        whatVerified: 'Universal execution contract prevented non-compliant processing.',
+        whatLearned: 'Autonomous media workers strictly honor validation and protection policies.',
       },
       result: {
         workerState: 'BLOCKED',
-        slotKey: spec.slotKey,
+        slotKey: execResult.slotKey,
         entityType,
         entityId,
-        approvedAssetAttached: eligibility.statusCode === 'PROTECTED_REAL_OWNER',
-        reason: eligibility.reason,
-        statusCode: eligibility.statusCode,
+        approvedAssetAttached: execResult.statusCode === 'PROTECTED_REAL_OWNER',
+        reason: execResult.errorMessage,
+        statusCode: execResult.statusCode,
       },
-      filesAffected: ['lib/growth/media-jobs-engine.ts'],
-      dataAffected: { slotKey: spec.slotKey, entityType, status: 'BLOCKED' },
-      errorMessage: eligibility.reason,
+      filesAffected: ['lib/growth/media-execution-engine.ts'],
+      dataAffected: { slotKey: execResult.slotKey, entityType, status: 'BLOCKED' },
+      errorMessage: execResult.errorMessage,
     };
   }
 
-  // 1. Audit & Fetch Existing Assets for Entity
-  const existingAssets = entityId
-    ? await getMediaForEntity({ entityType, entityId, includeDrafts: true })
-    : [];
-
-  // 2. Real Owner Photo Protection Check
-  const protectedAsset = existingAssets.find((a) =>
-    (a.role === spec.role || a.slotKey === spec.slotKey) &&
-    isRealOwnerPhotoProtected(a) &&
-    a.status === 'approved'
-  );
-
-  if (protectedAsset && (spec.role === 'PRIMARY' || spec.slotKey === 'PRODUCT_PRIMARY')) {
+  if (execResult.status === 'WAITING_PROVIDER') {
     return {
       status: 'COMPLETED',
-      narrative: {
-        whyThisTask: `Audit visual slot [${spec.slotKey}] for ${entityType} ${entityId}.`,
-        whatDetected: `Found protected real owner photo (${protectedAsset.id}). Rule: Real photography is immutable.`,
-        whatChanged: `Zero AI overwrites applied. Protected real photo permanently preserved.`,
-        whatVerified: `Slot active with verified physical asset ${protectedAsset.url}.`,
-        whatLearned: `Real owner photography outranks all automated AI and temporary generation.`,
-      },
-      result: {
-        workerState: 'BLOCKED',
-        slotKey: spec.slotKey,
-        entityType,
-        entityId,
-        approvedAssetAttached: true,
-        protectedAssetId: protectedAsset.id,
-        reason: 'Real owner photo is permanently protected from automated overwrite.',
-      },
-      filesAffected: ['lib/db/media.ts'],
-      dataAffected: { slotKey: spec.slotKey, entityType, status: 'PROTECTED_IMMUTABLE' },
-    };
-  }
-
-  // 3. Check for Approved Master Asset & Derive if appropriate
-  const masterPrimary = existingAssets.find((a) => a.role === 'PRIMARY' && a.status === 'approved');
-  if (masterPrimary && (spec.slotKey === 'OPENGRAPH_META' || spec.role === 'OG_SOCIAL')) {
-    try {
-      const derivResult = await generateMediaDerivative({
-        masterAsset: masterPrimary,
-        derivativeType: 'OPENGRAPH',
-      });
-      return {
-        status: 'COMPLETED',
-        narrative: {
-          whyThisTask: `Generate OpenGraph social card from approved master asset for ${entityType} ${entityId}.`,
-          whatDetected: `Approved primary asset found: ${masterPrimary.id}. Generating 1200x630 OpenGraph derivative.`,
-          whatChanged: `Created/reused canonical OpenGraph derivative: ${derivResult.asset.id}.`,
-          whatVerified: `Verified 1.91:1 raster derivative attached without distortion.`,
-          whatLearned: `Social OpenGraph assets derived from approved masters preserve brand consistency.`,
-        },
-        result: {
-          workerState: 'ASSET_ASSIGNED',
-          slotKey: spec.slotKey,
-          entityType,
-          entityId,
-          approvedAssetAttached: true,
-          derivativeAssetId: derivResult.asset.id,
-          reused: derivResult.reused,
-        },
-        filesAffected: ['lib/media/derived-media-engine.ts'],
-        dataAffected: { derivativeId: derivResult.asset.id, slotKey: spec.slotKey },
-      };
-    } catch (derivErr: any) {
-      console.warn(`[mediaVisualWorker] Derivative error:`, derivErr.message);
-    }
-  }
-
-  // 4. Provider Availability Check (Local ComfyUI / SD)
-  const localProvider = new LocalSelfHostedProvider();
-  const isLocalAvailable = await localProvider.isAvailable();
-
-  // 5. Signature Woman / Grounded Botanical Prompt
-  const requiresSignatureWoman = task.payload?.useSignatureWoman === true;
-  let blueprintPrompt = '';
-  if (requiresSignatureWoman) {
-    const womanResult = buildSignatureWomanPrompt({
-      scene: 'Traditional Rajasthani stone courtyard with fresh henna leaves',
-      action: 'inspecting harvested botanical foliage in natural morning sunlight',
-      composition: 'PORTRAIT',
-      aspectRatio: spec.aspectRatio as any,
-    });
-    blueprintPrompt = womanResult.prompt;
-  } else {
-    const tempBlueprint = buildTemporaryVisualBlueprint({
-      entityType,
-      entityId,
-      entityName: (task.payload?.entityName as string) || 'Botanical Care',
-      slotKey: spec.slotKey,
-    });
-    blueprintPrompt = tempBlueprint.prompt;
-  }
-
-  // 6. If Provider is Offline, Truthfully Return WAITING_PROVIDER
-  if (!isLocalAvailable) {
-    await enqueueMediaJob({
-      entityType,
-      entityId,
-      slotKey: spec.slotKey,
-      strategy: spec.role === 'PRIMARY' ? 'TEMPORARY' : 'AI',
-      priority: 'P2',
-      blueprintPrompt,
-    });
-
-    return {
-      status: 'COMPLETED',
-      narrative: {
-        whyThisTask: `Synthesize visual slot [${spec.slotKey}] for ${entityType} ${entityId}.`,
-        whatDetected: `Grounded factual blueprint compiled. Local ComfyUI provider is currently offline.`,
-        whatChanged: `Enqueued durable job into public.media_jobs with state WAITING_PROVIDER. Zero fake assets created.`,
-        whatVerified: `Storefront safely degrades to fallback placeholder until provider responds or photo is uploaded.`,
-        whatLearned: `Master Agent never fabricates successful generation without real binary creation.`,
+      narrative: execResult.narrative || {
+        whyThisTask: `Synthesize visual slot [${execResult.slotKey}] for ${entityType} ${entityId}.`,
+        whatDetected: `Provider is currently offline. Enqueued job with state WAITING_PROVIDER.`,
+        whatChanged: 'Zero fake assets created. Fallback preserved.',
+        whatVerified: 'Truthful state persistence verified.',
+        whatLearned: 'Master Agent never claims success without real binary creation.',
       },
       result: {
         workerState: 'WAITING_PROVIDER',
-        slotKey: spec.slotKey,
+        slotKey: execResult.slotKey,
         entityType,
         entityId,
-        approvedAssetAttached: false, // TRUTHFUL: No asset attached
-        blueprintPrompt,
-        provider: 'LOCAL_COMFYUI',
-        reason: 'Local provider offline; job enqueued in WAITING_PROVIDER state.',
+        approvedAssetAttached: false,
+        provider: execResult.provider,
+        reason: execResult.errorMessage,
       },
-      filesAffected: ['lib/growth/media-jobs-engine.ts'],
-      dataAffected: { slotKey: spec.slotKey, status: 'WAITING_PROVIDER' },
+      filesAffected: ['lib/growth/media-execution-engine.ts'],
+      dataAffected: { slotKey: execResult.slotKey, status: 'WAITING_PROVIDER' },
     };
   }
 
-  // 7. If Provider is Online, generate real asset
-  try {
-    const genResult = await localProvider.generateImage(blueprintPrompt, {
-      aspectRatio: spec.aspectRatio,
-      width: spec.recommendedWidth,
-      height: spec.recommendedHeight,
-    });
-
-    return {
-      status: 'COMPLETED',
-      narrative: {
-        whyThisTask: `Execute local AI generation for slot [${spec.slotKey}] of ${entityType}.`,
-        whatDetected: `Local diffusion synthesized valid ${genResult.width}x${genResult.height} image.`,
-        whatChanged: `Saved binary to storage and registered canonical asset record.`,
-        whatVerified: `Verified aspect ratio and content integrity.`,
-        whatLearned: `Local diffusion pipeline operates with zero external cloud API costs.`,
-      },
-      result: {
-        workerState: 'ASSET_APPROVED',
-        slotKey: spec.slotKey,
-        entityType,
-        entityId,
-        approvedAssetAttached: true,
-        fileName: genResult.fileName,
-      },
-      filesAffected: ['lib/ai/visual-engine.ts'],
-      dataAffected: { slotKey: spec.slotKey, provider: 'LOCAL_COMFYUI' },
-    };
-  } catch (genErr: any) {
+  if (execResult.status === 'FAILED') {
     return {
       status: 'FAILED',
-      errorMessage: genErr.message,
-      narrative: {
-        whyThisTask: `Execute local AI generation for slot [${spec.slotKey}].`,
-        whatDetected: `Local provider encountered error: ${genErr.message}.`,
-        whatChanged: `No assets modified. Error logged to audit store.`,
-        whatVerified: `System fail-closed safely without corrupting existing catalog assets.`,
-        whatLearned: `Failed generation jobs are logged for retry or manual review.`,
+      errorMessage: execResult.errorMessage,
+      narrative: execResult.narrative || {
+        whyThisTask: `Execute generation for slot [${execResult.slotKey}].`,
+        whatDetected: `Error: ${execResult.errorMessage}.`,
+        whatChanged: 'No assets modified.',
+        whatVerified: 'System fail-closed safely.',
+        whatLearned: 'Failed generation jobs are logged for retry.',
       },
       result: {
         workerState: 'FAILED',
-        slotKey: spec.slotKey,
+        slotKey: execResult.slotKey,
         approvedAssetAttached: false,
-        error: genErr.message,
+        error: execResult.errorMessage,
       },
-      filesAffected: [],
-      dataAffected: { slotKey: spec.slotKey, error: genErr.message },
+      filesAffected: ['lib/growth/media-execution-engine.ts'],
+      dataAffected: { slotKey: execResult.slotKey, error: execResult.errorMessage },
     };
   }
+
+  // COMPLETED
+  return {
+    status: 'COMPLETED',
+    narrative: execResult.narrative || {
+      whyThisTask: `Execute universal generation for slot [${execResult.slotKey}] of ${entityType} ${entityId}.`,
+      whatDetected: `Asset successfully synthesized and persisted: ${execResult.resultAssetId}.`,
+      whatChanged: `Registered canonical asset record with status suggested.`,
+      whatVerified: 'Persisted to Supabase Storage and database.',
+      whatLearned: 'Universal execution contract successfully fulfilled.',
+    },
+    result: {
+      workerState: 'ASSET_ASSIGNED',
+      slotKey: execResult.slotKey,
+      entityType,
+      entityId,
+      approvedAssetAttached: true,
+      resultAssetId: execResult.resultAssetId,
+      reused: execResult.reused,
+    },
+    filesAffected: ['lib/growth/media-execution-engine.ts'],
+    dataAffected: { slotKey: execResult.slotKey, resultAssetId: execResult.resultAssetId },
+  };
 };
 
 // ----------------------------------------------------------------------------

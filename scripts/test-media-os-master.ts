@@ -82,6 +82,8 @@ import {
   enqueueMediaJob,
   acquireMediaJobLock,
   completeMediaJob,
+  getMediaJobById,
+  persistMediaJob,
   generateDeterministicMediaJobId,
   resetMemoryMediaJobs,
   canProcessMediaJob,
@@ -112,6 +114,12 @@ import {
 import {
   resolvePageSeoMetadata,
 } from '../lib/db/seo';
+import {
+  executeUniversalMediaJob,
+} from '../lib/growth/media-execution-engine';
+import {
+  VisualProvider,
+} from '../lib/ai/visual-engine';
 import sharp from 'sharp';
 
 async function runMasterMediaOSTests() {
@@ -974,6 +982,423 @@ async function runMasterMediaOSTests() {
     assert.strictEqual(spec.aspectRatio, '1:1');
     assert.strictEqual(spec.recommendedWidth, 1200);
     assert.strictEqual(spec.recommendedHeight, 1200);
+  });
+
+  // --------------------------------------------------------------------------
+  // TEST 26: Universal Media Execution Contract across All 6 Entity Types
+  // --------------------------------------------------------------------------
+  console.log('\n--- TEST 26: Universal Media Execution Contract across All 6 Entity Types ---');
+
+  const testMockProvider: VisualProvider = {
+    id: 'universal-mock-provider',
+    name: 'Universal Mock Provider',
+    tier: 'FREE',
+    isAvailable: () => true,
+    generateImage: async (prompt, options) => {
+      const width = options?.width || 1200;
+      const height = options?.height || 1200;
+      const buffer = await sharp({
+        create: {
+          width,
+          height,
+          channels: 4,
+          background: { r: 50, g: 120, b: 80, alpha: 1 },
+        },
+      })
+        .jpeg()
+        .toBuffer();
+
+      return {
+        buffer,
+        mimeType: 'image/jpeg',
+        width,
+        height,
+        aspectRatio: options?.aspectRatio || '1:1',
+        fileName: `universal-test-${Date.now()}.jpg`,
+        promptUsed: prompt,
+        modelName: 'universal-mock-v1',
+        provider: 'Universal Mock Provider',
+        providerId: 'universal-mock-provider',
+        tier: 'FREE',
+      };
+    },
+  };
+
+  const testOfflineProvider: VisualProvider = {
+    id: 'universal-offline-provider',
+    name: 'Universal Offline Provider',
+    tier: 'LOCAL',
+    isAvailable: () => false,
+    generateImage: async () => {
+      throw new Error('Offline provider cannot generate');
+    },
+  };
+
+  const testFailingProvider: VisualProvider = {
+    id: 'universal-failing-provider',
+    name: 'Universal Failing Provider',
+    tier: 'FREE',
+    isAvailable: () => true,
+    generateImage: async () => {
+      throw new Error('Simulated internal generation engine explosion');
+    },
+  };
+
+  // A. Valid entity accepted across all 6 entity types
+  await test('26.A: Valid entity accepted across all 6 entity types', async () => {
+    const entityFixtures = [
+      { type: 'PRODUCT' as const, id: 'prod-1786368977551', slot: 'PRODUCT_GALLERY' },
+      { type: 'CATEGORY' as const, id: 'cat-1', slot: 'CATEGORY_HERO' },
+      { type: 'GUIDE' as const, id: 'guide-what-is-baq-henna-vs-regular', slot: 'GUIDE_HERO' },
+      { type: 'KNOWLEDGE' as const, id: 'henna-mehndi', slot: 'KNOWLEDGE_HERO' },
+      { type: 'BRAND' as const, id: 'musky-dose', slot: 'BRAND_HERO' },
+      { type: 'MARKETING' as const, id: 'global', slot: 'MARKETING_BANNER' },
+    ];
+
+    for (const fixture of entityFixtures) {
+      const res = await canProcessMediaJob({
+        entityType: fixture.type,
+        entityId: fixture.id,
+        slotKey: fixture.slot,
+        strategy: 'TEMPORARY',
+      });
+      assert.strictEqual(
+        res.decision,
+        'PROCESS',
+        `Entity ${fixture.type} ${fixture.id} should be accepted`
+      );
+      assert.strictEqual(res.statusCode, 'ELIGIBLE');
+    }
+  });
+
+  // B. Missing entity blocked (INVALID_ENTITY) across all 6 entity types
+  await test('26.B: Missing entity blocked (INVALID_ENTITY) across all 6 entity types', async () => {
+    const missingFixtures = [
+      { type: 'PRODUCT' as const, id: 'prod-non-existent-xyz' },
+      { type: 'CATEGORY' as const, id: 'cat-non-existent-xyz' },
+      { type: 'GUIDE' as const, id: 'guide-non-existent-xyz' },
+      { type: 'KNOWLEDGE' as const, id: 'unknown-entity-xyz' },
+      { type: 'BRAND' as const, id: 'unknown-brand-xyz' },
+      { type: 'MARKETING' as const, id: 'unknown-campaign-xyz' },
+    ];
+
+    for (const fixture of missingFixtures) {
+      const res = await executeUniversalMediaJob({
+        entityType: fixture.type,
+        entityId: fixture.id,
+        slotKey: 'PRIMARY',
+        provider: testMockProvider,
+      });
+      assert.strictEqual(res.status, 'BLOCKED');
+      assert.strictEqual(res.statusCode, 'INVALID_ENTITY');
+      assert.strictEqual(res.errorMessage, 'INVALID_ENTITY');
+      assert.strictEqual(res.resultAssetId, null);
+    }
+  });
+
+  // C. Test/demo entity blocked (TEST_ENTITY_REJECTED) across entity types
+  await test('26.C: Test entity blocked (TEST_ENTITY_REJECTED)', async () => {
+    const testEntityCases = [
+      { type: 'PRODUCT' as const, id: 'prod-test-queue' },
+      { type: 'CATEGORY' as const, id: 'cat-test-123' },
+      { type: 'GUIDE' as const, id: 'guide-sample' },
+      { type: 'KNOWLEDGE' as const, id: 'knowledge-fixture' },
+      { type: 'BRAND' as const, id: 'brand-demo' },
+      { type: 'MARKETING' as const, id: 'marketing-mock' },
+    ];
+
+    for (const fixture of testEntityCases) {
+      const res = await executeUniversalMediaJob({
+        entityType: fixture.type,
+        entityId: fixture.id,
+        slotKey: 'PRIMARY',
+        provider: testMockProvider,
+      });
+      assert.strictEqual(res.status, 'BLOCKED');
+      assert.strictEqual(res.statusCode, 'TEST_ENTITY_REJECTED');
+      assert.strictEqual(res.errorMessage, 'TEST_ENTITY_REJECTED');
+      assert.strictEqual(res.resultAssetId, null);
+    }
+  });
+
+  // D. Canonical slot resolution works across representative slot families
+  await test('26.D: Canonical slot resolution works across representative slot families', () => {
+    const slotMatrix = [
+      { input: 'PRIMARY', entity: 'PRODUCT', expectedSlot: 'PRODUCT_PRIMARY', expectedRole: 'PRIMARY' },
+      { input: 'GALLERY', entity: 'PRODUCT', expectedSlot: 'PRODUCT_GALLERY', expectedRole: 'GALLERY' },
+      { input: 'PACKAGING', entity: 'PRODUCT', expectedSlot: 'PRODUCT_PACKAGING', expectedRole: 'PACKAGING' },
+      { input: 'LIFESTYLE', entity: 'PRODUCT', expectedSlot: 'PRODUCT_LIFESTYLE', expectedRole: 'LIFESTYLE' },
+      { input: 'DETAIL', entity: 'PRODUCT', expectedSlot: 'PRODUCT_DETAIL', expectedRole: 'DETAIL' },
+      { input: 'USAGE', entity: 'PRODUCT', expectedSlot: 'PRODUCT_USAGE', expectedRole: 'USAGE' },
+      { input: 'INGREDIENTS', entity: 'PRODUCT', expectedSlot: 'PRODUCT_INGREDIENTS', expectedRole: 'INGREDIENTS' },
+      { input: 'HERO', entity: 'CATEGORY', expectedSlot: 'CATEGORY_HERO', expectedRole: 'HERO' },
+      { input: 'HERO', entity: 'GUIDE', expectedSlot: 'GUIDE_HERO', expectedRole: 'HERO' },
+      { input: 'HERO', entity: 'KNOWLEDGE', expectedSlot: 'KNOWLEDGE_HERO', expectedRole: 'HERO' },
+      { input: 'HERO', entity: 'BRAND', expectedSlot: 'BRAND_HERO', expectedRole: 'HERO' },
+      { input: 'OG_SOCIAL', entity: 'PRODUCT', expectedSlot: 'OPENGRAPH_META', expectedRole: 'OG_SOCIAL' },
+      { input: 'ICON', entity: 'BRAND', expectedSlot: 'BRAND_ICON', expectedRole: 'ICON' },
+      { input: 'PROCESS', entity: 'GUIDE', expectedSlot: 'GUIDE_PROCESS', expectedRole: 'PROCESS' },
+      { input: 'PROCESS', entity: 'BRAND', expectedSlot: 'BRAND_PROCESS', expectedRole: 'PROCESS' },
+      { input: 'INFOGRAPHIC', entity: 'GUIDE', expectedSlot: 'GUIDE_INFOGRAPHIC', expectedRole: 'INFOGRAPHIC' },
+      { input: 'INFOGRAPHIC', entity: 'KNOWLEDGE', expectedSlot: 'KNOWLEDGE_INFOGRAPHIC', expectedRole: 'INFOGRAPHIC' },
+      { input: 'COMPARISON', entity: 'PRODUCT', expectedSlot: 'PRODUCT_COMPARISON', expectedRole: 'COMPARISON' },
+      { input: 'THUMBNAIL', entity: 'PRODUCT', expectedSlot: 'PRODUCT_THUMBNAIL', expectedRole: 'THUMBNAIL' },
+      { input: 'BANNER', entity: 'MARKETING', expectedSlot: 'MARKETING_BANNER', expectedRole: 'BANNER' },
+      { input: 'MOBILE_HERO', entity: 'PRODUCT', expectedSlot: 'PRODUCT_MOBILE', expectedRole: 'MOBILE_HERO' },
+      { input: 'MOBILE_HERO', entity: 'CATEGORY', expectedSlot: 'CATEGORY_MOBILE', expectedRole: 'MOBILE_HERO' },
+      { input: 'DESKTOP_HERO', entity: 'BRAND', expectedSlot: 'BRAND_DESKTOP_HERO', expectedRole: 'DESKTOP_HERO' },
+      { input: 'SOCIAL_SQUARE', entity: 'PRODUCT', expectedSlot: 'SOCIAL_SQUARE', expectedRole: 'SOCIAL_SQUARE' },
+      { input: 'SOCIAL_PORTRAIT', entity: 'PRODUCT', expectedSlot: 'SOCIAL_PORTRAIT', expectedRole: 'SOCIAL_PORTRAIT' },
+    ];
+
+    for (const item of slotMatrix) {
+      const spec = reconcileCanonicalSlot(item.input, item.entity);
+      assert.strictEqual(spec.slotKey, item.expectedSlot, `Mismatch for ${item.input} / ${item.entity}`);
+      assert.strictEqual(spec.role, item.expectedRole, `Role mismatch for ${item.input}`);
+    }
+  });
+
+  // E. Protected asset cannot be overwritten
+  await test('26.E: Protected asset cannot be overwritten', async () => {
+    const res = await executeUniversalMediaJob({
+      entityType: 'PRODUCT',
+      entityId: 'prod-1786368977551',
+      slotKey: 'PRODUCT_PRIMARY',
+      strategy: 'AI',
+      provider: testMockProvider,
+    });
+    assert.strictEqual(res.status, 'BLOCKED');
+    assert.strictEqual(res.statusCode, 'PROTECTED_REAL_OWNER');
+    assert.strictEqual(res.errorMessage, 'PROTECTED_REAL_OWNER');
+    assert.strictEqual(typeof res.resultAssetId, 'string');
+  });
+
+  // F. Provider offline => WAITING_PROVIDER (zero fake assets created)
+  await test('26.F: Provider offline returns WAITING_PROVIDER and creates zero fake assets', async () => {
+    const res = await executeUniversalMediaJob({
+      entityType: 'CATEGORY',
+      entityId: 'cat-1',
+      slotKey: 'CATEGORY_HERO',
+      strategy: 'AI',
+      provider: testOfflineProvider,
+    });
+    assert.strictEqual(res.status, 'WAITING_PROVIDER');
+    assert.strictEqual(res.statusCode, 'WAITING_PROVIDER');
+    assert.strictEqual(res.resultAssetId, null, 'No fake asset ID on offline provider');
+    assert.strictEqual(res.provider, 'universal-offline-provider');
+  });
+
+  // G. MANUAL_REQUIRED => BLOCKED without provider invocation
+  await test('26.G: MANUAL_REQUIRED returns BLOCKED without provider invocation', async () => {
+    const res = await executeUniversalMediaJob({
+      entityType: 'GUIDE',
+      entityId: 'guide-what-is-baq-henna-vs-regular',
+      slotKey: 'GUIDE_HERO',
+      strategy: 'MANUAL_REQUIRED',
+      provider: testMockProvider,
+    });
+    assert.strictEqual(res.status, 'BLOCKED');
+    assert.strictEqual(res.statusCode, 'MANUAL_REQUIRED');
+    assert.strictEqual(res.errorMessage, 'MANUAL_REQUIRED');
+    assert.strictEqual(res.resultAssetId, null);
+  });
+
+  // H. Real generation => persisted Asset + resultAssetId
+  await test('26.H: Real generation succeeds, persists MediaAsset with status suggested and returns resultAssetId', async () => {
+    const res = await executeUniversalMediaJob({
+      entityType: 'BRAND',
+      entityId: 'musky-dose',
+      slotKey: 'BRAND_HERO',
+      strategy: 'AI',
+      provider: testMockProvider,
+    });
+    assert.strictEqual(res.status, 'COMPLETED');
+    assert.strictEqual(typeof res.resultAssetId, 'string');
+    assert(res.resultAssetId!.length > 0);
+
+    const brandAssets = await getMediaForEntity({ entityType: 'BRAND', entityId: 'musky-dose', includeDrafts: true });
+    const generated = brandAssets.find((a) => a.id === res.resultAssetId);
+    assert(generated, 'Generated asset must be retrievable from canonical media store');
+    assert.strictEqual(generated!.source, 'AI_GENERATED');
+    assert.strictEqual(generated!.status, 'suggested', 'Approval Governance: AI generated assets must be suggested');
+    assert.strictEqual(generated!.isLocked, false);
+    assert.strictEqual(generated!.role, 'HERO');
+  });
+
+  // I. Generation failure => FAILED
+  await test('26.I: Generation failure safely transitions job to FAILED', async () => {
+    const res = await executeUniversalMediaJob({
+      entityType: 'KNOWLEDGE',
+      entityId: 'henna-mehndi',
+      slotKey: 'KNOWLEDGE_HERO',
+      strategy: 'AI',
+      provider: testFailingProvider,
+    });
+    assert.strictEqual(res.status, 'FAILED');
+    assert.strictEqual(res.resultAssetId, null);
+    assert(res.errorMessage?.includes('Simulated internal generation engine explosion'));
+  });
+
+  // J. Duplicate job => idempotent deterministic job ID
+  await test('26.J: Job ID generation is deterministic and idempotent', () => {
+    const id1 = generateDeterministicMediaJobId('MARKETING', 'global', 'MARKETING_BANNER');
+    const id2 = generateDeterministicMediaJobId('MARKETING', 'global', 'MARKETING_BANNER');
+    assert.strictEqual(id1, id2);
+    assert.strictEqual(id1, 'media-job::MARKETING::global::MARKETING_BANNER');
+  });
+
+  // K. Stale lock => safely reclaimed after 5-minute lease expiry
+  await test('26.K: Stale lock (>5m lease) is safely reclaimed by new worker', async () => {
+    const jobId = 'media-job::GUIDE::guide-what-is-baq-henna-vs-regular::GUIDE_HERO';
+    await enqueueMediaJob({
+      entityType: 'GUIDE',
+      entityId: 'guide-what-is-baq-henna-vs-regular',
+      slotKey: 'GUIDE_HERO',
+      strategy: 'TEMPORARY',
+    });
+
+    const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const job = await getMediaJobById(jobId);
+    if (job) {
+      job.status = 'IN_PROGRESS';
+      job.lockedAt = tenMinAgo;
+      job.lockedBy = 'expired-worker-pid-999';
+      await persistMediaJob(job);
+    }
+
+    const acquired = await acquireMediaJobLock(jobId, 'active-worker-pod', { enforceEligibility: false });
+    assert.strictEqual(acquired, true, 'Expired lease lock must be reclaimable');
+    await completeMediaJob({ jobId, status: 'COMPLETED' });
+  });
+
+  // L. Health failure => repair job enqueued
+  await test('26.L: Health failure marks asset UNHEALTHY and enqueues repair job', async () => {
+    const testAsset: MediaAsset = {
+      id: 'asset-health-test-001',
+      url: 'https://example.com/dead-link-404.jpg',
+      mimeType: 'image/jpeg',
+      storageBucket: 'product-images',
+      aspectRatio: '1:1',
+      role: 'GALLERY',
+      sortOrder: 10,
+      entityType: 'PRODUCT',
+      entityId: 'prod-1786368977551',
+      source: 'AI_GENERATED',
+      status: 'approved',
+      isLocked: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const repairRes = await markMediaAssetUnhealthy(testAsset, 'HTTP 404 Not Found');
+    assert.strictEqual(repairRes.markedUnhealthy, true);
+    assert.strictEqual(repairRes.jobEnqueued, true);
+    assert.strictEqual(repairRes.repairedAsset.healthStatus, 'UNHEALTHY');
+  });
+
+  // M. Derivative => correct lineage attached
+  await test('26.M: Derivative generates correct lineage (parentAssetId, derivativeType)', async () => {
+    const masterAssets = await getMediaForEntity({ entityType: 'PRODUCT', entityId: 'prod-1786368977551', includeDrafts: false });
+    const masterPrimary = masterAssets.find((a) => a.role === 'PRIMARY');
+    assert(masterPrimary, 'Real master primary must exist');
+
+    const deriv = await generateMediaDerivative({
+      masterAsset: masterPrimary,
+      derivativeType: 'OPENGRAPH',
+    });
+
+    assert(deriv.asset);
+    assert.strictEqual(deriv.asset.parentAssetId, masterPrimary.id);
+    assert.strictEqual(deriv.asset.derivativeType, 'OPENGRAPH');
+  });
+
+  // N. AI asset => suggested, not auto-approved
+  await test('26.N: Universal AI execution adheres to suggested approval governance', async () => {
+    const res = await executeUniversalMediaJob({
+      entityType: 'MARKETING',
+      entityId: 'global',
+      slotKey: 'MARKETING_BANNER',
+      strategy: 'AI',
+      provider: testMockProvider,
+    });
+    assert.strictEqual(res.status, 'COMPLETED');
+    const marketingAssets = await getMediaForEntity({ entityType: 'MARKETING', entityId: 'global', includeDrafts: true });
+    const created = marketingAssets.find((a) => a.id === res.resultAssetId);
+    assert(created);
+    assert.strictEqual(created.status, 'suggested');
+    assert.strictEqual(created.isLocked, false);
+    assert.strictEqual(created.source, 'AI_GENERATED');
+  });
+
+  // O. No asset creation on blocked/provider-unavailable paths
+  await test('26.O: No asset creation occurs on blocked or provider-unavailable paths', async () => {
+    const initialAssets = await getMediaForEntity({ entityType: 'GUIDE', entityId: 'guide-what-is-baq-henna-vs-regular', includeDrafts: true });
+    const initialCount = initialAssets.length;
+
+    const offlineRes = await executeUniversalMediaJob({
+      entityType: 'GUIDE',
+      entityId: 'guide-what-is-baq-henna-vs-regular',
+      slotKey: 'GUIDE_HERO',
+      strategy: 'AI',
+      provider: testOfflineProvider,
+    });
+    assert.strictEqual(offlineRes.status, 'WAITING_PROVIDER');
+    assert.strictEqual(offlineRes.resultAssetId, null);
+
+    const blockedRes = await executeUniversalMediaJob({
+      entityType: 'GUIDE',
+      entityId: 'guide-blocked-test',
+      slotKey: 'GUIDE_HERO',
+      strategy: 'AI',
+      provider: testMockProvider,
+    });
+    assert.strictEqual(blockedRes.status, 'BLOCKED');
+    assert.strictEqual(blockedRes.resultAssetId, null);
+
+    const finalAssets = await getMediaForEntity({ entityType: 'GUIDE', entityId: 'guide-what-is-baq-henna-vs-regular', includeDrafts: true });
+    assert.strictEqual(finalAssets.length, initialCount, 'Asset count must not increase on blocked/waiting paths');
+  });
+
+  // P. mediaVisualWorker thin orchestrator verification
+  await test('26.P: mediaVisualWorker acts as thin orchestrator and delegates to universal engine', async () => {
+    const blockedWorkerRes = await mediaVisualWorker({
+      id: 'task-test-worker-1',
+      worker: 'MEDIA_VISUAL',
+      payload: {
+        entityType: 'PRODUCT',
+        entityId: 'prod-test-queue',
+        slotKey: 'PRODUCT_PRIMARY',
+      },
+    } as any);
+    assert.strictEqual(blockedWorkerRes.status, 'BLOCKED');
+    assert.strictEqual(blockedWorkerRes.result.workerState, 'BLOCKED');
+
+    const waitingWorkerRes = await mediaVisualWorker({
+      id: 'task-test-worker-2',
+      worker: 'MEDIA_VISUAL',
+      payload: {
+        entityType: 'CATEGORY',
+        entityId: 'cat-1',
+        slotKey: 'CATEGORY_HERO',
+        provider: testOfflineProvider,
+      },
+    } as any);
+    assert.strictEqual(waitingWorkerRes.status, 'COMPLETED');
+    assert.strictEqual(waitingWorkerRes.result.workerState, 'WAITING_PROVIDER');
+
+    const successWorkerRes = await mediaVisualWorker({
+      id: 'task-test-worker-3',
+      worker: 'MEDIA_VISUAL',
+      payload: {
+        entityType: 'GUIDE',
+        entityId: 'guide-what-is-baq-henna-vs-regular',
+        slotKey: 'GUIDE_PROCESS',
+        provider: testMockProvider,
+      },
+    } as any);
+    assert.strictEqual(successWorkerRes.status, 'COMPLETED');
+    assert.strictEqual(successWorkerRes.result.workerState, 'ASSET_ASSIGNED');
+    assert.strictEqual(typeof successWorkerRes.result.resultAssetId, 'string');
   });
 
   // --------------------------------------------------------------------------
