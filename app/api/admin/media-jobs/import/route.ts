@@ -59,6 +59,9 @@ export async function POST(req: NextRequest) {
       provider: new ManualAiStudioProvider(),
       workerId: 'free-ai-studio-import',
       promptOverride: job.blueprintPrompt || undefined,
+      imageBuffer: buffer,
+      imageMimeType: validation.metadata.mimeType || file.type,
+      imageFileName: file.name,
     });
 
     if (result.status !== 'COMPLETED') {
