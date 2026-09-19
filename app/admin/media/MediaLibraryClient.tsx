@@ -3,7 +3,6 @@
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { MediaAsset, MediaEntityType, isDiagnosticMediaAsset, isSafeInternalMediaUrl } from '@/lib/db/media';
-import type { MediaJobRecord } from '@/lib/growth/media-jobs-engine';
 
 interface Props {
   initialAssets: MediaAsset[];
@@ -14,10 +13,9 @@ interface Props {
     failed: number;
     blocked: number;
   };
-  pendingJobs?: MediaJobRecord[];
 }
 
-export default function MediaLibraryClient({ initialAssets, queueSummary, pendingJobs = [] }: Props) {
+export default function MediaLibraryClient({ initialAssets, queueSummary }: Props) {
   const [assets] = useState<MediaAsset[]>(initialAssets);
   const [entityFilter, setEntityFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -25,10 +23,6 @@ export default function MediaLibraryClient({ initialAssets, queueSummary, pendin
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<MediaAsset | null>(null);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
-  const [importJobId, setImportJobId] = useState<string | null>(null);
-  const [isImporting, setIsImporting] = useState(false);
-  const [studioPrompt, setStudioPrompt] = useState<string | null>(null);
-  const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -91,23 +85,6 @@ export default function MediaLibraryClient({ initialAssets, queueSummary, pendin
       setQueueMessage(error?.message || 'Queue processing failed');
     } finally {
       setIsProcessingQueue(false);
-    }
-  };
-
-  const loadStudioPrompt = async (jobId: string) => {
-    setIsLoadingPrompt(true);
-    setStudioPrompt(null);
-    try {
-      const res = await fetch('/api/admin/media-jobs/prompt?jobId=' + encodeURIComponent(jobId), {
-        headers: { 'x-csrf-token': '1' },
-      });
-      const data = await res.json();
-      if (!res.ok || !data?.success) throw new Error(data?.error || 'Prompt generation failed');
-      setStudioPrompt(data.prompt || '');
-    } catch (error: any) {
-      setQueueMessage(error?.message || 'Prompt generation failed');
-    } finally {
-      setIsLoadingPrompt(false);
     }
   };
 
@@ -177,40 +154,6 @@ export default function MediaLibraryClient({ initialAssets, queueSummary, pendin
             </div>
           </div>
         )}
-
-        <div className="bg-white border border-[#ded7cb] rounded-2xl p-5 mb-6 shadow-sm">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div>
-              <div className="text-[10px] uppercase tracking-wider font-bold text-[#778078]">₹0 Free AI Studio Import</div>
-              <div className="text-lg font-semibold text-[#173b2d] mt-1">Generate outside, import here safely</div>
-              <p className="text-xs text-[#6c756e] mt-1 max-w-3xl">
-                Queue ke pending/waiting slots ke liye image kisi free AI studio/tool se banao aur yahin import karo. Image validation, storage aur canonical registration automatic rahega.
-              </p>
-            </div>
-            <div className="text-[11px] text-[#5f6961]">{pendingJobs.length} importable queue jobs</div>
-          </div>
-          {pendingJobs.length > 0 ? (
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {pendingJobs.slice(0, 12).map((job) => (
-                <div key={job.id} className="rounded-xl border border-[#e3ddd3] bg-[#fbfaf7] p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="px-2 py-0.5 rounded-full bg-[#173b2d] text-white text-[9px] font-bold">{job.entityType}</span>
-                    <span className="text-[9px] uppercase font-bold text-[#7a817c]">{job.status}</span>
-                  </div>
-                  <div className="text-sm font-semibold text-[#28332c] mt-2 line-clamp-1">{job.entityId}</div>
-                  <div className="text-[10px] text-[#737b75] mt-1">{job.slotKey} · {job.strategy}</div>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <button type="button" onClick={() => { setImportJobId(job.id); setStudioPrompt(null); }} className="px-3 py-2 rounded-lg bg-[#173b2d] text-white text-[11px] font-semibold">Import Image</button>
-                    <button type="button" onClick={() => { setImportJobId(job.id); loadStudioPrompt(job.id); }} className="px-3 py-2 rounded-lg border border-[#cfc7ba] bg-white text-[#173b2d] text-[11px] font-semibold">Get Free Prompt</button>
-                    <span className="text-[10px] text-[#7b817c]">₹0 • validated</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="mt-4 rounded-xl bg-[#f5f1e9] p-4 text-xs text-[#68716a]">Abhi koi AI/TEMPORARY queue job import ke liye available nahi hai.</div>
-          )}
-        </div>
 
         <div className="bg-white border border-[#ded7cb] rounded-2xl p-4 mb-6 shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -299,68 +242,6 @@ export default function MediaLibraryClient({ initialAssets, queueSummary, pendin
                 </button>
               );
             })}
-          </div>
-        )}
-
-        {importJobId && (
-          <div className="fixed inset-0 z-[55] bg-black/70 flex items-center justify-center p-4" onClick={() => !isImporting && setImportJobId(null)}>
-            <div className="bg-white rounded-2xl max-w-xl w-full p-6" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider font-bold text-[#7a817c]">₹0 Free AI Studio</div>
-                  <h2 className="text-xl font-serif font-bold text-[#173b2d] mt-1">Import generated image</h2>
-                </div>
-                <button type="button" disabled={isImporting} onClick={() => setImportJobId(null)} className="text-2xl text-[#7d847e] disabled:opacity-40">×</button>
-              </div>
-              <div className="mt-4 rounded-xl bg-[#f8f6f1] border border-[#e3ddd3] p-3 text-xs text-[#58625b]">
-                <div className="font-semibold text-[#173b2d]">Selected queue job</div>
-                <div className="mt-1 break-all">{importJobId}</div>
-              </div>
-              {isLoadingPrompt ? (
-                <div className="mt-4 rounded-xl border border-[#e3ddd3] bg-[#fbfaf7] p-3 text-xs text-[#6c756e]">Building grounded prompt…</div>
-              ) : studioPrompt ? (
-                <div className="mt-4">
-                  <div className="text-[10px] uppercase tracking-wider font-bold text-[#7a817c]">Grounded generation prompt</div>
-                  <textarea readOnly value={studioPrompt} className="mt-2 w-full min-h-40 rounded-xl border border-[#d7d1c7] bg-[#fbfaf7] p-3 text-xs leading-5 text-[#2d382f]" />
-                  <button
-                    type="button"
-                    onClick={() => navigator.clipboard?.writeText(studioPrompt)}
-                    className="mt-2 px-3 py-2 rounded-lg border border-[#cfc7ba] bg-white text-[#173b2d] text-[11px] font-semibold"
-                  >
-                    Copy Prompt
-                  </button>
-                </div>
-              ) : null}
-
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="mt-4 block w-full text-xs"
-                disabled={isImporting}
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file || !importJobId) return;
-                  setIsImporting(true);
-                  setQueueMessage(null);
-                  try {
-                    const form = new FormData();
-                    form.append('jobId', importJobId);
-                    form.append('file', file);
-                    const res = await fetch('/api/admin/media-jobs/import', { method: 'POST', body: form });
-                    const data = await res.json();
-                    if (!res.ok || !data?.success) throw new Error(data?.error || 'Free AI Studio import failed');
-                    setQueueMessage('₹0 import completed • ' + (data.result?.slotKey || 'Media') + ' • Asset ' + (data.result?.resultAssetId || 'created'));
-                    setImportJobId(null);
-                    setTimeout(() => window.location.reload(), 500);
-                  } catch (error: any) {
-                    setQueueMessage(error?.message || 'Free AI Studio import failed');
-                  } finally {
-                    setIsImporting(false);
-                  }
-                }}
-              />
-              <p className="text-[10px] text-[#7b817c] mt-3">Supported: JPG, PNG, WebP. Canonical slot validation rejects incompatible files.</p>
-            </div>
           </div>
         )}
 
