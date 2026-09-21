@@ -18,6 +18,7 @@ import { logger } from '@/lib/logger';
 import { SeoIntelligenceEngine } from './seo-intelligence/seo-intelligence-engine';
 import { SeoIntelligenceStore } from './seo-intelligence/seo-store';
 import { KeywordUniverseEngine } from './seo-intelligence/keyword-universe-engine';
+import { getProducts } from '@/lib/db/products';
 
 export { getNextDaily2AmIstTimestamp };
 
@@ -584,6 +585,16 @@ export class MuskyDoseMasterAgent {
     if (t1) enqueuedTasks.push(t1);
 
     // 2. Media Compliance & Visual Language v1 Audit (Priority 80)
+    let mediaEntityId = 'prod-1786368977551';
+    try {
+      const liveProducts = await getProducts();
+      if (liveProducts && liveProducts.length > 0 && liveProducts[0]?.id) {
+        mediaEntityId = liveProducts[0].id;
+      }
+    } catch {
+      // safe fallback
+    }
+
     const mediaTaskId = `maint-media-${dateKey}`;
     const mediaTask: AgentTask = {
       id: mediaTaskId,
@@ -601,7 +612,7 @@ export class MuskyDoseMasterAgent {
         whatVerified: 'Strictly zero external URLs, Unsplash, or mock assets allowed.',
         whatLearned: 'Continuous media audits maintain visual luxury and compliance.',
       },
-      payload: { slotRole: 'PRIMARY', entityType: 'PRODUCT', dateKey },
+      payload: { slotRole: 'PRIMARY', entityType: 'PRODUCT', entityId: mediaEntityId, dateKey, auditSweep: true },
       retryCount: 0,
       maxRetries: 2,
       createdAt: new Date().toISOString(),
@@ -879,9 +890,10 @@ export class MuskyDoseMasterAgent {
     const identified = await this.scanAndEnqueueSafeWork();
 
     // 4. Batch execution loop respecting dependency ordering and execution budget
+    const loopStartTime = Date.now();
     const executedSummaries: TickExecutionSummary[] = [];
 
-    while (Date.now() - startTime < timeLimitMs && executedSummaries.length < maxBatch) {
+    while (Date.now() - loopStartTime < timeLimitMs && executedSummaries.length < maxBatch) {
       const nextTask = this.store.getNextReadyTask();
       if (!nextTask) {
         break; // No further tasks ready in dependency order or queue empty

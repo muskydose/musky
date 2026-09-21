@@ -225,7 +225,7 @@ export const DEFAULT_CMS_TEXT: Required<CmsTextConfig> = {
   footerQuickLinksHeading: 'Quick Links',
   footerCategoriesHeading: 'Categories',
   footerCustomerCareHeading: 'Customer Care',
-  footerCopyrightText: '© 2026 Musky Dose. All rights reserved.',
+  footerCopyrightText: `© ${new Date().getFullYear()} Musky Dose. All rights reserved.`,
   footerTrustTitle: 'Authentic Sojat Quality Guarantee',
   footerTrustSubtitle: 'Every pack is batch-tested for purity and lawsone dye content directly at our Sojat facility.',
 

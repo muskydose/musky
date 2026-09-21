@@ -3,6 +3,7 @@ import { getOrderById } from '@/lib/db/orders';
 import { getSiteSettings } from '@/lib/db/settings';
 import { generateInvoiceHtml } from '@/lib/invoicing';
 import { isRequestAdminAuthenticated } from '@/lib/auth';
+import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +12,22 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!isRequestAdminAuthenticated(request)) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized administrative access required.' },
+        { status: 401 }
+      );
+    }
+
+    const ip = getClientIp(request.headers);
+    const rate = await checkRateLimitAsync(`invoice:${ip}`, 60, 60 * 1000);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'Too many invoice requests. Please slow down.' },
+        { status: 429 }
+      );
+    }
+
     const { id } = await params;
     const order = await getOrderById(id);
 

@@ -1,6 +1,8 @@
-﻿import { requireAdminAuthAndCsrf } from '../lib/admin-middleware';
-import { createAdminSessionToken, verifyAdminSessionToken } from '../lib/auth';
+import { requireAdminAuthAndCsrf } from '../lib/admin-middleware';
+import { createAdminSessionToken, verifyAdminSessionToken, isRequestAdminAuthenticated } from '../lib/auth';
 import { sanitizePublicError, sanitizeAdminError } from '../lib/api-errors';
+import { getEffectiveVariantPrice } from '../lib/product-variants';
+import { getConfiguredWhatsAppNumber } from '../lib/whatsapp';
 import { NextRequest } from 'next/server';
 
 console.log("=== RUNNING SECURITY HARDENING VERIFICATION TESTS ===");
@@ -58,6 +60,30 @@ assert(csrfResult.errorResponse?.status === 403, "CSRF / Origin mismatch returns
 const sensitiveError = new Error("syntax error at or near 'SELECT' in postgres relation admin_users unique constraint PGRST200");
 const publicRes = sanitizePublicError(sensitiveError);
 assert(publicRes.status === 500, "Sanitized public error returns 500");
+
+// 6. Invoice IDOR Prevention (HIGH-01)
+const invoiceReqUnauth = new NextRequest('http://localhost:3000/api/orders/ord-12345/invoice');
+assert(isRequestAdminAuthenticated(invoiceReqUnauth) === false, "Unauthenticated invoice request is rejected by admin auth guard");
+
+const invoiceReqAuth = new NextRequest('http://localhost:3000/api/orders/ord-12345/invoice', {
+  headers: {
+    cookie: `md_admin_auth=${testToken}`,
+  },
+});
+assert(isRequestAdminAuthenticated(invoiceReqAuth) === true, "Authenticated invoice request passes admin auth guard");
+
+// 7. Authoritative Variant Pricing Enforcement (HIGH-02)
+const baseProduct: any = { id: 'prod-1', name: 'BAQ Henna', price: 299, variants: [{ id: 'var-1kg', price: 999, weight: '1kg' }] };
+const basePrice = getEffectiveVariantPrice(baseProduct, null);
+const variantPrice = getEffectiveVariantPrice(baseProduct, baseProduct.variants[0]);
+assert(basePrice === 299, "Base product without variant resolves to base price 299");
+assert(variantPrice === 999, "Product with variant resolves authoritatively to variant price 999");
+
+// 8. Lead WhatsApp Number Configuration (HIGH-04)
+const defaultWa = getConfiguredWhatsAppNumber(null);
+assert(defaultWa === '918233703080', "Default WhatsApp number resolves to verified store number 918233703080");
+const customWa = getConfiguredWhatsAppNumber({ whatsappNumber: '919999999999' });
+assert(customWa === '919999999999', "Custom configured WhatsApp number resolves accurately");
 
 console.log(`\nResults: ${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);

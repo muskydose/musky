@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllProductsAdmin } from '@/lib/db/products';
 import { getEffectiveVariantPrice } from '@/lib/product-variants';
+import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req.headers);
+    const rate = await checkRateLimitAsync(`cart_validate:${ip}`, 60, 60 * 1000);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'Too many cart validation requests. Please slow down.' },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const rawItems = body?.items;
 

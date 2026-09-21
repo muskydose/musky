@@ -41,7 +41,7 @@ export default async function GrowthCampaignsPage() {
               <span>Active & Historic Store Campaigns ({campaigns.length})</span>
             </h3>
             <Link
-              href="/admin/marketing/campaigns"
+              href="/admin/offers"
               className="text-xs font-bold text-[#1b4332] hover:underline"
             >
               Manage Campaign Codes →

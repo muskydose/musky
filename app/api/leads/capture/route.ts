@@ -3,9 +3,21 @@ import { saveLead } from '@/lib/growth/lead-engine';
 import { CentralLeadType, LeadCaptureSource } from '@/lib/growth/types';
 import { UniversalGovernanceCore } from '@/lib/governance/core';
 import { revalidateEntitySurfaces } from '@/lib/revalidation';
+import { getSiteSettings } from '@/lib/db/settings';
+import { getConfiguredWhatsAppNumber } from '@/lib/whatsapp';
+import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req.headers);
+    const rate = await checkRateLimitAsync(`lead_capture:${ip}`, 10, 15 * 60 * 1000);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'Too many inquiries submitted. Please wait a few minutes before trying again.' },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
 
     if (!body || !body.mobile) {
@@ -67,7 +79,8 @@ export async function POST(req: NextRequest) {
     revalidateEntitySurfaces('LEAD').catch(() => {});
 
     // Generate prefilled WhatsApp deep link
-    const waPhone = '919876543210'; // Default support / sales WhatsApp
+    const settings = await getSiteSettings();
+    const waPhone = getConfiguredWhatsAppNumber(settings);
     const waText = `Namaste Musky Dose! My name is ${name}. I am interested in ${productName || 'Pure Sojat Henna Powder'}${quantity ? ` (Quantity: ${quantity})` : ''}.${requirement ? ` Requirement: ${requirement}` : ''}`;
     const whatsappUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(waText)}`;
 

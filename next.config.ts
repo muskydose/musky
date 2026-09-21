@@ -1,6 +1,7 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   reactStrictMode: true,
   eslint: {
     ignoreDuringBuilds: false,
@@ -91,10 +92,6 @@ const nextConfig: NextConfig = {
           {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=()',
-          },
-          {
-            key: 'X-XSS-Protection',
-            value: '1; mode=block',
           },
         ],
       },

@@ -6,6 +6,7 @@ import { getSiteSettings } from './settings';
 import { calculateCampaignDiscount, recordCampaignUsage, rollbackCampaignUsage } from './campaigns';
 import { UniversalGovernanceCore } from '@/lib/governance/core';
 import { revalidateEntitySurfaces } from '@/lib/revalidation';
+import { getEffectiveVariantPrice } from '@/lib/product-variants';
 
 function requireSupabaseAdmin(): SupabaseClient {
   const client = getSupabaseAdmin();
@@ -436,7 +437,22 @@ export async function saveOrder(orderData: Partial<Order>): Promise<Order> {
     if (prod.stockStatus === 'out_of_stock') {
       throw new Error(`Product "${prod.name}" is currently out of stock.`);
     }
-    const unitPrice = Number(prod.price);
+
+    let matchedVariant = undefined;
+    if (item.variantId && Array.isArray(prod.variants) && prod.variants.length > 0) {
+      matchedVariant = prod.variants.find((v) => v.id === item.variantId);
+      if (!matchedVariant) {
+        throw new Error(`Variant "${item.variantId}" for product "${prod.name}" was not found.`);
+      }
+      if (matchedVariant.isActive === false) {
+        throw new Error(`Variant "${matchedVariant.weight || matchedVariant.sku}" for product "${prod.name}" is inactive.`);
+      }
+      if (matchedVariant.stockStatus === 'out_of_stock') {
+        throw new Error(`Variant "${matchedVariant.weight || matchedVariant.sku}" for product "${prod.name}" is out of stock.`);
+      }
+    }
+
+    const unitPrice = getEffectiveVariantPrice(prod, matchedVariant);
     const qty = item.quantity && Number(item.quantity) > 0 ? Math.floor(Number(item.quantity)) : 1;
     calculatedSubtotal += unitPrice * qty;
     return {
@@ -444,7 +460,12 @@ export async function saveOrder(orderData: Partial<Order>): Promise<Order> {
       productName: prod.name,
       quantity: qty,
       price: unitPrice,
-      weight: item.weight || prod.quantityOrWeight || 'Standard Pack',
+      weight: matchedVariant?.weight || item.weight || prod.quantityOrWeight || 'Standard Pack',
+      variantId: matchedVariant?.id || item.variantId || undefined,
+      variantSku: matchedVariant?.sku || item.variantSku || undefined,
+      packSize: (matchedVariant as any)?.packSize || matchedVariant?.weight || item.packSize || undefined,
+      packQuantity: matchedVariant?.packQuantity ?? item.packQuantity ?? undefined,
+      packUnit: matchedVariant?.packUnit || item.packUnit || undefined,
     };
   });
 

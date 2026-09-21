@@ -1,4 +1,4 @@
-﻿-- ============================================================
+-- ============================================================
 -- MUSKY DOSE FIRST-PARTY CONVERSION ANALYTICS SCHEMA
 -- ============================================================
 
@@ -37,4 +37,8 @@ CREATE POLICY "Allow public event ingestion" ON public.analytics_events
 -- Allow service role full access for dashboard queries
 DROP POLICY IF EXISTS "Allow service role manage analytics" ON public.analytics_events;
 CREATE POLICY "Allow service role manage analytics" ON public.analytics_events
-  FOR ALL USING (true);
+  FOR ALL
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
+

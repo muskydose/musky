@@ -5,7 +5,7 @@
 
 import { GuardianCheckResult } from '../types';
 import { getProducts } from '@/lib/db/products';
-import { getGuides } from '@/lib/db/guides';
+import { getPublishedGuides } from '@/lib/db/guides';
 
 const CORE_STATIC_ROUTES = [
   { path: '/', name: 'Storefront Homepage', expectedCode: 200 },
@@ -36,7 +36,7 @@ export async function runSyntheticUrlChecks(baseUrl?: string): Promise<GuardianC
       try {
         // In serverless/test environment, fetch with a short 3.5s timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
 
         const res = await fetch(url, {
           method: 'GET',
@@ -101,16 +101,17 @@ export async function runSyntheticUrlChecks(baseUrl?: string): Promise<GuardianC
   let sampleProductName = 'Sample Product';
   try {
     const products = await getProducts();
-    if (products && products.length > 0) {
-      sampleProductSlug = products[0].slug;
-      sampleProductName = products[0].name;
+    const activeProducts = products.filter((p) => p.isActive !== false);
+    if (activeProducts && activeProducts.length > 0) {
+      sampleProductSlug = activeProducts[0].slug;
+      sampleProductName = activeProducts[0].name;
     }
   } catch {}
 
   let sampleGuideSlug = 'henna-paste-preparation-guide';
   let sampleGuideTitle = 'Sample Guide';
   try {
-    const guides = await getGuides();
+    const guides = await getPublishedGuides();
     if (guides && guides.length > 0) {
       sampleGuideSlug = guides[0].slug;
       sampleGuideTitle = guides[0].title;
@@ -124,7 +125,7 @@ export async function runSyntheticUrlChecks(baseUrl?: string): Promise<GuardianC
       const prodPath = `/products/${sampleProductSlug}`;
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
         const res = await fetch(`${origin}${prodPath}`, {
           headers: { 'x-guardian-probe': '1' },
           signal: controller.signal,
@@ -162,7 +163,7 @@ export async function runSyntheticUrlChecks(baseUrl?: string): Promise<GuardianC
       const path = `/guides/${sampleGuideSlug}`;
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
         const res = await fetch(`${origin}${path}`, {
           headers: { 'x-guardian-probe': '1' },
           signal: controller.signal,

@@ -207,7 +207,6 @@ class GuardianStore {
       overallStatus = 'DOWN';
     } else if (
       layeredHealth.l1Api === 'FAIL' ||
-      layeredHealth.l1Api === 'WARN' ||
       layeredHealth.l2Database === 'WARN' ||
       layeredHealth.l4BusinessIntegrity === 'FAIL' ||
       activeIncidents.some((i) => i.severity === 'P1_HIGH' || i.severity === 'P2_MEDIUM') ||

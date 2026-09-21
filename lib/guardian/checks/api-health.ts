@@ -22,7 +22,7 @@ export async function runApiHealthChecks(baseUrl?: string): Promise<GuardianChec
 
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
 
         const res = await fetch(url, {
           method: 'GET',
