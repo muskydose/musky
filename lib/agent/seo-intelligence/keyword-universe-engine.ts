@@ -229,6 +229,12 @@ export class KeywordUniverseEngine {
 
     const isHenna = baseEntity === 'henna';
     const isOil = baseEntity === 'henna oil';
+    const isBaq = isHenna && (
+      name.toLowerCase().includes('baq') ||
+      desc.includes('baq') ||
+      desc.includes('body art') ||
+      desc.includes('mehndi artist')
+    );
 
     const add = (
       rawTerm: string,
@@ -282,9 +288,15 @@ export class KeywordUniverseEngine {
 
     // 1. HEAD TERMS
     add(name, 'CATALOG_HEAD_TERM', 'PRIMARY');
-    if (isHenna) {
-      add('sojat henna powder', 'CATALOG_HEAD_TERM', 'PRIMARY');
-      add('natural henna powder', 'CATALOG_HEAD_TERM', 'SECONDARY');
+    if (isBaq) {
+      // Differentiate BAQ Henna: Body Art Quality, bridal/mehndi artist, professional stain use
+      add('baq henna powder for mehndi artists', 'CATALOG_HEAD_TERM', 'PRIMARY', 'TRANSACTIONAL');
+      add('body art quality henna', 'CATALOG_HEAD_TERM', 'SECONDARY', 'COMMERCIAL');
+      add('sojat henna powder', 'CATALOG_HEAD_TERM', 'SECONDARY', 'LOCAL');
+    } else if (isHenna) {
+      // Differentiate Sojat Henna: Sojat origin, natural hair-care use, triple-sifted
+      add('sojat henna powder', 'CATALOG_HEAD_TERM', 'PRIMARY', 'LOCAL');
+      add('natural henna powder', 'CATALOG_HEAD_TERM', 'SECONDARY', 'COMMERCIAL');
     } else {
       add(`pure ${baseEntity} powder`, 'CATALOG_HEAD_TERM', 'PRIMARY');
     }
@@ -308,7 +320,10 @@ export class KeywordUniverseEngine {
     }
 
     // 4. USE-CASE TERMS (hair, body art, skin)
-    if (isHenna) {
+    if (isBaq) {
+      add('natural mehndi powder for bridal cones', 'CATALOG_USE_CASE_TERM', 'PRIMARY', 'TRANSACTIONAL');
+      add('henna powder for body art stain', 'CATALOG_USE_CASE_TERM', 'SECONDARY', 'TRANSACTIONAL');
+    } else if (isHenna) {
       add('henna powder for hair natural color', 'CATALOG_USE_CASE_TERM', 'SECONDARY');
       add('natural mehndi powder for bridal cones', 'CATALOG_USE_CASE_TERM', 'SECONDARY');
     } else if (baseEntity === 'indigo') {
@@ -346,7 +361,11 @@ export class KeywordUniverseEngine {
     }
 
     // 11. HINDI & HINGLISH VARIANTS
-    if (isHenna) {
+    if (isBaq) {
+      add('सोजत बीएक्यू मेहंदी पाउडर', 'CATALOG_HINDI_VARIANT', 'SECONDARY');
+      add('dulhan ke liye sojat baq mehndi', 'CATALOG_HINGLISH_VARIANT', 'LONG_TAIL');
+      add('bridal mehndi artists ke liye henna powder', 'CATALOG_HINGLISH_VARIANT', 'LONG_TAIL');
+    } else if (isHenna) {
       add('सोजत मेहंदी पाउडर', 'CATALOG_HINDI_VARIANT', 'SECONDARY');
       add('asli sojat ki mehndi', 'CATALOG_HINGLISH_VARIANT', 'LONG_TAIL');
       add('baalon ke liye natural mehndi powder', 'CATALOG_HINGLISH_VARIANT', 'LONG_TAIL');

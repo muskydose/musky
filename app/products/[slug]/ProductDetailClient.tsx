@@ -21,6 +21,7 @@ import {
   Truck,
   Sparkles,
   ArrowLeft,
+  ArrowRight,
   Share2,
   Minus,
   Plus,
@@ -823,6 +824,25 @@ export default function ProductDetailClient({
                 </div>
               </div>
             )}
+
+            {/* Contextual B2B Wholesale Callout */}
+            <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#e8e2d5] flex items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <p className="text-xs font-bold text-[#0f2d22]">
+                  Looking for Bulk or Wholesale Rates?
+                </p>
+                <p className="text-[11px] text-gray-500">
+                  Direct dispatch from Sojat factory for salons, mehndi artists & bulk buyers.
+                </p>
+              </div>
+              <Link
+                href={`/wholesale?product=${encodeURIComponent(product.id)}`}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#1b4332] text-white hover:bg-[#0f2d22] text-xs font-bold shrink-0 transition-colors shadow-2xs"
+              >
+                <span>B2B Portal</span>
+                <ArrowRight className="w-3 h-3 text-[#c5a059]" />
+              </Link>
+            </div>
           </div>
         </div>
       </div>

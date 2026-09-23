@@ -310,6 +310,10 @@ function detectBotanicalProfile(product: Partial<Product>): BotanicalEntity | nu
   }
 
   for (const [key, profile] of Object.entries(BOTANICAL_KNOWLEDGE)) {
+    if (key === 'baq_henna') {
+      const isBaqSpecific = combinedText.includes('baq') || combinedText.includes('body art') || combinedText.includes('mehndi artist') || combinedText.includes('bridal henna');
+      if (!isBaqSpecific) continue; // Don't match general henna products to BAQ
+    }
     if (combinedText.includes(key)) return profile;
     if (profile.rootNames.some((r) => combinedText.includes(r))) return profile;
     if (profile.scientificName.some((s) => combinedText.includes(s))) return profile;
@@ -395,12 +399,28 @@ export function generateProductKeywordUniverse(
   }
 
   // 1. PRIMARY KEYWORDS (Direct identity, botanical core)
-  addCandidate(productName, 'PRIMARY', 100, 'COMMERCIAL', 'product_name');
-  addCandidate(rootBotanical, 'PRIMARY', 95, 'INFORMATIONAL', 'botanical_root');
-  addCandidate(`pure ${rootBotanical}`, 'PRIMARY', 92, 'COMMERCIAL', 'purity_modifier');
-  addCandidate(`natural ${rootBotanical}`, 'PRIMARY', 90, 'COMMERCIAL', 'natural_modifier');
-  addCandidate(`organic ${rootBotanical}`, 'PRIMARY', 90, 'COMMERCIAL', 'organic_modifier');
-  addCandidate(`100% pure ${rootBotanical}`, 'PRIMARY', 88, 'COMMERCIAL', 'authenticity_modifier');
+  const isBaqProduct = botanical?.key === 'baq_henna' || (
+    (productName + ' ' + (product.shortDescription || '')).toLowerCase().includes('baq') ||
+    (productName + ' ' + (product.shortDescription || '')).toLowerCase().includes('body art') ||
+    (productName + ' ' + (product.shortDescription || '')).toLowerCase().includes('mehndi artist')
+  );
+
+  addCandidate(productName, 'PRIMARY', 100, isBaqProduct ? 'TRANSACTIONAL' : 'COMMERCIAL', 'product_name');
+  if (isBaqProduct) {
+    addCandidate('baq henna powder', 'PRIMARY', 96, 'TRANSACTIONAL', 'baq_head_identity');
+    addCandidate('body art quality henna', 'PRIMARY', 94, 'COMMERCIAL', 'baq_grade_term');
+    addCandidate('baq henna powder for mehndi artists', 'PRIMARY', 92, 'TRANSACTIONAL', 'baq_intent_mapping');
+    addCandidate('sojat henna powder', 'SECONDARY', 85, 'COMMERCIAL', 'sojat_origin_secondary');
+  } else {
+    addCandidate(rootBotanical, 'PRIMARY', 95, 'INFORMATIONAL', 'botanical_root');
+    addCandidate(`pure ${rootBotanical}`, 'PRIMARY', 92, 'COMMERCIAL', 'purity_modifier');
+    addCandidate(`natural ${rootBotanical}`, 'PRIMARY', 90, 'COMMERCIAL', 'natural_modifier');
+    addCandidate(`organic ${rootBotanical}`, 'PRIMARY', 90, 'COMMERCIAL', 'organic_modifier');
+    addCandidate(`100% pure ${rootBotanical}`, 'PRIMARY', 88, 'COMMERCIAL', 'authenticity_modifier');
+    if (botanical?.key === 'henna') {
+      addCandidate('sojat henna powder', 'PRIMARY', 95, 'COMMERCIAL', 'sojat_henna_primary');
+    }
+  }
 
   // 2. SECONDARY KEYWORDS (Form + category combinations)
   if (product.productType) {
@@ -889,8 +909,10 @@ export function deriveProductAutoSeo(product: Partial<Product>): AutoSeoResult {
   } else if (name) {
     if (botanical?.key === 'bridal_henna_oil' || (combinedText.includes('oil') && (combinedText.includes('henna') || combinedText.includes('bridal')))) {
       seoTitle = 'Bridal Henna Oil — Pure Botanical Essential Oil Blend';
-    } else if (botanical?.key === 'baq_henna' || combinedText.includes('baq')) {
+    } else if (botanical?.key === 'baq_henna' || combinedText.includes('baq') || combinedText.includes('body art') || combinedText.includes('mehndi artist')) {
       seoTitle = 'BAQ Henna Powder — Triple Sifted Sojat Body Art Quality';
+    } else if (botanical?.key === 'henna' && combinedText.includes('triple')) {
+      seoTitle = 'Sojat Henna Powder (100% Pure Triple-Shifted) — Hair & Skin';
     } else if (detectedScope === 'HAIR' && !name.toLowerCase().includes('hair')) {
       seoTitle = `${name} — Natural Hair Care & Conditioning`;
     } else if (detectedScope === 'SKIN' && !name.toLowerCase().includes('face') && !name.toLowerCase().includes('skin')) {
@@ -918,8 +940,10 @@ export function deriveProductAutoSeo(product: Partial<Product>): AutoSeoResult {
       }
     } else if (botanical?.key === 'bridal_henna_oil' || (combinedText.includes('oil') && (combinedText.includes('henna') || combinedText.includes('bridal')))) {
       metaDescription = 'Natural botanical essential oil blend infused with eucalyptus and clove bud to intensify and deepen natural mehndi stains. Crafted in Sojat, Rajasthan.';
-    } else if (botanical?.key === 'baq_henna' || combinedText.includes('baq')) {
+    } else if (botanical?.key === 'baq_henna' || combinedText.includes('baq') || combinedText.includes('body art') || combinedText.includes('mehndi artist')) {
       metaDescription = '100% pure triple-sifted Sojat Lawsonia Inermis BAQ henna powder for bridal mehndi artists and hair conditioning. Direct from Sojat, Rajasthan.';
+    } else if (botanical?.key === 'henna' && combinedText.includes('triple')) {
+      metaDescription = '100% pure organic Rajasthani Sojat henna powder. Triple-sifted and cloth-filtered for natural hair conditioning, rich stain, and scalp health.';
     } else if (botanical) {
       const origin = botanical.originRegions[0] || 'Sojat, Rajasthan';
       const benefit = botanical.primaryBenefits.slice(0, 2).join(' and ');

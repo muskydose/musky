@@ -78,16 +78,16 @@ export default async function ProductDetailPage({
     notFound();
   }
 
-  // Canonical universal relationship resolution (approved only)
+  // Canonical universal relationship resolution (approved or high-confidence contextual matches)
   const [relevantGuides, relevantKnowledge] = await Promise.all([
     getRelatedGuidesForProduct(product, {
       allGuides,
-      requireApproval: true,
+      requireApproval: false,
       includeDrafts: false,
       limit: 2,
     }),
     getRelatedKnowledgeForProduct(product, {
-      requireApproval: true,
+      requireApproval: false,
       limit: 2,
     }),
   ]);

@@ -578,6 +578,93 @@ async function runKeywordUniverseTestSuite() {
   console.log('  ✓ Batched pagination logic verified: .range(from, from + BATCH_SIZE - 1) handles arbitrary universe volume');
 
   // --------------------------------------------------------------------------
+  // TEST 21: PRODUCT SEO DIFFERENTIATION PREVENTS CANNIBALIZATION (BAQ vs SOJAT HENNA)
+  // --------------------------------------------------------------------------
+  console.log('[TEST 21] Testing product SEO differentiation & cannibalization prevention (BAQ vs Sojat Henna)...');
+  const baqProduct: Product = {
+    id: 'prod_baq_henna_test',
+    name: 'BAQ Henna Powder',
+    slug: 'baq-henna-powder',
+    categoryId: 'cat_henna',
+    categoryName: 'Henna',
+    shortDescription: 'BEST FOR HENNA (MEHNDI) ARTIST. 100% Pure Lawsonia Inermis for dark bridal stain and professional cones.',
+    fullDescription: 'BEST FOR HENNA (MEHNDI) ARTIST. 100% Pure Lawsonia Inermis for dark bridal stain and professional cones.',
+    price: 99,
+    compareAtPrice: 129,
+    quantityOrWeight: '100g',
+    sku: 'MSK-BAQ-100',
+    images: ['/images/products/baq-henna.jpg'],
+    ingredients: ['100% Pure Organic Lawsonia Inermis Leaf Powder'],
+    benefits: ['Deep rich mahogany stain', 'Chemical-free natural hair coolant'],
+    usageInstructions: 'Mix with warm water or lemon juice and essential oils.',
+    stockStatus: 'in_stock',
+    isFeatured: true,
+    isActive: true,
+    sortOrder: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  const tripleProduct: Product = {
+    id: 'prod_triple_henna_test',
+    name: 'Sojat Pure Triple-Shifted Henna Powder',
+    slug: 'sojat-pure-triple-shifted-henna-powder',
+    categoryId: 'cat_henna',
+    categoryName: 'Henna',
+    shortDescription: '100% Organic, cloth-filtered Rajasthani Henna powder for natural hair conditioning, rich stain, and scalp health.',
+    fullDescription: '100% Organic, cloth-filtered Rajasthani Henna powder for natural hair conditioning, rich stain, and scalp health.',
+    price: 89,
+    compareAtPrice: 119,
+    quantityOrWeight: '100g',
+    sku: 'MSK-TRP-100',
+    images: ['/images/products/sojat-pure-triple-shifted.jpg'],
+    ingredients: ['100% Pure Organic Lawsonia Inermis (Henna) Leaf Powder'],
+    benefits: ['Deep, natural long-lasting dark stain', 'Acts as a natural hair conditioner and coolant'],
+    usageInstructions: 'Mix with warm water and let rest for 2-3 hours before application.',
+    stockStatus: 'in_stock',
+    isFeatured: true,
+    isActive: true,
+    sortOrder: 2,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  // Derive keywords for both products
+  const baqDerived = engine.deriveKeywordsFromProduct(baqProduct, 'Henna');
+  const tripleDerived = engine.deriveKeywordsFromProduct(tripleProduct, 'Henna');
+
+  // Verify BAQ primary intent is body art / bridal artist (TRANSACTIONAL)
+  const baqPrimaryArtists = baqDerived.find((k) => k.keyword.includes('baq henna powder for mehndi artists'));
+  assert(baqPrimaryArtists, 'BAQ must derive "baq henna powder for mehndi artists"');
+  assert.strictEqual(baqPrimaryArtists.primaryOrSecondary, 'PRIMARY');
+  assert.strictEqual(baqPrimaryArtists.intent, 'TRANSACTIONAL');
+
+  // Verify BAQ retains "sojat henna powder" as SECONDARY (not removed, but non-colliding)
+  const baqSojatSec = baqDerived.find((k) => k.keyword === 'sojat henna powder');
+  assert(baqSojatSec, 'BAQ must retain "sojat henna powder" as secondary');
+  assert.strictEqual(baqSojatSec.primaryOrSecondary, 'SECONDARY');
+
+  // Verify Triple-Shifted derives "sojat henna powder" as PRIMARY
+  const tripleSojatPrim = tripleDerived.find((k) => k.keyword === 'sojat henna powder');
+  assert(tripleSojatPrim, 'Triple-shifted must derive "sojat henna powder" as primary');
+  assert.strictEqual(tripleSojatPrim.primaryOrSecondary, 'PRIMARY');
+
+  // Verify zero primary keyword overlap between BAQ and Triple-Shifted
+  const baqPrimaryNorms = new Set(baqDerived.filter((k) => k.primaryOrSecondary === 'PRIMARY').map((k) => k.normalizedKeyword));
+  const triplePrimaryNorms = new Set(tripleDerived.filter((k) => k.primaryOrSecondary === 'PRIMARY').map((k) => k.normalizedKeyword));
+  const sharedPrimary = Array.from(baqPrimaryNorms).filter((n) => triplePrimaryNorms.has(n));
+  assert.strictEqual(sharedPrimary.length, 0, `BAQ and Triple-Shifted Henna must have 0 shared PRIMARY keywords, found: [${sharedPrimary.join(', ')}]`);
+
+  // Onboard BAQ product into engine store
+  await engine.onboardProduct(baqProduct, 'Henna');
+
+  // Verify BAQ Henna Powder has ZERO cannibalization conflict with any existing store product
+  const issuesAfterBaq = engine.detectCannibalization();
+  const baqCollision = issuesAfterBaq.find((issue) => issue.conflictingUrls.includes('/products/baq-henna-powder'));
+  assert(!baqCollision, `BAQ Henna Powder must have 0 cannibalization conflict with existing catalog, found: ${baqCollision?.keyword}`);
+  console.log('  ✓ Verified: BAQ and Triple-Shifted Henna differentiate cleanly with 0 cannibalization collision and 0 shared PRIMARY keywords');
+
+  // --------------------------------------------------------------------------
   // SUMMARY STATS CHECK
   // --------------------------------------------------------------------------
   console.log('\n[SUMMARY] Testing summary stats telemetry aggregation...');
@@ -598,7 +685,7 @@ async function runKeywordUniverseTestSuite() {
   console.log(`  • Clusters: ${Object.keys(summary.clustersCount).length}`);
 
   console.log('\n============================================================');
-  console.log('🎉 ALL 20 DETERMINISTIC KEYWORD UNIVERSE TESTS PASSED');
+  console.log('🎉 ALL 21 DETERMINISTIC KEYWORD UNIVERSE TESTS PASSED');
   console.log('============================================================\n');
 }
 
