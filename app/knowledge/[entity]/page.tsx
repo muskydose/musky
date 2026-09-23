@@ -153,16 +153,16 @@ export default async function KnowledgeEntityPage(props: KnowledgePageProps) {
     guides: allGuides,
   });
 
-  // Canonical universal relationship resolution (approved only)
+  // Canonical universal relationship resolution (approved or high-confidence contextual matches)
   const [matchingProducts, matchingGuides] = await Promise.all([
     getRelatedProductsForKnowledge(record, {
       allProducts,
-      requireApproval: true,
+      requireApproval: false,
       limit: 12,
     }),
     getRelatedGuidesForKnowledge(record, {
       allGuides,
-      requireApproval: true,
+      requireApproval: false,
       includeDrafts: false,
       limit: 6,
     }),

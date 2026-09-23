@@ -400,13 +400,22 @@ export default async function SojatHennaPillarPage() {
         {/* Section 5: Educational Guides */}
         {hennaGuides.length > 0 && (
           <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-            <div className="border-b border-[#e8e2d5] pb-3">
-              <span className="text-xs font-bold text-[#c5a059] uppercase tracking-wider block">
-                Botanical Knowledge & Practical Tutorials
-              </span>
-              <h2 className="font-momo-display text-xl sm:text-2xl text-[#0f2d22] mt-1">
-                Sojat Henna Application & Care Guides
-              </h2>
+            <div className="border-b border-[#e8e2d5] pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <span className="text-xs font-bold text-[#c5a059] uppercase tracking-wider block">
+                  Botanical Knowledge & Practical Tutorials
+                </span>
+                <h2 className="font-momo-display text-xl sm:text-2xl text-[#0f2d22] mt-1">
+                  Sojat Henna Application & Care Guides
+                </h2>
+              </div>
+              <Link
+                href="/knowledge/henna-mehndi"
+                className="text-xs font-bold text-[#1b4332] hover:text-[#0f2d22] inline-flex items-center gap-1 shrink-0"
+              >
+                <span>Explore Botanical Profile</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -431,6 +440,20 @@ export default async function SojatHennaPillarPage() {
                   </span>
                 </Link>
               ))}
+            </div>
+
+            <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#e8e2d5] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div>
+                <strong className="text-[#0f2d22] block font-bold">Botanical Knowledge Hub:</strong>
+                <span className="text-gray-600">Deep-dive into Lawsonia Inermis science, lawsone dye release chemistry, and Ayurvedic botanical characteristics.</span>
+              </div>
+              <Link
+                href="/knowledge/henna-mehndi"
+                className="px-3.5 py-1.5 rounded-lg bg-[#1b4332] text-white hover:bg-[#0f2d22] font-bold text-xs shrink-0 transition-colors inline-flex items-center gap-1 shadow-2xs"
+              >
+                <span>View Knowledge Hub</span>
+                <ArrowRight className="w-3 h-3 text-[#c5a059]" />
+              </Link>
             </div>
           </section>
         )}

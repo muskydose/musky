@@ -3,7 +3,8 @@
 import React from 'react';
 import { SiteSettings } from '@/lib/types';
 import { getConfiguredWhatsAppNumber, getWhatsAppDirectUrl } from '@/lib/whatsapp';
-import { ShieldCheck, Phone, MapPin, Package, FileText, MessageCircle, Clock, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Phone, MapPin, Package, FileText, MessageCircle, Clock, CheckCircle2, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 
 interface FactoryDeskPanelProps {
   siteSettings?: SiteSettings | null;
@@ -45,8 +46,16 @@ export default function FactoryDeskPanel({ siteSettings }: FactoryDeskPanelProps
       <div className="space-y-3 pt-2 text-xs border-t border-[#2d6a4f]/70">
         <div className="flex items-start gap-3">
           <MapPin className="w-4 h-4 text-[#c5a059] shrink-0 mt-0.5" />
-          <div className="min-w-0">
-            <strong className="text-white">Manufacturing Origin:</strong>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2">
+              <strong className="text-white">Manufacturing Origin:</strong>
+              <Link
+                href="/factory"
+                className="text-[#c5a059] hover:text-[#e2c17c] hover:underline text-[11px] inline-flex items-center gap-0.5 font-medium transition-colors"
+              >
+                Tour Facility <ArrowRight className="w-2.5 h-2.5" />
+              </Link>
+            </div>
             <div className="text-[#b2c8be] text-[11px] leading-relaxed">Sojat City, Pali District, Rajasthan (Pincode: 306104).</div>
           </div>
         </div>
