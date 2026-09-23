@@ -315,6 +315,51 @@ export function resetMediaCache(options?: { clearFallbackStore?: boolean }): voi
 }
 
 /**
+ * Upserts specific freshly-written assets into the existing in-process cache,
+ * eliminating the DB write/read race without evicting existing DB-fetched data.
+ *
+ * Strategy:
+ * - If a warm cache exists (DB or memory): upsert each provided asset by ID.
+ *   Existing DB-sourced entries for other assets are untouched, so live
+ *   MANUAL_UPLOAD assets fetched from the DB remain visible to subsequent tests.
+ * - If the cache is cold (null): do nothing. The next getAllMediaAssetsRaw call
+ *   will naturally re-fetch the full current dataset from the DB, which by that
+ *   point will include the just-written row (Supabase commit lag is << the time
+ *   between a cold-cache miss and the subsequent read in a sequential test run).
+ *
+ * This replaces resetMediaCache() in write operations (saveMediaAsset,
+ * updateMediaAsset, setPrimaryMedia) to prevent the race where resetMediaCache()
+ * forces an immediate DB re-fetch before Supabase has committed the new row.
+ *
+ * resetMediaCache() is kept for callers (e.g. archiveDiagnosticMediaAssets)
+ * that perform bulk direct-DB mutations and want the next read to re-fetch from DB.
+ */
+function refreshCacheWithAssets(written: MediaAsset[]): void {
+  if (!memoryCache) {
+    // Cache is cold — do not seed from partial memoryMediaStore (which may only
+    // contain test fixtures and would exclude live DB assets). Let the next read
+    // go to DB naturally; it will fetch the complete current dataset.
+    return;
+  }
+
+  // Warm cache exists — upsert only the changed assets, preserve everything else.
+  const updated = [...memoryCache.assets];
+  for (const asset of written) {
+    const idx = updated.findIndex((a) => a.id === asset.id);
+    if (idx >= 0) {
+      updated[idx] = asset;
+    } else {
+      updated.push(asset);
+    }
+  }
+  memoryCache = {
+    assets: updated,
+    loadedAt: memoryCache.loadedAt, // preserve original load timestamp to keep TTL
+    source: memoryCache.source,
+  };
+}
+
+/**
  * Generates a deterministic asset ID to guarantee 100% idempotent rerun and cache parity.
  */
 export function generateDeterministicAssetId(
@@ -628,7 +673,7 @@ export async function getAllMediaAssetsRaw(): Promise<{
         return { assets: mapped, source: 'database' };
       }
     } catch {
-      // In-memory fallback
+      // Fall through to memory fallback
     }
   }
 
@@ -1273,6 +1318,7 @@ export async function saveMediaAsset(input: SaveMediaAssetInput): Promise<{
   };
 
   // If new asset is approved PRIMARY, demote previous primaries for this entity
+  const writtenAssets: MediaAsset[] = [];
   if (fullAsset.role === 'PRIMARY' && fullAsset.status === 'approved') {
     const existing = await getMediaForEntity({
       entityType: fullAsset.entityType,
@@ -1285,12 +1331,16 @@ export async function saveMediaAsset(input: SaveMediaAssetInput): Promise<{
         ex.isLocked = false;
         ex.updatedAt = now;
         await persistAssetRecord(ex);
+        writtenAssets.push(ex);
       }
     }
   }
 
   await persistAssetRecord(fullAsset);
-  resetMediaCache();
+  writtenAssets.push(fullAsset);
+  // Upsert only the written assets into the cache. Avoids DB write/read race
+  // while preserving all other DB-sourced cache entries (e.g. live MANUAL_UPLOAD assets).
+  refreshCacheWithAssets(writtenAssets);
 
   return { asset: fullAsset, deduplicated };
 }
@@ -1315,7 +1365,7 @@ export async function updateMediaAsset(
   };
 
   await persistAssetRecord(updatedAsset);
-  resetMediaCache();
+  refreshCacheWithAssets([updatedAsset]);
 
   return updatedAsset;
 }
@@ -1340,6 +1390,7 @@ export async function setPrimaryMedia(options: {
   const now = new Date().toISOString();
 
   // 1. Demote all existing primaries for this entity
+  const setPrimaryWritten: MediaAsset[] = [];
   const existingAssets = await getMediaForEntity({ entityType, entityId, includeDrafts: true });
   for (const asset of existingAssets) {
     if (asset.role === 'PRIMARY' && asset.id !== assetId) {
@@ -1347,6 +1398,7 @@ export async function setPrimaryMedia(options: {
       asset.isLocked = false;
       asset.updatedAt = now;
       await persistAssetRecord(asset);
+      setPrimaryWritten.push(asset);
     }
   }
 
@@ -1362,7 +1414,8 @@ export async function setPrimaryMedia(options: {
   target.updatedAt = now;
 
   await persistAssetRecord(target);
-  resetMediaCache();
+  setPrimaryWritten.push(target);
+  refreshCacheWithAssets(setPrimaryWritten);
 
   return target;
 }

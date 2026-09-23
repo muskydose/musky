@@ -100,28 +100,38 @@ export async function executeUniversalMediaJob(
 
   // Idempotency guard: a completed job with a persisted result must never
   // regenerate the same canonical slot merely because a worker encountered it again.
+  // However, we must verify the asset actually exists — a prior run may have marked
+  // the job COMPLETED but failed to persist the asset to the DB (silent upsert error).
+  // If the asset is gone, reset the job to FAILED and fall through to re-generate.
   const existingJob = await getMediaJobById(jobId);
   if (existingJob?.status === 'COMPLETED' && existingJob.resultAssetId) {
-    return {
-      jobId,
-      entityType,
-      entityId: cleanId,
-      slotKey: spec.slotKey,
-      role: spec.role,
-      status: 'COMPLETED',
-      statusCode: 'ELIGIBLE',
-      strategy: existingJob.strategy || resolvedStrategy,
-      resultAssetId: existingJob.resultAssetId,
-      reused: true,
-      provider: existingJob.provider,
-      narrative: {
-        whyThisTask: `Reconcile canonical media job [${jobId}].`,
-        whatDetected: `Job is already COMPLETED with persisted asset ${existingJob.resultAssetId}.`,
-        whatChanged: 'No regeneration or duplicate upload performed.',
-        whatVerified: 'Deterministic job identity and persisted result preserved.',
-        whatLearned: 'Completed canonical media jobs are idempotent and safe to revisit.',
-      },
-    };
+    const reusedAssets = await getMediaForEntity({ entityType, entityId: cleanId, includeDrafts: true });
+    const assetStillExists = reusedAssets.some((a) => a.id === existingJob.resultAssetId);
+    if (assetStillExists) {
+      return {
+        jobId,
+        entityType,
+        entityId: cleanId,
+        slotKey: spec.slotKey,
+        role: spec.role,
+        status: 'COMPLETED',
+        statusCode: 'ELIGIBLE',
+        strategy: existingJob.strategy || resolvedStrategy,
+        resultAssetId: existingJob.resultAssetId,
+        reused: true,
+        provider: existingJob.provider,
+        narrative: {
+          whyThisTask: `Reconcile canonical media job [${jobId}].`,
+          whatDetected: `Job is already COMPLETED with persisted asset ${existingJob.resultAssetId}.`,
+          whatChanged: 'No regeneration or duplicate upload performed.',
+          whatVerified: 'Deterministic job identity and persisted result preserved.',
+          whatLearned: 'Completed canonical media jobs are idempotent and safe to revisit.',
+        },
+      };
+    }
+    // Asset not found in media store — prior upsert failed silently.
+    // Reset job to FAILED so acquireMediaJobLock can re-acquire the lease.
+    await completeMediaJob({ jobId, status: 'FAILED', errorMessage: 'Asset not found after COMPLETED — re-generating.' });
   }
 
   // STEP 1: ENTITY VALIDATION
