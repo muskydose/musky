@@ -607,9 +607,23 @@ export async function saveGscSnapshots(snapshots: GrowthGscSnapshot[]): Promise<
         created_at: s.createdAt || new Date().toISOString(),
       }));
 
+      const dedupedMap = new Map<string, (typeof records)[0]>();
+      for (const rec of records) {
+        const existing = dedupedMap.get(rec.id);
+        if (existing) {
+          existing.impressions += rec.impressions;
+          existing.clicks += rec.clicks;
+          existing.ctr = existing.impressions > 0 ? existing.clicks / existing.impressions : 0;
+          existing.average_position = Number(((existing.average_position + rec.average_position) / 2).toFixed(1));
+        } else {
+          dedupedMap.set(rec.id, { ...rec });
+        }
+      }
+      const dedupedRecords = Array.from(dedupedMap.values());
+
       const { error } = await supabase
         .from('growth_gsc_snapshots')
-        .upsert(records, { onConflict: 'id' });
+        .upsert(dedupedRecords, { onConflict: 'id' });
 
       if (error) {
         console.warn('[Growth DB] Notice: Supabase growth_gsc_snapshots table unmigrated or unavailable:', error.message);
