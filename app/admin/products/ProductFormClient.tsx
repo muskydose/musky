@@ -2919,7 +2919,7 @@ export default function ProductFormClient({
                 <div>
                   <div className="font-bold text-[#0f2d22] text-sm">Active in Public Store</div>
                   <div className="text-[11px] text-gray-500">
-                    When checked, product is visible to public visitors and customers.
+                    When checked, product is active in the public catalog and purchasable. When unchecked, product is hidden from catalog listings and search while direct URL remains accessible with an unavailable notice and noindex SEO protection.
                   </div>
                 </div>
               </label>

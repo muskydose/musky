@@ -4,6 +4,7 @@ import { getCategories } from '@/lib/db/categories';
 import { getCustomPages } from '@/lib/db/custom-pages';
 import { getPublishedGuides } from '@/lib/db/guides';
 import { getPublishedKnowledgeEntities } from '@/lib/db/knowledge';
+import { resolveProductLifecycle } from '@/lib/growth/product-lifecycle-governance';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
@@ -101,7 +102,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   const productRoutes: MetadataRoute.Sitemap = products
-    .filter((prod) => prod.isActive !== false && prod.robotsIndex !== false)
+    .filter((prod) => resolveProductLifecycle(prod).isSitemapEligible)
     .map((prod) => ({
       url: `${baseUrl}/products/${prod.slug}`,
       ...(prod.updatedAt ? { lastModified: new Date(prod.updatedAt) } : {}),

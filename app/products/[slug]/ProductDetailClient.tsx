@@ -38,11 +38,16 @@ import {
   RotateCcw,
   Play,
   FileText,
+  AlertCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import WholesaleSavingsCard from '@/components/WholesaleSavingsCard';
 import { resolveProductWholesaleUnits, formatWholesaleTierUnit } from '@/lib/wholesale-units';
 import { resolveCanonicalWholesalePricing } from '@/lib/wholesale-pricing-resolver';
+import {
+  resolveProductLifecycle,
+  ProductLifecycleDecision,
+} from '@/lib/growth/product-lifecycle-governance';
 import {
   resolveAuthoritativeProductMedia,
   validateExternalVideoUrl,
@@ -51,6 +56,7 @@ import { formatPrice, formatPercent } from '@/lib/utils';
 
 interface ProductDetailClientProps {
   product: Product;
+  lifecycle?: ProductLifecycleDecision;
   whatsappNumber: string;
   whatsappTemplate?: string;
   brandName?: string;
@@ -61,6 +67,7 @@ interface ProductDetailClientProps {
 
 export default function ProductDetailClient({
   product,
+  lifecycle,
   whatsappNumber,
   whatsappTemplate,
   brandName = 'Musky Dose',
@@ -70,6 +77,11 @@ export default function ProductDetailClient({
 }: ProductDetailClientProps) {
   const router = useRouter();
   const { addToCart, openCart, closeCart } = useCart();
+  const resolvedLifecycle = React.useMemo(() => {
+    return lifecycle || resolveProductLifecycle(product);
+  }, [lifecycle, product]);
+  const isHidden = resolvedLifecycle.status === 'HIDDEN';
+
   const mediaResolution = React.useMemo(() => {
     return resolveAuthoritativeProductMedia(product);
   }, [product]);
@@ -600,6 +612,12 @@ export default function ProductDetailClient({
                 <span className="bg-[#e8f3ed] text-[#1b4332] text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
                   {categoryName || product.categoryName || 'Sojat Henna'}
                 </span>
+                {isHidden && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-900 border border-amber-300 text-xs font-bold">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Currently Unavailable</span>
+                  </span>
+                )}
                 {hasPurchasedBefore && (
                   <span className="inline-flex items-center gap-1 bg-[#faf5e8] text-[#c5a059] border border-[#c5a059]/40 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full shadow-2xs">
                     <RotateCcw className="w-3 h-3 text-[#c5a059]" />
@@ -653,7 +671,11 @@ export default function ProductDetailClient({
               </div>
             </div>
             <div className="text-right">
-              {product.stockStatus === 'out_of_stock' ? (
+              {isHidden ? (
+                <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-900 bg-amber-100/90 border border-amber-300 px-2.5 py-1 rounded-full">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600" /> Catalog Hidden
+                </span>
+              ) : product.stockStatus === 'out_of_stock' ? (
                 <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-1 rounded-full">
                   <CheckCircle className="w-3.5 h-3.5 text-amber-600" /> Pre-Order / Enquire
                 </span>
@@ -662,7 +684,7 @@ export default function ProductDetailClient({
                   <CheckCircle className="w-3.5 h-3.5" /> In Stock & Ready
                 </span>
               )}
-              {typeof product.stockQuantity === 'number' && product.stockQuantity <= (product.lowStockThreshold || 10) && product.stockQuantity > 0 && (
+              {!isHidden && typeof product.stockQuantity === 'number' && product.stockQuantity <= (product.lowStockThreshold || 10) && product.stockQuantity > 0 && (
                 <div className="text-[10px] text-red-700 font-bold mt-1">Only {product.stockQuantity} packs left!</div>
               )}
               <div className="text-[10px] text-gray-500 mt-1">Dispatches from Sojat, Rajasthan</div>
@@ -720,111 +742,146 @@ export default function ProductDetailClient({
             </div>
           )}
 
-          {/* QUANTITY */}
-          <div className="space-y-2 pt-1">
-            <label className="text-xs font-bold text-[#0f2d22] uppercase tracking-wider block">
-              Select Quantity:
-            </label>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center border border-[#e8e2d5] rounded-xl bg-[#fcfbf7]">
-                <button
-                  type="button"
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="p-3 text-[#0f2d22] hover:bg-[#f5f1e8] active:scale-90 rounded-l-xl transition-all cursor-pointer touch-manipulation"
-                  aria-label="Decrease quantity"
-                >
-                  <Minus className="w-4 h-4" />
-                </button>
-                <span className="w-12 text-center font-bold text-base text-[#0f2d22] select-none">
-                  {quantity}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setQuantity(quantity + 1)}
-                  className="p-3 text-[#0f2d22] hover:bg-[#f5f1e8] active:scale-90 rounded-r-xl transition-all cursor-pointer touch-manipulation"
-                  aria-label="Increase quantity"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
+          {/* QUANTITY & ACTIONS */}
+          {isHidden ? (
+            <div className="space-y-4 pt-1">
+              <div className="p-5 rounded-2xl bg-amber-50/80 border border-amber-200/90 space-y-3">
+                <div className="flex items-center gap-2 font-bold text-sm text-[#0f2d22]">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Currently Not Available for Online Purchase</span>
+                </div>
+                <p className="text-xs text-stone-600 leading-relaxed">
+                  This product is temporarily not offered in our public catalog. All product attributes and botanical specifications below are provided for factual reference.
+                </p>
+                <div className="pt-1">
+                  <Link
+                    href="/products"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1b4332] text-[#faf5e8] font-bold text-xs hover:bg-[#0f2d22] transition-colors shadow-xs"
+                  >
+                    <span>Browse Available Sojat Products</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
               </div>
 
-              <div className="text-xs text-[#626c66]">
-                Subtotal: <strong className="text-lg font-bold text-[#1b4332]">{formatPrice(activePrice * quantity)}</strong>
-              </div>
-            </div>
-          </div>
-
-          {/* ┌──────────────┬──────────────┐
-              │     CART     │     BUY      │
-              └──────────────┴──────────────┘ */}
-          <div className="space-y-3 pt-1">
-            <div className="grid grid-cols-2 gap-2 sm:gap-3">
               <button
-                disabled={isOutOfStock || isAddingToCart}
-                onClick={() => {
-                  if (isOutOfStock || isAddingToCart) return;
-                  setIsAddingToCart(true);
-                  addToCart(
-                    { ...product, price: activePrice, quantityOrWeight: activeWeight, sku: activeSku, stockStatus: activeStockStatus },
-                    quantity,
-                    selectedVariant
-                  );
-                  trackAddToCart({
-                    id: product.id,
-                    name: product.name,
-                    price: activePrice,
-                    quantity,
-                  });
-                  openCart();
-                  setTimeout(() => setIsAddingToCart(false), 800);
-                }}
-                className={`w-full h-12 flex items-center justify-center rounded-xl font-extrabold text-xs sm:text-sm tracking-wide border transition-all shadow-xs cursor-pointer touch-manipulation active:scale-[0.98] ${
-                  isOutOfStock
-                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                    : isAddingToCart
-                    ? 'bg-[#1b4332] text-[#c5a059] border-[#1b4332] opacity-70 cursor-wait'
-                    : 'bg-[#1b4332] hover:bg-[#0f2d22] text-[#faf5e8] border-[#1b4332]'
-                }`}
+                type="button"
+                onClick={handleOpenQuestionModal}
+                className="w-full flex items-center justify-center gap-2 bg-[#f2fcf5] hover:bg-[#e2f7e7] text-[#1b4332] border border-[#25D366]/40 py-2.5 rounded-xl font-bold text-xs tracking-wider transition-all active:scale-[0.99] cursor-pointer touch-manipulation"
               >
-                <span>CART</span>
+                <MessageCircle className="w-4 h-4 fill-[#25D366] text-[#25D366]" />
+                <span>Ask Question on WhatsApp</span>
               </button>
-
-              <Link
-                href="/checkout"
-                onClick={(e) => {
-                  if (isOutOfStock) {
-                    e.preventDefault();
-                    return;
-                  }
-                  addToCart(
-                    { ...product, price: activePrice, quantityOrWeight: activeWeight, sku: activeSku, stockStatus: activeStockStatus },
-                    quantity,
-                    selectedVariant
-                  );
-                }}
-                className={`w-full h-12 flex items-center justify-center rounded-xl font-extrabold text-xs sm:text-sm tracking-wide border transition-all shadow-xs cursor-pointer touch-manipulation active:scale-[0.98] ${
-                  isOutOfStock
-                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed pointer-events-none'
-                    : 'bg-[#c5a059] hover:bg-[#b38e46] text-[#0f2d22] border-[#c5a059]'
-                }`}
-              >
-                <span>BUY</span>
-              </Link>
             </div>
+          ) : (
+            <>
+              {/* QUANTITY */}
+              <div className="space-y-2 pt-1">
+                <label className="text-xs font-bold text-[#0f2d22] uppercase tracking-wider block">
+                  Select Quantity:
+                </label>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center border border-[#e8e2d5] rounded-xl bg-[#fcfbf7]">
+                    <button
+                      type="button"
+                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                      className="p-3 text-[#0f2d22] hover:bg-[#f5f1e8] active:scale-90 rounded-l-xl transition-all cursor-pointer touch-manipulation"
+                      aria-label="Decrease quantity"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+                    <span className="w-12 text-center font-bold text-base text-[#0f2d22] select-none">
+                      {quantity}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setQuantity(quantity + 1)}
+                      className="p-3 text-[#0f2d22] hover:bg-[#f5f1e8] active:scale-90 rounded-r-xl transition-all cursor-pointer touch-manipulation"
+                      aria-label="Increase quantity"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
 
-            <button
-              type="button"
-              onClick={handleOpenQuestionModal}
-              className="w-full flex items-center justify-center gap-2 bg-[#f2fcf5] hover:bg-[#e2f7e7] text-[#1b4332] border border-[#25D366]/40 py-2.5 rounded-xl font-bold text-xs tracking-wider transition-all active:scale-[0.99] cursor-pointer touch-manipulation"
-            >
-              <MessageCircle className="w-4 h-4 fill-[#25D366] text-[#25D366]" />
-              <span>Ask Question on WhatsApp</span>
-            </button>
+                  <div className="text-xs text-[#626c66]">
+                    Subtotal: <strong className="text-lg font-bold text-[#1b4332]">{formatPrice(activePrice * quantity)}</strong>
+                  </div>
+                </div>
+              </div>
 
-            <p className="text-[11px] text-center text-gray-500">
-              Orders placed via Checkout are recorded securely in our database before opening WhatsApp.
-            </p>
-          </div>
+              {/* ┌──────────────┬──────────────┐
+                  │     CART     │     BUY      │
+                  └──────────────┴──────────────┘ */}
+              <div className="space-y-3 pt-1">
+                <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                  <button
+                    disabled={isOutOfStock || isAddingToCart}
+                    onClick={() => {
+                      if (isOutOfStock || isAddingToCart) return;
+                      setIsAddingToCart(true);
+                      addToCart(
+                        { ...product, price: activePrice, quantityOrWeight: activeWeight, sku: activeSku, stockStatus: activeStockStatus },
+                        quantity,
+                        selectedVariant
+                      );
+                      trackAddToCart({
+                        id: product.id,
+                        name: product.name,
+                        price: activePrice,
+                        quantity,
+                      });
+                      openCart();
+                      setTimeout(() => setIsAddingToCart(false), 800);
+                    }}
+                    className={`w-full h-12 flex items-center justify-center rounded-xl font-extrabold text-xs sm:text-sm tracking-wide border transition-all shadow-xs cursor-pointer touch-manipulation active:scale-[0.98] ${
+                      isOutOfStock
+                        ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                        : isAddingToCart
+                        ? 'bg-[#1b4332] text-[#c5a059] border-[#1b4332] opacity-70 cursor-wait'
+                        : 'bg-[#1b4332] hover:bg-[#0f2d22] text-[#faf5e8] border-[#1b4332]'
+                    }`}
+                  >
+                    <span>CART</span>
+                  </button>
+
+                  <Link
+                    href="/checkout"
+                    onClick={(e) => {
+                      if (isOutOfStock) {
+                        e.preventDefault();
+                        return;
+                      }
+                      addToCart(
+                        { ...product, price: activePrice, quantityOrWeight: activeWeight, sku: activeSku, stockStatus: activeStockStatus },
+                        quantity,
+                        selectedVariant
+                      );
+                    }}
+                    className={`w-full h-12 flex items-center justify-center rounded-xl font-extrabold text-xs sm:text-sm tracking-wide border transition-all shadow-xs cursor-pointer touch-manipulation active:scale-[0.98] ${
+                      isOutOfStock
+                        ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed pointer-events-none'
+                        : 'bg-[#c5a059] hover:bg-[#b38e46] text-[#0f2d22] border-[#c5a059]'
+                    }`}
+                  >
+                    <span>BUY</span>
+                  </Link>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleOpenQuestionModal}
+                  className="w-full flex items-center justify-center gap-2 bg-[#f2fcf5] hover:bg-[#e2f7e7] text-[#1b4332] border border-[#25D366]/40 py-2.5 rounded-xl font-bold text-xs tracking-wider transition-all active:scale-[0.99] cursor-pointer touch-manipulation"
+                >
+                  <MessageCircle className="w-4 h-4 fill-[#25D366] text-[#25D366]" />
+                  <span>Ask Question on WhatsApp</span>
+                </button>
+
+                <p className="text-[11px] text-center text-gray-500">
+                  Orders placed via Checkout are recorded securely in our database before opening WhatsApp.
+                </p>
+              </div>
+            </>
+          )}
 
           {/* TRUST */}
           <div className="pt-4 border-t border-[#e8e2d5]">
@@ -1504,63 +1561,71 @@ export default function ProductDetailClient({
         </div>
 
         {/* CART | BUY 50/50 row */}
-        <div className="grid grid-cols-2 gap-0 px-3 pb-3 pt-1.5">
-          {/* CART button */}
-          <button
-            type="button"
-            disabled={isOutOfStock || isAddingToCart}
-            onClick={() => {
-              if (isOutOfStock || isAddingToCart) return;
-              setIsAddingToCart(true);
-              addToCart(
-                selectedVariant
-                  ? { ...product, price: activePrice, compareAtPrice: activeComparePrice, sku: activeSku, stockStatus: activeStockStatus }
-                  : product,
-                quantity,
-                selectedVariant ?? undefined,
-              );
-              trackAddToCart({
-                id: product.id,
-                name: product.name,
-                price: activePrice,
-                quantity,
-              });
-              openCart();
-              setTimeout(() => setIsAddingToCart(false), 800);
-            }}
-            className={`h-11 rounded-l-xl text-xs font-extrabold tracking-wide transition-all active:scale-95 touch-manipulation border border-r-[0.5px] whitespace-nowrap ${
-              isOutOfStock
-                ? 'bg-[#1a3528] text-[#626c66] border-[#2d4a3a] cursor-not-allowed'
-                : isAddingToCart
-                ? 'bg-[#1b4332] text-[#c5a059] border-[#2d5540] opacity-70 cursor-wait'
-                : 'bg-[#1b4332] hover:bg-[#163828] text-[#faf5e8] border-[#2d5540] cursor-pointer'
-            }`}
-          >
-            CART
-          </button>
+        {isHidden ? (
+          <div className="px-3 pb-3 pt-1.5">
+            <div className="w-full py-2.5 px-4 bg-amber-500/20 border border-amber-400/40 rounded-xl text-center text-xs font-bold text-[#faf5e8]">
+              Currently Not Available for Purchase
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-0 px-3 pb-3 pt-1.5">
+            {/* CART button */}
+            <button
+              type="button"
+              disabled={isOutOfStock || isAddingToCart}
+              onClick={() => {
+                if (isOutOfStock || isAddingToCart) return;
+                setIsAddingToCart(true);
+                addToCart(
+                  selectedVariant
+                    ? { ...product, price: activePrice, compareAtPrice: activeComparePrice, sku: activeSku, stockStatus: activeStockStatus }
+                    : product,
+                  quantity,
+                  selectedVariant ?? undefined,
+                );
+                trackAddToCart({
+                  id: product.id,
+                  name: product.name,
+                  price: activePrice,
+                  quantity,
+                });
+                openCart();
+                setTimeout(() => setIsAddingToCart(false), 800);
+              }}
+              className={`h-11 rounded-l-xl text-xs font-extrabold tracking-wide transition-all active:scale-95 touch-manipulation border border-r-[0.5px] whitespace-nowrap ${
+                isOutOfStock
+                  ? 'bg-[#1a3528] text-[#626c66] border-[#2d4a3a] cursor-not-allowed'
+                  : isAddingToCart
+                  ? 'bg-[#1b4332] text-[#c5a059] border-[#2d5540] opacity-70 cursor-wait'
+                  : 'bg-[#1b4332] hover:bg-[#163828] text-[#faf5e8] border-[#2d5540] cursor-pointer'
+              }`}
+            >
+              CART
+            </button>
 
-          {/* BUY button */}
-          <Link
-            href="/checkout"
-            onClick={() => {
-              if (isOutOfStock) return;
-              addToCart(
-                selectedVariant
-                  ? { ...product, price: activePrice, compareAtPrice: activeComparePrice, sku: activeSku, stockStatus: activeStockStatus }
-                  : product,
-                quantity,
-                selectedVariant ?? undefined,
-              );
-            }}
-            className={`h-11 rounded-r-xl text-xs font-extrabold tracking-wide transition-all active:scale-95 touch-manipulation border border-l-[0.5px] whitespace-nowrap flex items-center justify-center ${
-              isOutOfStock
-                ? 'bg-[#c5a059]/30 text-[#626c66] border-[#9a7a3a] pointer-events-none'
-                : 'bg-[#c5a059] hover:bg-[#b38e46] text-[#0f2d22] border-[#b38e46] cursor-pointer'
-            }`}
-          >
-            BUY
-          </Link>
-        </div>
+            {/* BUY button */}
+            <Link
+              href="/checkout"
+              onClick={() => {
+                if (isOutOfStock) return;
+                addToCart(
+                  selectedVariant
+                    ? { ...product, price: activePrice, compareAtPrice: activeComparePrice, sku: activeSku, stockStatus: activeStockStatus }
+                    : product,
+                  quantity,
+                  selectedVariant ?? undefined,
+                );
+              }}
+              className={`h-11 rounded-r-xl text-xs font-extrabold tracking-wide transition-all active:scale-95 touch-manipulation border border-l-[0.5px] whitespace-nowrap flex items-center justify-center ${
+                isOutOfStock
+                  ? 'bg-[#c5a059]/30 text-[#626c66] border-[#9a7a3a] pointer-events-none'
+                  : 'bg-[#c5a059] hover:bg-[#b38e46] text-[#0f2d22] border-[#b38e46] cursor-pointer'
+              }`}
+            >
+              BUY
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* ASK QUESTION MODAL */}

@@ -542,22 +542,22 @@ export interface ProductVisibilityState {
   sortOrder: number;
 }
 
+import {
+  resolveProductLifecycle,
+  ProductLifecycleDecision,
+  ProductLifecycleStatus,
+} from './product-lifecycle-governance';
+
+export {
+  resolveProductLifecycle,
+  type ProductLifecycleDecision,
+  type ProductLifecycleStatus,
+};
+
 /**
  * Universal Product Visibility Resolver:
  * Single canonical shared engine for product catalog visibility & homepage featured eligibility.
- *
- * CANONICAL RULES:
- * 1. isPubliclyVisible:
- *    product.isActive !== false (true unless explicitly marked false / private draft).
- * 2. isHomepageEligible:
- *    product.isActive !== false && Boolean(product.isFeatured).
- *    Admin UI promise: "Display in prominent Featured section on Homepage".
- *    Admin OFF means OFF. If isFeatured is false, product is NOT eligible.
- *    If isActive is false, product is NEVER eligible.
- * 3. sortOrder:
- *    Canonical sortOrder (defaults to 999 if unspecified).
- *
- * Applies universally to all existing, edited, cloned, and future products.
+ * Delegates directly to the single authoritative resolveProductLifecycle engine.
  */
 export function resolveProductVisibility(
   product: Partial<Product> | null | undefined
@@ -570,13 +570,12 @@ export function resolveProductVisibility(
     };
   }
 
-  const isPubliclyVisible = product.isActive !== false;
-  const isHomepageEligible = isPubliclyVisible && Boolean(product.isFeatured);
+  const lifecycle = resolveProductLifecycle(product);
   const sortOrder = typeof product.sortOrder === 'number' ? product.sortOrder : 999;
 
   return {
-    isPubliclyVisible,
-    isHomepageEligible,
+    isPubliclyVisible: lifecycle.isCatalogVisible,
+    isHomepageEligible: lifecycle.isFeaturedEligible,
     sortOrder,
   };
 }

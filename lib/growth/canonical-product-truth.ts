@@ -18,6 +18,7 @@
 import { Product, ProductVariant } from '@/lib/types';
 import { resolveCanonicalProductOffer } from './product-catalog-governance';
 import { extractMerchantFeedMedia } from './product-media-governance';
+import { resolveProductLifecycle } from './product-lifecycle-governance';
 
 export interface AuthoritativeVariantTruth {
   id: string;
@@ -242,7 +243,7 @@ export function getAuthoritativeProductTruth(
     };
   });
 
-  const isIndexable = product.isActive !== false && product.robotsIndex !== false && (product as any).seoRobotsIndex !== false;
+  const isIndexable = resolveProductLifecycle(product).isIndexable;
 
   return {
     id: product.id || `prod_${product.slug}`,

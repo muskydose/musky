@@ -31,7 +31,15 @@ export interface TrustStripItem {
 
 export type FieldConfidence = 'VERIFIED' | 'ADMIN_DEFINED' | 'DERIVED' | 'NEEDS_REVIEW';
 
-export type ProductLifecycleStatus = 'DRAFT' | 'AUTO_FILLED' | 'ADMIN_REVIEW' | 'SAVED' | 'ACTIVATED';
+export type ProductLifecycleStatus =
+  | 'ACTIVE'
+  | 'HIDDEN'
+  | 'DISCONTINUED'
+  | 'DRAFT'
+  | 'AUTO_FILLED'
+  | 'ADMIN_REVIEW'
+  | 'SAVED'
+  | 'ACTIVATED';
 
 export interface ProductFieldMetadata {
   value: any;
@@ -154,6 +162,7 @@ export interface Product {
   sortOrder: number;
   productType?: 'POWDER' | 'RAW' | 'FINISHED' | string;
   lifecycleStatus?: ProductLifecycleStatus;
+  replacementSlug?: string;
   sellingUnit?: string;
   packQuantity?: number;
   packUnit?: string;

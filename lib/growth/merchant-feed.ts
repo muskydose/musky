@@ -15,6 +15,7 @@
 import { Product } from '@/lib/types';
 import { resolveCanonicalProductOffer } from './product-catalog-governance';
 import { extractMerchantFeedMedia } from './product-media-governance';
+import { resolveProductLifecycle } from './product-lifecycle-governance';
 import {
   GoogleMerchantFeedItem,
   MerchantFeedHealthSummary,
@@ -46,12 +47,10 @@ export function validateProductForMerchantFeed(
 } {
   const errors: string[] = [];
 
-  // 1. Active & Indexability check
-  if (product.isActive === false) {
-    errors.push('Product is inactive');
-  }
-  if (product.robotsIndex === false || (product as any).seoRobotsIndex === false) {
-    errors.push('Product is marked noindex');
+  // 1. Authoritative Lifecycle & Indexability check
+  const lifecycle = resolveProductLifecycle(product);
+  if (!lifecycle.isMerchantFeedEligible) {
+    errors.push(`Product is ineligible for Merchant Feed (Lifecycle: ${lifecycle.status})`);
   }
 
   // 2. Title validation

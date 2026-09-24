@@ -16,7 +16,7 @@ export async function GET(
   const requestId = getRequestId();
   try {
     const { id } = await params;
-    const product = await getProductByIdOrSlug(id);
+    const product = await getProductByIdOrSlug(id, true);
     if (!product) {
       return NextResponse.json({ success: false, error: 'Product not found', requestId }, { status: 404 });
     }

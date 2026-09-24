@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { BookOpen, Leaf, ArrowRight } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -17,6 +17,8 @@ import ProductDetailClient from './ProductDetailClient';
 
 import { deriveProductAutoSeo } from '@/lib/growth/product-keyword-engine';
 import { resolveCanonicalProductOffer } from '@/lib/growth/product-catalog-governance';
+import { resolveProductLifecycle } from '@/lib/growth/product-lifecycle-governance';
+import { resolveProductSlugRedirect } from '@/lib/db/product-redirects';
 import {
   resolveAuthoritativeProductMedia,
   generateProductMediaSchema,
@@ -32,8 +34,27 @@ export const dynamicParams = true;
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const product = await getProductByIdOrSlug(slug);
-  if (!product || product.isActive === false) return { title: 'Product Not Found' };
+  const product = await getProductByIdOrSlug(slug, true);
+  if (!product) {
+    const targetSlug = await resolveProductSlugRedirect(slug);
+    if (targetSlug && targetSlug !== slug) {
+      permanentRedirect(`/products/${targetSlug}`);
+    }
+    return { title: 'Product Not Found' };
+  }
+
+  // Exact canonical slug enforcement (deterministic alias to canonical)
+  if (product.slug && slug !== product.slug) {
+    permanentRedirect(`/products/${product.slug}`);
+  }
+
+  const lifecycle = resolveProductLifecycle(product);
+  if (!lifecycle.isUrlAccessible) {
+    if (lifecycle.redirectTarget) {
+      permanentRedirect(lifecycle.redirectTarget);
+    }
+    return { title: 'Product Not Found' };
+  }
 
   const autoSeo = deriveProductAutoSeo(product);
   const primaryMedia = await getPrimaryMedia({
@@ -55,8 +76,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       autoSeo.primaryKeyword,
       ...autoSeo.secondaryKeywords,
     ],
-    robotsIndex: product.robotsIndex ?? true,
-    robotsFollow: product.robotsFollow ?? true,
+    robotsIndex: lifecycle.robotsIndex,
+    robotsFollow: lifecycle.robotsFollow,
     ogImage: primaryImgUrl,
   });
 }
@@ -68,13 +89,30 @@ export default async function ProductDetailPage({
 }) {
   const { slug } = await params;
   const [product, siteSettings, categories, allGuides] = await Promise.all([
-    getProductByIdOrSlug(slug),
+    getProductByIdOrSlug(slug, true),
     getSiteSettings(),
     getCategories(),
     getPublishedGuides(),
   ]);
 
-  if (!product || product.isActive === false) {
+  if (!product) {
+    const targetSlug = await resolveProductSlugRedirect(slug);
+    if (targetSlug && targetSlug !== slug) {
+      permanentRedirect(`/products/${targetSlug}`);
+    }
+    notFound();
+  }
+
+  // Exact canonical slug enforcement (deterministic alias to canonical)
+  if (product.slug && slug !== product.slug) {
+    permanentRedirect(`/products/${product.slug}`);
+  }
+
+  const lifecycle = resolveProductLifecycle(product);
+  if (!lifecycle.isUrlAccessible) {
+    if (lifecycle.redirectTarget) {
+      permanentRedirect(lifecycle.redirectTarget);
+    }
     notFound();
   }
 
@@ -159,7 +197,12 @@ export default async function ProductDetailPage({
           priceCurrency: 'INR',
           price: canonicalOffer.price,
           itemCondition: 'https://schema.org/NewCondition',
-          availability: product.stockStatus === 'in_stock' ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+          availability:
+            lifecycle.status === 'HIDDEN'
+              ? 'https://schema.org/OutOfStock'
+              : (product.stockStatus === 'in_stock'
+                ? 'https://schema.org/InStock'
+                : 'https://schema.org/OutOfStock'),
           seller: {
             '@type': 'Organization',
             name: siteSettings?.brandName || 'Musky Dose',
@@ -281,6 +324,7 @@ export default async function ProductDetailPage({
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 flex-1">
         <ProductDetailClient
           product={product}
+          lifecycle={lifecycle}
           whatsappNumber={getConfiguredWhatsAppNumber(siteSettings)}
           whatsappTemplate={siteSettings.whatsappMessageTemplate}
           brandName={siteSettings.brandName || 'Musky Dose'}

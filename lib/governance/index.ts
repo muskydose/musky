@@ -14,3 +14,4 @@ export * from './entity-registry';
 export * from './reference-integrity';
 export * from './ai-governance';
 export * from './commerce-governance';
+export * from '@/lib/growth/product-lifecycle-governance';

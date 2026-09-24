@@ -7,6 +7,7 @@ import { calculateCampaignDiscount, recordCampaignUsage, rollbackCampaignUsage }
 import { UniversalGovernanceCore } from '@/lib/governance/core';
 import { revalidateEntitySurfaces } from '@/lib/revalidation';
 import { getEffectiveVariantPrice } from '@/lib/product-variants';
+import { resolveProductLifecycle } from '@/lib/growth/product-lifecycle-governance';
 
 function requireSupabaseAdmin(): SupabaseClient {
   const client = getSupabaseAdmin();
@@ -431,8 +432,9 @@ export async function saveOrder(orderData: Partial<Order>): Promise<Order> {
     if (!prod) {
       throw new Error(`Product "${item.productName || item.productId}" not found.`);
     }
-    if (prod.isActive === false) {
-      throw new Error(`Product "${prod.name}" is inactive and cannot be ordered.`);
+    const lifecycle = resolveProductLifecycle(prod);
+    if (!lifecycle.isPurchasable) {
+      throw new Error(`Product "${prod.name}" is not currently available for purchase.`);
     }
     if (prod.stockStatus === 'out_of_stock') {
       throw new Error(`Product "${prod.name}" is currently out of stock.`);

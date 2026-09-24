@@ -13,6 +13,7 @@
  */
 
 import { Product, Category, ProductGuide } from '@/lib/types';
+import { resolveProductLifecycle } from './product-lifecycle-governance';
 import {
   CANONICAL_ENTITY_REGISTRY,
   getEntity,
@@ -72,7 +73,7 @@ export function buildEntityInternalGraph(params: {
   // 1. Related Active Products (Strictly matching entityKey)
   const matchedProducts: { id: string; name: string; url: string; slug: string }[] = [];
   for (const p of products) {
-    if (p.isActive === false) continue;
+    if (!resolveProductLifecycle(p).isCatalogVisible) continue;
     const pEntity = resolveCanonicalEntity(p);
     if (pEntity.entityKey === entityKey) {
       const pUrl = `/products/${p.slug}`;

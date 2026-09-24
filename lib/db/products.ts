@@ -14,6 +14,8 @@ import { validateProductVariants } from '@/lib/product-variants';
 import { UniversalGovernanceCore } from '@/lib/governance';
 import { attachCanonicalMediaToProducts } from './media';
 import { reconcileProductMediaRequirements } from '@/lib/growth/media-requirements-engine';
+import { recordProductSlugChange } from './product-redirects';
+import { resolveProductLifecycle } from '@/lib/growth/product-lifecycle-governance';
 
 function requireSupabaseAdmin(): SupabaseClient {
   const client = getSupabaseAdmin();
@@ -174,7 +176,8 @@ export function mapRowToProduct(row: any): Product {
     isActive: row.is_active ?? row.isActive ?? true,
     sortOrder: row.sort_order ?? row.sortOrder ?? 1,
     productType: row.product_type || row.productType || undefined,
-    lifecycleStatus: row.lifecycle_status || row.lifecycleStatus || 'SAVED',
+    lifecycleStatus: row.lifecycle_status || row.lifecycleStatus || (row.is_active === false ? 'HIDDEN' : 'ACTIVE'),
+    replacementSlug: row.replacement_slug || row.replacementSlug || undefined,
     sellingUnit: row.selling_unit || row.sellingUnit || undefined,
     packQuantity: typeof row.pack_quantity === 'number' ? row.pack_quantity : typeof row.packQuantity === 'number' ? row.packQuantity : undefined,
     packUnit: row.pack_unit || row.packUnit || undefined,
@@ -472,7 +475,7 @@ export async function getFeaturedProducts(limit: number = 8): Promise<Product[]>
 
 export const getProductByIdOrSlug = cache(async (
   identifier: string,
-  includeInactive: boolean = false
+  includeInactive: boolean = true
 ): Promise<Product | null> => {
   if (!identifier) return null;
   let decoded = identifier.trim();
@@ -648,6 +651,14 @@ export async function saveProduct(product: Partial<Product>): Promise<Product> {
       cleanSlug = `${cleanSlug}-${Date.now().toString().slice(-4)}`;
     } else {
       throw new Error(`Slug "${cleanSlug}" is already in use by product "${existingSlug.name}"`);
+    }
+  }
+
+  // Preserve historical slug redirect if slug is changing on existing product
+  if (!isNew && productId) {
+    const previousProduct = allProducts.find((p) => p.id === productId);
+    if (previousProduct && previousProduct.slug && previousProduct.slug !== cleanSlug) {
+      await recordProductSlugChange(productId, previousProduct.slug, cleanSlug);
     }
   }
 

@@ -14,6 +14,7 @@
  */
 
 import { Product, Category, ProductGuide } from '@/lib/types';
+import { resolveProductLifecycle } from './product-lifecycle-governance';
 import {
   CANONICAL_ENTITY_REGISTRY,
   getEntity,
@@ -324,7 +325,7 @@ export function resolveOrganicDestination(params: {
 }): OrganicDestination {
   const { rawQuery, products = [], categories = [], guides = [] } = params;
   const q = normalizeEntityTerm(rawQuery);
-  const activeProducts = products.filter((p) => p && p.isActive !== false);
+  const activeProducts = products.filter((p) => p && resolveProductLifecycle(p).isCatalogVisible);
 
   // 1. Resolve Canonical Entity via Phase 5 Central Registry
   const entityRes = resolveCanonicalEntity(rawQuery);
@@ -648,7 +649,7 @@ export function detectSearchCannibalization(
 export function generateMerchantCenterProductPayload(
   product: Product
 ): MerchantCenterProductPayload | null {
-  if (!product || product.isActive === false) return null;
+  if (!product || !resolveProductLifecycle(product).isMerchantFeedEligible) return null;
 
   const baseUrl = 'https://muskydose.in';
   const priceFormatted = `${Number(product.price || 0).toFixed(2)} INR`;

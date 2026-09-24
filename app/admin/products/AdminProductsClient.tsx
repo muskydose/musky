@@ -627,10 +627,15 @@ export default function AdminProductsClient({
                         <button
                           onClick={() => toggleActive(p)}
                           disabled={loadingId === p.id}
+                          title={
+                            p.isActive !== false
+                              ? 'Product is Active in public store. Click to hide from catalog.'
+                              : 'Product is Hidden from catalog listings (direct URL remains accessible with unavailable notice and noindex). Click to activate.'
+                          }
                           className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
                             p.isActive !== false
                               ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-rose-100 text-rose-800'
+                              : 'bg-amber-100 text-amber-900 border border-amber-300'
                           }`}
                         >
                           {p.isActive !== false ? 'ACTIVE' : 'HIDDEN'}
