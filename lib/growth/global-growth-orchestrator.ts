@@ -11,7 +11,7 @@
  * Self-Healing Capabilities:
  * - Detects broken/missing canonical ownership and reassigns deterministically.
  * - Detects schema/availability drift between database and feeds.
- * - Detects cannibalization collisions and auto-resolves with internal links.
+ * - Detects cannibalization collisions and records deterministic remediation actions for review/execution.
  * - Non-destructive recovery: never wipes verified data or overwrites real factory photos.
  */
 
@@ -91,11 +91,12 @@ export class MuskyGlobalGrowthOrchestrator {
       baseUrl
     );
 
-    // Self-healing: if cannibalization found, resolve with internal links
+    // Do not claim a collision was healed unless a concrete mutation was executed.
+    // The current sweep records deterministic remediation actions for review/execution.
     if (cannibalizationReport.collisionsCount > 0) {
       for (const col of cannibalizationReport.collisions) {
         healedActions.push(
-          `Resolved query collision on [${col.query}]: ${col.action}`
+          `Remediation required for query collision [${col.query}]: ${col.action}`
         );
       }
     }
@@ -130,8 +131,6 @@ export class MuskyGlobalGrowthOrchestrator {
     const status: GlobalGrowthCycleSummary['status'] =
       seoAudit.failCount === 0 && cannibalizationReport.collisionsCount === 0
         ? 'OPTIMAL'
-        : healedActions.length > 0
-        ? 'SELF_HEALED'
         : 'ATTENTION_REQUIRED';
 
     return {
