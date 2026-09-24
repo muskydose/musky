@@ -255,8 +255,8 @@ export default async function KnowledgeEntityPage(props: KnowledgePageProps) {
       {
         '@type': 'ListItem',
         position: 2,
-        name: 'Botanical Knowledge',
-        item: 'https://muskydose.in/knowledge/henna-mehndi',
+        name: 'Botanical Knowledge Hub',
+        item: 'https://muskydose.in/knowledge',
       },
       {
         '@type': 'ListItem',
@@ -289,7 +289,9 @@ export default async function KnowledgeEntityPage(props: KnowledgePageProps) {
                 Home
               </Link>
               <ChevronRight className="h-3.5 w-3.5 text-neutral-400" />
-              <span className="text-neutral-500">Knowledge Hub</span>
+              <Link href="/knowledge" className="hover:text-emerald-700">
+                Botanical Knowledge
+              </Link>
               <ChevronRight className="h-3.5 w-3.5 text-neutral-400" />
               <span className="font-semibold text-neutral-900">{record.canonicalName}</span>
             </nav>

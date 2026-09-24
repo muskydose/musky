@@ -30,6 +30,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     },
     {
+      url: `${baseUrl}/knowledge`,
+      changeFrequency: 'weekly',
+      priority: 0.85,
+    },
+    {
       url: `${baseUrl}/guides`,
       changeFrequency: 'weekly',
       priority: 0.85,
@@ -101,17 +106,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  const productRoutes: MetadataRoute.Sitemap = products
-    .filter((prod) => resolveProductLifecycle(prod).isSitemapEligible)
-    .map((prod) => ({
-      url: `${baseUrl}/products/${prod.slug}`,
-      ...(prod.updatedAt ? { lastModified: new Date(prod.updatedAt) } : {}),
-      changeFrequency: 'weekly',
-      priority: 0.8,
-    }));
+  const sitemapEligibleProducts = products.filter(
+    (prod) => resolveProductLifecycle(prod).isSitemapEligible
+  );
+
+  const productRoutes: MetadataRoute.Sitemap = sitemapEligibleProducts.map((prod) => ({
+    url: `${baseUrl}/products/${prod.slug}`,
+    ...(prod.updatedAt ? { lastModified: new Date(prod.updatedAt) } : {}),
+    changeFrequency: 'weekly',
+    priority: 0.8,
+  }));
 
   const categoryRoutes: MetadataRoute.Sitemap = categories
-    .filter((cat) => cat.isActive !== false)
+    .filter((cat) => {
+      if (cat.isActive === false) return false;
+      return sitemapEligibleProducts.some(
+        (p) =>
+          p.categoryId === cat.id ||
+          p.categoryName?.toLowerCase() === cat.name.toLowerCase() ||
+          p.categoryName?.toLowerCase() === cat.slug.toLowerCase()
+      );
+    })
     .map((cat) => ({
       url: `${baseUrl}/categories/${cat.slug}`,
       changeFrequency: 'weekly',

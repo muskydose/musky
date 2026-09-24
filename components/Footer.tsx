@@ -120,7 +120,10 @@ export default function Footer({ siteSettings: initialSettings }: FooterProps) {
                 <Link href="/guides" className="hover:text-[#c5a059] transition-colors">Guides & Tutorials</Link>
               </li>
               <li>
-                <Link href="/knowledge/henna-mehndi" className="hover:text-[#c5a059] transition-colors">Botanical Knowledge Hub</Link>
+                <Link href="/knowledge" className="hover:text-[#c5a059] transition-colors">Botanical Knowledge Hub</Link>
+              </li>
+              <li>
+                <Link href="/offers" className="hover:text-[#c5a059] transition-colors">Special Offers & Coupons</Link>
               </li>
               <li>
                 <Link href="/about" className="hover:text-[#c5a059] transition-colors">Our Brand Story</Link>

@@ -122,11 +122,11 @@ export default async function ProductDetailPage({
       allGuides,
       requireApproval: false,
       includeDrafts: false,
-      limit: 2,
+      limit: 3,
     }),
     getRelatedKnowledgeForProduct(product, {
       requireApproval: false,
-      limit: 2,
+      limit: 3,
     }),
   ]);
 

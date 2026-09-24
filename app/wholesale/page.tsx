@@ -13,7 +13,7 @@ export async function generateMetadata() {
     targetUrl: '/wholesale',
     defaultTitle: 'Sojat Henna Wholesale & Bulk Supply | Factory Manufacturer Rajasthan',
     defaultDescription:
-      'Direct factory wholesale supply of authentic Sojat henna powder, BAQ bridal mehndi cones, and botanical herbs. Pan-India dispatch for salons, mehndi artists, resellers, and bulk buyers.',
+      'Direct factory wholesale supply of authentic Sojat henna powder, micro-fine BAQ powders, natural indigo, and botanical herbs. Pan-India dispatch for salons, mehndi artists, resellers, and bulk buyers.',
     defaultKeywords: [
       'Wholesale Henna',
       'Mehndi Wholesale',
@@ -23,7 +23,7 @@ export async function generateMetadata() {
       'Henna for Salons',
       'Henna for Mehndi Artists',
       'B2B Henna India',
-      'Bulk Mehendi Cones',
+      'Bulk Indigo Powder',
       'Sojat Mehendi Mandi Rate',
     ],
   });
@@ -57,7 +57,7 @@ export default async function WholesalePage({
         url: `${baseUrl}/wholesale`,
         name: 'Sojat Henna Wholesale & Bulk Supply | Factory Direct B2B Portal',
         description:
-          'Direct factory wholesale supply of authentic Sojat henna powder, bridal mehndi cones, and herbal botanicals from Sojat, Rajasthan.',
+          'Direct factory wholesale supply of authentic Sojat henna powder, organic indigo, and herbal botanicals from Sojat, Rajasthan.',
         isPartOf: {
           '@id': `${baseUrl}/#website`,
         },

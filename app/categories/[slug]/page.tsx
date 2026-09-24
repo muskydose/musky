@@ -126,7 +126,9 @@ export async function generateMetadata({
   const rawDefaultImg = primaryMedia.url || (category as any)?.canonicalPrimaryUrl || (isSafeInternalMediaUrl(category.image) ? category.image : undefined);
   const defaultImage = rawDefaultImg && !rawDefaultImg.includes('fallback.svg') ? rawDefaultImg : undefined;
 
-  return await resolvePageSeoMetadata({
+  const categoryProducts = await getProductsByCategory(category.id);
+
+  const resolvedSeo = await resolvePageSeoMetadata({
     targetType: 'category',
     targetId: category.id,
     targetUrl: `/categories/${category.slug}`,
@@ -134,6 +136,18 @@ export async function generateMetadata({
     defaultDescription: customDesc || `Explore ${category.name} handcrafted directly in Sojat, Rajasthan. 100% natural, chemical-free botanicals.`,
     defaultImage,
   });
+
+  if (categoryProducts.length === 0) {
+    return {
+      ...resolvedSeo,
+      robots: {
+        index: false,
+        follow: true,
+      },
+    };
+  }
+
+  return resolvedSeo;
 }
 
 export default async function CategoryPage({
