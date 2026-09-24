@@ -99,11 +99,9 @@ export class GlobalEntityGraph {
       type: 'BRAND',
       slug: 'musky-dose',
       url: 'https://muskydose.in',
-      description: 'Pure, organic, unadulterated botanical henna and herbal hair care direct from Sojat, Rajasthan.',
+      description: 'Musky Dose brand catalog of henna and herbal products.',
       verifiedAttributes: {
-        foundedIn: 'India',
-        hqRegion: 'Rajasthan',
-        businessModel: 'Direct-from-Source Retail & Wholesale',
+        businessModel: 'Retail & Wholesale',
       },
     });
 
@@ -114,12 +112,11 @@ export class GlobalEntityGraph {
       type: 'TERROIR',
       slug: 'sojat-henna',
       url: 'https://muskydose.in/sojat-henna',
-      description: 'The global epicenter of premium Lawsonia inermis cultivation, celebrated for high Lawsone dye content.',
+      description: 'Sojat, Pali district, Rajasthan, India.',
       verifiedAttributes: {
         district: 'Pali',
         state: 'Rajasthan',
         country: 'India',
-        giTagStatus: 'Renowned Heritage Henna Capital',
       },
     });
 
@@ -130,11 +127,8 @@ export class GlobalEntityGraph {
       type: 'WHOLESALE_BUYER',
       slug: 'wholesale',
       url: 'https://muskydose.in/wholesale',
-      description: 'Bulk supply, mandi-direct procurement, salon partnerships, and international export gateway.',
-      verifiedAttributes: {
-        minimumOrderKg: 10,
-        bulkDiscountTiers: true,
-      },
+      description: 'Musky Dose wholesale and export surface for bulk inquiries.',
+      verifiedAttributes: {},
     });
 
     // 4. Botanical Canonical Nodes
@@ -173,9 +167,9 @@ export class GlobalEntityGraph {
           fromType: 'BOTANICAL',
           toId: 'terroir-sojat-rajasthan',
           toType: 'TERROIR',
-          relationship: 'originated_in',
-          confidence: 1000,
-          explainableReason: 'Sojat, Rajasthan is the historical and geographical origin of premium Indian Henna cultivation.',
+          relationship: 'related_to',
+          confidence: 700,
+          explainableReason: 'The canonical site associates Henna/Mehndi with the Sojat, Rajasthan topic hub; this edge is not asserted as a geographic-origin certification.',
         });
       }
 
@@ -267,9 +261,9 @@ export class GlobalEntityGraph {
           fromType: 'PRODUCT',
           toId: 'terroir-sojat-rajasthan',
           toType: 'TERROIR',
-          relationship: 'manufactured_in',
-          confidence: 1000,
-          explainableReason: 'Harvested and triple cloth-sifted directly in Sojat, Rajasthan.',
+          relationship: 'related_to',
+          confidence: 700,
+          explainableReason: 'Derived from current catalog naming/category signals containing henna, mehendi, or Sojat; this edge is not an origin claim.',
         });
 
         // Connect to Henna Botanical Node
@@ -280,8 +274,8 @@ export class GlobalEntityGraph {
           toId: 'botanical-henna_mehndi',
           toType: 'BOTANICAL',
           relationship: 'related_to',
-          confidence: 1000,
-          explainableReason: 'Product formulation contains 100% Lawsonia inermis (Henna).',
+          confidence: 700,
+          explainableReason: 'Derived from current catalog naming that classifies the product in the Henna/Mehndi family; formulation percentage is not inferred here.',
         });
       }
 
@@ -298,17 +292,19 @@ export class GlobalEntityGraph {
         });
       }
 
-      // Product -> Wholesale Hub
-      this.addEdge({
-        id: `edge-${prod.slug}-wholesale`,
-        fromId: prodNodeId,
-        fromType: 'PRODUCT',
-        toId: 'hub-wholesale',
-        toType: 'WHOLESALE_BUYER',
-        relationship: 'wholesale_for',
-        confidence: 900,
-        explainableReason: 'Available for bulk wholesale procurement, salon supply, and export packaging.',
-      });
+      // Product -> Wholesale Hub only when the catalog explicitly marks wholesale eligibility.
+      if (prod.isWholesaleEligible === true || prod.minWholesaleQuantity != null || prod.unitConfig?.minWholesaleQuantity != null) {
+        this.addEdge({
+          id: `edge-${prod.slug}-wholesale`,
+          fromId: prodNodeId,
+          fromType: 'PRODUCT',
+          toId: 'hub-wholesale',
+          toType: 'WHOLESALE_BUYER',
+          relationship: 'wholesale_for',
+          confidence: 900,
+          explainableReason: 'Product catalog explicitly exposes wholesale eligibility or a wholesale minimum quantity.',
+        });
+      }
     }
 
     // Ingest Guides
