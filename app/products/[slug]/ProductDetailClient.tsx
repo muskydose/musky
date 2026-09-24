@@ -158,11 +158,96 @@ export default function ProductDetailClient({
   const [customBulkQuantity, setCustomBulkQuantity] = useState<string>(
     () => `${wholesaleUnits.minWholesaleQuantity || 5} ${wholesaleUnits.wholesaleUnit || 'kg'}`
   );
-  const [faqs, setFaqs] = useState<any[]>(() =>
-    Array.isArray(faqItems)
+
+  const productSpecificFaqs = React.useMemo(() => {
+    const slug = product.slug || '';
+    if (slug === 'baq-henna-powder') {
+      return [
+        {
+          id: 'faq-baq-meaning',
+          question: 'What does BAQ (Body Art Quality) Henna Powder mean?',
+          answer:
+            'BAQ stands for Body Art Quality. It designates the highest grade of Lawsonia Inermis, harvested from top-tier leaves in Sojat, Rajasthan. The leaves are shade-dried and micro-cloth sifted up to three times through a 0.05mm mesh to remove all fibers, grit, and sand. This produces an ultra-fine, silky powder that will not clog precision applicator cones, yielding intense lawsone dye release for deep mahogany bridal stains.',
+        },
+        {
+          id: 'faq-baq-hair',
+          question: 'Can BAQ Henna also be used for hair conditioning?',
+          answer:
+            'Yes, absolutely. BAQ Henna provides an exceptionally smooth, lump-free hair mask that coats cuticles with natural tannins, adds brilliant volume, and rinses out effortlessly compared to coarse commercial hair mehendi powders.',
+        },
+        {
+          id: 'faq-baq-ppd',
+          question: 'Does Musky Dose BAQ Henna contain PPD, chemicals, or synthetic colorants?',
+          answer:
+            'No. Musky Dose BAQ Henna is 100% pure, unadulterated Lawsonia Inermis. It contains zero PPD (para-phenylenediamine), zero ammonia, zero metallic salts, and zero synthetic preservatives.',
+        },
+        {
+          id: 'faq-baq-stain-darkening',
+          question: 'Why does natural bridal henna take 24 to 48 hours to reach peak darkness?',
+          answer:
+            'Natural lawsone dye binds with skin keratin and darkens through exposure to ambient oxygen (oxidation). The stain begins as a bright pumpkin orange upon paste removal and naturally matures into deep reddish-mahogany over 24 to 48 hours. Avoiding water contact for the first 12-24 hours optimizes natural color maturation.',
+        },
+      ];
+    }
+    if (slug === 'natural-organic-indigo-powder') {
+      return [
+        {
+          id: 'faq-indigo-bulk',
+          question: 'Do you supply pure Indigo powder in bulk / wholesale commercial quantities?',
+          answer:
+            'Yes. Musky Dose supplies commercial wholesale batches of 100% pure Indigofera Tinctoria leaf powder in 1kg vacuum packs, 5kg foil sacks, and 25kg bulk mandi bags for salons, herbal cosmetic brands, and bulk distributors. Direct dispatch from Sojat with batch test certificates. Submit an enquiry on our Wholesale B2B portal or WhatsApp desk.',
+        },
+        {
+          id: 'faq-indigo-grey',
+          question: 'How do I use Indigo powder for 100% natural black hair (grey coverage)?',
+          answer:
+            'Indigo works synergistically as a 2-step process with Henna. First, apply pure Henna as a primer to deposit reddish lawsone on hair keratin, leave for 2 hours, and rinse with plain water. Next, mix fresh Indigo powder with warm water and apply immediately for 1.5 to 2 hours. This produces rich, permanent natural jet black without synthetic chemicals.',
+        },
+        {
+          id: 'faq-indigo-alone',
+          question: 'Can I apply Indigo directly to grey or white hair without Henna?',
+          answer:
+            'Applying pure Indigo alone directly to white or grey hair produces an undesirable pale blue or greenish cast because indigo molecules require the reddish lawsone base to bond effectively. Always use the 2-step Henna + Indigo method for natural black and full grey coverage.',
+        },
+        {
+          id: 'faq-indigo-purity',
+          question: 'Is Musky Dose Indigo Powder 100% pure and chemical-free?',
+          answer:
+            'Yes. Our Indigo powder contains exclusively 100% pure, sun-dried, micro-pulverized Indigofera Tinctoria leaves. Zero PPD, zero ammonia, zero resorcinol, and zero artificial colors.',
+        },
+      ];
+    }
+    if (slug === 'sojat-pure-triple-shifted-henna-powder') {
+      return [
+        {
+          id: 'faq-triple-vs-baq',
+          question: 'What is the difference between Triple-Shifted Henna and BAQ Henna?',
+          answer:
+            'Both powders are 100% pure Sojat Lawsonia Inermis. Triple-Shifted Henna is optimized as a versatile, multi-purpose botanical powder ideal for nourishing hair conditioning packs, root touch-ups, and traditional festive hand mehendi. BAQ (Body Art Quality) Henna undergoes specialized ultra-fine micro-cloth sifting specifically engineered for precision cone flow without applicator clogging.',
+        },
+        {
+          id: 'faq-sojat-terroir',
+          question: "Why is henna from Sojat, Rajasthan considered the world's finest?",
+          answer:
+            "Sojat's arid climate, high daytime temperatures, and alkaline river-basin soils stimulate the henna plant to produce exceptionally high concentrations of lawsone pigment (2.5% to 3.5%+). This terroir gives Sojat henna its globally recognized staining potency and GI (Geographical Indication) heritage.",
+        },
+        {
+          id: 'faq-hair-prep',
+          question: 'How do I prepare Triple-Shifted Henna for hair conditioning?',
+          answer:
+            'Mix powder with lukewarm black tea liquor or water into a smooth, yogurt-like paste. Let it rest for 2 to 4 hours for natural dye release. Apply evenly to clean hair, leave on for 90 to 120 minutes, and rinse thoroughly with plain water.',
+        },
+      ];
+    }
+    return [];
+  }, [product.slug]);
+
+  const [faqs, setFaqs] = useState<any[]>(() => {
+    const base = Array.isArray(faqItems)
       ? faqItems.filter((f) => f.enabled !== false)
-      : INITIAL_FAQ_ITEMS
-  );
+      : INITIAL_FAQ_ITEMS;
+    return [...productSpecificFaqs, ...base];
+  });
 
   // Question Modal State
   const [showQuestionModal, setShowQuestionModal] = useState(false);
@@ -327,10 +412,10 @@ export default function ProductDetailClient({
         const enabledFaqs = siteSettings.faqItems
           .filter((f: any) => f.enabled !== false)
           .sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-        setFaqs(enabledFaqs);
+        setFaqs([...productSpecificFaqs, ...enabledFaqs]);
       }
     });
-  }, []);
+  }, [productSpecificFaqs]);
 
   React.useEffect(() => {
     trackProductView({
@@ -829,10 +914,14 @@ export default function ProductDetailClient({
             <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#e8e2d5] flex items-center justify-between gap-3">
               <div className="space-y-0.5">
                 <p className="text-xs font-bold text-[#0f2d22]">
-                  Looking for Bulk or Wholesale Rates?
+                  {product.slug === 'natural-organic-indigo-powder'
+                    ? 'Bulk Organic Indigo Powder Supplies'
+                    : 'Looking for Bulk or Wholesale Rates?'}
                 </p>
                 <p className="text-[11px] text-gray-500">
-                  Direct dispatch from Sojat factory for salons, mehndi artists & bulk buyers.
+                  {product.slug === 'natural-organic-indigo-powder'
+                    ? '1kg vacuum packs, 5kg sacks & 25kg bulk mandi bags direct from Sojat factory.'
+                    : 'Direct dispatch from Sojat factory for salons, mehndi artists & bulk buyers.'}
                 </p>
               </div>
               <Link
@@ -1161,8 +1250,29 @@ export default function ProductDetailClient({
                     </div>
                     <div className="bg-[#faf8f5] p-3.5 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
                       <span className="text-[#626c66] font-medium">Geographic Origin</span>
-                      <span className="font-bold text-[#0f2d22]">Sojat, Rajasthan, India</span>
+                      <span className="font-bold text-[#0f2d22]">
+                        Sojat, Rajasthan, India
+                        <Link href="/sojat-henna" className="text-emerald-800 text-[11px] font-semibold underline ml-1.5 hover:text-emerald-950 inline-flex items-center">
+                          (Terroir Hub)
+                        </Link>
+                      </span>
                     </div>
+                    {product.slug === 'baq-henna-powder' && (
+                      <div className="bg-[#faf8f5] p-3.5 rounded-xl border border-amber-200 col-span-1 sm:col-span-2 flex items-center justify-between">
+                        <span className="text-[#0f2d22] font-bold">BAQ Purity Grade</span>
+                        <span className="font-semibold text-xs text-[#1b4332]">
+                          Triple Micro-Cloth Sifted (0.05mm mesh) &bull; 100% Clog-Free Cone Flow
+                        </span>
+                      </div>
+                    )}
+                    {product.slug === 'natural-organic-indigo-powder' && (
+                      <div className="bg-[#faf8f5] p-3.5 rounded-xl border border-emerald-200 col-span-1 sm:col-span-2 flex items-center justify-between">
+                        <span className="text-[#1b4332] font-bold">Commercial Bulk Formats</span>
+                        <span className="font-semibold text-xs text-[#0f2d22]">
+                          1kg Vacuum Pouches | 5kg Nitrogen Foil | 25kg Mandi Sacks
+                        </span>
+                      </div>
+                    )}
                     <div className="bg-[#faf8f5] p-3.5 rounded-xl border border-[#e8e2d5] flex items-center justify-between">
                       <span className="text-[#626c66] font-medium">Form / Processing</span>
                       <span className="font-bold text-[#0f2d22]">{product.productType || 'Triple Cloth-Sifted Micro Powder'}</span>

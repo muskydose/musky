@@ -100,6 +100,10 @@ export const CANONICAL_ENTITY_REGISTRY: Record<string, CanonicalEntityRecord> = 
       'hina',
       'lawsonia inermis',
       'madayantika',
+      'maruthani',
+      'marudhani',
+      'gorintaku',
+      'mailanchi',
     ],
     normalizedAliases: [
       'henna',
@@ -110,6 +114,10 @@ export const CANONICAL_ENTITY_REGISTRY: Record<string, CanonicalEntityRecord> = 
       'hina',
       'lawsonia inermis',
       'madayantika',
+      'maruthani',
+      'marudhani',
+      'gorintaku',
+      'mailanchi',
     ],
     supportedScopes: ['HAIR', 'BODY_ART'],
     safeUseCases: [

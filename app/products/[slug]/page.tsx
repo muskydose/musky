@@ -207,6 +207,66 @@ export default async function ProductDetailPage({
         '@type': 'BreadcrumbList',
         itemListElement: breadcrumbElements,
       },
+      ...(product.slug === 'baq-henna-powder'
+        ? [
+            {
+              '@type': 'FAQPage',
+              '@id': `${baseUrl}/products/${product.slug}#faq`,
+              mainEntity: [
+                {
+                  '@type': 'Question',
+                  name: 'What does BAQ (Body Art Quality) Henna Powder mean?',
+                  acceptedAnswer: {
+                    '@type': 'Answer',
+                    text: 'BAQ stands for Body Art Quality. It designates the highest grade of Lawsonia Inermis, harvested from top-tier leaves in Sojat, Rajasthan, and triple micro-cloth sifted through 0.05mm mesh to produce a silky, clog-free powder with maximum lawsone dye release.',
+                  },
+                },
+                {
+                  '@type': 'Question',
+                  name: 'Can BAQ Henna also be used for hair conditioning?',
+                  acceptedAnswer: {
+                    '@type': 'Answer',
+                    text: 'Yes, absolutely. BAQ Henna creates an ultra-smooth, lump-free hair pack that rinses out cleanly with plain water, conditioning hair cuticles naturally.',
+                  },
+                },
+                {
+                  '@type': 'Question',
+                  name: 'Does Musky Dose BAQ Henna contain PPD, chemicals, or synthetic dyes?',
+                  acceptedAnswer: {
+                    '@type': 'Answer',
+                    text: 'No. Musky Dose BAQ Henna is 100% pure Lawsonia Inermis with zero PPD, zero ammonia, zero metallic salts, and zero synthetic preservatives.',
+                  },
+                },
+              ],
+            },
+          ]
+        : []),
+      ...(product.slug === 'natural-organic-indigo-powder'
+        ? [
+            {
+              '@type': 'FAQPage',
+              '@id': `${baseUrl}/products/${product.slug}#faq`,
+              mainEntity: [
+                {
+                  '@type': 'Question',
+                  name: 'Do you supply Indigo powder in bulk / wholesale commercial quantities?',
+                  acceptedAnswer: {
+                    '@type': 'Answer',
+                    text: 'Yes. Musky Dose supplies commercial wholesale batches of pure Indigofera Tinctoria powder in 1kg vacuum packs, 5kg sacks, and 25kg bulk mandi bags direct from Sojat factory.',
+                  },
+                },
+                {
+                  '@type': 'Question',
+                  name: 'How do I use Indigo powder for 100% natural black hair (grey coverage)?',
+                  acceptedAnswer: {
+                    '@type': 'Answer',
+                    text: 'Indigo is applied as Step 2 after a pure Henna base application. Step 1 deposits reddish lawsone, and Step 2 binds indigo to produce permanent natural jet black without chemical dyes.',
+                  },
+                },
+              ],
+            },
+          ]
+        : []),
     ],
   };
 

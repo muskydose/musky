@@ -217,6 +217,10 @@ export const HENNA_MEHNDI_ALIASES = new Set([
   'hina',
   'lawsonia inermis',
   'madayantika',
+  'maruthani',
+  'marudhani',
+  'gorintaku',
+  'mailanchi',
 ]);
 
 const B2B_TOKENS = new Set([

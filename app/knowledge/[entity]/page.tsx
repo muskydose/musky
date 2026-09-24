@@ -179,28 +179,67 @@ export default async function KnowledgeEntityPage(props: KnowledgePageProps) {
   const imgCandidate = primaryMedia.url || (isSafeInternalMediaUrl(record.ogImageUrl) ? record.ogImageUrl : undefined);
   const resolvedImage = isSafeInternalMediaUrl(imgCandidate) ? imgCandidate : undefined;
 
-  // Structured Data (AboutPage + ItemPage)
+  const knowledgeFaqs = record.entityKey === 'HENNA_MEHNDI' ? [
+    {
+      question: 'Can we eat henna leaves?',
+      answer: 'No. Henna (Lawsonia inermis) leaves and powder are exclusively formulated for external cosmetic and topical application on skin, hair, and nails. Henna must never be eaten, ingested, or brewed as tea. Internal consumption is unsafe and can lead to acute gastrointestinal distress, oxidative hemolysis (especially in individuals with G6PD enzyme deficiency), and systemic toxicity.',
+    },
+    {
+      question: 'What is the English name for Mehndi / Maruthani?',
+      answer: 'The English name for Mehndi (Hindi/Urdu) and Maruthani (Tamil) is Henna. In botanical taxonomy, the plant is scientifically classified as Lawsonia inermis, belonging to the Lythraceae flowering plant family.',
+    },
+    {
+      question: 'What is Mehndi / Henna made of?',
+      answer: 'Pure Mehndi is made from the dried, finely pulverized green leaves of the Lawsonia inermis shrub. Its coloring property comes from lawsone (2-hydroxy-1,4-naphthoquinone), a naturally occurring botanical tannin that binds harmlessly to skin and hair keratin without artificial chemicals, PPD, or synthetic developers.',
+    },
+    {
+      question: 'What does BAQ (Body Art Quality) Henna mean?',
+      answer: 'Body Art Quality (BAQ) Henna designates the highest commercial purity grade of henna powder. Harvested from top-tier leaves in Sojat, Rajasthan, it is shade-dried and micro-cloth sifted up to three times (0.05mm). This guarantees an ultra-fine, fiber-free powder that will never clog precision applicator cones, yielding deep mahogany stains.',
+    },
+  ] : [];
+
+  // Structured Data (AboutPage + FAQPage)
   const jsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'AboutPage',
-    name: record.canonicalName,
-    description: record.description,
-    url: canonicalUrl,
-    ...(resolvedImage ? { image: resolvedImage } : {}),
-    mainEntity: {
-      '@type': 'Thing',
-      name: record.canonicalName,
-      alternateName: record.aliases,
-      ...(record.scientificName ? { scientificName: record.scientificName } : {}),
-      description: record.description,
-      ...(resolvedImage ? { image: resolvedImage } : {}),
-    },
-    publisher: {
-      '@type': 'Organization',
-      name: 'Musky Dose',
-      url: 'https://muskydose.in',
-      logo: 'https://muskydose.in/icon-512.png',
-    },
+    '@graph': [
+      {
+        '@type': 'AboutPage',
+        name: record.canonicalName,
+        description: record.description,
+        url: canonicalUrl,
+        ...(resolvedImage ? { image: resolvedImage } : {}),
+        mainEntity: {
+          '@type': 'Thing',
+          name: record.canonicalName,
+          alternateName: record.aliases,
+          ...(record.scientificName ? { scientificName: record.scientificName } : {}),
+          description: record.description,
+          ...(resolvedImage ? { image: resolvedImage } : {}),
+        },
+        publisher: {
+          '@type': 'Organization',
+          name: 'Musky Dose',
+          url: 'https://muskydose.in',
+          logo: 'https://muskydose.in/icon-512.png',
+        },
+      },
+      ...(knowledgeFaqs.length > 0
+        ? [
+            {
+              '@type': 'FAQPage',
+              '@id': `${canonicalUrl}#faq`,
+              mainEntity: knowledgeFaqs.map((faq) => ({
+                '@type': 'Question',
+                name: faq.question,
+                acceptedAnswer: {
+                  '@type': 'Answer',
+                  text: faq.answer,
+                },
+              })),
+            },
+          ]
+        : []),
+    ],
   };
 
   const breadcrumbJsonLd = {
@@ -324,6 +363,40 @@ export default async function KnowledgeEntityPage(props: KnowledgePageProps) {
             <p className="mt-1 text-sm text-neutral-600">
               Across different languages and traditions, {record.canonicalName} is known by various names. All terms refer strictly to this single botanical identity.
             </p>
+            {record.entityKey === 'HENNA_MEHNDI' ? (
+              <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+                <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200 text-center">
+                  <span className="text-[10px] uppercase font-bold text-neutral-500 block">English</span>
+                  <span className="font-bold text-sm text-neutral-900 block mt-0.5">Henna</span>
+                  <span className="text-[11px] text-neutral-500">Mignonette tree</span>
+                </div>
+                <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200 text-center">
+                  <span className="text-[10px] uppercase font-bold text-neutral-500 block">Hindi / Urdu</span>
+                  <span className="font-bold text-sm text-neutral-900 block mt-0.5">Mehndi</span>
+                  <span className="text-[11px] text-neutral-500 font-sans">मेहंदी / مہندی</span>
+                </div>
+                <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-center">
+                  <span className="text-[10px] uppercase font-bold text-emerald-700 block">Tamil</span>
+                  <span className="font-bold text-sm text-emerald-900 block mt-0.5">Maruthani</span>
+                  <span className="text-[11px] text-emerald-700 font-sans">மருதாணி</span>
+                </div>
+                <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200 text-center">
+                  <span className="text-[10px] uppercase font-bold text-neutral-500 block">Sanskrit</span>
+                  <span className="font-bold text-sm text-neutral-900 block mt-0.5">Madayantika</span>
+                  <span className="text-[11px] text-neutral-500 font-sans">मदयन्तिका</span>
+                </div>
+                <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200 text-center">
+                  <span className="text-[10px] uppercase font-bold text-neutral-500 block">Telugu</span>
+                  <span className="font-bold text-sm text-neutral-900 block mt-0.5">Gorintaku</span>
+                  <span className="text-[11px] text-neutral-500 font-sans">గోరింటాకు</span>
+                </div>
+                <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200 text-center">
+                  <span className="text-[10px] uppercase font-bold text-neutral-500 block">Malayalam</span>
+                  <span className="font-bold text-sm text-neutral-900 block mt-0.5">Mailanchi</span>
+                  <span className="text-[11px] text-neutral-500 font-sans">മയിലാഞ്ചി</span>
+                </div>
+              </div>
+            ) : null}
             <div className="mt-4 flex flex-wrap gap-2">
               {record.aliases.map((alias) => (
                 <span
@@ -359,6 +432,43 @@ export default async function KnowledgeEntityPage(props: KnowledgePageProps) {
               ))}
             </div>
           </div>
+
+          {/* Section: Essential Botanical Questions & Safety FAQ */}
+          {knowledgeFaqs.length > 0 && (
+            <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm sm:p-8">
+              <div className="mb-6">
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 mb-2">
+                  <HelpCircle className="h-3.5 w-3.5" />
+                  Botanical Safety & Common Queries
+                </div>
+                <h2 className="text-xl font-bold text-neutral-900 sm:text-2xl">
+                  Frequently Asked Botanical Questions
+                </h2>
+                <p className="mt-1 text-sm text-neutral-600">
+                  Verified factual information regarding {record.canonicalName} nomenclature, composition, and safe external use.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {knowledgeFaqs.map((faq, idx) => (
+                  <div
+                    key={idx}
+                    className="p-5 rounded-xl border border-neutral-200 bg-neutral-50/50 space-y-2"
+                  >
+                    <h3 className="font-bold text-sm sm:text-base text-neutral-900 flex items-start gap-2">
+                      <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                        Q
+                      </span>
+                      <span>{faq.question}</span>
+                    </h3>
+                    <p className="text-xs sm:text-sm text-neutral-700 leading-relaxed pl-7">
+                      {faq.answer}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Section: Related Musky Dose Products */}
           {matchingProducts.length > 0 && (

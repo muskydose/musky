@@ -61,7 +61,7 @@ const BOTANICAL_KNOWLEDGE: Record<string, BotanicalEntity> = {
     semanticThemes: ['body art quality henna', 'mehndi cone preparation', 'sojat henna'],
     primaryScope: 'BODY_ART',
     suggestedCategorySlug: 'henna',
-    suggestedGuideSlugs: ['sojat-henna-powder-complete-guide'],
+    suggestedGuideSlugs: ['what-is-baq-henna-vs-regular-mehendi-powder', 'how-to-mix-baq-henna-for-dark-bridal-stain'],
   },
   henna: {
     key: 'henna',
@@ -76,7 +76,7 @@ const BOTANICAL_KNOWLEDGE: Record<string, BotanicalEntity> = {
     semanticThemes: ['natural hair coloring', 'ayurvedic hair care', 'chemical free dye', 'plant based color', 'bridal body art'],
     primaryScope: 'HAIR',
     suggestedCategorySlug: 'henna',
-    suggestedGuideSlugs: ['sojat-henna-powder-complete-guide', 'which-henna-powder-is-right-for-you'],
+    suggestedGuideSlugs: ['what-is-baq-henna-vs-regular-mehendi-powder', 'how-to-mix-baq-henna-for-dark-bridal-stain'],
   },
   indigo: {
     key: 'indigo',
@@ -91,7 +91,7 @@ const BOTANICAL_KNOWLEDGE: Record<string, BotanicalEntity> = {
     semanticThemes: ['natural black hair dye', 'ayurvedic hair color', 'organic indigo hair care'],
     primaryScope: 'HAIR',
     suggestedCategorySlug: 'hair-care',
-    suggestedGuideSlugs: ['how-to-use-natural-indigo-powder-for-black-hair'],
+    suggestedGuideSlugs: ['henna-and-indigo-2-step-natural-hair-dye'],
   },
   amla: {
     key: 'amla',
