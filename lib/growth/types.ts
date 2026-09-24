@@ -811,16 +811,22 @@ export type CentralLeadType =
 
 export type CentralLeadStatus =
   | 'NEW'
+  | 'DISCOVERED'
+  | 'QUALIFIED'
+  | 'REVIEW'
   | 'CONTACT_REQUIRED'
   | 'CONTACTED'
+  | 'REPLIED'
+  | 'SAMPLE'
   | 'QUOTE_REQUESTED'
   | 'QUOTE_SENT'
   | 'NEGOTIATION'
+  | 'CUSTOMER'
   | 'WON'
   | 'LOST'
+  | 'SUPPRESSED'
   | 'NURTURE'
-  | 'REPEAT_OPPORTUNITY'
-  | 'QUALIFIED'; // preserved for backwards compatibility
+  | 'REPEAT_OPPORTUNITY';
 
 export type CentralLeadPriority = 'HIGH' | 'MEDIUM' | 'LOW';
 
@@ -896,6 +902,24 @@ export interface LeadRecord {
   repeatOpportunityReason?: string;
   previousOrdersCount?: number;
   lastOrderDate?: string;
+  // Global Growth OS B2B & Attribution
+  company?: string;
+  website?: string;
+  country?: string;
+  region?: string;
+  businessType?: string;
+  publicBusinessInfo?: string;
+  productRelevance?: string;
+  qualificationStatus?: string;
+  contactMethod?: string;
+  lastVerifiedAt?: string;
+  duplicateKey?: string;
+  crmStage?: CentralLeadStatus;
+  attributionQuery?: string;
+  attributionLandingPage?: string;
+  attributionProductId?: string;
+  attributionCountry?: string;
+  attributionIntent?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -1156,6 +1180,44 @@ export interface OmnichannelDashboardMetrics {
   contentQueue: SocialContentQueueItem[];
 }
 
+// ============================================================================
+// MUSKY GLOBAL GROWTH OS: QUERY OWNERSHIP & COVERAGE CONTRACTS
+// ============================================================================
 
+export type CannibalizationStatus = 'NONE' | 'POTENTIAL_COLLISION' | 'CONFIRMED_COLLISION' | 'RESOLVED';
 
+export interface QueryOwnershipRecord {
+  id: string;
+  query: string;
+  normalizedQuery: string;
+  language: string;
+  country: string;
+  primaryIntent: string;
+  primaryEntityType: 'PRODUCT' | 'CATEGORY' | 'GUIDE' | 'KNOWLEDGE' | 'LOCAL_HUB' | 'WHOLESALE';
+  primaryEntityId: string;
+  canonicalUrl: string;
+  confidenceScore: number;
+  cannibalizationStatus: CannibalizationStatus;
+  competingUrls: string[];
+  recommendedAction?: string;
+  metadata?: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+}
 
+export interface GlobalSearchCoverageMetrics {
+  totalEntities: number;
+  totalQueries: number;
+  informationalCoveragePct: number;
+  transactionalCoveragePct: number;
+  wholesaleCoveragePct: number;
+  botanicalCoveragePct: number;
+  multilingualCoveragePct: number;
+  mediaCoveragePct: number;
+  schemaCoveragePct: number;
+  internalLinkCoveragePct: number;
+  overallCompositeScore: number;
+  unassignedQueriesCount: number;
+  cannibalizationRisksCount: number;
+  evaluatedAt: string;
+}

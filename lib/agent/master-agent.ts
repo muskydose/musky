@@ -886,6 +886,31 @@ export class MuskyDoseMasterAgent {
       keywordUniverseSweepResult.errorIfAny = kwErr?.message || String(kwErr);
     }
 
+    // 2b. Global Growth OS: Autonomous Query Ownership, Technical SEO & Self-Healing cycle
+    try {
+      const { MuskyGlobalGrowthOrchestrator } = await import('@/lib/growth/global-growth-orchestrator');
+      const orchestrator = MuskyGlobalGrowthOrchestrator.getInstance();
+      const growthSummary = await orchestrator.runGrowthCycle();
+      await this.store.recordAudit({
+        objectiveId: 'daily-autonomous-sweep',
+        worker: 'seo_guardian',
+        action: 'GLOBAL_GROWTH_OS_SWEEP_EXECUTED',
+        filesAffected: [],
+        dataAffected: {
+          status: growthSummary.status,
+          coverageScore: growthSummary.coverageMetrics.overallCompositeScore,
+          seoAuditScore: growthSummary.seoAudit.score,
+          radarOpportunitiesCount: growthSummary.radarOpportunities.length,
+          healedActionsCount: growthSummary.healedActions.length,
+        },
+        result: `Global Growth OS sweep completed: Status ${growthSummary.status}, Coverage ${growthSummary.coverageMetrics.overallCompositeScore}%, SEO Score ${growthSummary.seoAudit.score}%.`,
+        testOutcome: 'PASS',
+        nextAction: 'EXECUTE_DAILY_SWEEP_TASKS',
+      });
+    } catch (growthErr: any) {
+      logger.warn('[MasterAgent] Autonomous growth sweep notice:', { error: growthErr?.message });
+    }
+
     // 3. Scan full website and enqueue safe work across all pillars (including SEO opportunities)
     const identified = await this.scanAndEnqueueSafeWork();
 

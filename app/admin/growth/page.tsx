@@ -17,6 +17,8 @@ import {
   Package,
   ShoppingBag,
   Cpu,
+  Compass,
+  Share2,
 } from 'lucide-react';
 import FreshnessBadge from '@/components/growth/FreshnessBadge';
 import { getMarketMetrics, getLeads, getRecommendations, getDataSources } from '@/lib/growth/growth-db';
@@ -203,6 +205,16 @@ export default async function GrowthOverviewPage() {
           <Search className="w-6 h-6 text-[#1b4332] mx-auto mb-2 group-hover:scale-110 transition-transform" />
           <span className="font-bold text-xs text-[#0f2d22] block">Keywords</span>
           <span className="text-[10px] text-gray-500">Search Demand</span>
+        </Link>
+        <Link href="/admin/growth/query-ownership" className="bg-white p-4 rounded-xl border border-[#e8e2d5] shadow-2xs hover:border-[#1b4332] hover:shadow-xs transition-all text-center group">
+          <Compass className="w-6 h-6 text-[#1b4332] mx-auto mb-2 group-hover:scale-110 transition-transform" />
+          <span className="font-bold text-xs text-[#0f2d22] block">Query Owner</span>
+          <span className="text-[10px] text-gray-500">Zero Cannibalization</span>
+        </Link>
+        <Link href="/admin/growth/entity-graph" className="bg-white p-4 rounded-xl border border-[#e8e2d5] shadow-2xs hover:border-[#1b4332] hover:shadow-xs transition-all text-center group">
+          <Share2 className="w-6 h-6 text-[#1b4332] mx-auto mb-2 group-hover:scale-110 transition-transform" />
+          <span className="font-bold text-xs text-[#0f2d22] block">Entity Graph</span>
+          <span className="text-[10px] text-gray-500">Semantic Links</span>
         </Link>
         <Link href="/admin/growth/recommendations" className="bg-white p-4 rounded-xl border border-[#e8e2d5] shadow-2xs hover:border-[#1b4332] hover:shadow-xs transition-all text-center group">
           <Cpu className="w-6 h-6 text-[#1b4332] mx-auto mb-2 group-hover:scale-110 transition-transform" />

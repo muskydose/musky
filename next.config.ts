@@ -49,6 +49,14 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async rewrites() {
+    return [
+      {
+        source: '/:key([a-zA-Z0-9_-]{16,64})\\.txt',
+        destination: '/api/indexnow-key?key=:key',
+      },
+    ];
+  },
   async headers() {
     const isDevPreview = process.env.NODE_ENV !== 'production' || process.env.DISABLE_HMR === 'true';
 
