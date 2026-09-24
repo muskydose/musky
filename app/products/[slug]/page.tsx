@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { BookOpen, Leaf, ArrowRight } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -76,6 +76,14 @@ export default async function ProductDetailPage({
 
   if (!product || product.isActive === false) {
     notFound();
+  }
+
+  // A product can retain an old Google-discovered URL after its catalog slug is
+  // normalized or extended. Resolve the product first, then permanently redirect
+  // only when the resolved canonical slug is different.
+  const requestedSlug = decodeURIComponent(slug).trim().toLowerCase();
+  if (product.slug.trim().toLowerCase() !== requestedSlug) {
+    permanentRedirect(`/products/${product.slug}`);
   }
 
   // Canonical universal relationship resolution (approved or high-confidence contextual matches)
