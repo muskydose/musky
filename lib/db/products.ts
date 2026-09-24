@@ -470,6 +470,34 @@ export async function getFeaturedProducts(limit: number = 8): Promise<Product[]>
   }
 }
 
+function normalizeProductSlug(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function findLegacyProductSlugMatch(products: Product[], requestedSlug: string): Product | null {
+  const normalizedRequested = normalizeProductSlug(requestedSlug);
+  if (!normalizedRequested) return null;
+
+  const candidates = products.filter((product) => {
+    const currentSlug = normalizeProductSlug(product.slug || '');
+    const generatedNameSlug = normalizeProductSlug(product.name || '');
+
+    return (
+      currentSlug === normalizedRequested ||
+      currentSlug.startsWith(normalizedRequested + '-') ||
+      generatedNameSlug === normalizedRequested ||
+      generatedNameSlug.startsWith(normalizedRequested + '-')
+    );
+  });
+
+  // Only recover an old/shortened slug when the match is unambiguous.
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
 export const getProductByIdOrSlug = cache(async (
   identifier: string,
   includeInactive: boolean = false
@@ -557,6 +585,23 @@ export const getProductByIdOrSlug = cache(async (
       }
     } catch (err: any) {
       console.error('[getProductByIdOrSlug] DB query error:', err?.message);
+    }
+
+    // Recovery path for legacy/shortened product slugs.
+    // This intentionally runs only after the authoritative exact ID/slug lookup fails.
+    // It prevents an old Google-discovered URL from becoming a hard 404 when the
+    // catalog slug was later normalized or extended (for example with a pack suffix).
+    try {
+      const activeProducts = await getActiveProductsForStore();
+      const legacyMatch = findLegacyProductSlugMatch(activeProducts, lower);
+      if (legacyMatch) {
+        return legacyMatch;
+      }
+    } catch (legacyErr: any) {
+      console.warn(
+        '[getProductByIdOrSlug] Legacy slug recovery skipped:',
+        legacyErr?.message
+      );
     }
 
     // Authoritative Database Rule: When Supabase is configured, if the product is not in DB,
