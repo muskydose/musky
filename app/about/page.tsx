@@ -26,31 +26,53 @@ export default async function AboutPage() {
   const siteSettings = await getSiteSettings();
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
 
-  const localBusinessLd = {
+  const jsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'LocalBusiness',
-    '@id': `${baseUrl}/#localbusiness`,
-    name: siteSettings.brandName || 'Musky Dose',
-    description: siteSettings.aboutHeroSubtitle || 'Delivering authentic, highest-pigment Henna & pure Indian herbal wellness directly from Sojat, Rajasthan.',
-    image: siteSettings.heroImageUrl && isSafeInternalMediaUrl(siteSettings.heroImageUrl) ? (siteSettings.heroImageUrl.startsWith('http') ? siteSettings.heroImageUrl : `${baseUrl}${siteSettings.heroImageUrl}`) : `${baseUrl}/logo.png`,
-    url: baseUrl,
-    telephone: siteSettings.displayPhone || '+91 82337 03080',
-    priceRange: '₹₹',
-    address: {
-      '@type': 'PostalAddress',
-      streetAddress: 'Village: Dholiwadi Ka Bas, Post: Sojat City',
-      addressLocality: 'Sojat City',
-      addressRegion: 'Rajasthan',
-      postalCode: '306104',
-      addressCountry: 'IN',
-    },
+    '@graph': [
+      {
+        '@type': 'LocalBusiness',
+        '@id': `${baseUrl}/#localbusiness`,
+        name: siteSettings.brandName || 'Musky Dose',
+        description: siteSettings.aboutHeroSubtitle || 'Delivering authentic, highest-pigment Henna & pure Indian herbal wellness directly from Sojat, Rajasthan.',
+        image: siteSettings.heroImageUrl && isSafeInternalMediaUrl(siteSettings.heroImageUrl) ? (siteSettings.heroImageUrl.startsWith('http') ? siteSettings.heroImageUrl : `${baseUrl}${siteSettings.heroImageUrl}`) : `${baseUrl}/logo.png`,
+        url: baseUrl,
+        telephone: siteSettings.displayPhone || '+91 82337 03080',
+        priceRange: '₹₹',
+        address: {
+          '@type': 'PostalAddress',
+          streetAddress: 'Village: Dholiwadi Ka Bas, Post: Sojat City',
+          addressLocality: 'Sojat City',
+          addressRegion: 'Rajasthan',
+          postalCode: '306104',
+          addressCountry: 'IN',
+        },
+      },
+      {
+        '@type': 'BreadcrumbList',
+        '@id': `${baseUrl}/about#breadcrumb`,
+        itemListElement: [
+          {
+            '@type': 'ListItem',
+            position: 1,
+            name: 'Home',
+            item: baseUrl,
+          },
+          {
+            '@type': 'ListItem',
+            position: 2,
+            name: 'About Musky Dose',
+            item: `${baseUrl}/about`,
+          },
+        ],
+      },
+    ],
   };
 
   return (
     <div className="min-h-screen bg-[#fcfbf7] flex flex-col">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: safeJsonLd(localBusinessLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
       <Navbar siteSettings={siteSettings} />
 

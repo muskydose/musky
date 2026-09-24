@@ -27,31 +27,53 @@ export default async function FactoryPage() {
   const siteSettings = await getSiteSettings();
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
 
-  const localBusinessLd = {
+  const jsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'LocalBusiness',
-    '@id': `${baseUrl}/factory#facility`,
-    name: `${siteSettings.brandName || 'Musky Dose'} — Sojat Processing Plant`,
-    description: siteSettings.factoryHeroSubtitle || 'Where traditional Rajasthani herbal expertise meets modern hygienic processing in Sojat City, Rajasthan.',
-    image: siteSettings.factoryImageUrl && isSafeInternalMediaUrl(siteSettings.factoryImageUrl) ? (siteSettings.factoryImageUrl.startsWith('http') ? siteSettings.factoryImageUrl : `${baseUrl}${siteSettings.factoryImageUrl}`) : `${baseUrl}/logo.png`,
-    url: `${baseUrl}/factory`,
-    telephone: siteSettings.displayPhone || '+91 82337 03080',
-    priceRange: '₹₹',
-    address: {
-      '@type': 'PostalAddress',
-      streetAddress: 'Village: Dholiwadi Ka Bas, Post: Sojat City',
-      addressLocality: 'Sojat City',
-      addressRegion: 'Rajasthan',
-      postalCode: '306104',
-      addressCountry: 'IN',
-    },
+    '@graph': [
+      {
+        '@type': 'LocalBusiness',
+        '@id': `${baseUrl}/factory#facility`,
+        name: `${siteSettings.brandName || 'Musky Dose'} — Sojat Processing Plant`,
+        description: siteSettings.factoryHeroSubtitle || 'Where traditional Rajasthani herbal expertise meets modern hygienic processing in Sojat City, Rajasthan.',
+        image: siteSettings.factoryImageUrl && isSafeInternalMediaUrl(siteSettings.factoryImageUrl) ? (siteSettings.factoryImageUrl.startsWith('http') ? siteSettings.factoryImageUrl : `${baseUrl}${siteSettings.factoryImageUrl}`) : `${baseUrl}/logo.png`,
+        url: `${baseUrl}/factory`,
+        telephone: siteSettings.displayPhone || '+91 82337 03080',
+        priceRange: '₹₹',
+        address: {
+          '@type': 'PostalAddress',
+          streetAddress: 'Village: Dholiwadi Ka Bas, Post: Sojat City',
+          addressLocality: 'Sojat City',
+          addressRegion: 'Rajasthan',
+          postalCode: '306104',
+          addressCountry: 'IN',
+        },
+      },
+      {
+        '@type': 'BreadcrumbList',
+        '@id': `${baseUrl}/factory#breadcrumb`,
+        itemListElement: [
+          {
+            '@type': 'ListItem',
+            position: 1,
+            name: 'Home',
+            item: baseUrl,
+          },
+          {
+            '@type': 'ListItem',
+            position: 2,
+            name: 'Factory & Quality Lab',
+            item: `${baseUrl}/factory`,
+          },
+        ],
+      },
+    ],
   };
 
   return (
     <div className="min-h-screen bg-[#fcfbf7] flex flex-col">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: safeJsonLd(localBusinessLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
       <Navbar siteSettings={siteSettings} />
 

@@ -28,6 +28,7 @@ import {
   getRelatedGuidesForProduct,
   getRelatedKnowledgeForProduct,
 } from '@/lib/growth/entity-relationships';
+import { ENTITY_KEY_TO_SLUG } from '@/lib/growth/search-intent-router';
 
 export const dynamic = 'force-dynamic';
 export const dynamicParams = true;
@@ -376,35 +377,72 @@ export default async function ProductDetailPage({
                   </div>
                 </Link>
               ))}
-              {relevantKnowledge?.map((k: any) => (
-                <Link
-                  key={k.id}
-                  href={`/knowledge/${k.slug}`}
-                  className="p-5 rounded-2xl bg-white border border-[#e8e2d5] hover:border-[#1b4332] transition-colors shadow-xs group flex flex-col justify-between"
-                >
-                  <div className="space-y-2">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[11px] font-bold">
-                      <Leaf className="w-3 h-3 text-emerald-600" />
-                      <span>Botanical Origin</span>
-                    </span>
-                    <h3 className="font-momo-display text-lg font-normal text-[#0f2d22] group-hover:text-[#1b4332] transition-colors">
-                      {k.title}
-                    </h3>
-                    {k.shortSummary && (
-                      <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">
-                        {k.shortSummary}
-                      </p>
-                    )}
-                  </div>
-                  <div className="pt-4 flex items-center text-xs font-bold text-[#1b4332] group-hover:translate-x-1 transition-transform">
-                    <span>Explore Herb Origin</span>
-                    <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                  </div>
-                </Link>
-              ))}
+              {relevantKnowledge?.map((k: any) => {
+                const kSlug = k.slug || (k.entityKey ? ENTITY_KEY_TO_SLUG[k.entityKey] : undefined) || k.entityKey?.toLowerCase()?.replace(/_/g, '-');
+                if (!kSlug) return null;
+                const kTitle = k.canonicalName || k.title || 'Botanical Profile';
+                const kDesc = k.description || k.shortSummary || '';
+                return (
+                  <Link
+                    key={k.id || k.entityKey || kSlug}
+                    href={`/knowledge/${kSlug}`}
+                    className="p-5 rounded-2xl bg-white border border-[#e8e2d5] hover:border-[#1b4332] transition-colors shadow-xs group flex flex-col justify-between"
+                  >
+                    <div className="space-y-2">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[11px] font-bold">
+                        <Leaf className="w-3 h-3 text-emerald-600" />
+                        <span>Botanical Origin</span>
+                      </span>
+                      <h3 className="font-momo-display text-lg font-normal text-[#0f2d22] group-hover:text-[#1b4332] transition-colors">
+                        {kTitle}
+                      </h3>
+                      {kDesc && (
+                        <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">
+                          {kDesc}
+                        </p>
+                      )}
+                    </div>
+                    <div className="pt-4 flex items-center text-xs font-bold text-[#1b4332] group-hover:translate-x-1 transition-transform">
+                      <span>Explore Herb Origin</span>
+                      <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         )}
+
+        {/* Sojat Origin & Wholesale Contextual Strip */}
+        <div className="mt-14 bg-gradient-to-r from-[#0f2d22] to-[#1b4332] rounded-2xl p-6 sm:p-8 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-6 border border-[#2d6a4f]/40 shadow-md">
+          <div className="space-y-1.5 max-w-2xl">
+            <span className="text-[#c5a059] text-[10px] font-bold uppercase tracking-widest block">
+              Cultivated in Sojat City, Pali, Rajasthan
+            </span>
+            <h3 className="font-momo-display text-xl sm:text-2xl font-normal text-white">
+              Authentic Rajasthani Botanical Processing
+            </h3>
+            <p className="text-xs sm:text-sm text-[#b2c8be] leading-relaxed">
+              Harvested from the semi-arid mineral soil of Sojat with traditional solar shade drying and micro-cloth filtration. Looking for bulk commercial quantities or salon supplies?
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <Link
+              href="/sojat-henna"
+              className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/20 transition-all inline-flex items-center gap-1.5"
+            >
+              <span>Explore Sojat Origin</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+            <Link
+              href="/wholesale"
+              className="px-4 py-2.5 rounded-xl bg-[#c5a059] hover:bg-[#b08d46] text-[#0f2d22] font-bold text-xs shadow transition-all inline-flex items-center gap-1.5"
+            >
+              <span>Wholesale Rates</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
 
         {/* Related Products Section */}
         {relatedProducts.length > 0 && (

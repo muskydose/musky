@@ -131,6 +131,38 @@ async function runTests() {
     console.log('\n--- 5. Wholesale Page Audit ---');
     const wholesaleMeta: any = await generateWholesaleMetadata();
     assert(!wholesaleMeta?.description?.toLowerCase().includes('bridal mehndi cones'), 'Wholesale meta description does not claim bridal cones');
+
+    // 6. Sojat Henna Metadata & Content
+    console.log('\n--- 6. Sojat Henna Page Audit ---');
+    const sojatMod = await import('../app/sojat-henna/page');
+    const sojatMeta: any = await sojatMod.generateMetadata();
+    assert(!sojatMeta?.description?.toLowerCase().includes('bridal mehndi cones'), 'Sojat Henna meta description does not claim bridal cones');
+    assert(
+      !sojatMeta?.keywords?.some((k: string) => k.toLowerCase().includes('bridal mehndi cones')),
+      'Sojat Henna keywords do not include bridal cones'
+    );
+
+    // 7. Canonical Entity Slug Integrity
+    console.log('\n--- 7. Canonical Entity Slug Integrity ---');
+    const { ENTITY_KEY_TO_SLUG } = await import('../lib/growth/search-intent-router');
+    assert(ENTITY_KEY_TO_SLUG['HENNA_MEHNDI'] === 'henna-mehndi', 'HENNA_MEHNDI maps to henna-mehndi');
+    assert(ENTITY_KEY_TO_SLUG['INDIGO'] === 'indigo', 'INDIGO maps to indigo');
+    assert(ENTITY_KEY_TO_SLUG['BRAHMI'] === 'brahmi', 'BRAHMI maps to brahmi');
+    assert(ENTITY_KEY_TO_SLUG['MORINGA'] === 'moringa', 'MORINGA maps to moringa');
+
+    // 8. Product Detail Related Knowledge Slug Integrity
+    console.log('\n--- 8. Product Detail Related Knowledge Integrity ---');
+    const { getProductByIdOrSlug } = await import('../lib/db/products');
+    const { getRelatedKnowledgeForProduct } = await import('../lib/growth/entity-relationships');
+    const baqProd = await getProductByIdOrSlug('baq-henna-powder');
+    if (baqProd) {
+      const relKnowledge = await getRelatedKnowledgeForProduct(baqProd, { limit: 3 });
+      for (const k of relKnowledge) {
+        const resolvedSlug = (k as any).slug || (k.entityKey ? ENTITY_KEY_TO_SLUG[k.entityKey] : undefined) || k.entityKey?.toLowerCase()?.replace(/_/g, '-');
+        assert(Boolean(resolvedSlug && resolvedSlug !== 'undefined'), `Related knowledge for BAQ henna has valid slug (${resolvedSlug})`);
+        assert(Boolean(k.canonicalName || (k as any).title), `Related knowledge has valid title (${k.canonicalName || (k as any).title})`);
+      }
+    }
   } catch (err: any) {
     console.error('Fatal test error:', err);
     failed++;

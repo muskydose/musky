@@ -8,6 +8,8 @@ import { getSiteSettings } from '@/lib/db/settings';
 import { resolvePageSeoMetadata } from '@/lib/db/seo';
 import { getCmsText } from '@/lib/cms';
 
+import { safeJsonLd } from '@/lib/utils';
+
 export async function generateMetadata() {
   return await resolvePageSeoMetadata({
     targetType: 'categories_list',
@@ -29,8 +31,48 @@ export default async function CategoriesPage() {
     .filter((cat) => cat.isActive !== false)
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
+  const baseUrl = siteSettings?.websiteUrl || process.env.NEXT_PUBLIC_SITE_URL || 'https://muskydose.in';
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'CollectionPage',
+        '@id': `${baseUrl}/categories#collection`,
+        url: `${baseUrl}/categories`,
+        name: 'Product Categories | Musky Dose Sojat Henna',
+        description: 'Explore our botanical product categories crafted directly in Sojat, Rajasthan.',
+        isPartOf: {
+          '@id': `${baseUrl}/#website`,
+        },
+      },
+      {
+        '@type': 'BreadcrumbList',
+        '@id': `${baseUrl}/categories#breadcrumb`,
+        itemListElement: [
+          {
+            '@type': 'ListItem',
+            position: 1,
+            name: 'Home',
+            item: baseUrl,
+          },
+          {
+            '@type': 'ListItem',
+            position: 2,
+            name: 'Categories',
+            item: `${baseUrl}/categories`,
+          },
+        ],
+      },
+    ],
+  };
+
   return (
     <div className="min-h-screen bg-[#fcfbf7] flex flex-col">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
+      />
       <Navbar siteSettings={siteSettings} />
 
       <div className="bg-[#0f2d22] text-white py-12 px-4 sm:px-6 lg:px-8 border-b border-[#2d6a4f]/30">

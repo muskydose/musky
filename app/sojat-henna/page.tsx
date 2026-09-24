@@ -42,7 +42,6 @@ export async function generateMetadata(): Promise<Metadata> {
     'Sojat Henna Supplier',
     'Natural Henna Powder Rajasthan',
     'BAQ Henna Powder',
-    'Bridal Mehndi Cones Sojat',
     'Henna Mandi Sojat',
     'Lawsonia Inermis India',
   ];
@@ -370,7 +369,7 @@ export default async function SojatHennaPillarPage() {
                 Direct Factory Wholesale Supply from Sojat
               </h2>
               <p className="text-xs sm:text-sm text-[#b2c8be] leading-relaxed">
-                We provide commercial supply of triple-sifted BAQ henna powder, bulk mehendi cones, and whole leaves 
+                We provide commercial supply of triple-sifted BAQ henna powder, natural organic indigo, and whole leaves 
                 to bridal artists, beauty salons, Ayurvedic clinics, and distributors across India. 
                 Transparent tier pricing starting from 5kg to 500kg+ with verified batch packaging.
               </p>

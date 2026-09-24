@@ -36,6 +36,7 @@ import {
   getRelatedProductsForGuide,
   getRelatedKnowledgeForGuide,
 } from '@/lib/growth/entity-relationships';
+import { ENTITY_KEY_TO_SLUG } from '@/lib/growth/search-intent-router';
 
 export const revalidate = 60; // Revalidate every 60s
 
@@ -625,12 +626,14 @@ export default async function ProductGuideDetailPage({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {canonicalRelatedKnowledge.map((entity) => (
-                  <Link
-                    key={entity.entityKey}
-                    href={`/knowledge/${entity.entityKey.toLowerCase().replace(/_/g, '-')}`}
-                    className="group block p-4 rounded-xl border border-[#e8e2d5] hover:border-[#1b4332] bg-white hover:shadow-xs transition-all space-y-2"
-                  >
+                {canonicalRelatedKnowledge.map((entity) => {
+                  const entitySlug = ENTITY_KEY_TO_SLUG[entity.entityKey] || entity.entityKey.toLowerCase().replace(/_/g, '-');
+                  return (
+                    <Link
+                      key={entity.entityKey}
+                      href={`/knowledge/${entitySlug}`}
+                      className="group block p-4 rounded-xl border border-[#e8e2d5] hover:border-[#1b4332] bg-white hover:shadow-xs transition-all space-y-2"
+                    >
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] uppercase font-bold text-[#8c6b2d] bg-[#f4ede2] px-2 py-0.5 rounded-full">
                         {entity.productFamily || 'Botanical Entity'}
@@ -651,7 +654,8 @@ export default async function ProductGuideDetailPage({
                       {entity.description || entity.safeUseCases?.[0] || 'Botanical profile, active constituents, and traditional Rajasthani heritage.'}
                     </p>
                   </Link>
-                ))}
+                );
+              })}
               </div>
             </section>
           )}
