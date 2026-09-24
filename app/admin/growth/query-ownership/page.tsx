@@ -28,14 +28,14 @@ export default function QueryOwnershipAdminPage() {
       query: 'pure sojat henna powder',
       intent: 'PRODUCT_SPECIFIC',
       pageType: 'PRODUCT',
-      canonicalUrl: 'https://muskydose.in/products/pure-sojat-henna-powder',
+      canonicalUrl: 'https://muskydose.in/products/baq-henna-powder',
       status: 'CLEAN',
     },
     {
       query: 'what is baq henna vs regular henna',
       intent: 'INFORMATIONAL',
       pageType: 'GUIDE',
-      canonicalUrl: 'https://muskydose.in/guides/guide-what-is-baq-henna-vs-regular',
+      canonicalUrl: 'https://muskydose.in/guides/what-is-baq-henna-vs-regular-mehendi-powder',
       status: 'CLEAN',
     },
     {
@@ -56,7 +56,7 @@ export default function QueryOwnershipAdminPage() {
       query: '2 step henna and indigo hair dye',
       intent: 'INFORMATIONAL',
       pageType: 'GUIDE',
-      canonicalUrl: 'https://muskydose.in/guides/guide-henna-indigo-2-step-hair-dye',
+      canonicalUrl: 'https://muskydose.in/guides/henna-and-indigo-2-step-natural-hair-dye',
       status: 'CLEAN',
     },
     {
@@ -97,11 +97,11 @@ export default function QueryOwnershipAdminPage() {
                   Deterministic Query Ownership Engine
                 </h3>
                 <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
-                  ZERO CANNIBALIZATION
+                  RULE-GOVERNED
                 </span>
               </div>
               <p className="text-xs text-[#b2c8be] mt-1 max-w-2xl">
-                Every search query is governed by explicit intent rules: Informational queries belong to Guides, Transactional queries to Product PDPs, B2B queries to Wholesale, and Botanical queries to Knowledge entities.
+                Query ownership is resolved by deterministic intent rules. The matrix below is illustrative; production ownership data should come from the persisted registry.
               </p>
             </div>
           </div>
@@ -120,7 +120,7 @@ export default function QueryOwnershipAdminPage() {
         <div className="bg-white p-6 rounded-2xl border border-[#e8e2d5] shadow-xs">
           <h4 className="font-serif-heading font-bold text-base text-[#0f2d22] mb-3 flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-[#c5a059]" />
-            Live Query Ownership & Intent Tester
+            Query Intent & Ownership Rule Tester
           </h4>
           <form onSubmit={handleTest} className="flex gap-3">
             <div className="relative flex-1">

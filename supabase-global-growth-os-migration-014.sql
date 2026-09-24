@@ -62,6 +62,9 @@ CREATE INDEX IF NOT EXISTS idx_query_ownership_canonical_url ON public.growth_qu
 CREATE INDEX IF NOT EXISTS idx_query_ownership_cannibalization ON public.growth_query_ownership(cannibalization_status);
 
 -- 3. ROW LEVEL SECURITY (RLS) FOR growth_query_ownership
+-- The application uses custom signed admin authentication and server-side Supabase
+-- service-role access. Do not grant broad access to the Supabase "authenticated"
+-- role: that role is not equivalent to an application administrator.
 ALTER TABLE public.growth_query_ownership ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Service role full access on growth_query_ownership" ON public.growth_query_ownership;
@@ -73,9 +76,3 @@ USING (true)
 WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Admin users full access on growth_query_ownership" ON public.growth_query_ownership;
-CREATE POLICY "Admin users full access on growth_query_ownership"
-ON public.growth_query_ownership
-FOR ALL
-TO authenticated
-USING (true)
-WITH CHECK (true);

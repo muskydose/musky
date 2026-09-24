@@ -211,16 +211,18 @@ export function resolveQueryOwnership(
       };
     }
 
-    // Default to general guide/knowledge owner
+    // No specific guide matched. Do not pretend an unrelated guide owns the query.
+    // Route to the guide hub for discovery and let downstream opportunity review
+    // determine whether a dedicated page is warranted.
     return {
       query,
       normalizedQuery: normalized,
       primaryIntent: 'INFORMATIONAL',
       primaryEntityType: 'GUIDE',
-      primaryEntityId: 'guide-henna-indigo-2-step-hair-dye',
-      canonicalUrl: `${baseUrl}/guides/guide-henna-indigo-2-step-hair-dye`,
-      confidenceScore: 840,
-      reason: 'Informational search intent routed to primary comprehensive hair care guide.',
+      primaryEntityId: 'guides-index',
+      canonicalUrl: `${baseUrl}/guides`,
+      confidenceScore: 600,
+      reason: 'Informational intent detected but no specific authoritative guide matched; routed to the guide hub instead of inventing ownership.',
       cannibalizationStatus: 'NONE',
       competingUrls: [],
     };
