@@ -168,7 +168,7 @@ export class CentralExecutionQueue {
   }
 
   /**
-   * 2. BACKGROUND LANE: Executes heavy asynchronous tasks with bounded concurrency.
+   * 2. BACKGROUND LANE: Executes heavy asynchronous tasks with bounded concurrency and strict lane isolation.
    */
   public async processBackgroundLane(options: {
     timeLimitMs?: number;
@@ -184,17 +184,34 @@ export class CentralExecutionQueue {
       // Determine safe concurrency bound adaptively
       const concurrencyLimit = this.optimizer.getSafeConcurrencyLimit();
 
-      // Gather ready tasks for background lane
+      // Gather ready tasks strictly for background lane with immediate worker lease
       const readyBatch: AgentTask[] = [];
-      for (let i = 0; i < concurrencyLimit; i++) {
-        const candidate = this.store.getNextReadyTask('BACKGROUND') || this.store.getNextReadyTask();
-        if (candidate && !readyBatch.some((t) => t.id === candidate.id)) {
+      const excludeIds = new Set<string>();
+      for (let i = 0; i < concurrencyLimit && (executedSummaries.length + readyBatch.length) < maxBatch; i++) {
+        const candidate = this.store.getNextReadyTask('BACKGROUND', excludeIds);
+        if (candidate) {
+          excludeIds.add(candidate.id);
+          // Lease task immediately to prevent concurrent pickup by overlapping ticks
+          const startedAt = new Date().toISOString();
+          await this.store.updateTask(candidate.id, {
+            status: 'RUNNING',
+            startedAt,
+            payload: {
+              ...(candidate.payload || {}),
+              leasedBy: 'central-queue-background',
+              leasedAt: startedAt,
+            },
+          });
+          candidate.status = 'RUNNING';
+          candidate.startedAt = startedAt;
           readyBatch.push(candidate);
+        } else {
+          break;
         }
       }
 
       if (readyBatch.length === 0) {
-        break; // Queue is empty or remaining tasks are blocked by dependencies
+        break; // No further background lane tasks ready
       }
 
       // Execute ready batch in parallel with bounded concurrency
@@ -212,7 +229,7 @@ export class CentralExecutionQueue {
         }
       }
 
-      // Check if any task was halted or if time limit exceeded
+      // Check if time limit exceeded
       if (Date.now() - startTime >= timeLimitMs) {
         break;
       }
@@ -223,6 +240,7 @@ export class CentralExecutionQueue {
 
   /**
    * 3. MAINTENANCE LANE: Comprehensive system sweep, failure reclaim, and integrity audit.
+   * Strictly processes MAINTENANCE lane tasks with atomic leasing.
    */
   public async processMaintenanceLane(options: {
     timeLimitMs?: number;
@@ -235,9 +253,9 @@ export class CentralExecutionQueue {
     // 1. Reclaim stuck tasks from crashes/serverless timeouts
     await this.store.reclaimStuckTasks();
 
-    // 2. Process maintenance lane tasks
+    // 2. Process maintenance lane tasks with strict lane isolation
     while (Date.now() - startTime < timeLimitMs) {
-      const task = this.store.getNextReadyTask('MAINTENANCE') || this.store.getNextReadyTask();
+      const task = await this.store.leaseNextReadyTask('MAINTENANCE', 'central-queue-maintenance');
       if (!task) break;
 
       const summary = await this.executeSingleTask(task);

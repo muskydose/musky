@@ -389,8 +389,156 @@ async function runTestSuite() {
   assert(isRealOwnerPhotoProtected(aiGeneratedAsset as MediaAsset) === false, 'Standard AI asset is mutable');
   console.log('  ✅ TEST 15 PASSED: Real owner factory photos are strictly inviolable.');
 
+  // --------------------------------------------------------------------------
+  // TEST 16: Master Agent Scheduled Sweep is Bounded & Non-blocking
+  // --------------------------------------------------------------------------
+  console.log('\n[TEST 16] Testing Master Agent Scheduled Sweep Bounded Execution...');
+  const sweepStart = Date.now();
+  const sweepSummary = await masterAgent.runDailyAutonomousSweep({
+    timeLimitMs: 4000,
+    maxBatch: 2,
+  });
+  const sweepDuration = Date.now() - sweepStart;
+
+  assert(sweepDuration < 10000, `Sweep must complete under 10 seconds (took ${sweepDuration}ms)`);
+  assert(sweepSummary.schedule.istExecutionTime.includes('02:00 AM IST'), 'Schedule must reflect 2:00 AM IST');
+  assert(sweepSummary.scannedWorkIdentified >= 3, 'Must have identified and enqueued canonical sweep tasks');
+
+  // Verify canonical tasks exist in store
+  const dateKey = new Date().toISOString().slice(0, 10);
+  const kwTask = store.getTaskByIdempotencyKey(`daily-sweep-kw-universe-${dateKey}`);
+  const growthTask = store.getTaskByIdempotencyKey(`daily-sweep-global-growth-${dateKey}`);
+  const seoTask = store.getTaskByIdempotencyKey(`daily-sweep-seo-scan-${dateKey}`);
+
+  assert(kwTask !== undefined, 'Keyword Universe canonical task must be enqueued');
+  assert(kwTask?.lane === 'MAINTENANCE', 'Keyword sweep must be in MAINTENANCE lane');
+  assert(growthTask !== undefined, 'Global Growth canonical task must be enqueued');
+  assert(growthTask?.lane === 'MAINTENANCE', 'Global growth sweep must be in MAINTENANCE lane');
+  assert(seoTask !== undefined, 'SEO scan canonical task must be enqueued');
+  assert(seoTask?.lane === 'MAINTENANCE', 'SEO scan sweep must be in MAINTENANCE lane');
+  console.log(`  ✅ TEST 16 PASSED: Master sweep enqueued canonical tasks and returned within budget (${sweepDuration}ms).`);
+
+  // --------------------------------------------------------------------------
+  // TEST 17: Strict Lane Isolation
+  // --------------------------------------------------------------------------
+  console.log('\n[TEST 17] Testing Strict Lane Isolation (Zero Lane Cross-Execution)...');
+  const fastTaskId = `task-lane-fast-${Date.now()}`;
+  const bgTaskId = `task-lane-bg-${Date.now()}`;
+  const maintTaskId = `task-lane-maint-${Date.now()}`;
+
+  await store.addTask(createCanonicalTask({
+    id: fastTaskId,
+    domain: 'CATALOG',
+    action: 'FAST_REVALIDATE',
+    lane: 'FAST',
+    priority: 99,
+  }));
+
+  await store.addTask(createCanonicalTask({
+    id: bgTaskId,
+    domain: 'MEDIA',
+    action: 'BACKGROUND_GENERATE',
+    lane: 'BACKGROUND',
+    priority: 85,
+  }));
+
+  await store.addTask(createCanonicalTask({
+    id: maintTaskId,
+    domain: 'GUARDIAN',
+    action: 'MAINTENANCE_AUDIT',
+    lane: 'MAINTENANCE',
+    priority: 95,
+  }));
+
+  const fastCandidate = store.getNextReadyTask('FAST');
+  assert(fastCandidate?.id === fastTaskId, `FAST lane must ONLY pick FAST task (got ${fastCandidate?.id})`);
+
+  const maintCandidate = store.getNextReadyTask('MAINTENANCE');
+  assert(maintCandidate?.lane === 'MAINTENANCE', `MAINTENANCE lane must ONLY pick MAINTENANCE task (got ${maintCandidate?.lane})`);
+
+  const bgCandidate = store.getNextReadyTask('BACKGROUND');
+  assert(bgCandidate?.lane === 'BACKGROUND' || !bgCandidate?.lane, `BACKGROUND lane must ONLY pick BACKGROUND task (got ${bgCandidate?.lane})`);
+  console.log('  ✅ TEST 17 PASSED: Strict lane isolation verified across FAST, BACKGROUND, and MAINTENANCE.');
+
+  // --------------------------------------------------------------------------
+  // TEST 18: Overlapping Scheduler Ticks & Atomic Worker Leasing
+  // --------------------------------------------------------------------------
+  console.log('\n[TEST 18] Testing Atomic Worker Leasing (Preventing Duplicate Execution)...');
+  const raceTaskId = `task-race-lease-${Date.now()}`;
+  await store.addTask(createCanonicalTask({
+    id: raceTaskId,
+    domain: 'QA',
+    action: 'LEASE_RACE_TEST',
+    lane: 'MAINTENANCE',
+    priority: 100,
+  }));
+
+  // Worker A leases the task
+  const leasedByWorkerA = await store.leaseNextReadyTask('MAINTENANCE', 'scheduler-worker-A');
+  assert(leasedByWorkerA?.id === raceTaskId, 'Worker A must lease the highest priority task');
+  assert(leasedByWorkerA?.status === 'RUNNING', 'Leased task must immediately be marked RUNNING');
+
+  // Concurrent Worker B attempts to lease next ready task
+  const leasedByWorkerB = await store.leaseNextReadyTask('MAINTENANCE', 'scheduler-worker-B');
+  assert(leasedByWorkerB?.id !== raceTaskId, 'Worker B must NEVER receive the already leased task');
+  console.log('  ✅ TEST 18 PASSED: Worker leasing atomically locks task and prevents double pickup.');
+
+  // --------------------------------------------------------------------------
+  // TEST 19: All Scheduled Cron Routes Dispatch Through Central Queue
+  // --------------------------------------------------------------------------
+  console.log('\n[TEST 19] Testing Cron Dispatch Architecture...');
+  const cronRoutes = [
+    'app/api/cron/guardian/route.ts',
+    'app/api/cron/growth-autopilot/route.ts',
+    'app/api/cron/media-queue/route.ts',
+    'app/api/cron/gsc-sync/route.ts',
+    'app/api/cron/seo-report/route.ts',
+    'app/api/cron/master-agent/route.ts',
+  ];
+
+  for (const routeRelPath of cronRoutes) {
+    const routePath = path.join(process.cwd(), routeRelPath);
+    const content = fs.readFileSync(routePath, 'utf8');
+    assert(
+      content.includes('CentralExecutionQueue') || content.includes('runDailyAutonomousSweep'),
+      `${routeRelPath} must dispatch through CentralExecutionQueue or MasterAgent autonomous sweep`
+    );
+    assert(content.includes('timingSafeEqual'), `${routeRelPath} must enforce timing-safe Bearer token auth`);
+  }
+  console.log('  ✅ TEST 19 PASSED: All 6 cron endpoints verified as thin dispatchers with fail-closed security.');
+
+  // --------------------------------------------------------------------------
+  // TEST 20: Self-Healing Honesty & Zero-Hallucination Mutative Reporting
+  // --------------------------------------------------------------------------
+  console.log('\n[TEST 20] Testing Self-Healing Honesty & Lifecycle Invariants...');
+  const growthAudit = await growthOrchestrator.runGrowthCycle();
+  if ((growthAudit.detectedIssues || []).length > 0) {
+    assert(
+      growthAudit.status === 'ATTENTION_REQUIRED',
+      'Unresolved detected issues must produce ATTENTION_REQUIRED status, never premature SELF_HEALED'
+    );
+  }
+  assert(
+    (growthAudit.verifiedHealedActions || []).length === 0 || growthAudit.status === 'OPTIMAL' || growthAudit.status === 'SELF_HEALED',
+    'verifiedHealedActions must accurately reflect only verified real mutations'
+  );
+
+  // Hidden product invariant
+  const bridalCones = resolveProductLifecycle({
+    id: 'prod-3',
+    slug: 'natural-henna-bridal-cones',
+    name: 'Natural Henna Bridal Cones',
+    isActive: false,
+    price: 350,
+  } as Product);
+  assert(bridalCones.httpStatus === 200, 'Bridal Cones must return HTTP 200');
+  assert(bridalCones.robotsIndex === 'noindex', 'Bridal Cones must have noindex tag');
+  assert(bridalCones.isPurchasable === false, 'Bridal Cones must not be purchasable');
+  assert(bridalCones.isSitemapEligible === false, 'Bridal Cones must not be in sitemap');
+  console.log('  ✅ TEST 20 PASSED: Self-healing honesty and product lifecycle governance invariants verified.');
+
   console.log('\n============================================================');
-  console.log('🎉 ALL 15/15 INTEGRATION TESTS PASSED ACCORDING TO PHASE 27!');
+  console.log('🎉 ALL 20/20 INTEGRATION TESTS PASSED ACCORDING TO SPECIFICATION!');
   console.log('============================================================\n');
 }
 

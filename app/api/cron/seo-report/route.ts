@@ -63,22 +63,30 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 8:00 AM IST SEO Intelligence Brief:
-    // 1. Ingests GSC 7-day vs previous 7-day query/page snapshots
-    // 2. Evaluates deterministic opportunities (CTR, Ranking, Declines, Gaps, Links)
-    // 3. Summarizes overnight Master Agent autonomous work
-    // 4. Distinguishes Observed Data vs Recommendations vs Automatic Safe Actions vs Approval Required
-    const engine = SeoIntelligenceEngine.getInstance();
-    const brief = await engine.generateDailySeoBrief();
+    // 2. Dispatch through Central Execution Queue
+    const dateDayKey = new Date().toISOString().slice(0, 10);
+    const queue = (await import('@/lib/agent/central-queue')).CentralExecutionQueue.getInstance();
+    const task = await queue.enqueue({
+      domain: 'SEO',
+      action: 'GENERATE_SEO_BRIEF',
+      lane: 'BACKGROUND',
+      worker: 'seo_guardian',
+      priority: 80,
+      idempotencyKey: `cron-seo-report-${dateDayKey}`,
+      title: 'Scheduled Daily SEO Intelligence Brief',
+    });
+
+    const executionSummary = await queue.executeSingleTask(task);
 
     return NextResponse.json({
-      success: true,
+      success: executionSummary.status === 'COMPLETED',
       schedule: {
         cronUtc: '30 2 * * *',
         istExecutionTime: '08:00 AM IST daily',
         timezone: 'Asia/Kolkata (UTC+05:30)',
       },
-      report: brief,
+      report: task.result?.brief || executionSummary,
+      executionSummary,
     });
   } catch (error: any) {
     return sanitizeAdminError(error, 'GET /api/cron/seo-report');

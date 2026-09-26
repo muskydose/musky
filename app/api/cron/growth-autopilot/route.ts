@@ -67,14 +67,27 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 2. Execute Full Autonomous Growth Cycle
-    const summary = await runAutopilotCycle();
+    // 2. Dispatch through Central Execution Queue
+    const dateHourKey = new Date().toISOString().slice(0, 13);
+    const queue = (await import('@/lib/agent/central-queue')).CentralExecutionQueue.getInstance();
+    const task = await queue.enqueue({
+      domain: 'GROWTH',
+      action: 'GLOBAL_GROWTH_SWEEP',
+      lane: 'MAINTENANCE',
+      worker: 'website_guardian',
+      priority: 90,
+      idempotencyKey: `cron-growth-autopilot-${dateHourKey}`,
+      title: 'Scheduled Global Growth OS Autonomous Cycle',
+    });
+
+    const executionSummary = await queue.executeSingleTask(task);
 
     return NextResponse.json({
-      success: summary.status === 'COMPLETED' || summary.status.startsWith('SKIPPED'),
+      success: executionSummary.status === 'COMPLETED',
       service: 'musky-dose-growth-autopilot',
       timestamp: new Date().toISOString(),
-      summary,
+      summary: task.result || executionSummary,
+      executionSummary,
     });
   } catch (error: any) {
     return sanitizeAdminError(error, 'GET /api/cron/growth-autopilot');

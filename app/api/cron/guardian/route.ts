@@ -67,18 +67,32 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 2. Execute full Guardian cycle
+    // 2. Dispatch through Central Execution Queue
     const host = req.headers.get('host');
     const protocol = host?.includes('localhost') ? 'http' : 'https';
     const baseUrl = host ? `${protocol}://${host}` : undefined;
+    const dateHourKey = new Date().toISOString().slice(0, 13);
 
-    const summary = await WebsiteGuardian.executeFullDiagnosticCycle(baseUrl);
+    const queue = (await import('@/lib/agent/central-queue')).CentralExecutionQueue.getInstance();
+    const task = await queue.enqueue({
+      domain: 'GUARDIAN',
+      action: 'SYNTHETIC_DIAGNOSTIC_SWEEP',
+      lane: 'MAINTENANCE',
+      worker: 'website_guardian',
+      priority: 95,
+      idempotencyKey: `cron-guardian-${dateHourKey}`,
+      title: 'Scheduled Synthetic Route & Integrity Diagnostic Sweep',
+      input: { baseUrl },
+    });
+
+    const executionSummary = await queue.executeSingleTask(task);
 
     return NextResponse.json({
-      success: true,
+      success: executionSummary.status === 'COMPLETED',
       service: 'musky-dose-guardian',
       timestamp: new Date().toISOString(),
-      summary,
+      summary: (task.result?.summary as any) || executionSummary,
+      executionSummary,
     });
   } catch (error: any) {
     return sanitizeAdminError(error, 'GET /api/cron/guardian');

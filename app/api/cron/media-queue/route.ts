@@ -46,15 +46,28 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const summary = await processPendingMediaJobs({
-      limit: 5,
-      workerId: 'cron-media-queue',
+    // Dispatch through Central Execution Queue (BACKGROUND lane)
+    const dateMinuteKey = new Date().toISOString().slice(0, 16);
+    const queue = (await import('@/lib/agent/central-queue')).CentralExecutionQueue.getInstance();
+    const task = await queue.enqueue({
+      domain: 'MEDIA',
+      action: 'PROCESS_MEDIA_QUEUE_BATCH',
+      lane: 'BACKGROUND',
+      worker: 'media_visual',
+      priority: 85,
+      idempotencyKey: `cron-media-queue-${dateMinuteKey}`,
+      title: 'Scheduled Autonomous Media Queue Consumer',
     });
 
+    const executionSummary = await queue.executeSingleTask(task);
+    const backgroundLaneSummaries = await queue.processBackgroundLane({ timeLimitMs: 25000, maxBatch: 4 });
+
     return NextResponse.json({
-      success: true,
+      success: executionSummary.status === 'COMPLETED',
       timestamp: new Date().toISOString(),
-      summary,
+      summary: task.result || executionSummary,
+      executionSummary,
+      backgroundLaneSummaries,
     });
   } catch (error: any) {
     return sanitizeAdminError(error, 'Media queue cron failed.');

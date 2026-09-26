@@ -368,9 +368,18 @@ export class AgentStore {
     return this.getAllTasks().filter((t) => t.status === status);
   }
 
-  public getNextReadyTask(lane?: import('./types').ExecutionLane): AgentTask | undefined {
+  public getNextReadyTask(
+    lane?: import('./types').ExecutionLane,
+    excludeIds?: Set<string>
+  ): AgentTask | undefined {
     const queuedTasks = this.getAllTasks()
-      .filter((t) => (t.status === 'QUEUED' || t.status === 'RETRYING') && (!lane || t.lane === lane))
+      .filter((t) => {
+        if (excludeIds && excludeIds.has(t.id)) return false;
+        if (t.status !== 'QUEUED' && t.status !== 'RETRYING') return false;
+        if (!lane) return true;
+        if (lane === 'BACKGROUND') return t.lane === 'BACKGROUND' || !t.lane;
+        return t.lane === lane;
+      })
       .sort((a, b) => b.priority - a.priority);
 
     for (const task of queuedTasks) {
@@ -386,6 +395,31 @@ export class AgentStore {
     }
 
     return undefined;
+  }
+
+  /**
+   * Atomically leases the next ready task for the specified execution lane.
+   * Immediately transitions task to RUNNING status to prevent concurrent execution by overlapping scheduler runs.
+   */
+  public async leaseNextReadyTask(
+    lane?: import('./types').ExecutionLane,
+    leaseOwner: string = 'worker-lease'
+  ): Promise<AgentTask | undefined> {
+    const candidate = this.getNextReadyTask(lane);
+    if (!candidate) return undefined;
+
+    const startedAt = new Date().toISOString();
+    const updated = await this.updateTask(candidate.id, {
+      status: 'RUNNING',
+      startedAt,
+      payload: {
+        ...(candidate.payload || {}),
+        leasedBy: leaseOwner,
+        leasedAt: startedAt,
+      },
+    });
+
+    return updated || candidate;
   }
 
   /**

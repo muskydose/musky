@@ -60,34 +60,28 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    if (!isSearchConsoleConfigured()) {
-      return NextResponse.json({
-        success: true,
-        status: 'NOT_CONFIGURED',
-        message: 'GSC not configured in environment. Automated sync skipped cleanly.',
-        recordsImported: 0,
-      });
-    }
+    // 2. Dispatch through Central Execution Queue
+    const dateHourKey = new Date().toISOString().slice(0, 13);
+    const queue = (await import('@/lib/agent/central-queue')).CentralExecutionQueue.getInstance();
+    const task = await queue.enqueue({
+      domain: 'SEO',
+      action: 'GSC_SYNC',
+      lane: 'BACKGROUND',
+      worker: 'seo_guardian',
+      priority: 75,
+      idempotencyKey: `cron-gsc-sync-${dateHourKey}`,
+      title: 'Scheduled Search Console Data Sync',
+    });
 
-    const adapter = new SearchConsoleDataSourceAdapter();
-    const conn = await adapter.checkConnection();
-    if (!conn.connected) {
-      return NextResponse.json({
-        success: false,
-        status: conn.status,
-        message: conn.message,
-        recordsImported: 0,
-      });
-    }
-
-    const syncResult = await adapter.sync();
+    const executionSummary = await queue.executeSingleTask(task);
 
     return NextResponse.json({
-      success: syncResult.success,
-      status: 'CONNECTED',
-      message: `GSC sync completed in ${syncResult.durationMs}ms.`,
-      recordsImported: syncResult.recordsImported,
+      success: executionSummary.status === 'COMPLETED',
+      status: task.result?.configured === false ? 'NOT_CONFIGURED' : 'CONNECTED',
+      message: executionSummary.narrativeSummary || 'GSC sync processed via central queue.',
+      recordsImported: (task.result?.recordsImported as number) || 0,
       lastSyncedAt: new Date().toISOString(),
+      executionSummary,
     });
   } catch (error: any) {
     return sanitizeAdminError(error, 'GET /api/cron/gsc-sync');

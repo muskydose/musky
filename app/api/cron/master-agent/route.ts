@@ -73,8 +73,8 @@ export async function GET(req: NextRequest) {
     // 7. Saves verified lessons to durable memory
     // 8. Returns to autonomous maintenance after owner-requested objectives
     const sweep = await agent.runDailyAutonomousSweep({
-      timeLimitMs: 45000,
-      maxBatch: 12,
+      timeLimitMs: 8000,
+      maxBatch: 3,
     });
 
     return NextResponse.json({

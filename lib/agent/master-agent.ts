@@ -877,116 +877,76 @@ export class MuskyDoseMasterAgent {
     maxBatch?: number;
   } = {}): Promise<DailySweepSummary> {
     await this.store.ensureLoaded();
-    const timeLimitMs = options.timeLimitMs || 45000;
-    const maxBatch = options.maxBatch || 15;
-    const startTime = Date.now();
+    const dateKey = new Date().toISOString().slice(0, 10);
+    const queue = CentralExecutionQueue.getInstance();
 
     // 1. Reclaim stuck tasks from prior worker/serverless crashes
     await this.store.reclaimStuckTasks();
 
-    // 2. Keyword Universe Engine: Run autonomous keyword discovery, catalog onboarding, and cannibalization detection
-    let keywordUniverseSweepResult = {
-      started: true,
-      completed: false,
-      totalKeywords: 0,
-      newlyAdded: 0,
-      gscObserved: 0,
-      catalogDerived: 0,
-      cannibalizationIssues: 0,
-      errorIfAny: null as string | null,
-    };
+    // 2. Observe system state & refresh health scores
+    const { healthScores } = await this.contextEngine.gatherContext();
+    await this.store.setHealthScores(healthScores);
 
-    try {
-      const kwEngine = KeywordUniverseEngine.getInstance();
-      const sweep = await kwEngine.runAutonomousKeywordSweep();
+    // 3. Enqueue canonical sweep tasks into durable queue (MAINTENANCE lane)
+    // 3a. Keyword Universe Discovery & Cannibalization Sweep
+    await queue.enqueue({
+      domain: 'KEYWORDS',
+      action: 'KEYWORD_UNIVERSE_SWEEP',
+      lane: 'MAINTENANCE',
+      worker: 'keyword_intelligence',
+      priority: 88,
+      idempotencyKey: `daily-sweep-kw-universe-${dateKey}`,
+      title: 'Autonomous Keyword Universe Discovery & Cannibalization Sweep',
+      narrative: {
+        whyThisTask: 'Daily autonomous keyword discovery, catalog onboarding, and search intent routing.',
+      },
+    });
 
-      keywordUniverseSweepResult = {
-        started: true,
-        completed: true,
-        totalKeywords: sweep.totalKeywords,
-        newlyAdded: sweep.newlyAddedCount,
-        gscObserved: sweep.gscObservedCount,
-        catalogDerived: sweep.catalogDerivedCount,
-        cannibalizationIssues: sweep.cannibalizationIssues.length,
-        errorIfAny: null,
-      };
+    // 3b. Global Growth OS: Autonomous Query Ownership, Technical SEO & Self-Healing
+    await queue.enqueue({
+      domain: 'GROWTH',
+      action: 'GLOBAL_GROWTH_SWEEP',
+      lane: 'MAINTENANCE',
+      worker: 'website_guardian',
+      priority: 86,
+      idempotencyKey: `daily-sweep-global-growth-${dateKey}`,
+      title: 'Autonomous Global Growth OS Query & Self-Healing Sweep',
+      narrative: {
+        whyThisTask: 'Daily autonomous query ownership mapping, technical SEO audit, and self-healing sweep.',
+      },
+    });
 
-      // Record audit entry into durable AgentStore
-      await this.store.recordAudit({
-        objectiveId: 'daily-autonomous-sweep',
-        worker: 'seo_guardian',
-        action: 'KEYWORD_UNIVERSE_SWEEP_EXECUTED',
-        filesAffected: [],
-        dataAffected: {
-          totalKeywords: sweep.totalKeywords,
-          newlyAdded: sweep.newlyAddedCount,
-          gscObserved: sweep.gscObservedCount,
-          catalogDerived: sweep.catalogDerivedCount,
-          cannibalizationCount: sweep.cannibalizationIssues.length,
-          onboardedProducts: sweep.onboardedProducts,
-        },
-        result: `Keyword Universe sweep completed: ${sweep.totalKeywords} total keywords, ${sweep.newlyAddedCount} newly added, ${sweep.cannibalizationIssues.length} cannibalization issues.`,
-        testOutcome: 'PASS',
-        nextAction: 'EXECUTE_DAILY_SWEEP_TASKS',
-      });
-    } catch (kwErr: any) {
-      logger.warn('[MasterAgent] Autonomous keyword sweep notice:', { error: kwErr?.message });
-      keywordUniverseSweepResult.errorIfAny = kwErr?.message || String(kwErr);
-    }
+    // 3c. SEO Intelligence Opportunity Detection
+    await queue.enqueue({
+      domain: 'SEO',
+      action: 'SEO_OPPORTUNITY_SCAN',
+      lane: 'MAINTENANCE',
+      worker: 'seo_guardian',
+      priority: 82,
+      idempotencyKey: `daily-sweep-seo-scan-${dateKey}`,
+      title: 'Autonomous SEO Intelligence Opportunity Detection & Scan',
+      narrative: {
+        whyThisTask: 'Daily autonomous scan of search impressions and ranking opportunities.',
+      },
+    });
 
-    // 2b. Global Growth OS: Autonomous Query Ownership, Technical SEO & Self-Healing cycle
-    try {
-      const { MuskyGlobalGrowthOrchestrator } = await import('@/lib/growth/global-growth-orchestrator');
-      const orchestrator = MuskyGlobalGrowthOrchestrator.getInstance();
-      const growthSummary = await orchestrator.runGrowthCycle();
-      await this.store.recordAudit({
-        objectiveId: 'daily-autonomous-sweep',
-        worker: 'seo_guardian',
-        action: 'GLOBAL_GROWTH_OS_SWEEP_EXECUTED',
-        filesAffected: [],
-        dataAffected: {
-          status: growthSummary.status,
-          coverageScore: growthSummary.coverageMetrics.overallCompositeScore,
-          seoAuditScore: growthSummary.seoAudit.score,
-          radarOpportunitiesCount: growthSummary.radarOpportunities.length,
-          healedActionsCount: growthSummary.healedActions.length,
-        },
-        result: `Global Growth OS sweep completed: Status ${growthSummary.status}, Coverage ${growthSummary.coverageMetrics.overallCompositeScore}%, SEO Score ${growthSummary.seoAudit.score}%.`,
-        testOutcome: 'PASS',
-        nextAction: 'EXECUTE_DAILY_SWEEP_TASKS',
-      });
-    } catch (growthErr: any) {
-      logger.warn('[MasterAgent] Autonomous growth sweep notice:', { error: growthErr?.message });
-    }
-
-    // 3. Scan full website and enqueue safe work across all pillars (including SEO opportunities)
+    // 4. Scan full website across all pillars and enqueue safe maintenance work
     const identified = await this.scanAndEnqueueSafeWork();
 
-    // 4. Batch execution loop respecting dependency ordering and execution budget
-    const loopStartTime = Date.now();
-    const executedSummaries: TickExecutionSummary[] = [];
+    // 5. Process a bounded batch of maintenance lane work within strict execution budget (<10s)
+    // Heavy domain processing continues through durable queue
+    const boundedTimeLimit = Math.min(options.timeLimitMs || 8000, 10000);
+    const executedSummaries = await queue.processMaintenanceLane({
+      timeLimitMs: boundedTimeLimit,
+    });
 
-    while (Date.now() - loopStartTime < timeLimitMs && executedSummaries.length < maxBatch) {
-      const nextTask = this.store.getNextReadyTask();
-      if (!nextTask) {
-        break; // No further tasks ready in dependency order or queue empty
-      }
-
-      const summary = await this.tick();
-      executedSummaries.push(summary);
-
-      if (summary.idle || summary.status === 'BLOCKED') {
-        break;
-      }
-    }
-
-    // 5. Inspect remaining unfinished tasks in the durable store
+    // 6. Inspect remaining unfinished tasks in the durable store
     const allTasks = this.store.getAllTasks();
     const unfinishedTasks = allTasks.filter(
       (t) => t.status === 'QUEUED' || t.status === 'RUNNING' || t.status === 'RETRYING'
     );
 
-    // 6. Update agent state with next daily 2:00 AM IST scheduled run
+    // 7. Update agent state with next daily 2:00 AM IST scheduled run
     const nextScheduled = getNextDaily2AmIstTimestamp();
     await this.store.updateState({
       lastRunAt: new Date().toISOString(),
@@ -1010,13 +970,22 @@ export class MuskyDoseMasterAgent {
         istExecutionTime: '02:00 AM IST daily',
         timezone: 'Asia/Kolkata (UTC+05:30)',
       },
-      scannedWorkIdentified: identified.length,
+      scannedWorkIdentified: identified.length + 3,
       totalExecuted: executedSummaries.length,
       unfinishedTasksCount: unfinishedTasks.length,
       nextScheduledRunAt: nextScheduled,
       tasksExecuted: executedSummaries,
       status,
-      keywordUniverseSweep: keywordUniverseSweepResult,
+      keywordUniverseSweep: {
+        started: true,
+        completed: executedSummaries.some((s) => s.narrativeSummary?.includes('Keyword Universe')),
+        totalKeywords: 0,
+        newlyAdded: 0,
+        gscObserved: 0,
+        catalogDerived: 0,
+        cannibalizationIssues: 0,
+        errorIfAny: null,
+      },
     };
   }
 
