@@ -34,6 +34,9 @@ export interface GlobalGrowthCycleSummary {
   seoAudit: TechnicalSeoAuditReport;
   radarOpportunities: OpportunityRadarItem[];
   cannibalizationIssuesCount: number;
+  detectedIssues?: string[];
+  remediationPending?: string[];
+  verifiedHealedActions?: string[];
   healedActions: string[];
   merchantFeedHealth: {
     totalEvaluated: number;
@@ -91,10 +94,16 @@ export class MuskyGlobalGrowthOrchestrator {
       baseUrl
     );
 
+    const detectedIssues: string[] = [];
+    const remediationPending: string[] = [];
+    const verifiedHealedActions: string[] = [];
+
     // Do not claim a collision was healed unless a concrete mutation was executed.
     // The current sweep records deterministic remediation actions for review/execution.
     if (cannibalizationReport.collisionsCount > 0) {
       for (const col of cannibalizationReport.collisions) {
+        detectedIssues.push(`Query collision detected on [${col.query}]`);
+        remediationPending.push(`Remediation pending for query collision [${col.query}]: ${col.action}`);
         healedActions.push(
           `Remediation required for query collision [${col.query}]: ${col.action}`
         );
@@ -103,6 +112,13 @@ export class MuskyGlobalGrowthOrchestrator {
 
     // 3. Technical SEO Guardian Validation
     const seoAudit = runTechnicalSeoAudit(products, guides, categories, baseUrl);
+    if (seoAudit.failCount > 0) {
+      const criticalErrors = seoAudit.checks.filter(c => c.status === 'FAIL').map(c => `${c.checkId}: ${c.message}`);
+      for (const err of criticalErrors) {
+        detectedIssues.push(`Technical SEO error: ${err}`);
+        remediationPending.push(`SEO remediation pending: ${err}`);
+      }
+    }
 
     // 4. Google Merchant Feed Validation & Health Check
     let feedReadyCount = 0;
@@ -140,6 +156,9 @@ export class MuskyGlobalGrowthOrchestrator {
       seoAudit,
       radarOpportunities,
       cannibalizationIssuesCount: cannibalizationReport.collisionsCount,
+      detectedIssues,
+      remediationPending,
+      verifiedHealedActions,
       healedActions,
       merchantFeedHealth: {
         totalEvaluated: products.length,

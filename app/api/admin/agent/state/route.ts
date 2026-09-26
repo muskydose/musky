@@ -9,6 +9,7 @@ import { MuskyDoseMasterAgent } from '@/lib/agent/master-agent';
 import { SeoIntelligenceStore } from '@/lib/agent/seo-intelligence/seo-store';
 import { SeoIntelligenceEngine } from '@/lib/agent/seo-intelligence/seo-intelligence-engine';
 import { KeywordUniverseStore } from '@/lib/agent/seo-intelligence/keyword-universe-store';
+import { CentralExecutionQueue } from '@/lib/agent/central-queue';
 import { sanitizeAdminError } from '@/lib/api-errors';
 
 export const dynamic = 'force-dynamic';
@@ -32,6 +33,9 @@ export async function GET(req: NextRequest) {
     const latestSeoReport = await seoStore.getLatestDailyReport();
     const keywordUniverseSummary = kwStore.getSummaryStats();
 
+    const agent = MuskyDoseMasterAgent.getInstance();
+    const unifiedSystemState = await agent.getUnifiedSystemState();
+
     return NextResponse.json({
       success: true,
       state,
@@ -41,6 +45,10 @@ export async function GET(req: NextRequest) {
       seoOpportunities,
       latestSeoReport: latestSeoReport || null,
       keywordUniverseSummary,
+      unifiedSystemState,
+      queueStatus: unifiedSystemState.queueStatus,
+      resultSummary: unifiedSystemState.resultSummary,
+      learningSummary: unifiedSystemState.learningSummary,
     });
   } catch (error: any) {
     return sanitizeAdminError(error, 'GET /api/admin/agent/state');
@@ -122,6 +130,27 @@ export async function POST(req: NextRequest) {
           seoOpportunities: opps,
           latestSeoReport: report,
           enqueuedTasks,
+          state: store.getState(),
+          tasks: store.getAllTasks(),
+        });
+      }
+
+      case 'process_queue': {
+        const queue = CentralExecutionQueue.getInstance();
+        const batchResults = await queue.processBackgroundLane({ maxBatch: 5 });
+        return NextResponse.json({
+          success: true,
+          batchResults,
+          state: store.getState(),
+          tasks: store.getAllTasks(),
+        });
+      }
+
+      case 'run_sweep': {
+        const sweepSummary = await agent.runDailyAutonomousSweep({ maxBatch: 10 });
+        return NextResponse.json({
+          success: true,
+          sweepSummary,
           state: store.getState(),
           tasks: store.getAllTasks(),
         });

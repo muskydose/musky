@@ -2,7 +2,6 @@ import React from 'react';
 import { getAllMediaAssetsRaw } from '@/lib/db/media';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getPendingMediaJobs } from '@/lib/growth/media-jobs-engine';
-import { processPendingMediaJobs } from '@/lib/growth/media-queue-consumer';
 import MediaLibraryClient from './MediaLibraryClient';
 
 export const dynamic = 'force-dynamic';
@@ -13,10 +12,8 @@ export const metadata = {
 };
 
 export default async function AdminMediaPage() {
-  // Execute a tiny safe batch whenever the admin library is opened.
-  // This makes durable PENDING jobs observable without weakening cron/manual processing.
-  await processPendingMediaJobs({ limit: 1, workerId: 'admin-media-page' }).catch(() => null);
-
+  // Read-only inspection of canonical media library and queue state.
+  // Execution is handled exclusively by central background queue and cron workers.
   const [{ assets }, pending] = await Promise.all([
     getAllMediaAssetsRaw(),
     getPendingMediaJobs(500, { filterEligible: false }),

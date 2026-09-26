@@ -17,6 +17,9 @@ export default async function AdminAgentPage() {
   const kwStore = KeywordUniverseStore.getInstance();
   await kwStore.ensureLoaded();
 
+  const agent = (await import('@/lib/agent/master-agent')).MuskyDoseMasterAgent.getInstance();
+  const initialUnifiedSystemState = await agent.getUnifiedSystemState();
+
   const initialState = store.getState();
   const initialTasks = store.getAllTasks();
   const initialMemory = store.getMemoryRecords();
@@ -35,6 +38,7 @@ export default async function AdminAgentPage() {
         initialSeoOpportunities={initialSeoOpportunities}
         initialSeoReport={initialSeoReport || null}
         initialKeywordSummary={initialKeywordSummary}
+        initialUnifiedSystemState={initialUnifiedSystemState}
       />
     </AdminLayout>
   );

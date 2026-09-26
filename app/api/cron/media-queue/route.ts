@@ -16,16 +16,34 @@ function secureCompare(a: string, b: string): boolean {
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization') || '';
-    const cronSecret = process.env.CRON_SECRET;
+    if (!authHeader.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized: Missing or malformed Authorization header. Expected Bearer <token>' },
+        { status: 401 }
+      );
+    }
 
-    if (cronSecret) {
-      if (!authHeader.startsWith('Bearer ')) {
-        return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-      }
-      const token = authHeader.substring(7).trim();
-      if (!secureCompare(token, cronSecret)) {
-        return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-      }
+    const bearerToken = authHeader.substring(7).trim();
+    if (!bearerToken) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized: Empty Bearer token.' },
+        { status: 401 }
+      );
+    }
+
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized: CRON_SECRET is not configured on server.' },
+        { status: 401 }
+      );
+    }
+
+    if (!secureCompare(bearerToken, cronSecret)) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized: Invalid CRON_SECRET token' },
+        { status: 401 }
+      );
     }
 
     const summary = await processPendingMediaJobs({

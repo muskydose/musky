@@ -19,6 +19,11 @@ import { SeoIntelligenceEngine } from './seo-intelligence/seo-intelligence-engin
 import { SeoIntelligenceStore } from './seo-intelligence/seo-store';
 import { KeywordUniverseEngine } from './seo-intelligence/keyword-universe-engine';
 import { getProducts } from '@/lib/db/products';
+import { ResultEngine } from './result-engine';
+import { LearningEngine } from './learning-engine';
+import { PerformanceOptimizer } from './performance-optimizer';
+import { CentralExecutionQueue } from './central-queue';
+import { mapWorkerToDomain } from './task-contract';
 
 export { getNextDaily2AmIstTimestamp };
 
@@ -311,7 +316,12 @@ export class MuskyDoseMasterAgent {
         ...rawTask,
         id: taskId,
         objectiveId,
+        domain: rawTask.domain || mapWorkerToDomain(rawTask.worker),
+        action: rawTask.action || rawTask.title,
+        lane: rawTask.lane || 'BACKGROUND',
         dependencyIds: mappedDeps,
+        dependencies: mappedDeps,
+        input: rawTask.payload,
         createdAt: new Date().toISOString(),
       };
 
@@ -480,6 +490,44 @@ export class MuskyDoseMasterAgent {
           task.payload.opportunityId as string,
           'COMPLETED'
         );
+      }
+
+      // Record into central ResultEngine
+      ResultEngine.getInstance().recordResult({
+        taskId: task.id,
+        domain: task.domain || mapWorkerToDomain(task.worker),
+        action: task.action || task.title,
+        entityType: task.entityType,
+        entityId: task.entityId,
+        actionExecuted: task.title,
+        verification: {
+          verified: execution.status === 'COMPLETED',
+          probeOutcome: execution.narrative.whatVerified,
+        },
+        measured: execution.result,
+      });
+
+      // Record into central LearningEngine
+      const startTimeMs = task.startedAt ? new Date(task.startedAt).getTime() : Date.now();
+      const taskDurationMs = Math.max(1, Date.now() - startTimeMs);
+      await LearningEngine.getInstance().recordExperience({
+        domain: task.domain || mapWorkerToDomain(task.worker),
+        worker: task.worker,
+        taskType: task.action || task.title,
+        strategy: (task.payload?.selectedStrategy as string) || 'DEFAULT_STRATEGY',
+        success: execution.status === 'COMPLETED',
+        durationMs: taskDurationMs,
+        failureReason: execution.errorMessage,
+        lessonSynthesized: execution.narrative.whatLearned,
+      });
+
+      // Update Performance Optimizer
+      PerformanceOptimizer.getInstance().trackExecutionEnd(
+        taskDurationMs,
+        execution.status === 'COMPLETED'
+      );
+      if (execution.status === 'COMPLETED' && task.idempotencyKey) {
+        PerformanceOptimizer.getInstance().markVerified(task.idempotencyKey);
       }
 
       // Check if objective is complete
@@ -1122,5 +1170,78 @@ export class MuskyDoseMasterAgent {
         currentTaskId: null,
       });
     }
+  }
+
+  /**
+   * Generates a single, consolidated system-state representation for the Admin Control Center.
+   * Answers the non-technical owner questions:
+   * - WHAT IS HAPPENING
+   * - WHAT NEEDS ATTENTION
+   * - WHAT WAS FIXED
+   * - WHAT IMPROVED
+   * - WHAT IS WAITING
+   * - WHAT FAILED
+   * - WHAT IS LEARNING
+   * - WHAT WILL HAPPEN NEXT
+   */
+  public async getUnifiedSystemState() {
+    await this.store.ensureLoaded();
+    const state = this.store.getState();
+    const allTasks = this.store.getAllTasks();
+    const queue = CentralExecutionQueue.getInstance();
+    const results = ResultEngine.getInstance();
+    const learning = LearningEngine.getInstance();
+
+    const activeJobs = allTasks.filter((t) => t.status === 'RUNNING');
+    const blockedJobs = allTasks.filter((t) => t.status === 'BLOCKED' || t.status === 'APPROVAL_REQUIRED');
+    const waitingJobs = allTasks.filter((t) => t.status === 'QUEUED' || t.status === 'WAITING' || t.status === 'RETRYING');
+    const failedJobs = allTasks.filter((t) => t.status === 'FAILED');
+
+    const resultSummary = results.getSummary();
+    const learningSummary = learning.getSummary();
+    const queueStatus = queue.getStatus();
+
+    return {
+      timestamp: new Date().toISOString(),
+      isAutonomous: state.isAutonomous,
+      isPaused: state.isPaused,
+      healthScores: state.healthScores,
+      stats: state.stats,
+      currentObjective: state.currentObjective,
+      currentTaskId: state.currentTaskId,
+      nextScheduledRunAt: state.nextScheduledRunAt,
+      queueStatus,
+      resultSummary,
+      learningSummary,
+      whatIsHappening: activeJobs.length > 0
+        ? activeJobs.map((t) => `Executing: ${t.title} (${t.worker})`)
+        : ['Autonomous queue idle. All systems within optimal operational thresholds.'],
+      whatNeedsAttention: blockedJobs.map(
+        (t) => `[APPROVAL REQUIRED] ${t.title}: ${t.errorMessage || t.approvalReason || 'Manual confirmation required'}`
+      ),
+      whatWasFixed: allTasks
+        .filter((t) => t.status === 'COMPLETED' && t.narrative?.whatChanged)
+        .slice(0, 8)
+        .map((t) => `${t.title}: ${t.narrative.whatChanged}`),
+      whatImproved: resultSummary.recentMaturations.map(
+        (m) => `${m.action}: Verified with delta ${JSON.stringify(m.delta || {})}`
+      ),
+      whatIsWaiting: waitingJobs
+        .slice(0, 10)
+        .map((t) => `${t.title} (Priority: ${t.priority}, Lane: ${t.lane || 'BACKGROUND'})`),
+      whatFailed: failedJobs
+        .slice(0, 5)
+        .map((t) => `${t.title}: ${t.errorMessage || 'Failure logged'}`),
+      whatIsLearning: learningSummary.recentLearnings.map(
+        (l) => `${l.domain} [${l.taskType}]: ${l.strategy} (Confidence: ${l.confidence * 100}%)`
+      ),
+      whatWillHappenNext: state.isPaused
+        ? 'System is currently paused by owner.'
+        : state.currentTaskId
+        ? `Completing active task [${state.currentTaskId}].`
+        : waitingJobs.length > 0
+        ? `Next task in queue: [${waitingJobs[0].title}].`
+        : `Scheduled 24-hour autonomous maintenance sweep at ${state.nextScheduledRunAt || '2:00 AM IST'}.`,
+    };
   }
 }

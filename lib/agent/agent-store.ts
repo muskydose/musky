@@ -368,14 +368,14 @@ export class AgentStore {
     return this.getAllTasks().filter((t) => t.status === status);
   }
 
-  public getNextReadyTask(): AgentTask | undefined {
+  public getNextReadyTask(lane?: import('./types').ExecutionLane): AgentTask | undefined {
     const queuedTasks = this.getAllTasks()
-      .filter((t) => t.status === 'QUEUED' || t.status === 'RETRYING')
+      .filter((t) => (t.status === 'QUEUED' || t.status === 'RETRYING') && (!lane || t.lane === lane))
       .sort((a, b) => b.priority - a.priority);
 
     for (const task of queuedTasks) {
       // Check if all dependencies are completed
-      const allDepsDone = task.dependencyIds.every((depId) => {
+      const allDepsDone = (task.dependencies || task.dependencyIds || []).every((depId) => {
         const dep = this.tasks.get(depId);
         return dep && dep.status === 'COMPLETED';
       });
@@ -694,9 +694,11 @@ export class AgentStore {
           stats.failed++;
           break;
         case 'BLOCKED':
+        case 'APPROVAL_REQUIRED':
           stats.blocked++;
           break;
         case 'RETRYING':
+        case 'WAITING':
           stats.retrying++;
           break;
       }

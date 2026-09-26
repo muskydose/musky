@@ -3,13 +3,34 @@
 // Canonical Architecture: Top-Level Website Operating System
 // ============================================================================
 
+export type CanonicalTaskDomain =
+  | 'CATALOG'
+  | 'COMMERCE'
+  | 'MEDIA'
+  | 'SEO'
+  | 'KEYWORDS'
+  | 'CONTENT'
+  | 'GROWTH'
+  | 'ANALYTICS'
+  | 'GUARDIAN'
+  | 'INDEXING'
+  | 'QA';
+
+export type ExecutionLane =
+  | 'FAST'
+  | 'BACKGROUND'
+  | 'MAINTENANCE';
+
 export type AgentTaskStatus =
   | 'QUEUED'
   | 'RUNNING'
+  | 'RETRYING'
+  | 'WAITING'
   | 'COMPLETED'
   | 'FAILED'
   | 'BLOCKED'
-  | 'RETRYING';
+  | 'APPROVAL_REQUIRED'
+  | 'CANCELLED';
 
 export type AgentWorkerType =
   | 'website_guardian'
@@ -84,19 +105,41 @@ export interface AgentTask {
   id: string;
   objectiveId: string;
   title: string;
+  domain?: CanonicalTaskDomain;
+  action?: string;
+  entityType?: string;
+  entityId?: string;
   worker: AgentWorkerType;
   status: AgentTaskStatus;
   priority: number; // 1-100, 100 being highest
+  lane?: ExecutionLane;
   dependencyIds: string[];
+  dependencies?: string[];
   idempotencyKey: string;
   narrative: TaskNarrative;
   payload: Record<string, unknown>;
+  input?: Record<string, unknown>;
   result?: Record<string, unknown>;
   errorMessage?: string;
+  error?: string;
+  evidence?: Record<string, unknown>;
   retryCount: number;
+  attempts?: number;
   maxRetries: number;
   requiresApproval?: boolean;
   approvalReason?: string;
+  approvalState?: {
+    required: boolean;
+    reason?: string;
+    approvedBy?: string;
+    approvedAt?: string;
+  };
+  rollbackInformation?: {
+    rollbackAction?: string;
+    snapshot?: Record<string, unknown>;
+  };
+  auditReference?: string;
+  nextAttemptAt?: string;
   startedAt?: string;
   completedAt?: string;
   createdAt: string;
@@ -197,5 +240,15 @@ export function getNextDaily2AmIstTimestamp(now: Date = new Date()): string {
     target.setUTCDate(target.getUTCDate() + 1);
   }
   return target.toISOString();
+}
+
+export interface TickExecutionSummary {
+  executedTaskId?: string;
+  status?: string;
+  worker?: AgentWorkerType;
+  objectiveCompleted?: boolean;
+  narrativeSummary?: string;
+  idle?: boolean;
+  reason?: string;
 }
 
