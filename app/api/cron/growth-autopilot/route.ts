@@ -6,7 +6,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { runAutopilotCycle } from '@/lib/growth/autopilot-engine';
 import { sanitizeAdminError } from '@/lib/api-errors';
 
 export const dynamic = 'force-dynamic';
@@ -67,7 +66,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 2. Dispatch through Central Execution Queue
+    // 2. Dispatch through Central Execution Queue (Enqueue-only)
     const dateHourKey = new Date().toISOString().slice(0, 13);
     const queue = (await import('@/lib/agent/central-queue')).CentralExecutionQueue.getInstance();
     const task = await queue.enqueue({
@@ -80,14 +79,18 @@ export async function GET(req: NextRequest) {
       title: 'Scheduled Global Growth OS Autonomous Cycle',
     });
 
-    const executionSummary = await queue.executeSingleTask(task);
-
     return NextResponse.json({
-      success: executionSummary.status === 'COMPLETED',
+      success: true,
       service: 'musky-dose-growth-autopilot',
       timestamp: new Date().toISOString(),
-      summary: task.result || executionSummary,
-      executionSummary,
+      dispatched: true,
+      task: {
+        id: task.id,
+        status: task.status,
+        lane: task.lane,
+        worker: task.worker,
+        title: task.title,
+      },
     });
   } catch (error: any) {
     return sanitizeAdminError(error, 'GET /api/cron/growth-autopilot');

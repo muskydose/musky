@@ -9,6 +9,7 @@ import { CentralExecutionQueue } from './central-queue';
 import { AgentTask } from './types';
 import { revalidatePath } from 'next/cache';
 import { logger } from '@/lib/logger';
+import { getProductByIdOrSlug } from '@/lib/db/products';
 
 export interface ProductLifecycleMutationResult {
   productId: string;
@@ -205,17 +206,18 @@ export class LifecycleOrchestrator {
     details: any;
   }> {
     if (event.entityType === 'PRODUCT') {
-      const mockProduct: Partial<Product> = {
-        id: event.entityId,
-        slug: event.payload?.slug || event.entityId,
-        name: event.payload?.name || event.payload?.slug || event.entityId,
-        lifecycleStatus: (event.payload?.newStatus || event.payload?.lifecycleStatus || 'ACTIVE') as any,
-        isActive: event.payload?.isActive ?? true,
-        price: event.payload?.price || 299,
-        ...event.payload,
+      const product = await getProductByIdOrSlug(event.entityId, true);
+      if (!product) {
+        throw new Error(`Entity not found for lifecycle event: product '${event.entityId}' does not exist.`);
+      }
+
+      const mergedProduct: Product = {
+        ...product,
+        ...(event.payload || {}),
+        lifecycleStatus: (event.payload?.newStatus || event.payload?.lifecycleStatus || product.lifecycleStatus) as any,
       };
 
-      const result = await this.onProductMutation(mockProduct as Product, 'UPDATED', event.triggeredBy);
+      const result = await this.onProductMutation(mergedProduct, 'UPDATED', event.triggeredBy);
       return {
         fastLaneExecuted: result.fastLaneExecuted,
         backgroundTasksQueued: result.backgroundTasksEnqueued,

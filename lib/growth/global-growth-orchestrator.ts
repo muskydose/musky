@@ -98,15 +98,12 @@ export class MuskyGlobalGrowthOrchestrator {
     const remediationPending: string[] = [];
     const verifiedHealedActions: string[] = [];
 
-    // Do not claim a collision was healed unless a concrete mutation was executed.
-    // The current sweep records deterministic remediation actions for review/execution.
+    // Unresolved collisions go strictly to detectedIssues and remediationPending.
+    // They are NEVER claimed as healed actions until a verified mutation executes.
     if (cannibalizationReport.collisionsCount > 0) {
       for (const col of cannibalizationReport.collisions) {
         detectedIssues.push(`Query collision detected on [${col.query}]`);
         remediationPending.push(`Remediation pending for query collision [${col.query}]: ${col.action}`);
-        healedActions.push(
-          `Remediation required for query collision [${col.query}]: ${col.action}`
-        );
       }
     }
 
@@ -145,9 +142,11 @@ export class MuskyGlobalGrowthOrchestrator {
     } catch {}
 
     const status: GlobalGrowthCycleSummary['status'] =
-      seoAudit.failCount === 0 && cannibalizationReport.collisionsCount === 0
-        ? 'OPTIMAL'
-        : 'ATTENTION_REQUIRED';
+      detectedIssues.length > 0
+        ? 'ATTENTION_REQUIRED'
+        : verifiedHealedActions.length > 0
+        ? 'SELF_HEALED'
+        : 'OPTIMAL';
 
     return {
       timestamp: new Date().toISOString(),
@@ -159,7 +158,7 @@ export class MuskyGlobalGrowthOrchestrator {
       detectedIssues,
       remediationPending,
       verifiedHealedActions,
-      healedActions,
+      healedActions: [...verifiedHealedActions],
       merchantFeedHealth: {
         totalEvaluated: products.length,
         feedReadyCount,

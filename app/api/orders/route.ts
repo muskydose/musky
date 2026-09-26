@@ -118,6 +118,16 @@ export async function POST(req: NextRequest) {
       }
     );
   } catch (error: any) {
+    const rawMsg = String(error?.message || '');
+    if (
+      rawMsg.includes('not currently available for purchase') ||
+      rawMsg.includes('out of stock') ||
+      rawMsg.includes('is inactive') ||
+      rawMsg.includes('not found') ||
+      rawMsg.includes('Cannot create an order with zero items')
+    ) {
+      return sanitizePublicError(error, rawMsg, 422);
+    }
     return sanitizePublicError(error, 'Failed to process order. Please check your details and try again.');
   }
 }

@@ -63,23 +63,21 @@ export async function GET(req: NextRequest) {
     }
 
     const agent = MuskyDoseMasterAgent.getInstance();
-    // Daily Autonomous Maintenance Sweep:
-    // 1. Scans full website across all pillars
-    // 2. Identifies all safe work & prioritizes
-    // 3. Executes dependency-ordered tasks within execution limits
-    // 4. Validates each task & enforces safety gates
-    // 5. Verifies production integrity
-    // 6. Persists unfinished tasks for resumption on the next run
-    // 7. Saves verified lessons to durable memory
-    // 8. Returns to autonomous maintenance after owner-requested objectives
+    // Daily Autonomous Maintenance Sweep (True Enqueue-Only Dispatcher):
+    // 1. Reclaims stuck task leases
+    // 2. Observes full system context & refreshes health scores
+    // 3. Enqueues prioritized, dependency-ordered safe maintenance tasks
+    // 4. Returns immediately without inline worker execution (<50ms)
+    // Durable execution is processed asynchronously by the background queue drainer
     const sweep = await agent.runDailyAutonomousSweep({
-      timeLimitMs: 8000,
-      maxBatch: 3,
+      enqueueOnly: true,
     });
 
     return NextResponse.json({
       success: true,
+      service: 'musky-dose-master-agent',
       timestamp: new Date().toISOString(),
+      dispatched: true,
       schedule: sweep.schedule,
       summary: sweep,
     });

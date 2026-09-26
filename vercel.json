@@ -23,6 +23,10 @@
     {
       "path": "/api/cron/seo-report",
       "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/cron/drain-queue",
+      "schedule": "0 1 * * *"
     }
   ]
 }

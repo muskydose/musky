@@ -1,16 +1,16 @@
 // ============================================================================
-// MUSKY DOSE — SEO INTELLIGENCE DAILY BRIEF CRON ENDPOINT
-// Schedule: 30 2 * * * (Every day at 8:00 AM IST / 02:30 UTC via Vercel Cron)
-// Mandatory: Authorization: Bearer <CRON_SECRET>
-// Purpose: Daily SEO Brief & Intelligence Reporting (Does NOT re-run maintenance sweep)
+// MUSKY DOSE — CANONICAL DURABLE QUEUE DRAINER
+// Universal Background & Maintenance Lane Execution Heartbeat
+// Mandatory: Authorization: Bearer <CRON_SECRET> (Strict fail-closed)
 // ============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { CentralExecutionQueue } from '@/lib/agent/central-queue';
 import { sanitizeAdminError } from '@/lib/api-errors';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 60; // 60 seconds bounded execution limit
 
 function secureCompare(a: string, b: string): boolean {
   if (!a || !b) return false;
@@ -22,6 +22,7 @@ function secureCompare(a: string, b: string): boolean {
 
 export async function GET(req: NextRequest) {
   try {
+    // 1. Mandatory Authorization Header Check (Strictly fail-closed)
     const authHeader = req.headers.get('authorization') || '';
     if (!authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
@@ -57,48 +58,51 @@ export async function GET(req: NextRequest) {
 
     if (!secureCompare(bearerToken, cronSecret)) {
       return NextResponse.json(
-        { success: false, error: 'Unauthorized: Invalid CRON_SECRET token' },
+        {
+          success: false,
+          error: 'Unauthorized: Invalid Bearer token.',
+        },
         { status: 401 }
       );
     }
 
-    // 2. Dispatch through Central Execution Queue (Enqueue-only)
-    const dateDayKey = new Date().toISOString().slice(0, 10);
-    const queue = (await import('@/lib/agent/central-queue')).CentralExecutionQueue.getInstance();
-    const task = await queue.enqueue({
-      domain: 'SEO',
-      action: 'GENERATE_SEO_BRIEF',
-      lane: 'BACKGROUND',
-      worker: 'seo_guardian',
-      priority: 80,
-      idempotencyKey: `cron-seo-report-${dateDayKey}`,
-      title: 'Scheduled Daily SEO Intelligence Brief',
+    const queue = CentralExecutionQueue.getInstance();
+
+    // 2. Reclaim expired task leases (worker / serverless crash recovery)
+    const reclaimed = await queue.reclaimStuckTasks();
+
+    // 3. Process bounded batch from BACKGROUND lane (up to 25s budget)
+    const backgroundSummaries = await queue.processBackgroundLane({
+      timeLimitMs: 25000,
+      maxBatch: 5,
     });
+
+    // 4. Process bounded batch from MAINTENANCE lane (up to 20s budget)
+    const maintenanceSummaries = await queue.processMaintenanceLane({
+      timeLimitMs: 20000,
+    });
+
+    // 5. Gather queue telemetry
+    const queueStatus = queue.getStatus();
 
     return NextResponse.json({
       success: true,
-      service: 'musky-dose-seo-report',
+      service: 'musky-dose-queue-drainer',
       timestamp: new Date().toISOString(),
-      dispatched: true,
-      schedule: {
-        cronUtc: '30 2 * * *',
-        istExecutionTime: '08:00 AM IST daily',
-        timezone: 'Asia/Kolkata (UTC+05:30)',
-      },
-      task: {
-        id: task.id,
-        status: task.status,
-        lane: task.lane,
-        worker: task.worker,
-        title: task.title,
+      reclaimedCount: reclaimed.length,
+      backgroundExecuted: backgroundSummaries.length,
+      maintenanceExecuted: maintenanceSummaries.length,
+      queueStatus,
+      telemetry: {
+        background: backgroundSummaries,
+        maintenance: maintenanceSummaries,
       },
     });
   } catch (error: any) {
-    return sanitizeAdminError(error, 'GET /api/cron/seo-report');
+    return sanitizeAdminError(error, 'GET /api/cron/drain-queue');
   }
 }
 
 export async function POST(req: NextRequest) {
   return GET(req);
 }
-

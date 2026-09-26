@@ -24,6 +24,28 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+
+// Load .env.local if present
+const envLocalPath = path.join(process.cwd(), '.env.local');
+if (fs.existsSync(envLocalPath)) {
+  try {
+    if (typeof (process as any).loadEnvFile === 'function') {
+      (process as any).loadEnvFile(envLocalPath);
+    } else {
+      const content = fs.readFileSync(envLocalPath, 'utf8');
+      for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eqIdx = trimmed.indexOf('=');
+        if (eqIdx > 0) {
+          const key = trimmed.slice(0, eqIdx).trim();
+          const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '');
+          if (!process.env[key]) process.env[key] = val;
+        }
+      }
+    }
+  } catch {}
+}
 import {
   createCanonicalTask,
   normalizeTask,
@@ -42,6 +64,7 @@ import { resolveProductLifecycle } from '../lib/growth/product-lifecycle-governa
 import { isRealOwnerPhotoProtected, MediaAsset } from '../lib/db/media';
 import { MuskyGlobalGrowthOrchestrator } from '../lib/growth/global-growth-orchestrator';
 import { Product } from '../lib/types';
+import { saveOrder } from '../lib/db/orders';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -92,26 +115,41 @@ async function runTestSuite() {
   console.log('  ✅ TEST 1 PASSED: Canonical task contract and legacy normalization verified.');
 
   // --------------------------------------------------------------------------
-  // TEST 2: Product Lifecycle Dispatches Downstream Tasks
+  // TEST 2: Product Lifecycle Dispatches Downstream Tasks & Rejects Non-Existent
   // --------------------------------------------------------------------------
-  console.log('\n[TEST 2] Testing Product Lifecycle Downstream Task Dispatching...');
+  console.log('\n[TEST 2] Testing Product Lifecycle Downstream Task Dispatching & Authoritative Rejection...');
   const orchestrator = LifecycleOrchestrator.getInstance();
+
+  // 2a. Verify rejection of fabricated/non-existent product
+  let nonExistentRejected = false;
+  try {
+    await orchestrator.dispatchLifecycleEvent({
+      type: 'PRODUCT_STATUS_CHANGED',
+      entityType: 'PRODUCT',
+      entityId: 'prod-fabricated-nonexistent',
+      triggeredBy: 'test_suite',
+    });
+  } catch (err: any) {
+    if (err.message.includes('Entity not found for lifecycle event')) {
+      nonExistentRejected = true;
+    }
+  }
+  assert(nonExistentRejected === true, 'Fabricated product must be authoritatively rejected');
+
+  // 2b. Verify real catalog product dispatches downstream tasks
   const lifecycleResult = await orchestrator.dispatchLifecycleEvent({
     type: 'PRODUCT_STATUS_CHANGED',
     entityType: 'PRODUCT',
-    entityId: 'prod-sojat-henna',
+    entityId: 'prod-1',
     payload: {
-      oldStatus: 'DRAFT',
       newStatus: 'ACTIVE',
-      slug: 'pure-sojat-henna',
-      price: 299,
     },
     triggeredBy: 'test_suite',
   });
 
   assert(lifecycleResult.fastLaneExecuted === true, 'Fast lane must execute immediately');
   assert(lifecycleResult.backgroundTasksQueued.length >= 3, 'Must enqueue downstream specialist tasks');
-  console.log(`  ✅ TEST 2 PASSED: Lifecycle event triggered Fast Lane + ${lifecycleResult.backgroundTasksQueued.length} downstream jobs.`);
+  console.log(`  ✅ TEST 2 PASSED: Authoritative product validation + Fast Lane + ${lifecycleResult.backgroundTasksQueued.length} downstream jobs.`);
 
   // --------------------------------------------------------------------------
   // TEST 3: Duplicate Tasks Are Deduplicated
@@ -461,6 +499,7 @@ async function runTestSuite() {
   console.log('  ✅ TEST 17 PASSED: Strict lane isolation verified across FAST, BACKGROUND, and MAINTENANCE.');
 
   // --------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // TEST 18: Overlapping Scheduler Ticks & Atomic Worker Leasing
   // --------------------------------------------------------------------------
   console.log('\n[TEST 18] Testing Atomic Worker Leasing (Preventing Duplicate Execution)...');
@@ -481,13 +520,31 @@ async function runTestSuite() {
   // Concurrent Worker B attempts to lease next ready task
   const leasedByWorkerB = await store.leaseNextReadyTask('MAINTENANCE', 'scheduler-worker-B');
   assert(leasedByWorkerB?.id !== raceTaskId, 'Worker B must NEVER receive the already leased task');
+
+  // Test simultaneous concurrent claiming across workers
+  const concurrentTaskId = `task-simultaneous-claim-${Date.now()}`;
+  await store.addTask(createCanonicalTask({
+    id: concurrentTaskId,
+    domain: 'QA',
+    action: 'SIMULTANEOUS_CLAIM_TEST',
+    lane: 'MAINTENANCE',
+    priority: 150,
+  }));
+
+  const [claim1, claim2] = await Promise.all([
+    store.leaseNextReadyTask('MAINTENANCE', 'concurrent-worker-1'),
+    store.leaseNextReadyTask('MAINTENANCE', 'concurrent-worker-2'),
+  ]);
+
+  const claimedCount = [claim1, claim2].filter(c => c?.id === concurrentTaskId).length;
+  assert(claimedCount === 1, `Exactly one worker must claim the task across concurrent invocations (got ${claimedCount})`);
   console.log('  ✅ TEST 18 PASSED: Worker leasing atomically locks task and prevents double pickup.');
 
   // --------------------------------------------------------------------------
   // TEST 19: All Scheduled Cron Routes Dispatch Through Central Queue
   // --------------------------------------------------------------------------
-  console.log('\n[TEST 19] Testing Cron Dispatch Architecture...');
-  const cronRoutes = [
+  console.log('\n[TEST 19] Testing Cron Dispatch Architecture & Zero Worker Execution in Crons...');
+  const cronDispatcherRoutes = [
     'app/api/cron/guardian/route.ts',
     'app/api/cron/growth-autopilot/route.ts',
     'app/api/cron/media-queue/route.ts',
@@ -496,7 +553,7 @@ async function runTestSuite() {
     'app/api/cron/master-agent/route.ts',
   ];
 
-  for (const routeRelPath of cronRoutes) {
+  for (const routeRelPath of cronDispatcherRoutes) {
     const routePath = path.join(process.cwd(), routeRelPath);
     const content = fs.readFileSync(routePath, 'utf8');
     assert(
@@ -504,8 +561,17 @@ async function runTestSuite() {
       `${routeRelPath} must dispatch through CentralExecutionQueue or MasterAgent autonomous sweep`
     );
     assert(content.includes('timingSafeEqual'), `${routeRelPath} must enforce timing-safe Bearer token auth`);
+    assert(!content.includes('executeSingleTask('), `${routeRelPath} must be enqueue-only and NOT call executeSingleTask`);
   }
-  console.log('  ✅ TEST 19 PASSED: All 6 cron endpoints verified as thin dispatchers with fail-closed security.');
+
+  // Verify drain-queue route exists and uses CentralExecutionQueue
+  const drainQueuePath = path.join(process.cwd(), 'app/api/cron/drain-queue/route.ts');
+  assert(fs.existsSync(drainQueuePath), 'app/api/cron/drain-queue/route.ts must exist');
+  const drainContent = fs.readFileSync(drainQueuePath, 'utf8');
+  assert(drainContent.includes('processBackgroundLane'), 'drain-queue must process background lane');
+  assert(drainContent.includes('processMaintenanceLane'), 'drain-queue must process maintenance lane');
+  assert(drainContent.includes('reclaimStuckTasks'), 'drain-queue must reclaim stuck tasks');
+  console.log('  ✅ TEST 19 PASSED: All cron endpoints verified as thin dispatchers + canonical drainer in place.');
 
   // --------------------------------------------------------------------------
   // TEST 20: Self-Healing Honesty & Zero-Hallucination Mutative Reporting
@@ -522,6 +588,10 @@ async function runTestSuite() {
     (growthAudit.verifiedHealedActions || []).length === 0 || growthAudit.status === 'OPTIMAL' || growthAudit.status === 'SELF_HEALED',
     'verifiedHealedActions must accurately reflect only verified real mutations'
   );
+  assert(
+    growthAudit.healedActions.length === (growthAudit.verifiedHealedActions || []).length,
+    'healedActions must strictly match verifiedHealedActions without claiming unresolved collisions as healed'
+  );
 
   // Hidden product invariant
   const bridalCones = resolveProductLifecycle({
@@ -537,8 +607,41 @@ async function runTestSuite() {
   assert(bridalCones.isSitemapEligible === false, 'Bridal Cones must not be in sitemap');
   console.log('  ✅ TEST 20 PASSED: Self-healing honesty and product lifecycle governance invariants verified.');
 
+  // --------------------------------------------------------------------------
+  // TEST 21: Strict Order Error Handling (HTTP 422 for Unpurchasable Products)
+  // --------------------------------------------------------------------------
+  console.log('\n[TEST 21] Testing Strict Order Error Handling (422 Unprocessable Entity)...');
+  let orderRejectedReason = '';
+  try {
+    await saveOrder({
+      customerName: 'Test Buyer',
+      customerPhone: '9876543210',
+      customerAddress: '123 Test Street, Jaipur, Rajasthan 302001',
+      customerCity: 'Jaipur',
+      customerState: 'Rajasthan',
+      customerPincode: '302001',
+      items: [
+        {
+          productId: 'prod-3',
+          productName: 'Musky Dose Special Bridal Mehendi Cones',
+          quantity: 1,
+          price: 350,
+        },
+      ],
+      paymentMethod: 'Cash on Delivery',
+    });
+  } catch (err: any) {
+    orderRejectedReason = err?.message || '';
+  }
+
+  assert(
+    orderRejectedReason.includes('not currently available for purchase'),
+    `Order for non-purchasable prod-3 must be rejected with 'not currently available for purchase' (got: '${orderRejectedReason}')`
+  );
+  console.log(`  ✅ TEST 21 PASSED: Non-purchasable product correctly rejected at commerce gate: '${orderRejectedReason}'.`);
+
   console.log('\n============================================================');
-  console.log('🎉 ALL 20/20 INTEGRATION TESTS PASSED ACCORDING TO SPECIFICATION!');
+  console.log('🎉 ALL 21/21 INTEGRATION TESTS PASSED ACCORDING TO SPECIFICATION!');
   console.log('============================================================\n');
 }
 

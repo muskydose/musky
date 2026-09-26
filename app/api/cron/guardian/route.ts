@@ -6,7 +6,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { WebsiteGuardian } from '@/lib/guardian/guardian-core';
 import { sanitizeAdminError } from '@/lib/api-errors';
 
 export const dynamic = 'force-dynamic';
@@ -67,7 +66,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 2. Dispatch through Central Execution Queue
+    // 2. Dispatch through Central Execution Queue (Enqueue-only)
     const host = req.headers.get('host');
     const protocol = host?.includes('localhost') ? 'http' : 'https';
     const baseUrl = host ? `${protocol}://${host}` : undefined;
@@ -85,14 +84,18 @@ export async function GET(req: NextRequest) {
       input: { baseUrl },
     });
 
-    const executionSummary = await queue.executeSingleTask(task);
-
     return NextResponse.json({
-      success: executionSummary.status === 'COMPLETED',
+      success: true,
       service: 'musky-dose-guardian',
       timestamp: new Date().toISOString(),
-      summary: (task.result?.summary as any) || executionSummary,
-      executionSummary,
+      dispatched: true,
+      task: {
+        id: task.id,
+        status: task.status,
+        lane: task.lane,
+        worker: task.worker,
+        title: task.title,
+      },
     });
   } catch (error: any) {
     return sanitizeAdminError(error, 'GET /api/cron/guardian');

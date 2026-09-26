@@ -74,6 +74,7 @@ export class CentralExecutionQueue {
 
   /**
    * 1. FAST LANE: Executes small deterministic tasks immediately and synchronously.
+   * Universal execution contract: delegates to executeSingleTask.
    */
   public async processFastLane(tasks: AgentTask[]): Promise<AgentTask[]> {
     const executed: AgentTask[] = [];
@@ -81,87 +82,9 @@ export class CentralExecutionQueue {
     for (const rawTask of tasks) {
       const task = normalizeTask(rawTask);
       task.lane = 'FAST';
-
-      // Check if already verified within TTL
-      if (task.idempotencyKey && this.optimizer.shouldSkipVerified(task.idempotencyKey)) {
-        task.status = 'COMPLETED';
-        executed.push(task);
-        continue;
-      }
-
-      const workerHandler = WORKER_REGISTRY[task.worker];
-      if (!workerHandler) {
-        task.status = 'FAILED';
-        task.errorMessage = `Unknown worker: ${task.worker}`;
-        await this.store.updateTask(task.id, task);
-        executed.push(task);
-        continue;
-      }
-
-      const startTime = Date.now();
-      this.optimizer.trackExecutionStart();
-
-      try {
-        task.status = 'RUNNING';
-        task.startedAt = new Date().toISOString();
-        if (this.store.getTask(task.id)) {
-          await this.store.updateTask(task.id, {
-            status: 'RUNNING',
-            startedAt: task.startedAt,
-          });
-        }
-
-        const execution = await workerHandler(task);
-        const durationMs = Date.now() - startTime;
-        const isSuccess = execution.status === 'COMPLETED';
-
-        this.optimizer.trackExecutionEnd(durationMs, isSuccess);
-
-        task.status = execution.status;
-        task.narrative = execution.narrative;
-        task.result = execution.result;
-        task.errorMessage = execution.errorMessage;
-        task.completedAt = new Date().toISOString();
-
-        if (this.store.getTask(task.id)) {
-          await this.store.updateTask(task.id, {
-            status: execution.status,
-            narrative: execution.narrative,
-            result: execution.result,
-            errorMessage: execution.errorMessage,
-            completedAt: task.completedAt,
-          });
-        }
-
-        // Record in Result Engine
-        this.resultEngine.recordResult({
-          taskId: task.id,
-          domain: task.domain || 'CATALOG',
-          action: task.action || task.title,
-          entityType: task.entityType,
-          entityId: task.entityId,
-          actionExecuted: task.title,
-          verification: {
-            verified: isSuccess,
-            probeOutcome: execution.narrative.whatVerified,
-          },
-          measured: execution.result,
-        });
-
-        if (isSuccess && task.idempotencyKey) {
-          this.optimizer.markVerified(task.idempotencyKey, 15 * 60 * 1000);
-        }
-
-        executed.push(task);
-      } catch (err: any) {
-        const durationMs = Date.now() - startTime;
-        this.optimizer.trackExecutionEnd(durationMs, false);
-
-        task.status = 'FAILED';
-        task.errorMessage = err?.message || 'Fast lane execution failed';
-        await this.store.updateTask(task.id, task);
-        executed.push(task);
-      }
+      await this.executeSingleTask(task);
+      const updated = this.store.getTask(task.id) || task;
+      executed.push(updated);
     }
 
     return executed;
@@ -184,26 +107,13 @@ export class CentralExecutionQueue {
       // Determine safe concurrency bound adaptively
       const concurrencyLimit = this.optimizer.getSafeConcurrencyLimit();
 
-      // Gather ready tasks strictly for background lane with immediate worker lease
+      // Gather ready tasks strictly for background lane with atomic worker lease
       const readyBatch: AgentTask[] = [];
       const excludeIds = new Set<string>();
       for (let i = 0; i < concurrencyLimit && (executedSummaries.length + readyBatch.length) < maxBatch; i++) {
-        const candidate = this.store.getNextReadyTask('BACKGROUND', excludeIds);
+        const candidate = await this.store.leaseNextReadyTask('BACKGROUND', 'central-queue-background', excludeIds);
         if (candidate) {
           excludeIds.add(candidate.id);
-          // Lease task immediately to prevent concurrent pickup by overlapping ticks
-          const startedAt = new Date().toISOString();
-          await this.store.updateTask(candidate.id, {
-            status: 'RUNNING',
-            startedAt,
-            payload: {
-              ...(candidate.payload || {}),
-              leasedBy: 'central-queue-background',
-              leasedAt: startedAt,
-            },
-          });
-          candidate.status = 'RUNNING';
-          candidate.startedAt = startedAt;
           readyBatch.push(candidate);
         } else {
           break;
@@ -401,6 +311,33 @@ export class CentralExecutionQueue {
         nextAction: isSuccess ? 'Proceeding to dependent tasks' : 'Flagged for inspection',
       });
 
+      // 10. Record verified lesson into durable memory
+      if (isSuccess && execution.narrative.whatLearned) {
+        await this.store.recordLesson({
+          id: `mem-${task.worker}-${Date.now().toString(36)}`,
+          category: 'VERIFIED_LESSON',
+          topic: task.worker.toUpperCase(),
+          lesson: execution.narrative.whatLearned,
+          confidence: 0.95,
+          sampleSize: 1,
+          isCanonical: true,
+          verificationData: { taskId: task.id, verified: true },
+        });
+      }
+
+      // 11. Update SEO Opportunity status if task was spawned from an SEO opportunity
+      if (isSuccess && task.payload?.opportunityId) {
+        try {
+          const { SeoIntelligenceStore } = await import('./seo-intelligence/seo-store');
+          await SeoIntelligenceStore.getInstance().updateOpportunityStatus(
+            task.payload.opportunityId as string,
+            'COMPLETED'
+          );
+        } catch {
+          // non-blocking
+        }
+      }
+
       if (isSuccess && task.idempotencyKey) {
         this.optimizer.markVerified(task.idempotencyKey, 10 * 60 * 1000);
       }
@@ -440,6 +377,14 @@ export class CentralExecutionQueue {
         narrativeSummary: `Failed with error: ${errMsg}`,
       };
     }
+  }
+
+  /**
+   * Reclaims tasks stuck in RUNNING state across all lanes.
+   */
+  public async reclaimStuckTasks(stuckThresholdMs?: number): Promise<AgentTask[]> {
+    await this.store.ensureLoaded();
+    return this.store.reclaimStuckTasks(stuckThresholdMs);
   }
 
   /**

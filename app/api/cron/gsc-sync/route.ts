@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { SearchConsoleDataSourceAdapter, isSearchConsoleConfigured } from '@/lib/growth/sources/search-console-adapter';
 import { sanitizeAdminError } from '@/lib/api-errors';
 
 export const dynamic = 'force-dynamic';
@@ -60,7 +59,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 2. Dispatch through Central Execution Queue
+    // 2. Dispatch through Central Execution Queue (Enqueue-only)
     const dateHourKey = new Date().toISOString().slice(0, 13);
     const queue = (await import('@/lib/agent/central-queue')).CentralExecutionQueue.getInstance();
     const task = await queue.enqueue({
@@ -73,15 +72,18 @@ export async function GET(req: NextRequest) {
       title: 'Scheduled Search Console Data Sync',
     });
 
-    const executionSummary = await queue.executeSingleTask(task);
-
     return NextResponse.json({
-      success: executionSummary.status === 'COMPLETED',
-      status: task.result?.configured === false ? 'NOT_CONFIGURED' : 'CONNECTED',
-      message: executionSummary.narrativeSummary || 'GSC sync processed via central queue.',
-      recordsImported: (task.result?.recordsImported as number) || 0,
-      lastSyncedAt: new Date().toISOString(),
-      executionSummary,
+      success: true,
+      service: 'musky-dose-gsc-sync',
+      timestamp: new Date().toISOString(),
+      dispatched: true,
+      task: {
+        id: task.id,
+        status: task.status,
+        lane: task.lane,
+        worker: task.worker,
+        title: task.title,
+      },
     });
   } catch (error: any) {
     return sanitizeAdminError(error, 'GET /api/cron/gsc-sync');

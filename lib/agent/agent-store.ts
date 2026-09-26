@@ -13,6 +13,7 @@ import {
   AgentHealthScores,
   AgentExecutionStats,
   getNextDaily2AmIstTimestamp,
+  CANONICAL_TASK_LEASE_TIMEOUT_MS,
 } from './types';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
@@ -63,6 +64,7 @@ export class AgentStore {
   private auditLogs: AgentAuditEntry[] = [];
   private isDurableLoaded = false;
   private activeLockId: string | null = null;
+  private leaseMutex: Promise<void> = Promise.resolve();
 
   public static getInstance(): AgentStore {
     if (!AgentStore.instance) {
@@ -399,33 +401,112 @@ export class AgentStore {
 
   /**
    * Atomically leases the next ready task for the specified execution lane.
-   * Immediately transitions task to RUNNING status to prevent concurrent execution by overlapping scheduler runs.
+   * Guarantees atomic transition to RUNNING across concurrent workers and serverless instances:
+   * 1. In-process serialized mutex prevents race conditions within the same runtime.
+   * 2. Supabase conditional UPDATE with WHERE id = :id AND status IN ('QUEUED', 'RETRYING')
+   *    guarantees that across multiple serverless/container instances only ONE worker acquires the lease.
    */
   public async leaseNextReadyTask(
     lane?: import('./types').ExecutionLane,
-    leaseOwner: string = 'worker-lease'
+    leaseOwner: string = 'worker-lease',
+    excludeIds?: Set<string>
   ): Promise<AgentTask | undefined> {
-    const candidate = this.getNextReadyTask(lane);
-    if (!candidate) return undefined;
+    // Acquire in-process mutex
+    let release: () => void = () => {};
+    const acquireMutex = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const prevMutex = this.leaseMutex;
+    this.leaseMutex = this.leaseMutex.then(() => acquireMutex);
 
+    await prevMutex;
+
+    try {
+      const attemptedIds = new Set<string>(excludeIds || []);
+
+      while (true) {
+        const candidate = this.getNextReadyTask(lane, attemptedIds);
+        if (!candidate) return undefined;
+
+        attemptedIds.add(candidate.id);
+
+        const claimed = await this.atomicClaimTask(candidate, leaseOwner);
+        if (claimed) {
+          return claimed;
+        }
+        // If claim failed (e.g. database race condition with another instance), continue to next candidate
+      }
+    } finally {
+      release();
+    }
+  }
+
+  /**
+   * Conditionally claims a candidate task, ensuring database-level atomicity.
+   */
+  public async atomicClaimTask(
+    candidate: AgentTask,
+    leaseOwner: string
+  ): Promise<AgentTask | undefined> {
     const startedAt = new Date().toISOString();
-    const updated = await this.updateTask(candidate.id, {
+    const updatedPayload = {
+      ...(candidate.payload || {}),
+      leasedBy: leaseOwner,
+      leasedAt: startedAt,
+    };
+
+    // If Supabase is connected, execute conditional atomic UPDATE
+    const supabase = getSupabaseAdmin();
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('master_agent_tasks')
+          .update({
+            status: 'RUNNING',
+            started_at: startedAt,
+            payload: updatedPayload,
+          })
+          .eq('id', candidate.id)
+          .in('status', ['QUEUED', 'RETRYING'])
+          .select();
+
+        if (error) {
+          logger.warn(`[AgentStore] Atomic claim DB error for task ${candidate.id}:`, { error: String(error) });
+        } else if (!data || data.length === 0) {
+          // Another worker already claimed this task in the database
+          const existing = this.tasks.get(candidate.id);
+          if (existing && (existing.status === 'QUEUED' || existing.status === 'RETRYING')) {
+            existing.status = 'RUNNING';
+          }
+          return undefined;
+        }
+      } catch (err) {
+        logger.warn(`[AgentStore] Atomic claim exception for task ${candidate.id}:`, { error: String(err) });
+      }
+    }
+
+    // In-memory check and state transition
+    const current = this.tasks.get(candidate.id);
+    if (!current || (current.status !== 'QUEUED' && current.status !== 'RETRYING')) {
+      return undefined;
+    }
+
+    const updated: AgentTask = {
+      ...current,
       status: 'RUNNING',
       startedAt,
-      payload: {
-        ...(candidate.payload || {}),
-        leasedBy: leaseOwner,
-        leasedAt: startedAt,
-      },
-    });
+      payload: updatedPayload,
+    };
+    this.tasks.set(candidate.id, updated);
+    this.recalculateStats();
 
-    return updated || candidate;
+    return updated;
   }
 
   /**
    * Reclaims tasks stuck in RUNNING state for longer than threshold (worker/serverless crash recovery).
    */
-  public async reclaimStuckTasks(stuckThresholdMs: number = 5 * 60 * 1000): Promise<AgentTask[]> {
+  public async reclaimStuckTasks(stuckThresholdMs: number = CANONICAL_TASK_LEASE_TIMEOUT_MS): Promise<AgentTask[]> {
     const now = Date.now();
     const reclaimed: AgentTask[] = [];
 

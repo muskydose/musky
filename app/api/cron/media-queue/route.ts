@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { sanitizeAdminError } from '@/lib/api-errors';
-import { processPendingMediaJobs } from '@/lib/growth/media-queue-consumer';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -46,7 +45,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Dispatch through Central Execution Queue (BACKGROUND lane)
+    // Dispatch through Central Execution Queue (Enqueue-only)
     const dateMinuteKey = new Date().toISOString().slice(0, 16);
     const queue = (await import('@/lib/agent/central-queue')).CentralExecutionQueue.getInstance();
     const task = await queue.enqueue({
@@ -59,15 +58,18 @@ export async function GET(req: NextRequest) {
       title: 'Scheduled Autonomous Media Queue Consumer',
     });
 
-    const executionSummary = await queue.executeSingleTask(task);
-    const backgroundLaneSummaries = await queue.processBackgroundLane({ timeLimitMs: 25000, maxBatch: 4 });
-
     return NextResponse.json({
-      success: executionSummary.status === 'COMPLETED',
+      success: true,
+      service: 'musky-dose-media-queue',
       timestamp: new Date().toISOString(),
-      summary: task.result || executionSummary,
-      executionSummary,
-      backgroundLaneSummaries,
+      dispatched: true,
+      task: {
+        id: task.id,
+        status: task.status,
+        lane: task.lane,
+        worker: task.worker,
+        title: task.title,
+      },
     });
   } catch (error: any) {
     return sanitizeAdminError(error, 'Media queue cron failed.');

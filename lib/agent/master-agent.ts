@@ -5,7 +5,6 @@
 
 import { AgentStore } from './agent-store';
 import { AgentContextEngine } from './context-engine';
-import { WORKER_REGISTRY } from './workers';
 import {
   AgentObjective,
   AgentTask,
@@ -21,7 +20,6 @@ import { KeywordUniverseEngine } from './seo-intelligence/keyword-universe-engin
 import { getProducts } from '@/lib/db/products';
 import { ResultEngine } from './result-engine';
 import { LearningEngine } from './learning-engine';
-import { PerformanceOptimizer } from './performance-optimizer';
 import { CentralExecutionQueue } from './central-queue';
 import { mapWorkerToDomain } from './task-contract';
 
@@ -395,142 +393,11 @@ export class MuskyDoseMasterAgent {
         return { idle: true, reason: 'Queue empty; ecosystem fully healthy' };
       }
 
-      // Safety Gate: Check if task requires explicit owner approval and is not yet approved
-      if (task.requiresApproval && !task.payload?.approvedByOwner) {
-        const errorReason = task.approvalReason
-          ? `Requires owner authorization: ${task.approvalReason}`
-          : 'Requires explicit owner authorization before execution.';
-        await this.store.updateTask(task.id, {
-          status: 'BLOCKED',
-          errorMessage: errorReason,
-        });
-        await this.store.releaseLock(lockId);
-        return {
-          executedTaskId: task.id,
-          status: 'BLOCKED',
-          worker: task.worker,
-          narrativeSummary: 'Halted at Master Agent Safety Gate: pending owner authorization.',
-        };
-      }
+      // 5. Delegate execution strictly to the single canonical CentralExecutionQueue
+      const queue = CentralExecutionQueue.getInstance();
+      const executionSummary = await queue.executeSingleTask(task);
 
-      // Execute the task
-      const workerHandler = WORKER_REGISTRY[task.worker];
-      if (!workerHandler) {
-        await this.store.updateTask(task.id, {
-          status: 'FAILED',
-          errorMessage: `Unknown worker: ${task.worker}`,
-        });
-        await this.store.releaseLock(lockId);
-        return { executedTaskId: task.id, status: 'FAILED' };
-      }
-
-      // Attach relevant memory playbooks to task payload for self-learning reuse
-      const relevantLessons = this.store
-        .getMemoryRecords()
-        .filter((m) => m.topic === task.worker.toUpperCase() || m.category === 'PLAYBOOK');
-      task.payload = {
-        ...task.payload,
-        appliedLessons: relevantLessons.map((l) => ({ id: l.id, lesson: l.lesson })),
-      };
-
-      // Mark task as RUNNING
-      await this.store.updateTask(task.id, {
-        status: 'RUNNING',
-        startedAt: new Date().toISOString(),
-      });
-
-      await this.store.updateState({
-        currentTaskId: task.id,
-        currentRunStartedAt: new Date().toISOString(),
-      });
-
-      // Execute worker
-      const execution = await workerHandler(task, context);
-
-      // Record outcomes
-      const completedAt = new Date().toISOString();
-      await this.store.updateTask(task.id, {
-        status: execution.status,
-        narrative: execution.narrative,
-        result: execution.result,
-        errorMessage: execution.errorMessage,
-        completedAt,
-      });
-
-      // Record Audit Timeline
-      await this.store.recordAudit({
-        taskId: task.id,
-        objectiveId: task.objectiveId,
-        worker: task.worker,
-        action: task.title,
-        filesAffected: execution.filesAffected,
-        dataAffected: execution.dataAffected,
-        result: execution.status,
-        testOutcome: execution.narrative.whatVerified,
-        nextAction: execution.status === 'COMPLETED' ? 'Proceeding to next ready task' : 'Flagged for attention',
-      });
-
-      // Update Memory if verified lesson was synthesized
-      if (execution.status === 'COMPLETED' && execution.narrative.whatLearned) {
-        await this.store.recordLesson({
-          id: `mem-${task.worker}-${Date.now().toString(36)}`,
-          category: 'VERIFIED_LESSON',
-          topic: task.worker.toUpperCase(),
-          lesson: execution.narrative.whatLearned,
-          confidence: 0.95,
-          sampleSize: 1,
-          isCanonical: true,
-          verificationData: { taskId: task.id, verified: true },
-        });
-      }
-
-      // Update SEO Opportunity status if task was spawned from an SEO opportunity
-      if (execution.status === 'COMPLETED' && task.payload?.opportunityId) {
-        await SeoIntelligenceStore.getInstance().updateOpportunityStatus(
-          task.payload.opportunityId as string,
-          'COMPLETED'
-        );
-      }
-
-      // Record into central ResultEngine
-      ResultEngine.getInstance().recordResult({
-        taskId: task.id,
-        domain: task.domain || mapWorkerToDomain(task.worker),
-        action: task.action || task.title,
-        entityType: task.entityType,
-        entityId: task.entityId,
-        actionExecuted: task.title,
-        verification: {
-          verified: execution.status === 'COMPLETED',
-          probeOutcome: execution.narrative.whatVerified,
-        },
-        measured: execution.result,
-      });
-
-      // Record into central LearningEngine
-      const startTimeMs = task.startedAt ? new Date(task.startedAt).getTime() : Date.now();
-      const taskDurationMs = Math.max(1, Date.now() - startTimeMs);
-      await LearningEngine.getInstance().recordExperience({
-        domain: task.domain || mapWorkerToDomain(task.worker),
-        worker: task.worker,
-        taskType: task.action || task.title,
-        strategy: (task.payload?.selectedStrategy as string) || 'DEFAULT_STRATEGY',
-        success: execution.status === 'COMPLETED',
-        durationMs: taskDurationMs,
-        failureReason: execution.errorMessage,
-        lessonSynthesized: execution.narrative.whatLearned,
-      });
-
-      // Update Performance Optimizer
-      PerformanceOptimizer.getInstance().trackExecutionEnd(
-        taskDurationMs,
-        execution.status === 'COMPLETED'
-      );
-      if (execution.status === 'COMPLETED' && task.idempotencyKey) {
-        PerformanceOptimizer.getInstance().markVerified(task.idempotencyKey);
-      }
-
-      // Check if objective is complete
+      // 6. Check if objective is complete
       let objectiveCompleted = false;
       if (task.objectiveId) {
         const objectiveTasks = this.store.getAllTasks().filter((t) => t.objectiveId === task.objectiveId);
@@ -548,7 +415,8 @@ export class MuskyDoseMasterAgent {
         }
       }
 
-      // Set next task pointer
+      // 7. Update state pointers and release lock
+      const completedAt = new Date().toISOString();
       const nextReady = this.store.getNextReadyTask();
       await this.store.updateState({
         currentTaskId: null,
@@ -565,11 +433,8 @@ export class MuskyDoseMasterAgent {
       await this.store.releaseLock(lockId);
 
       return {
-        executedTaskId: task.id,
-        status: execution.status,
-        worker: task.worker,
+        ...executionSummary,
         objectiveCompleted,
-        narrativeSummary: execution.narrative.whatChanged,
       };
     } catch (err: any) {
       logger.error('[MuskyDoseMasterAgent] Error during tick:', err);
@@ -772,14 +637,6 @@ export class MuskyDoseMasterAgent {
     const t6 = await this.store.addTask(verificationTask);
     if (t6) enqueuedTasks.push(t6);
 
-    // 7. SEO Intelligence Layer: Scan and Enqueue detected SEO opportunities
-    try {
-      const seoTasks = await this.scanAndEnqueueSeoWork();
-      enqueuedTasks.push(...seoTasks);
-    } catch (e: any) {
-      logger.warn('[MasterAgent] Notice: SEO opportunities scan non-blocking warning:', { error: e?.message });
-    }
-
     return enqueuedTasks;
   }
 
@@ -875,6 +732,7 @@ export class MuskyDoseMasterAgent {
   public async runDailyAutonomousSweep(options: {
     timeLimitMs?: number;
     maxBatch?: number;
+    enqueueOnly?: boolean;
   } = {}): Promise<DailySweepSummary> {
     await this.store.ensureLoaded();
     const dateKey = new Date().toISOString().slice(0, 10);
@@ -933,12 +791,14 @@ export class MuskyDoseMasterAgent {
     // 4. Scan full website across all pillars and enqueue safe maintenance work
     const identified = await this.scanAndEnqueueSafeWork();
 
-    // 5. Process a bounded batch of maintenance lane work within strict execution budget (<10s)
-    // Heavy domain processing continues through durable queue
-    const boundedTimeLimit = Math.min(options.timeLimitMs || 8000, 10000);
-    const executedSummaries = await queue.processMaintenanceLane({
-      timeLimitMs: boundedTimeLimit,
-    });
+    // 5. Process a bounded batch of maintenance lane work only if not enqueueOnly
+    let executedSummaries: TickExecutionSummary[] = [];
+    if (!options.enqueueOnly) {
+      const boundedTimeLimit = Math.min(options.timeLimitMs || 8000, 10000);
+      executedSummaries = await queue.processMaintenanceLane({
+        timeLimitMs: boundedTimeLimit,
+      });
+    }
 
     // 6. Inspect remaining unfinished tasks in the durable store
     const allTasks = this.store.getAllTasks();
@@ -956,12 +816,13 @@ export class MuskyDoseMasterAgent {
       nextScheduledRunAt: nextScheduled,
     });
 
-    const status: 'COMPLETED' | 'PARTIAL' | 'IDLE' =
-      unfinishedTasks.length === 0
-        ? 'COMPLETED'
-        : executedSummaries.length > 0
-        ? 'PARTIAL'
-        : 'IDLE';
+    const status: DailySweepSummary['status'] = options.enqueueOnly
+      ? 'DISPATCHED'
+      : unfinishedTasks.length === 0
+      ? 'COMPLETED'
+      : executedSummaries.length > 0
+      ? 'PARTIAL'
+      : 'IDLE';
 
     return {
       timestamp: new Date().toISOString(),

@@ -216,7 +216,7 @@ export interface DailySweepSummary {
   unfinishedTasksCount: number;
   nextScheduledRunAt: string;
   tasksExecuted: any[];
-  status: 'COMPLETED' | 'PARTIAL' | 'IDLE';
+  status: 'COMPLETED' | 'PARTIAL' | 'IDLE' | 'DISPATCHED';
   keywordUniverseSweep?: {
     started: boolean;
     completed: boolean;
@@ -228,6 +228,8 @@ export interface DailySweepSummary {
     errorIfAny: string | null;
   };
 }
+
+export const CANONICAL_TASK_LEASE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
  * Calculates the exact ISO timestamp of the next daily 2:00 AM IST (20:30 UTC previous day) execution.
