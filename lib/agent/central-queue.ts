@@ -108,6 +108,10 @@ export class CentralExecutionQueue {
     if (task.idempotencyKey) {
       const existing = this.store.getTaskByIdempotencyKey(task.idempotencyKey);
       if (existing) {
+        if (task.lane && existing.lane !== task.lane) {
+          existing.lane = task.lane;
+          await this.store.updateTask(existing.id, { lane: task.lane });
+        }
         this.optimizer.incrementDeduplication();
         logger.info(`[CentralQueue] Task deduplicated: ${task.idempotencyKey}`);
         return existing;

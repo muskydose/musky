@@ -12,9 +12,12 @@ import {
   AgentTaskStatus,
   AgentHealthScores,
   AgentExecutionStats,
+  ExecutionLane,
+  CanonicalTaskDomain,
   getNextDaily2AmIstTimestamp,
   CANONICAL_TASK_LEASE_TIMEOUT_MS,
 } from './types';
+import { inferExecutionLane, mapWorkerToDomain } from './task-contract';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
 
@@ -77,6 +80,16 @@ export class AgentStore {
   public setIsDurableTableAvailableForTesting(available: boolean): void {
     this.isDurableTableAvailable = available;
     this.claimTelemetryMode = available ? 'DURABLE' : 'NON_DURABLE_FALLBACK';
+  }
+
+  private isLaneColumnAvailable = true;
+
+  public isLaneDurable(): boolean {
+    return this.isDurableTableAvailable && this.isLaneColumnAvailable;
+  }
+
+  public setIsLaneColumnAvailableForTesting(available: boolean): void {
+    this.isLaneColumnAvailable = available;
   }
   private activeLockId: string | null = null;
   private leaseMutex: Promise<void> = Promise.resolve();
@@ -167,10 +180,28 @@ export class AgentStore {
           message: err?.message,
         });
         this.isDurableTableAvailable = false;
+        this.isLaneColumnAvailable = false;
         this.claimTelemetryMode = 'NON_DURABLE_FALLBACK';
       } else {
         this.isDurableTableAvailable = true;
         this.claimTelemetryMode = 'DURABLE';
+
+        const sampleRow = (pendingTasksRes.data && pendingTasksRes.data[0]) || (recentTasksRes.data && recentTasksRes.data[0]);
+        if (sampleRow && (sampleRow as any).lane !== undefined) {
+          this.isLaneColumnAvailable = true;
+        } else {
+          try {
+            const laneProbe = await supabase.from('master_agent_tasks').select('id, lane').limit(1);
+            if (laneProbe.error && (laneProbe.error.code === '42703' || laneProbe.error.code === 'PGRST204' || laneProbe.error.message?.includes('lane'))) {
+              this.isLaneColumnAvailable = false;
+              logger.warn('[AgentStore] Supabase table master_agent_tasks is missing "lane" column. Migration 017 pending. In-memory lane routing active.');
+            } else {
+              this.isLaneColumnAvailable = true;
+            }
+          } catch {
+            this.isLaneColumnAvailable = false;
+          }
+        }
       }
 
       if (stateRes.data) {
@@ -200,11 +231,16 @@ export class AgentStore {
         if (seenIds.has(t.id)) continue;
         seenIds.add(t.id);
 
+        const rawDomain = (t.domain as CanonicalTaskDomain) || mapWorkerToDomain(t.worker);
+        const taskLane: ExecutionLane =
+          (t.lane as ExecutionLane) || inferExecutionLane(rawDomain, t.action || t.title);
+
         this.tasks.set(t.id, {
           id: t.id,
           objectiveId: t.objective_id,
           title: t.title,
           worker: t.worker,
+          lane: taskLane,
           status: t.status as AgentTaskStatus,
           priority: t.priority ?? 50,
           dependencyIds: t.dependency_ids ?? [],
@@ -407,8 +443,8 @@ export class AgentStore {
         if (excludeIds && excludeIds.has(t.id)) return false;
         if (t.status !== 'QUEUED' && t.status !== 'RETRYING') return false;
         if (!lane) return true;
-        if (lane === 'BACKGROUND') return t.lane === 'BACKGROUND' || !t.lane;
-        return t.lane === lane;
+        const taskLane: ExecutionLane = t.lane || 'BACKGROUND';
+        return taskLane === lane;
       })
       .sort((a, b) => b.priority - a.priority);
 
@@ -528,6 +564,7 @@ export class AgentStore {
         const existing = this.tasks.get(candidate.id) || candidate;
         const updated: AgentTask = {
           ...existing,
+          lane: (row.lane as ExecutionLane) || existing.lane || 'BACKGROUND',
           status: 'RUNNING',
           startedAt: row.started_at || startedAt,
           payload: (row.payload as Record<string, unknown>) || updatedPayload,
@@ -553,6 +590,7 @@ export class AgentStore {
 
     const updated: AgentTask = {
       ...current,
+      lane: current.lane || 'BACKGROUND',
       status: 'RUNNING',
       startedAt,
       payload: updatedPayload,
@@ -613,6 +651,7 @@ export class AgentStore {
       }
     }
 
+    task.lane = task.lane || 'BACKGROUND';
     this.tasks.set(task.id, task);
 
     // Limit in-memory size
@@ -634,7 +673,7 @@ export class AgentStore {
     const supabase = getSupabaseAdmin();
     if (supabase && this.isDurableTableAvailable) {
       try {
-        await supabase.from('master_agent_tasks').upsert({
+        const rowToInsert: Record<string, unknown> = {
           id: task.id,
           objective_id: task.objectiveId,
           title: task.title,
@@ -656,7 +695,26 @@ export class AgentStore {
           started_at: task.startedAt,
           completed_at: task.completedAt,
           created_at: task.createdAt,
-        });
+        };
+
+        if (this.isLaneColumnAvailable) {
+          rowToInsert.lane = task.lane;
+        }
+
+        const { error } = await supabase.from('master_agent_tasks').upsert(rowToInsert);
+        if (error) {
+          if (this.isLaneColumnAvailable && (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('lane'))) {
+            this.isLaneColumnAvailable = false;
+            logger.warn(`[AgentStore] master_agent_tasks.lane column not found in database. Retrying upsert without lane column for task ${task.id}.`);
+            delete rowToInsert.lane;
+            const retryRes = await supabase.from('master_agent_tasks').upsert(rowToInsert);
+            if (retryRes.error) {
+              logger.warn(`[AgentStore] Failed to persist task ${task.id} to Supabase after fallback:`, { error: String(retryRes.error.message) });
+            }
+          } else {
+            logger.warn(`[AgentStore] Failed to persist task ${task.id} to Supabase:`, { error: String(error.message) });
+          }
+        }
       } catch (err) {
         logger.warn(`[AgentStore] Failed to persist task ${task.id} to Supabase:`, { error: String(err) });
       }
@@ -675,6 +733,7 @@ export class AgentStore {
     const merged: AgentTask = {
       ...existing,
       ...updates,
+      lane: updates.lane || existing.lane || 'BACKGROUND',
       narrative: {
         ...existing.narrative,
         ...(updates.narrative || {}),
@@ -685,25 +744,37 @@ export class AgentStore {
     this.recalculateStats();
 
     const supabase = getSupabaseAdmin();
-    if (supabase) {
+    if (supabase && this.isDurableTableAvailable) {
       try {
-        await supabase
+        const updatePayload: Record<string, unknown> = {
+          status: merged.status,
+          why_this_task: merged.narrative.whyThisTask,
+          what_detected: merged.narrative.whatDetected,
+          what_changed: merged.narrative.whatChanged,
+          what_verified: merged.narrative.whatVerified,
+          what_learned: merged.narrative.whatLearned,
+          payload: merged.payload,
+          result: merged.result,
+          error_message: merged.errorMessage,
+          retry_count: merged.retryCount,
+          started_at: merged.startedAt,
+          completed_at: merged.completedAt,
+        };
+
+        if (this.isLaneColumnAvailable) {
+          updatePayload.lane = merged.lane;
+        }
+
+        const { error } = await supabase
           .from('master_agent_tasks')
-          .update({
-            status: merged.status,
-            why_this_task: merged.narrative.whyThisTask,
-            what_detected: merged.narrative.whatDetected,
-            what_changed: merged.narrative.whatChanged,
-            what_verified: merged.narrative.whatVerified,
-            what_learned: merged.narrative.whatLearned,
-            payload: merged.payload,
-            result: merged.result,
-            error_message: merged.errorMessage,
-            retry_count: merged.retryCount,
-            started_at: merged.startedAt,
-            completed_at: merged.completedAt,
-          })
+          .update(updatePayload)
           .eq('id', taskId);
+
+        if (error && this.isLaneColumnAvailable && (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('lane'))) {
+          this.isLaneColumnAvailable = false;
+          delete updatePayload.lane;
+          await supabase.from('master_agent_tasks').update(updatePayload).eq('id', taskId);
+        }
       } catch (err) {
         logger.warn(`[AgentStore] Failed to update task ${taskId} in Supabase:`, { error: String(err) });
       }

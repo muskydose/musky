@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS public.master_agent_tasks (
   objective_id TEXT,
   title TEXT NOT NULL,
   worker TEXT NOT NULL,
+  lane TEXT NOT NULL DEFAULT 'BACKGROUND' CHECK (lane IN ('FAST', 'BACKGROUND', 'MAINTENANCE')),
   status TEXT NOT NULL DEFAULT 'QUEUED' CHECK (status IN ('QUEUED', 'RUNNING', 'COMPLETED', 'FAILED', 'BLOCKED', 'RETRYING')),
   priority INTEGER NOT NULL DEFAULT 50,
   dependency_ids TEXT[] DEFAULT '{}',
@@ -79,6 +80,7 @@ CREATE TABLE IF NOT EXISTS public.master_agent_tasks (
 
 CREATE INDEX IF NOT EXISTS idx_master_agent_tasks_status ON public.master_agent_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_master_agent_tasks_worker ON public.master_agent_tasks(worker);
+CREATE INDEX IF NOT EXISTS idx_master_agent_tasks_lane_lease ON public.master_agent_tasks(status, lane, priority DESC, created_at ASC);
 CREATE INDEX IF NOT EXISTS idx_master_agent_tasks_created ON public.master_agent_tasks(created_at DESC);
 
 -- 3. CREATE TABLE: master_agent_memory
