@@ -16,6 +16,18 @@ export type CanonicalTaskDomain =
   | 'INDEXING'
   | 'QA';
 
+export type SchedulerHealthStatus =
+  | 'ACTIVE'
+  | 'DEGRADED'
+  | 'PAUSED'
+  | 'NOT_CONFIGURED';
+
+export interface ReadyCountPerLane {
+  FAST: number;
+  BACKGROUND: number;
+  MAINTENANCE: number;
+}
+
 export type ExecutionLane =
   | 'FAST'
   | 'BACKGROUND'

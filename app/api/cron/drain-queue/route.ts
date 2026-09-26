@@ -46,17 +46,23 @@ export async function GET(req: NextRequest) {
     }
 
     const cronSecret = process.env.CRON_SECRET;
-    if (!cronSecret) {
+    const internalQueueSecret = process.env.INTERNAL_QUEUE_SECRET;
+
+    if (!cronSecret && !internalQueueSecret) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Unauthorized: CRON_SECRET is not configured on server.',
+          error: 'Unauthorized: Neither CRON_SECRET nor INTERNAL_QUEUE_SECRET is configured on server.',
         },
         { status: 401 }
       );
     }
 
-    if (!secureCompare(bearerToken, cronSecret)) {
+    const isAuthorized =
+      (cronSecret && secureCompare(bearerToken, cronSecret)) ||
+      (internalQueueSecret && secureCompare(bearerToken, internalQueueSecret));
+
+    if (!isAuthorized) {
       return NextResponse.json(
         {
           success: false,
@@ -80,9 +86,13 @@ export async function GET(req: NextRequest) {
     // 4. Process bounded batch from MAINTENANCE lane (up to 20s budget)
     const maintenanceSummaries = await queue.processMaintenanceLane({
       timeLimitMs: 20000,
+      maxBatch: 5,
     });
 
-    // 5. Gather queue telemetry
+    // 5. Record successful drain telemetry event
+    queue.recordDrainEvent(true, reclaimed.length);
+
+    // 6. Gather queue telemetry
     const queueStatus = queue.getStatus();
 
     return NextResponse.json({
@@ -99,6 +109,9 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error: any) {
+    try {
+      CentralExecutionQueue.getInstance().recordDrainEvent(false, 0, error?.message || 'Drain failure');
+    } catch {}
     return sanitizeAdminError(error, 'GET /api/cron/drain-queue');
   }
 }

@@ -10,6 +10,8 @@ import {
   AgentWorkerType,
   ExecutionLane,
   TickExecutionSummary,
+  SchedulerHealthStatus,
+  ReadyCountPerLane,
 } from './types';
 import { AgentStore } from './agent-store';
 import { WORKER_REGISTRY, WorkerHandler } from './workers';
@@ -28,6 +30,18 @@ export interface CentralQueueStatus {
   blocked: number;
   completed: number;
   failed: number;
+  retrying: number;
+  activeLeases: number;
+  backlogDepth: number;
+  oldestQueuedTaskAgeMs: number;
+  oldestQueuedTaskAgeMinutes: number;
+  lastDrainAt: string | null;
+  lastDrainSuccess: boolean;
+  lastReclaimedCount: number;
+  nextExpectedHeartbeat: string | null;
+  schedulerStatus: SchedulerHealthStatus;
+  claimTelemetryMode: 'DURABLE' | 'NON_DURABLE_FALLBACK';
+  readyCountPerLane: ReadyCountPerLane;
   optimizerTelemetry: ReturnType<PerformanceOptimizer['getTelemetry']>;
 }
 
@@ -37,6 +51,12 @@ export class CentralExecutionQueue {
   private resultEngine: ResultEngine;
   private learningEngine: LearningEngine;
   private optimizer: PerformanceOptimizer;
+
+  // Drain and scheduler telemetry
+  private lastDrainAt: string | null = null;
+  private lastDrainSuccess: boolean = false;
+  private lastDrainError: string | null = null;
+  private lastReclaimedCount: number = 0;
 
   public static getInstance(): CentralExecutionQueue {
     if (!CentralExecutionQueue.instance) {
@@ -50,6 +70,31 @@ export class CentralExecutionQueue {
     this.resultEngine = ResultEngine.getInstance();
     this.learningEngine = LearningEngine.getInstance();
     this.optimizer = PerformanceOptimizer.getInstance();
+  }
+
+  /**
+   * Records a queue drain event (e.g. from /api/cron/drain-queue or continuous scheduler).
+   */
+  public recordDrainEvent(success: boolean, reclaimedCount: number = 0, error?: string): void {
+    this.lastDrainAt = new Date().toISOString();
+    this.lastDrainSuccess = success;
+    this.lastDrainError = error || null;
+    this.lastReclaimedCount = reclaimedCount;
+  }
+
+  /**
+   * Test/internal helper to simulate drain telemetry states.
+   */
+  public setDrainTelemetryForTesting(patch: {
+    lastDrainAt?: string | null;
+    lastDrainSuccess?: boolean;
+    lastDrainError?: string | null;
+    lastReclaimedCount?: number;
+  }): void {
+    if (patch.lastDrainAt !== undefined) this.lastDrainAt = patch.lastDrainAt;
+    if (patch.lastDrainSuccess !== undefined) this.lastDrainSuccess = patch.lastDrainSuccess;
+    if (patch.lastDrainError !== undefined) this.lastDrainError = patch.lastDrainError;
+    if (patch.lastReclaimedCount !== undefined) this.lastReclaimedCount = patch.lastReclaimedCount;
   }
 
   /**
@@ -154,17 +199,19 @@ export class CentralExecutionQueue {
    */
   public async processMaintenanceLane(options: {
     timeLimitMs?: number;
+    maxBatch?: number;
   } = {}): Promise<TickExecutionSummary[]> {
     await this.store.ensureLoaded();
     const startTime = Date.now();
     const timeLimitMs = options.timeLimitMs || 45000;
+    const maxBatch = options.maxBatch || 10;
     const results: TickExecutionSummary[] = [];
 
     // 1. Reclaim stuck tasks from crashes/serverless timeouts
     await this.store.reclaimStuckTasks();
 
     // 2. Process maintenance lane tasks with strict lane isolation
-    while (Date.now() - startTime < timeLimitMs) {
+    while (Date.now() - startTime < timeLimitMs && results.length < maxBatch) {
       const task = await this.store.leaseNextReadyTask('MAINTENANCE', 'central-queue-maintenance');
       if (!task) break;
 
@@ -391,18 +438,69 @@ export class CentralExecutionQueue {
    * Returns current telemetry and status for Admin Control Center.
    */
   public getStatus(): CentralQueueStatus {
+    const state = this.store.getState();
     const all = this.store.getAllTasks();
     const queued = all.filter((t) => t.status === 'QUEUED' || t.status === 'RETRYING');
 
+    const now = Date.now();
+    let oldestQueuedTaskAgeMs = 0;
+    if (queued.length > 0) {
+      const oldestCreatedTime = Math.min(...queued.map((t) => new Date(t.createdAt).getTime()));
+      oldestQueuedTaskAgeMs = Math.max(0, now - oldestCreatedTime);
+    }
+    const oldestQueuedTaskAgeMinutes = Math.floor(oldestQueuedTaskAgeMs / 60000);
+
+    const fastLaneReady = queued.filter((t) => t.lane === 'FAST').length;
+    const backgroundLaneReady = queued.filter((t) => t.lane === 'BACKGROUND' || !t.lane).length;
+    const maintenanceLaneReady = queued.filter((t) => t.lane === 'MAINTENANCE').length;
+    const running = all.filter((t) => t.status === 'RUNNING').length;
+    const blocked = all.filter((t) => t.status === 'BLOCKED' || t.status === 'APPROVAL_REQUIRED').length;
+    const completed = all.filter((t) => t.status === 'COMPLETED').length;
+    const failed = all.filter((t) => t.status === 'FAILED').length;
+    const retrying = all.filter((t) => t.status === 'RETRYING').length;
+
+    let schedulerStatus: SchedulerHealthStatus = 'NOT_CONFIGURED';
+    let nextExpectedHeartbeat: string | null = null;
+
+    if (state.isPaused) {
+      schedulerStatus = 'PAUSED';
+    } else if (!this.lastDrainAt) {
+      schedulerStatus = 'NOT_CONFIGURED';
+    } else {
+      const elapsedSinceDrainMs = now - new Date(this.lastDrainAt).getTime();
+      nextExpectedHeartbeat = new Date(new Date(this.lastDrainAt).getTime() + 5 * 60 * 1000).toISOString();
+      if (!this.lastDrainSuccess || elapsedSinceDrainMs > 15 * 60 * 1000 || oldestQueuedTaskAgeMs > 30 * 60 * 1000) {
+        schedulerStatus = 'DEGRADED';
+      } else {
+        schedulerStatus = 'ACTIVE';
+      }
+    }
+
     return {
       totalTasks: all.length,
-      fastLaneReady: queued.filter((t) => t.lane === 'FAST').length,
-      backgroundLaneReady: queued.filter((t) => t.lane === 'BACKGROUND' || !t.lane).length,
-      maintenanceLaneReady: queued.filter((t) => t.lane === 'MAINTENANCE').length,
-      running: all.filter((t) => t.status === 'RUNNING').length,
-      blocked: all.filter((t) => t.status === 'BLOCKED' || t.status === 'APPROVAL_REQUIRED').length,
-      completed: all.filter((t) => t.status === 'COMPLETED').length,
-      failed: all.filter((t) => t.status === 'FAILED').length,
+      fastLaneReady,
+      backgroundLaneReady,
+      maintenanceLaneReady,
+      running,
+      blocked,
+      completed,
+      failed,
+      retrying,
+      activeLeases: running,
+      backlogDepth: queued.length,
+      oldestQueuedTaskAgeMs,
+      oldestQueuedTaskAgeMinutes,
+      lastDrainAt: this.lastDrainAt,
+      lastDrainSuccess: this.lastDrainSuccess,
+      lastReclaimedCount: this.lastReclaimedCount,
+      nextExpectedHeartbeat,
+      schedulerStatus,
+      claimTelemetryMode: this.store.getClaimTelemetryMode(),
+      readyCountPerLane: {
+        FAST: fastLaneReady,
+        BACKGROUND: backgroundLaneReady,
+        MAINTENANCE: maintenanceLaneReady,
+      },
       optimizerTelemetry: this.optimizer.getTelemetry(queued.length),
     };
   }

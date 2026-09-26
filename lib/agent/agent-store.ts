@@ -63,6 +63,21 @@ export class AgentStore {
   private memoryRecords: Map<string, AgentMemoryRecord> = new Map();
   private auditLogs: AgentAuditEntry[] = [];
   private isDurableLoaded = false;
+  private isDurableTableAvailable = false;
+  private claimTelemetryMode: 'DURABLE' | 'NON_DURABLE_FALLBACK' = 'DURABLE';
+
+  public getClaimTelemetryMode(): 'DURABLE' | 'NON_DURABLE_FALLBACK' {
+    return this.claimTelemetryMode;
+  }
+
+  public isDurableAvailable(): boolean {
+    return this.isDurableTableAvailable;
+  }
+
+  public setIsDurableTableAvailableForTesting(available: boolean): void {
+    this.isDurableTableAvailable = available;
+    this.claimTelemetryMode = available ? 'DURABLE' : 'NON_DURABLE_FALLBACK';
+  }
   private activeLockId: string | null = null;
   private leaseMutex: Promise<void> = Promise.resolve();
 
@@ -144,6 +159,19 @@ export class AgentStore {
         supabase.from('master_agent_tasks').select('*').order('created_at', { ascending: false }).limit(60),
         supabase.from('master_agent_memory').select('*'),
       ]);
+
+      if (pendingTasksRes.error || stateRes.error) {
+        const err = pendingTasksRes.error || stateRes.error;
+        logger.warn('[AgentStore] Supabase tables not available, operating in NON_DURABLE_FALLBACK:', {
+          code: err?.code,
+          message: err?.message,
+        });
+        this.isDurableTableAvailable = false;
+        this.claimTelemetryMode = 'NON_DURABLE_FALLBACK';
+      } else {
+        this.isDurableTableAvailable = true;
+        this.claimTelemetryMode = 'DURABLE';
+      }
 
       if (stateRes.data) {
         const row = stateRes.data;
@@ -443,6 +471,15 @@ export class AgentStore {
 
   /**
    * Conditionally claims a candidate task, ensuring database-level atomicity.
+   * State machine:
+   * A. Supabase is configured:
+   *    - conditional UPDATE succeeds with one returned row -> lease acquired
+   *    - conditional UPDATE returns zero rows -> task was already claimed; return undefined
+   *    - database ERROR/exception -> return undefined and DO NOT mutate the task to RUNNING locally
+   *    - NEVER falls back to local execution after a database claim error
+   * B. Supabase is unavailable (local-only dev mode):
+   *    - use documented in-process fallback
+   *    - mark telemetry explicitly as NON_DURABLE_FALLBACK
    */
   public async atomicClaimTask(
     candidate: AgentTask,
@@ -455,9 +492,10 @@ export class AgentStore {
       leasedAt: startedAt,
     };
 
-    // If Supabase is connected, execute conditional atomic UPDATE
+    // If Supabase is connected and durable tasks table is available, execute conditional atomic UPDATE
     const supabase = getSupabaseAdmin();
-    if (supabase) {
+    if (supabase && this.isDurableTableAvailable) {
+      this.claimTelemetryMode = 'DURABLE';
       try {
         const { data, error } = await supabase
           .from('master_agent_tasks')
@@ -472,7 +510,11 @@ export class AgentStore {
 
         if (error) {
           logger.warn(`[AgentStore] Atomic claim DB error for task ${candidate.id}:`, { error: String(error) });
-        } else if (!data || data.length === 0) {
+          // FAIL-CLOSED: On DB error, DO NOT mutate locally and NEVER fall back to in-memory execution!
+          return undefined;
+        }
+
+        if (!data || data.length === 0) {
           // Another worker already claimed this task in the database
           const existing = this.tasks.get(candidate.id);
           if (existing && (existing.status === 'QUEUED' || existing.status === 'RETRYING')) {
@@ -480,12 +522,30 @@ export class AgentStore {
           }
           return undefined;
         }
+
+        // Successfully claimed in database! Update local in-memory representation to match DB.
+        const row = data[0];
+        const existing = this.tasks.get(candidate.id) || candidate;
+        const updated: AgentTask = {
+          ...existing,
+          status: 'RUNNING',
+          startedAt: row.started_at || startedAt,
+          payload: (row.payload as Record<string, unknown>) || updatedPayload,
+        };
+        this.tasks.set(candidate.id, updated);
+        this.recalculateStats();
+        return updated;
       } catch (err) {
         logger.warn(`[AgentStore] Atomic claim exception for task ${candidate.id}:`, { error: String(err) });
+        // FAIL-CLOSED: On exception, DO NOT mutate locally and NEVER fall back to in-memory execution!
+        return undefined;
       }
     }
 
-    // In-memory check and state transition
+    // B. Supabase is unavailable (local dev fallback ONLY):
+    // Mark telemetry explicitly as NON_DURABLE_FALLBACK. Never claim globally atomic.
+    this.claimTelemetryMode = 'NON_DURABLE_FALLBACK';
+
     const current = this.tasks.get(candidate.id);
     if (!current || (current.status !== 'QUEUED' && current.status !== 'RETRYING')) {
       return undefined;
@@ -570,9 +630,9 @@ export class AgentStore {
 
     this.recalculateStats();
 
-    // Persist to Supabase
+    // Persist to Supabase if available
     const supabase = getSupabaseAdmin();
-    if (supabase) {
+    if (supabase && this.isDurableTableAvailable) {
       try {
         await supabase.from('master_agent_tasks').upsert({
           id: task.id,

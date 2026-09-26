@@ -795,8 +795,10 @@ export class MuskyDoseMasterAgent {
     let executedSummaries: TickExecutionSummary[] = [];
     if (!options.enqueueOnly) {
       const boundedTimeLimit = Math.min(options.timeLimitMs || 8000, 10000);
+      const boundedMaxBatch = Math.min(options.maxBatch || 2, 5);
       executedSummaries = await queue.processMaintenanceLane({
         timeLimitMs: boundedTimeLimit,
+        maxBatch: boundedMaxBatch,
       });
     }
 
@@ -1031,10 +1033,25 @@ export class MuskyDoseMasterAgent {
     const learningSummary = learning.getSummary();
     const queueStatus = queue.getStatus();
 
+    const attentionItems = blockedJobs.map(
+      (t) => `[APPROVAL REQUIRED] ${t.title}: ${t.errorMessage || t.approvalReason || 'Manual confirmation required'}`
+    );
+
+    if (queueStatus.schedulerStatus === 'NOT_CONFIGURED') {
+      attentionItems.push(
+        '[SCHEDULER_NOT_CONFIGURED] Autonomous 5-minute heartbeat awaiting Supabase pg_cron setup (Vercel daily fallback active). Run supabase-pg-cron-heartbeat-016.sql in Supabase SQL Editor.'
+      );
+    } else if (queueStatus.schedulerStatus === 'DEGRADED') {
+      attentionItems.push(
+        '[SCHEDULER_DEGRADED] Heartbeat delayed (>15m) or queue backlog elevated.'
+      );
+    }
+
     return {
       timestamp: new Date().toISOString(),
       isAutonomous: state.isAutonomous,
       isPaused: state.isPaused,
+      schedulerStatus: queueStatus.schedulerStatus,
       healthScores: state.healthScores,
       stats: state.stats,
       currentObjective: state.currentObjective,
@@ -1046,9 +1063,7 @@ export class MuskyDoseMasterAgent {
       whatIsHappening: activeJobs.length > 0
         ? activeJobs.map((t) => `Executing: ${t.title} (${t.worker})`)
         : ['Autonomous queue idle. All systems within optimal operational thresholds.'],
-      whatNeedsAttention: blockedJobs.map(
-        (t) => `[APPROVAL REQUIRED] ${t.title}: ${t.errorMessage || t.approvalReason || 'Manual confirmation required'}`
-      ),
+      whatNeedsAttention: attentionItems,
       whatWasFixed: allTasks
         .filter((t) => t.status === 'COMPLETED' && t.narrative?.whatChanged)
         .slice(0, 8)
