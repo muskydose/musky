@@ -27,6 +27,7 @@ export interface CreateCanonicalTaskInput {
   idempotencyKey?: string;
   narrative?: Partial<TaskNarrative>;
   input?: Record<string, unknown>;
+  payload?: Record<string, unknown>;
   maxRetries?: number;
   requiresApproval?: boolean;
   approvalReason?: string;
@@ -142,7 +143,7 @@ export function createCanonicalTask(input: CreateCanonicalTaskInput): AgentTask 
     whatLearned: input.narrative?.whatLearned || '',
   };
 
-  const payload = input.input || {};
+  const payload = input.payload || input.input || {};
   const priority = typeof input.priority === 'number' ? Math.max(1, Math.min(100, input.priority)) : 50;
   const maxRetries = typeof input.maxRetries === 'number' ? input.maxRetries : 3;
 
@@ -194,7 +195,11 @@ export function normalizeTask(task: AgentTask): AgentTask {
   const rawDeps = task.dependencies || task.dependencyIds || [];
   const dependencies = (Array.isArray(rawDeps) ? rawDeps : [])
     .filter((id): id is string => typeof id === 'string' && id.trim().length > 0 && id !== '{}' && id !== '[]');
-  const payload = task.input || task.payload || {};
+  const payload = (task.payload && Object.keys(task.payload).length > 0)
+    ? task.payload
+    : (task.input && Object.keys(task.input).length > 0)
+    ? task.input
+    : (task.payload || task.input || {});
   // Requirement D: lane is authoritative when already set. Never reinterpret based on title/action.
   const lane: ExecutionLane =
     (task.lane === 'FAST' || task.lane === 'MAINTENANCE' || task.lane === 'BACKGROUND')

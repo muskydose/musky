@@ -172,9 +172,32 @@ export function mapPaymentSettingsToRow(s: PaymentSettings) {
   };
 }
 
+export type SiteSettingsDiagnosticStatus =
+  | 'HEALTHY'
+  | 'USING_DEFAULTS'
+  | 'DB_UNAVAILABLE'
+  | 'DB_TRANSIENT_ERROR';
+
+export interface SiteSettingsDiagnostic {
+  status: SiteSettingsDiagnosticStatus;
+  message?: string;
+  timestamp?: string;
+}
+
+let lastSiteSettingsDiagnostic: SiteSettingsDiagnostic = { status: 'HEALTHY' };
+
+export function getSiteSettingsDiagnostic(): SiteSettingsDiagnostic {
+  return lastSiteSettingsDiagnostic;
+}
+
+export function setSiteSettingsDiagnosticForTesting(diag: SiteSettingsDiagnostic) {
+  lastSiteSettingsDiagnostic = diag;
+}
+
 export const getSiteSettings = cache(async (): Promise<SiteSettings> => {
   const supabase = getSupabaseAdmin() || getSupabase();
   if (!supabase) {
+    lastSiteSettingsDiagnostic = { status: 'DB_UNAVAILABLE', message: 'Supabase client unavailable' };
     return cachedSiteSettingsMemory || INITIAL_SITE_SETTINGS;
   }
 
@@ -182,15 +205,22 @@ export const getSiteSettings = cache(async (): Promise<SiteSettings> => {
     const { data, error } = await supabase.from('site_settings').select('*').eq('id', 'default').limit(1).maybeSingle();
 
     if (error || !data) {
-      if (error) console.warn(`Supabase site_settings fetch warning: ${error.message}`);
+      if (error) {
+        console.warn(`Supabase site_settings fetch warning: ${error.message}`);
+        lastSiteSettingsDiagnostic = { status: 'DB_TRANSIENT_ERROR', message: error.message };
+      } else {
+        lastSiteSettingsDiagnostic = { status: 'USING_DEFAULTS' };
+      }
       return cachedSiteSettingsMemory || INITIAL_SITE_SETTINGS;
     }
 
+    lastSiteSettingsDiagnostic = { status: 'HEALTHY' };
     const mapped = mapRowToSiteSettings(data);
     cachedSiteSettingsMemory = mapped;
     return mapped;
   } catch (err: any) {
     console.warn('getSiteSettings fallback to memory/initial:', err.message);
+    lastSiteSettingsDiagnostic = { status: 'DB_TRANSIENT_ERROR', message: err?.message };
     return cachedSiteSettingsMemory || INITIAL_SITE_SETTINGS;
   }
 });

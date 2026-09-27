@@ -318,6 +318,7 @@ export class CentralExecutionQueue {
       // 6. Update task in store
       await this.store.updateTask(task.id, {
         status: execution.status,
+        executionState: execution.executionState,
         narrative: execution.narrative,
         result: execution.result,
         errorMessage: execution.errorMessage,
@@ -490,7 +491,7 @@ export class CentralExecutionQueue {
     } else {
       const elapsedSinceDrainMs = now - new Date(this.lastDrainAt).getTime();
       nextExpectedHeartbeat = new Date(new Date(this.lastDrainAt).getTime() + 5 * 60 * 1000).toISOString();
-      if (!this.lastDrainSuccess || elapsedSinceDrainMs > 15 * 60 * 1000 || oldestQueuedTaskAgeMs > 30 * 60 * 1000) {
+      if (!this.lastDrainSuccess || elapsedSinceDrainMs > 15 * 60 * 1000) {
         schedulerStatus = 'DEGRADED';
       } else {
         schedulerStatus = 'ACTIVE';

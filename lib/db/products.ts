@@ -282,9 +282,33 @@ export async function getAllProductsAdmin(): Promise<Product[]> {
   return await attachCanonicalMediaToProducts(mapped);
 }
 
+export type StoreDataDiagnosticStatus =
+  | 'HEALTHY'
+  | 'EMPTY_CATALOG'
+  | 'DB_UNAVAILABLE'
+  | 'DB_TRANSIENT_ERROR'
+  | 'CONFIG_ERROR';
+
+export interface StoreDataDiagnostic {
+  status: StoreDataDiagnosticStatus;
+  message?: string;
+  timestamp?: string;
+}
+
+let lastStoreDataDiagnostic: StoreDataDiagnostic = { status: 'HEALTHY' };
+
+export function getStoreDataDiagnostic(): StoreDataDiagnostic {
+  return lastStoreDataDiagnostic;
+}
+
+export function setStoreDataDiagnosticForTesting(diag: StoreDataDiagnostic) {
+  lastStoreDataDiagnostic = diag;
+}
+
 export const getActiveProductsForStore = cache(async (): Promise<Product[]> => {
   const supabase = getSupabaseAdmin() || getSupabase();
   if (!supabase) {
+    lastStoreDataDiagnostic = { status: 'DB_UNAVAILABLE', message: 'Supabase client unavailable' };
     return [];
   }
 
@@ -296,12 +320,16 @@ export const getActiveProductsForStore = cache(async (): Promise<Product[]> => {
 
   if (error) {
     console.error('[getActiveProductsForStore] Database query error:', error.message);
+    lastStoreDataDiagnostic = { status: 'DB_TRANSIENT_ERROR', message: error.message };
     return [];
   }
 
   if (!data || data.length === 0) {
+    lastStoreDataDiagnostic = { status: 'EMPTY_CATALOG' };
     return [];
   }
+
+  lastStoreDataDiagnostic = { status: 'HEALTHY' };
 
   const categories = await getCategories();
   const mapped = data.map((row) => {

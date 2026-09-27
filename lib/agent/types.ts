@@ -44,6 +44,13 @@ export type AgentTaskStatus =
   | 'APPROVAL_REQUIRED'
   | 'CANCELLED';
 
+export type WorkerExecutionState =
+  | 'AUDITED'
+  | 'APPLIED'
+  | 'VERIFIED'
+  | 'BLOCKED'
+  | 'FAILED';
+
 export type AgentWorkerType =
   | 'website_guardian'
   | 'seo_guardian'
@@ -123,6 +130,7 @@ export interface AgentTask {
   entityId?: string;
   worker: AgentWorkerType;
   status: AgentTaskStatus;
+  executionState?: WorkerExecutionState;
   priority: number; // 1-100, 100 being highest
   lane?: ExecutionLane;
   dependencyIds: string[];

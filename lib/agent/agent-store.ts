@@ -708,13 +708,20 @@ export class AgentStore {
       if (task.status === 'RUNNING') {
         const startedTime = task.startedAt ? new Date(task.startedAt).getTime() : 0;
         if (now - startedTime > stuckThresholdMs) {
-          const canRetry = task.retryCount < task.maxRetries;
-          const nextStatus: AgentTaskStatus = canRetry ? 'RETRYING' : 'FAILED';
+          const isApprovalRequired = task.requiresApproval === true;
+          const canRetry = !isApprovalRequired && task.retryCount < task.maxRetries;
+          const nextStatus: AgentTaskStatus = isApprovalRequired
+            ? 'APPROVAL_REQUIRED'
+            : canRetry
+            ? 'RETRYING'
+            : 'FAILED';
           const nextRetry = canRetry ? task.retryCount + 1 : task.retryCount;
           const updated = await this.updateTask(task.id, {
             status: nextStatus,
             retryCount: nextRetry,
-            errorMessage: canRetry
+            errorMessage: isApprovalRequired
+              ? `Reclaimed stuck task requiring owner approval. Suspended safely in APPROVAL_REQUIRED.`
+              : canRetry
               ? `Reclaimed stuck task after ${Math.round(stuckThresholdMs / 1000)}s timeout. Retrying (attempt ${nextRetry}/${task.maxRetries}).`
               : `Task exceeded maximum retries after timing out.`,
           });
