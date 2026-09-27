@@ -74,6 +74,9 @@ export async function GET(req: NextRequest) {
 
     const queue = CentralExecutionQueue.getInstance();
 
+    // Requirement A: Every /api/cron/drain-queue invocation must refresh durable queue state from Supabase before lane processing.
+    await queue.refreshDurableQueue();
+
     // 2. Reclaim expired task leases (worker / serverless crash recovery)
     const reclaimed = await queue.reclaimStuckTasks();
 
@@ -92,8 +95,9 @@ export async function GET(req: NextRequest) {
     // 5. Record successful drain telemetry event
     queue.recordDrainEvent(true, reclaimed.length);
 
-    // 6. Gather queue telemetry
+    // 6. Gather queue telemetry and diagnostics
     const queueStatus = queue.getStatus();
+    const candidateDiagnostics = queue.getCandidateReadinessDiagnostics();
 
     return NextResponse.json({
       success: true,
@@ -102,7 +106,13 @@ export async function GET(req: NextRequest) {
       reclaimedCount: reclaimed.length,
       backgroundExecuted: backgroundSummaries.length,
       maintenanceExecuted: maintenanceSummaries.length,
+      total_tasks_seen_by_drain: queueStatus.totalTasks,
+      background_ready_seen_by_drain: queueStatus.backgroundLaneReady,
+      maintenance_ready_seen_by_drain: queueStatus.maintenanceLaneReady,
+      background_executed: backgroundSummaries.length,
+      maintenance_executed: maintenanceSummaries.length,
       queueStatus,
+      candidateDiagnostics,
       telemetry: {
         background: backgroundSummaries,
         maintenance: maintenanceSummaries,

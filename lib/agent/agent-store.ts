@@ -175,13 +175,25 @@ export class AgentStore {
 
       if (pendingTasksRes.error || stateRes.error) {
         const err = pendingTasksRes.error || stateRes.error;
-        logger.warn('[AgentStore] Supabase tables not available, operating in NON_DURABLE_FALLBACK:', {
-          code: err?.code,
-          message: err?.message,
-        });
-        this.isDurableTableAvailable = false;
-        this.isLaneColumnAvailable = false;
-        this.claimTelemetryMode = 'NON_DURABLE_FALLBACK';
+        const isTableMissing = err?.code === '42P01'; // PostgreSQL undefined_table
+        if (isTableMissing) {
+          logger.warn('[AgentStore] Supabase tables not found (42P01), operating in NON_DURABLE_FALLBACK:', {
+            code: err?.code,
+            message: err?.message,
+          });
+          this.isDurableTableAvailable = false;
+          this.isLaneColumnAvailable = false;
+          this.claimTelemetryMode = 'NON_DURABLE_FALLBACK';
+        } else {
+          // Requirement B: If Supabase durable tables exist, a transient/partial read error
+          // must NOT set the system into unsafe NON_DURABLE_FALLBACK execution mode.
+          logger.warn('[AgentStore] Transient error reading durable state from Supabase. Preserving DURABLE fail-closed state:', {
+            code: err?.code,
+            message: err?.message,
+          });
+          this.isDurableTableAvailable = true;
+          this.claimTelemetryMode = 'DURABLE';
+        }
       } else {
         this.isDurableTableAvailable = true;
         this.claimTelemetryMode = 'DURABLE';
@@ -232,8 +244,17 @@ export class AgentStore {
         seenIds.add(t.id);
 
         const rawDomain = (t.domain as CanonicalTaskDomain) || mapWorkerToDomain(t.worker);
+        // Requirement D: lane from master_agent_tasks.lane is authoritative.
+        // Never reinterpret 'CATALOG: FAST_REVALIDATE' as FAST lane merely because the title contains FAST.
         const taskLane: ExecutionLane =
-          (t.lane as ExecutionLane) || inferExecutionLane(rawDomain, t.action || t.title);
+          (t.lane === 'FAST' || t.lane === 'MAINTENANCE' || t.lane === 'BACKGROUND')
+            ? t.lane
+            : 'BACKGROUND';
+
+        // Requirement E: Empty dependency array [] must be treated as "no dependencies" and must not block readiness.
+        const rawDeps = t.dependency_ids ?? [];
+        const cleanDeps = (Array.isArray(rawDeps) ? rawDeps : [])
+          .filter((id): id is string => typeof id === 'string' && id.trim().length > 0 && id !== '{}' && id !== '[]');
 
         this.tasks.set(t.id, {
           id: t.id,
@@ -243,7 +264,8 @@ export class AgentStore {
           lane: taskLane,
           status: t.status as AgentTaskStatus,
           priority: t.priority ?? 50,
-          dependencyIds: t.dependency_ids ?? [],
+          dependencyIds: cleanDeps,
+          dependencies: cleanDeps,
           idempotencyKey: t.idempotency_key ?? t.id,
           narrative: {
             whyThisTask: t.why_this_task ?? '',
@@ -283,7 +305,10 @@ export class AgentStore {
       this.recalculateStats();
       this.isDurableLoaded = true;
     } catch (err) {
-      logger.warn('[AgentStore] Supabase durable load failed, continuing in memory:', { error: String(err) });
+      // Requirement B: If Supabase durable tables exist, a transient/partial read error must NOT switch to NON_DURABLE_FALLBACK
+      logger.warn('[AgentStore] Supabase durable load exception, preserving DURABLE fail-closed state:', { error: String(err) });
+      this.isDurableTableAvailable = true;
+      this.claimTelemetryMode = 'DURABLE';
       this.isDurableLoaded = true;
     }
   }
@@ -449,8 +474,12 @@ export class AgentStore {
       .sort((a, b) => b.priority - a.priority);
 
     for (const task of queuedTasks) {
-      // Check if all dependencies are completed
-      const allDepsDone = (task.dependencies || task.dependencyIds || []).every((depId) => {
+      // Requirement E: Empty dependency array [] must be treated as "no dependencies" and must not block readiness.
+      const rawDeps = task.dependencies || task.dependencyIds || [];
+      const depList = (Array.isArray(rawDeps) ? rawDeps : [])
+        .filter((id): id is string => typeof id === 'string' && id.trim().length > 0 && id !== '{}' && id !== '[]');
+
+      const allDepsDone = depList.length === 0 || depList.every((depId) => {
         const dep = this.tasks.get(depId);
         return dep && dep.status === 'COMPLETED';
       });
@@ -461,6 +490,66 @@ export class AgentStore {
     }
 
     return undefined;
+  }
+
+  /**
+   * Diagnostic inspection for queue drain observability:
+   * Returns readiness analysis for queued/retrying tasks without exposing sensitive data.
+   */
+  public getCandidateReadinessDiagnostics(lane?: import('./types').ExecutionLane): {
+    taskId: string;
+    title: string;
+    lane: string;
+    status: string;
+    isReady: boolean;
+    rejectionReason?: string;
+  }[] {
+    const all = this.getAllTasks();
+    const queuedOrRetrying = all.filter((t) => t.status === 'QUEUED' || t.status === 'RETRYING');
+
+    return queuedOrRetrying.map((task) => {
+      const taskLane: ExecutionLane = task.lane || 'BACKGROUND';
+      if (lane && taskLane !== lane) {
+        return {
+          taskId: task.id,
+          title: task.title,
+          lane: taskLane,
+          status: task.status,
+          isReady: false,
+          rejectionReason: `Lane mismatch: task is in lane [${taskLane}], but processor requested [${lane}]`,
+        };
+      }
+
+      const rawDeps = task.dependencies || task.dependencyIds || [];
+      const depList = (Array.isArray(rawDeps) ? rawDeps : [])
+        .filter((id): id is string => typeof id === 'string' && id.trim().length > 0 && id !== '{}' && id !== '[]');
+
+      if (depList.length > 0) {
+        const uncompleted = depList.filter((depId) => {
+          const dep = this.tasks.get(depId);
+          return !dep || dep.status !== 'COMPLETED';
+        });
+
+        if (uncompleted.length > 0) {
+          return {
+            taskId: task.id,
+            title: task.title,
+            lane: taskLane,
+            status: task.status,
+            isReady: false,
+            rejectionReason: `Uncompleted dependencies: ${uncompleted.join(', ')}`,
+          };
+        }
+      }
+
+      return {
+        taskId: task.id,
+        title: task.title,
+        lane: taskLane,
+        status: task.status,
+        isReady: true,
+      };
+    });
   }
 
   /**
@@ -579,7 +668,14 @@ export class AgentStore {
       }
     }
 
-    // B. Supabase is unavailable (local dev fallback ONLY):
+    // Requirement C: If Supabase client is configured in the environment,
+    // NEVER fall back to local in-memory execution!
+    if (supabase) {
+      logger.warn(`[AgentStore] Supabase configured but durable claim could not be acquired for task ${candidate.id}. Failing closed without local execution.`);
+      return undefined;
+    }
+
+    // B. Supabase is completely unconfigured (local dev / test fallback ONLY):
     // Mark telemetry explicitly as NON_DURABLE_FALLBACK. Never claim globally atomic.
     this.claimTelemetryMode = 'NON_DURABLE_FALLBACK';
 

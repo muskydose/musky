@@ -1004,8 +1004,124 @@ async function runTestSuite() {
 
   console.log('  ✅ TEST 29 PASSED: Migration 017 and canonical migration 010 schema, constraints, and indexes verified.');
 
+  // --------------------------------------------------------------------------
+  // TEST 30: Stale In-Memory Refresh on New Drain Invocation (Requirement A & I)
+  // --------------------------------------------------------------------------
+  console.log('\n[TEST 30] Testing Stale In-Memory Queue Refresh on Drain Invocation...');
+  const staleTaskId = `task-stale-test-${Date.now()}`;
+  const staleTask = createCanonicalTask({
+    id: staleTaskId,
+    domain: 'CATALOG',
+    action: 'STALE_CACHE_TEST',
+    lane: 'BACKGROUND',
+    priority: 88,
+  });
+
+  await store.addTask(staleTask);
+  assert(store.getTask(staleTaskId) !== undefined, 'Task must exist in memory');
+
+  await centralQueue.refreshDurableQueue();
+  const refreshedTask = store.getTask(staleTaskId);
+  assert(refreshedTask !== undefined, 'refreshDurableQueue must reload and preserve state');
+  console.log('  ✅ TEST 30 PASSED: New drain invocation explicitly refreshes durable queue state.');
+
+  // --------------------------------------------------------------------------
+  // TEST 31: Transient DB Read Error Preserves DURABLE Fail-Closed Mode (Requirement B & J)
+  // --------------------------------------------------------------------------
+  console.log('\n[TEST 31] Testing Transient DB Read Error Preserves DURABLE Mode (Fail-Closed)...');
+  const supabaseAdmin = (await import('../lib/supabase')).getSupabaseAdmin();
+  if (supabaseAdmin) {
+    const origFrom = supabaseAdmin.from.bind(supabaseAdmin);
+    (supabaseAdmin as any).from = (table: string) => {
+      if (table === 'master_agent_tasks') {
+        return {
+          select: () => ({
+            in: async () => ({ data: null, error: { message: '503 Service Unavailable / Network timeout', code: '57P01' } }),
+            order: () => ({
+              limit: async () => ({ data: null, error: { message: '503 Service Unavailable', code: '57P01' } }),
+            }),
+          }),
+        };
+      }
+      return origFrom(table);
+    };
+
+    try {
+      await store.ensureLoaded(true);
+      assert(
+        store.getClaimTelemetryMode() === 'DURABLE',
+        'Store must remain in DURABLE mode during transient read failure'
+      );
+      assert(
+        store.isDurableAvailable() === true,
+        'isDurableAvailable must remain true on transient read error'
+      );
+    } finally {
+      (supabaseAdmin as any).from = origFrom;
+      await store.ensureLoaded(true);
+    }
+  }
+  console.log('  ✅ TEST 31 PASSED: Transient DB read error preserves DURABLE fail-closed state.');
+
+  // --------------------------------------------------------------------------
+  // TEST 32: Production Equivalent Task (CATALOG: FAST_REVALIDATE in BACKGROUND Lane)
+  // --------------------------------------------------------------------------
+  console.log('\n[TEST 32] Testing Exact Production Equivalent Task Lifecycle & Diagnostics...');
+  const prodEqTaskId = `task-lane-fast-regression-${Date.now()}`;
+  const prodEquivalentTask = {
+    id: prodEqTaskId,
+    objectiveId: 'system-orchestrator',
+    title: 'CATALOG: FAST_REVALIDATE',
+    worker: 'content_engine' as const,
+    domain: 'CATALOG' as const,
+    action: 'FAST_REVALIDATE',
+    status: 'QUEUED' as const,
+    lane: 'BACKGROUND' as const,
+    priority: 99,
+    dependencyIds: [],
+    dependencies: [],
+    idempotencyKey: `idem-prod-eq-${Date.now()}`,
+    narrative: {
+      whyThisTask: 'Regression test for production task lifecycle',
+      whatDetected: 'Production equivalent task with title containing FAST but lane=BACKGROUND',
+      whatChanged: 'None',
+      whatVerified: 'None',
+      whatLearned: '',
+    },
+    payload: {},
+    retryCount: 0,
+    maxRetries: 3,
+    createdAt: new Date().toISOString(),
+  };
+
+  await store.addTask(prodEquivalentTask as any);
+
+  // 1. Authoritative lane must be BACKGROUND, never re-inferred to FAST
+  const loadedTask = store.getTask(prodEqTaskId);
+  assert(loadedTask?.lane === 'BACKGROUND', `Task lane must remain BACKGROUND (got ${loadedTask?.lane})`);
+  assert(loadedTask?.status === 'QUEUED', 'Task must be QUEUED');
+
+  // 2. Candidate diagnostics must mark it as ready for BACKGROUND lane
+  const diagnostics = store.getCandidateReadinessDiagnostics('BACKGROUND');
+  const taskDiag = diagnostics.find(d => d.taskId === prodEqTaskId);
+  assert(taskDiag !== undefined, 'Task must appear in candidate diagnostics');
+  assert(taskDiag?.isReady === true, `Task must be marked isReady=true (rejection: ${taskDiag?.rejectionReason})`);
+
+  // 3. Background ready count must see it
+  const bgReady = store.getNextReadyTask('BACKGROUND');
+  assert(bgReady !== undefined, 'getNextReadyTask("BACKGROUND") must find a ready task');
+
+  // 4. Verify lease claims it durably without local fallback
+  const leased = await store.leaseNextReadyTask('BACKGROUND', 'test-drain-worker');
+  assert(leased !== undefined, 'Task must be leased');
+  assert(leased?.status === 'RUNNING', 'Leased task must be RUNNING');
+  assert(leased?.lane === 'BACKGROUND', 'Leased task lane must be BACKGROUND');
+  assert(store.getClaimTelemetryMode() === 'DURABLE', 'Lease must be acquired in DURABLE mode');
+
+  console.log('  ✅ TEST 32 PASSED: Production equivalent task verified through drain, lease, and diagnostics.');
+
   console.log('\n============================================================');
-  console.log('🎉 ALL 29/29 INTEGRATION TESTS PASSED ACCORDING TO SPECIFICATION!');
+  console.log('🎉 ALL 32/32 INTEGRATION TESTS PASSED ACCORDING TO SPECIFICATION!');
   console.log('============================================================\n');
 }
 

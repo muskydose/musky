@@ -191,9 +191,15 @@ export function createCanonicalTask(input: CreateCanonicalTaskInput): AgentTask 
  */
 export function normalizeTask(task: AgentTask): AgentTask {
   const domain = task.domain || mapWorkerToDomain(task.worker);
-  const dependencies = task.dependencies || task.dependencyIds || [];
+  const rawDeps = task.dependencies || task.dependencyIds || [];
+  const dependencies = (Array.isArray(rawDeps) ? rawDeps : [])
+    .filter((id): id is string => typeof id === 'string' && id.trim().length > 0 && id !== '{}' && id !== '[]');
   const payload = task.input || task.payload || {};
-  const lane = task.lane || inferExecutionLane(domain, task.action);
+  // Requirement D: lane is authoritative when already set. Never reinterpret based on title/action.
+  const lane: ExecutionLane =
+    (task.lane === 'FAST' || task.lane === 'MAINTENANCE' || task.lane === 'BACKGROUND')
+      ? task.lane
+      : (task.action ? inferExecutionLane(domain, task.action) : 'BACKGROUND');
 
   // Status mapping
   let status: AgentTaskStatus = task.status;

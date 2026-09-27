@@ -146,7 +146,8 @@ export class CentralExecutionQueue {
     timeLimitMs?: number;
     maxBatch?: number;
   } = {}): Promise<TickExecutionSummary[]> {
-    await this.store.ensureLoaded();
+    // Requirement A: Every drain/process invocation must refresh durable queue state from Supabase
+    await this.store.ensureLoaded(true);
     const timeLimitMs = options.timeLimitMs || 50000;
     const maxBatch = options.maxBatch || 10;
     const startTime = Date.now();
@@ -205,7 +206,8 @@ export class CentralExecutionQueue {
     timeLimitMs?: number;
     maxBatch?: number;
   } = {}): Promise<TickExecutionSummary[]> {
-    await this.store.ensureLoaded();
+    // Requirement A: Every drain/process invocation must refresh durable queue state from Supabase
+    await this.store.ensureLoaded(true);
     const startTime = Date.now();
     const timeLimitMs = options.timeLimitMs || 45000;
     const maxBatch = options.maxBatch || 10;
@@ -431,10 +433,25 @@ export class CentralExecutionQueue {
   }
 
   /**
+   * Explicitly reloads durable queue state from Supabase (Requirement A).
+   */
+  public async refreshDurableQueue(): Promise<void> {
+    await this.store.ensureLoaded(true);
+  }
+
+  /**
+   * Diagnostic inspection for queue drain observability (Requirement K):
+   * Returns readiness analysis for queued/retrying tasks without exposing sensitive data.
+   */
+  public getCandidateReadinessDiagnostics(lane?: import('./types').ExecutionLane) {
+    return this.store.getCandidateReadinessDiagnostics(lane);
+  }
+
+  /**
    * Reclaims tasks stuck in RUNNING state across all lanes.
    */
   public async reclaimStuckTasks(stuckThresholdMs?: number): Promise<AgentTask[]> {
-    await this.store.ensureLoaded();
+    await this.store.ensureLoaded(true);
     return this.store.reclaimStuckTasks(stuckThresholdMs);
   }
 
