@@ -1112,16 +1112,99 @@ async function runTestSuite() {
   assert(bgReady !== undefined, 'getNextReadyTask("BACKGROUND") must find a ready task');
 
   // 4. Verify lease claims it durably without local fallback
-  const leased = await store.leaseNextReadyTask('BACKGROUND', 'test-drain-worker');
-  assert(leased !== undefined, 'Task must be leased');
+  const existingQueuedIds32 = new Set(store.getAllTasks().filter(t => t.id !== prodEqTaskId && (t.status === 'QUEUED' || t.status === 'RETRYING')).map(t => t.id));
+  const leased = await store.leaseNextReadyTask('BACKGROUND', 'test-drain-worker', existingQueuedIds32);
+  assert(leased !== undefined && leased.id === prodEqTaskId, 'Task must be leased');
   assert(leased?.status === 'RUNNING', 'Leased task must be RUNNING');
   assert(leased?.lane === 'BACKGROUND', 'Leased task lane must be BACKGROUND');
   assert(store.getClaimTelemetryMode() === 'DURABLE', 'Lease must be acquired in DURABLE mode');
 
-  console.log('  ✅ TEST 32 PASSED: Production equivalent task verified through drain, lease, and diagnostics.');
+  // 5. Execute through CentralExecutionQueue.executeSingleTask()
+  const execSummary = await centralQueue.executeSingleTask(leased!);
+  assert(execSummary.status === 'COMPLETED', `Task must complete successfully (got ${execSummary.status})`);
+
+  // 6. Verify final COMPLETED state and timestamp lifecycle
+  const finishedTask = store.getTask(prodEqTaskId);
+  assert(finishedTask?.status === 'COMPLETED', 'Final task status must be COMPLETED');
+  assert(finishedTask?.startedAt !== undefined, 'Task must have startedAt timestamp');
+  assert(finishedTask?.completedAt !== undefined, 'Task must have completedAt timestamp');
+  assert(!finishedTask?.errorMessage, `Task should have no error message (got ${finishedTask?.errorMessage})`);
+
+  console.log('  ✅ TEST 32 PASSED: Production equivalent task verified through drain, lease, execution, and completion.');
+
+  // --------------------------------------------------------------------------
+  // TEST 33: Production Canary End-to-End Autonomous Lifecycle & Warm-Cache Regression (Verify Step 5)
+  // --------------------------------------------------------------------------
+  console.log('\n[TEST 33] Testing End-to-End Canary Lifecycle, Warm Cache & Fail-Closed Guardrails...');
+  const canaryTaskId = `task-canary-reg-${Date.now()}`;
+  const canaryTask = {
+    id: canaryTaskId,
+    objectiveId: 'system-orchestrator',
+    title: 'CANARY: FAST_REVALIDATE',
+    worker: 'verification' as const,
+    domain: 'QA' as const,
+    action: 'FAST_REVALIDATE',
+    status: 'QUEUED' as const,
+    lane: 'BACKGROUND' as const,
+    priority: 95,
+    dependencyIds: [],
+    dependencies: [],
+    idempotencyKey: `idem-canary-${Date.now()}`,
+    narrative: {
+      whyThisTask: 'Canary end-to-end verification for autonomous queue drain',
+      whatDetected: 'Production canary task with title containing FAST and REVALIDATE but durable lane=BACKGROUND',
+      whatChanged: 'None',
+      whatVerified: 'Pending autonomous drain execution',
+      whatLearned: '',
+    },
+    payload: { canary: true, targetRoute: '/' },
+    retryCount: 0,
+    maxRetries: 3,
+    createdAt: new Date().toISOString(),
+  };
+
+  // 1. Insert task into store
+  await store.addTask(canaryTask as any);
+
+  // 2. Warm instance regression check: Force durable queue refresh simulating new drain invocation
+  await centralQueue.refreshDurableQueue();
+  const refreshedCanary = store.getTask(canaryTaskId);
+  assert(refreshedCanary !== undefined, 'Canary task must be present after refreshDurableQueue');
+
+  // 3. Lane must remain strictly BACKGROUND despite FAST and REVALIDATE in title
+  assert(refreshedCanary?.lane === 'BACKGROUND', `Authoritative lane must be BACKGROUND, got ${refreshedCanary?.lane}`);
+
+  // 4. Empty dependency array must not block readiness
+  const canaryDiagnostics = store.getCandidateReadinessDiagnostics('BACKGROUND');
+  const canaryDiag = canaryDiagnostics.find(d => d.taskId === canaryTaskId);
+  assert(canaryDiag !== undefined && canaryDiag.isReady === true, 'Canary must be ready with empty dependencies');
+
+  // 5. Task must be discoverable in BACKGROUND lane
+  const nextBg = store.getNextReadyTask('BACKGROUND');
+  assert(nextBg !== undefined, 'BACKGROUND lane must have ready tasks');
+
+  // 6. Durable atomic claim
+  const existingQueuedIds33 = new Set(store.getAllTasks().filter(t => t.id !== canaryTaskId && (t.status === 'QUEUED' || t.status === 'RETRYING')).map(t => t.id));
+  const leasedCanary = await store.leaseNextReadyTask('BACKGROUND', 'central-queue-canary-worker', existingQueuedIds33);
+  assert(leasedCanary !== undefined && leasedCanary.id === canaryTaskId, 'Canary must be leased');
+  assert(leasedCanary?.status === 'RUNNING', 'Leased canary must be in RUNNING status');
+  assert(store.getClaimTelemetryMode() === 'DURABLE', 'Lease must operate in DURABLE claim mode');
+
+  // 7. Execute through single execution gateway
+  const canaryExec = await centralQueue.executeSingleTask(leasedCanary!);
+  assert(canaryExec.status === 'COMPLETED', `Canary execution must complete (got ${canaryExec.status})`);
+
+  // 8. Final database state verification
+  const completedCanary = store.getTask(canaryTaskId);
+  assert(completedCanary?.status === 'COMPLETED', 'Final canary status must be COMPLETED');
+  assert(completedCanary?.startedAt !== undefined, 'Canary startedAt must be recorded');
+  assert(completedCanary?.completedAt !== undefined, 'Canary completedAt must be recorded');
+  assert(!completedCanary?.errorMessage, 'Canary error message must be empty');
+
+  console.log('  ✅ TEST 33 PASSED: End-to-end canary lifecycle, warm-instance refresh, and authoritative lane verified.');
 
   console.log('\n============================================================');
-  console.log('🎉 ALL 32/32 INTEGRATION TESTS PASSED ACCORDING TO SPECIFICATION!');
+  console.log('🎉 ALL 33/33 INTEGRATION TESTS PASSED ACCORDING TO SPECIFICATION!');
   console.log('============================================================\n');
 }
 

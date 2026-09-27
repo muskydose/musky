@@ -77,6 +77,10 @@ export async function GET(req: NextRequest) {
     // Requirement A: Every /api/cron/drain-queue invocation must refresh durable queue state from Supabase before lane processing.
     await queue.refreshDurableQueue();
 
+    // Snapshot queue status and candidate readiness as seen at start of drain
+    const preDrainStatus = queue.getStatus();
+    const candidateDiagnostics = queue.getCandidateReadinessDiagnostics();
+
     // 2. Reclaim expired task leases (worker / serverless crash recovery)
     const reclaimed = await queue.reclaimStuckTasks();
 
@@ -95,9 +99,8 @@ export async function GET(req: NextRequest) {
     // 5. Record successful drain telemetry event
     queue.recordDrainEvent(true, reclaimed.length);
 
-    // 6. Gather queue telemetry and diagnostics
-    const queueStatus = queue.getStatus();
-    const candidateDiagnostics = queue.getCandidateReadinessDiagnostics();
+    // 6. Gather post-drain queue telemetry
+    const postDrainStatus = queue.getStatus();
 
     return NextResponse.json({
       success: true,
@@ -106,14 +109,20 @@ export async function GET(req: NextRequest) {
       reclaimedCount: reclaimed.length,
       backgroundExecuted: backgroundSummaries.length,
       maintenanceExecuted: maintenanceSummaries.length,
-      total_tasks_seen_by_drain: queueStatus.totalTasks,
-      background_ready_seen_by_drain: queueStatus.backgroundLaneReady,
-      maintenance_ready_seen_by_drain: queueStatus.maintenanceLaneReady,
+      total_tasks_seen_by_drain: preDrainStatus.totalTasks,
+      background_ready_seen_by_drain: preDrainStatus.backgroundLaneReady,
+      maintenance_ready_seen_by_drain: preDrainStatus.maintenanceLaneReady,
       background_executed: backgroundSummaries.length,
       maintenance_executed: maintenanceSummaries.length,
-      queueStatus,
+      queueStatus: postDrainStatus,
       candidateDiagnostics,
+      results: {
+        reclaimed: reclaimed.length,
+        backgroundExecuted: backgroundSummaries.length,
+        maintenanceExecuted: maintenanceSummaries.length,
+      },
       telemetry: {
+        claimMode: preDrainStatus.claimTelemetryMode,
         background: backgroundSummaries,
         maintenance: maintenanceSummaries,
       },
