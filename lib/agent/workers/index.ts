@@ -653,21 +653,79 @@ export const internalLinkingWorker: WorkerHandler = async (task) => {
   if (isApplyLinks && sourceSlug) {
     const { getGuideBySlug, saveGuide } = await import('@/lib/db/guides');
     const guide = await getGuideBySlug(sourceSlug);
-    if (guide) {
-      const mergedRelated = Array.from(new Set([...(guide.relatedProductIds || []), ...relatedProductIds]));
-      await saveGuide({
-        ...guide,
-        relatedProductIds: mergedRelated,
-      });
+    if (!guide) {
+      return {
+        status: 'FAILED',
+        executionState: 'FAILED',
+        errorMessage: `Target guide [${sourceSlug}] not found for APPLY_LINKS mutation.`,
+        narrative: {
+          whyThisTask: `Apply and persist verified internal linking relationships for guide [${sourceSlug}].`,
+          whatDetected: `Target guide [${sourceSlug}] was not found in catalog or database.`,
+          whatChanged: 'No mutation applied.',
+          whatVerified: 'Target verification: FAILED (Guide not found).',
+          whatLearned: 'Fail-closed verification prevents phantom linking on non-existent guides.',
+        },
+        result: { sourceSlug, mutativeApplied: false, verifiedReRead: false },
+        filesAffected: [],
+        dataAffected: { sourceSlug },
+      };
+    }
+
+    const mergedRelated = Array.from(new Set([...(guide.relatedProductIds || []), ...relatedProductIds]));
+    await saveGuide({
+      ...guide,
+      relatedProductIds: mergedRelated,
+    });
 
       const { getSupabaseAdmin, getSupabase } = await import('@/lib/supabase');
       const supabase = getSupabaseAdmin() || getSupabase();
       let verifiedReRead = false;
+      let reReadRelatedIds: string[] = [];
+
       if (supabase) {
-        const { data } = await supabase.from('product_guides').select('related_product_ids').eq('id', guide.id).maybeSingle();
-        verifiedReRead = Boolean(data && Array.isArray(data.related_product_ids));
+        const { data, error } = await supabase
+          .from('product_guides')
+          .select('related_product_ids')
+          .eq('id', guide.id)
+          .maybeSingle();
+
+        if (!error && data && Array.isArray(data.related_product_ids)) {
+          reReadRelatedIds = data.related_product_ids;
+        }
       } else {
-        verifiedReRead = true;
+        const reReadGuide = await getGuideBySlug(sourceSlug);
+        if (reReadGuide && Array.isArray(reReadGuide.relatedProductIds)) {
+          reReadRelatedIds = reReadGuide.relatedProductIds;
+        }
+      }
+
+      // Exact verification: all intended merged IDs must be present and match
+      const hasAllIntended = mergedRelated.every((id) => reReadRelatedIds.includes(id));
+      const hasNoUnrelated = reReadRelatedIds.every((id) => mergedRelated.includes(id));
+      verifiedReRead = hasAllIntended && hasNoUnrelated;
+
+      if (!verifiedReRead) {
+        return {
+          status: 'FAILED',
+          executionState: 'FAILED',
+          errorMessage: `Internal linking persistence verification failed for guide [${guide.slug}]: re-read IDs do not match intended merged IDs.`,
+          narrative: {
+            whyThisTask: `Apply and persist verified internal linking relationships for guide [${guide.slug}].`,
+            whatDetected: `Target guide [${guide.slug}] found. Attempted linking ${relatedProductIds.length} related products.`,
+            whatChanged: 'Attempted to persist relatedProductIds to database.',
+            whatVerified: 'Re-read from database verified write: FAILED.',
+            whatLearned: 'Fail-closed verification prevents phantom APPLIED states when DB persistence fails.',
+          },
+          result: {
+            sourceSlug: guide.slug,
+            intendedRelatedProductIds: mergedRelated,
+            reReadRelatedIds,
+            mutativeApplied: false,
+            verifiedReRead: false,
+          },
+          filesAffected: [],
+          dataAffected: { guideSlug: guide.slug },
+        };
       }
 
       const { revalidateCatalogSurfaces } = await import('@/lib/revalidation');
@@ -680,19 +738,18 @@ export const internalLinkingWorker: WorkerHandler = async (task) => {
           whyThisTask: `Apply and persist verified internal linking relationships for guide [${guide.slug}].`,
           whatDetected: `Target guide [${guide.slug}] found. Linking ${relatedProductIds.length} related products.`,
           whatChanged: `Persisted relatedProductIds to database and revalidated guide surface.`,
-          whatVerified: `Re-read from database verified write: ${verifiedReRead ? 'SUCCESS' : 'FAILED'}.`,
+          whatVerified: `Re-read from database verified write: SUCCESS.`,
           whatLearned: 'Internal linking graph updates eliminate orphan nodes with verified persistence.',
         },
         result: {
           sourceSlug: guide.slug,
           relatedProductIds: mergedRelated,
           mutativeApplied: true,
-          verifiedReRead,
+          verifiedReRead: true,
         },
         filesAffected: ['lib/db/guides.ts'],
         dataAffected: { guideSlug: guide.slug, relatedCount: mergedRelated.length },
       };
-    }
   }
 
   return {
@@ -739,12 +796,12 @@ export const schemaWorker: WorkerHandler = async (task) => {
     narrative: {
       whyThisTask: `Generate and validate JSON-LD structured data for ${name} (${entityType}).`,
       whatDetected: 'Audited schema markup for schema.org validity and zero fabricated review claims.',
-      whatChanged: `Created valid ${entityType} and BreadcrumbList JSON-LD structures with strict 0-fake-review policy.`,
+      whatChanged: 'No database mutation; schema validated dynamically in memory against Schema.org specifications and 0-fake-review standards.',
       whatVerified: 'Passed Google Rich Results test criteria without warnings. 0 fake reviews verified.',
       whatLearned: 'Strict omission of unverified aggregateRating avoids search engine manual actions.',
     },
-    result: { entityType, schemaJson, valid: true, zeroFakeReviews: true, mutativeApplied: false },
-    filesAffected: ['lib/db/seo.ts'],
+    result: { entityType, schemaJson, valid: true, zeroFakeReviews: true, mutativeApplied: false, persisted: false },
+    filesAffected: [],
     dataAffected: { entityType, name },
   };
 };

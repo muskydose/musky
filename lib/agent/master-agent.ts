@@ -745,6 +745,56 @@ export class MuskyDoseMasterAgent {
     const { healthScores } = await this.contextEngine.gatherContext();
     await this.store.setHealthScores(healthScores);
 
+    // 2b. Keyword Universe Engine: Run autonomous keyword discovery, catalog onboarding, and cannibalization detection
+    let keywordUniverseSweepResult = {
+      started: true,
+      completed: false,
+      totalKeywords: 0,
+      newlyAdded: 0,
+      gscObserved: 0,
+      catalogDerived: 0,
+      cannibalizationIssues: 0,
+      errorIfAny: null as string | null,
+    };
+
+    try {
+      const kwEngine = KeywordUniverseEngine.getInstance();
+      const sweep = await kwEngine.runAutonomousKeywordSweep();
+
+      keywordUniverseSweepResult = {
+        started: true,
+        completed: true,
+        totalKeywords: sweep.totalKeywords,
+        newlyAdded: sweep.newlyAddedCount,
+        gscObserved: sweep.gscObservedCount,
+        catalogDerived: sweep.catalogDerivedCount,
+        cannibalizationIssues: sweep.cannibalizationIssues.length,
+        errorIfAny: null,
+      };
+
+      // Record audit entry into durable AgentStore
+      await this.store.recordAudit({
+        objectiveId: 'daily-autonomous-sweep',
+        worker: 'seo_guardian',
+        action: 'KEYWORD_UNIVERSE_SWEEP_EXECUTED',
+        filesAffected: [],
+        dataAffected: {
+          totalKeywords: sweep.totalKeywords,
+          newlyAdded: sweep.newlyAddedCount,
+          gscObserved: sweep.gscObservedCount,
+          catalogDerived: sweep.catalogDerivedCount,
+          cannibalizationCount: sweep.cannibalizationIssues.length,
+          onboardedProducts: sweep.onboardedProducts,
+        },
+        result: `Keyword Universe sweep completed: ${sweep.totalKeywords} total keywords, ${sweep.newlyAddedCount} newly added, ${sweep.cannibalizationIssues.length} cannibalization issues.`,
+        testOutcome: 'PASS',
+        nextAction: 'EXECUTE_DAILY_SWEEP_TASKS',
+      });
+    } catch (kwErr: any) {
+      logger.warn('[MasterAgent] Autonomous keyword sweep notice:', { error: kwErr?.message });
+      keywordUniverseSweepResult.errorIfAny = kwErr?.message || String(kwErr);
+    }
+
     // 3. Enqueue canonical sweep tasks into durable queue (MAINTENANCE lane)
     // 3a. Keyword Universe Discovery & Cannibalization Sweep
     await queue.enqueue({
@@ -839,16 +889,7 @@ export class MuskyDoseMasterAgent {
       nextScheduledRunAt: nextScheduled,
       tasksExecuted: executedSummaries,
       status,
-      keywordUniverseSweep: {
-        started: true,
-        completed: executedSummaries.some((s) => s.narrativeSummary?.includes('Keyword Universe')),
-        totalKeywords: 0,
-        newlyAdded: 0,
-        gscObserved: 0,
-        catalogDerived: 0,
-        cannibalizationIssues: 0,
-        errorIfAny: null,
-      },
+      keywordUniverseSweep: keywordUniverseSweepResult,
     };
   }
 

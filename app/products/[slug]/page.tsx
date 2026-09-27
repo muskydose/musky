@@ -217,33 +217,37 @@ export default async function ProductDetailPage({
             returnFees: 'https://schema.org/FreeReturn',
             url: `${baseUrl}/return-policy`,
           },
-          shippingDetails: {
-            '@type': 'OfferShippingDetails',
-            shippingRate: {
-              '@type': 'MonetaryAmount',
-              value: Number(siteSettings?.shippingFee ?? 0),
-              currency: 'INR',
-            },
-            shippingDestination: {
-              '@type': 'DefinedRegion',
-              addressCountry: 'IN',
-            },
-            deliveryTime: {
-              '@type': 'ShippingDeliveryTime',
-              handlingTime: {
-                '@type': 'QuantitativeValue',
-                minValue: 1,
-                maxValue: 2,
-                unitCode: 'DAY',
-              },
-              transitTime: {
-                '@type': 'QuantitativeValue',
-                minValue: 2,
-                maxValue: 5,
-                unitCode: 'DAY',
-              },
-            },
-          },
+          ...(Number(siteSettings?.shippingFee ?? 0) > 0
+            ? {
+                shippingDetails: {
+                  '@type': 'OfferShippingDetails',
+                  shippingRate: {
+                    '@type': 'MonetaryAmount',
+                    value: Number(siteSettings?.shippingFee),
+                    currency: 'INR',
+                  },
+                  shippingDestination: {
+                    '@type': 'DefinedRegion',
+                    addressCountry: 'IN',
+                  },
+                  deliveryTime: {
+                    '@type': 'ShippingDeliveryTime',
+                    handlingTime: {
+                      '@type': 'QuantitativeValue',
+                      minValue: 1,
+                      maxValue: 2,
+                      unitCode: 'DAY',
+                    },
+                    transitTime: {
+                      '@type': 'QuantitativeValue',
+                      minValue: 2,
+                      maxValue: 5,
+                      unitCode: 'DAY',
+                    },
+                  },
+                },
+              }
+            : {}),
         },
       },
       ...mediaSchema.videos,

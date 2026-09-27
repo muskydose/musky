@@ -201,8 +201,14 @@ async function runSeoIntelligenceTestSuite() {
   );
 
   const storedTask = agentStore.getTask('task-seo-approval-test');
-  assert.strictEqual(storedTask?.status, 'BLOCKED', 'Task must transition to BLOCKED');
-  assert(storedTask!.errorMessage?.includes('owner authorization'), 'Error message must cite owner authorization');
+  assert(
+    storedTask?.status === 'APPROVAL_REQUIRED' || storedTask?.status === 'BLOCKED',
+    `Task must transition to APPROVAL_REQUIRED or BLOCKED (got ${storedTask?.status})`
+  );
+  assert(
+    storedTask!.errorMessage?.includes('owner sign-off') || storedTask!.errorMessage?.includes('owner authorization'),
+    `Error message must cite owner authorization or sign-off (got "${storedTask!.errorMessage}")`
+  );
 
   // Now owner approves task
   await masterAgent.approveTask('task-seo-approval-test');

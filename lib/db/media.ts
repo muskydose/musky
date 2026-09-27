@@ -836,7 +836,7 @@ export async function getMediaForEntity(options: {
 
   const matched = assets.filter((a) => {
     if (a.entityType !== entityType) return false;
-    if (entityId !== undefined) {
+    if (entityId !== undefined && entityId !== '') {
       if (a.entityId !== entityId) {
         if (entityType === 'KNOWLEDGE') {
           const normA = normalizeKnowledgeEntityIdentifier(a.entityId || '');
@@ -846,6 +846,10 @@ export async function getMediaForEntity(options: {
           return false;
         }
       }
+    } else if (entityType === 'PRODUCT') {
+      // PRODUCT assets must strictly match a specific product entityId.
+      // If no entityId is specified, do not match product-specific assets to prevent cross-product leakage.
+      return false;
     }
 
     if (includeDrafts) {
@@ -886,6 +890,9 @@ export async function getPrimaryMedia(
       : optionsOrType;
 
   const { entityType, entityId: targetEntityId, legacyFallbackUrl: targetFallbackUrl } = options;
+  if (entityType === 'PRODUCT' && (!targetEntityId || targetEntityId.trim() === '')) {
+    return createSyntheticFallbackAsset(entityType, undefined, targetFallbackUrl);
+  }
   const approvedAssets = await getMediaForEntity({ entityType, entityId: targetEntityId, includeDrafts: false });
 
   if (approvedAssets.length > 0) {
@@ -1089,6 +1096,10 @@ export function attachCanonicalMediaToProduct<T extends { id?: string; images?: 
 ): T & { canonicalPrimaryUrl?: string; canonicalMedia?: MediaResolutionResult } {
   if (!product) return product as any;
   if (!mediaResult || mediaResult.isFallback || mediaResult.allAssets.length === 0) {
+    return product as any;
+  }
+  // Enforce entity ownership: ensure media belongs strictly to this product
+  if (product.id && mediaResult.primaryAsset.entityId && mediaResult.primaryAsset.entityId !== product.id) {
     return product as any;
   }
 

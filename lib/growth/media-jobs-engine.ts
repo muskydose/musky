@@ -61,13 +61,7 @@ export const KNOWN_TEST_OR_DEMO_ENTITY_IDS = new Set<string>([
   'prod-media-test-1789780736768',
   'prod-broken-1',
   'prod-test-queue',
-  'prod-1',
-  'prod-2',
-  'prod-3',
-  'prod-4',
-  'prod-5',
   'prod-temp-test',
-  'prod-henna-pure',
 ]);
 
 export function isTestOrDemoEntity(entityId: string): boolean {

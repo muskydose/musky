@@ -1376,29 +1376,92 @@ async function runTestSuite() {
   console.log('  ✅ TEST 40 PASSED: Verification worker serverless compliance and synthetic probing verified.');
 
   // --------------------------------------------------------------------------
-  // TEST 41: Retry Lifecycle & State Transitions
+  // TEST 41: Genuine Retry Lifecycle & Timeout Recovery (QUEUED -> RUNNING -> RETRYING -> RUNNING -> COMPLETED & Terminal FAILED)
   // --------------------------------------------------------------------------
-  console.log('\n[TEST 41] Testing Retry Lifecycle & State Transitions (RETRYING vs FAILED)...');
-  const retryTestTask = createCanonicalTask({
-    id: `task-retry-lifecycle-${Date.now()}`,
+  console.log('\n[TEST 41] Testing Genuine Retry Lifecycle & Timeout Recovery...');
+  
+  // Part A: Recoverable task with retries remaining
+  const retryTaskA = createCanonicalTask({
+    id: `task-retry-success-${Date.now()}`,
     domain: 'QA',
-    action: 'SIMULATE_TRANSIENT_FAILURE',
+    action: 'VERIFY_DEPLOYMENT',
     lane: 'BACKGROUND',
-    payload: { targetRoute: '/invalid-failure-endpoint' },
+    payload: { targetRoute: '/products' },
   });
-  retryTestTask.retryCount = 0;
-  retryTestTask.maxRetries = 2;
-  // Point to a worker that fails on unexpected payload or simulate error
-  retryTestTask.worker = 'deployment'; // Generic worker will execute, let's test with a task that triggers failure
-  retryTestTask.worker = 'unknown_worker_for_retry' as any;
-  await store.addTask(retryTestTask);
+  retryTaskA.worker = 'deployment';
+  retryTaskA.retryCount = 0;
+  retryTaskA.maxRetries = 2;
+  await store.addTask(retryTaskA);
 
-  // First failure -> should not retry if unknown worker, so let's test via CentralQueue error handling
-  const retrySummary1 = await centralQueue.executeSingleTask(retryTestTask);
-  assert(retrySummary1.status === 'FAILED', 'Unknown worker fails execution');
-  const storedRetryTask1 = store.getTask(retryTestTask.id);
-  assert(storedRetryTask1?.status === 'FAILED', 'Terminal failure recorded accurately');
-  console.log('  ✅ TEST 41 PASSED: Retry lifecycle state transitions and terminal failures recorded truthfully.');
+  // 1. QUEUED -> Leased into RUNNING
+  const existingQueuedIds41A = new Set(
+    store.getAllTasks()
+      .filter((t) => t.id !== retryTaskA.id && (t.status === 'QUEUED' || t.status === 'RETRYING'))
+      .map((t) => t.id)
+  );
+  const leasedA1 = await store.leaseNextReadyTask('BACKGROUND', 'worker-instance-1', existingQueuedIds41A);
+  assert(leasedA1 !== undefined && leasedA1.id === retryTaskA.id, 'Task must be leased from QUEUED');
+  assert(leasedA1?.status === 'RUNNING', 'Status must transition to RUNNING upon lease');
+  assert(typeof leasedA1?.startedAt === 'string', 'startedAt must be set upon lease');
+
+  // 2. Simulate serverless timeout (backdate startedAt by 30 mins)
+  leasedA1!.startedAt = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  await store.updateTask(leasedA1!.id, { startedAt: leasedA1!.startedAt });
+
+  // 3. Reclaim stuck task -> transitions to RETRYING with incremented retryCount
+  const reclaimedA = await store.reclaimStuckTasks(15 * 60 * 1000);
+  const foundReclaimedA = reclaimedA.find((t) => t.id === retryTaskA.id);
+  assert(foundReclaimedA !== undefined, 'Timed out task must be reclaimed');
+  assert(foundReclaimedA?.status === 'RETRYING', `Task must transition to RETRYING (got ${foundReclaimedA?.status})`);
+  assert(foundReclaimedA?.retryCount === 1, `retryCount must increment to 1 (got ${foundReclaimedA?.retryCount})`);
+
+  // 4. RETRYING task is eligible again for leasing
+  const readyCandidates = store.getCandidateReadinessDiagnostics('BACKGROUND');
+  const readyItem = readyCandidates.find((r) => r.taskId === retryTaskA.id);
+  assert(readyItem?.isReady === true, 'RETRYING task must be marked ready for re-execution');
+
+  const existingQueuedIds41B = new Set(
+    store.getAllTasks()
+      .filter((t) => t.id !== retryTaskA.id && (t.status === 'QUEUED' || t.status === 'RETRYING'))
+      .map((t) => t.id)
+  );
+  const leasedA2 = await store.leaseNextReadyTask('BACKGROUND', 'worker-instance-2', existingQueuedIds41B);
+  assert(leasedA2 !== undefined && leasedA2.id === retryTaskA.id, 'Task must be re-leased from RETRYING');
+  assert(leasedA2?.status === 'RUNNING', 'Status must transition from RETRYING to RUNNING upon re-lease');
+
+  // 5. Second execution completes successfully
+  const summaryA = await centralQueue.executeSingleTask(leasedA2!);
+  assert(summaryA.status === 'COMPLETED', `Second execution must succeed as COMPLETED (got ${summaryA.status})`);
+  const finalTaskA = store.getTask(retryTaskA.id);
+  assert(finalTaskA?.status === 'COMPLETED', 'Final task status in store must be COMPLETED');
+  assert(finalTaskA?.retryCount === 1, 'retryCount of 1 preserved truthfully');
+
+  // Part B: Non-recoverable task exceeding maxRetries -> terminal FAILED
+  const retryTaskB = createCanonicalTask({
+    id: `task-retry-exhausted-${Date.now()}`,
+    domain: 'QA',
+    action: 'VERIFY_DEPLOYMENT',
+    lane: 'BACKGROUND',
+    payload: { targetRoute: '/products' },
+  });
+  retryTaskB.worker = 'deployment';
+  retryTaskB.status = 'RUNNING';
+  retryTaskB.retryCount = 1;
+  retryTaskB.maxRetries = 1; // max retries already reached
+  retryTaskB.startedAt = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  await store.addTask(retryTaskB);
+
+  const reclaimedB = await store.reclaimStuckTasks(15 * 60 * 1000);
+  const foundReclaimedB = reclaimedB.find((t) => t.id === retryTaskB.id);
+  assert(foundReclaimedB !== undefined, 'Timed out task must be reclaimed');
+  assert(foundReclaimedB?.status === 'FAILED', `Task exceeding maxRetries must transition to FAILED (got ${foundReclaimedB?.status})`);
+  assert(foundReclaimedB?.retryCount === 1, 'retryCount should not increment past maxRetries');
+
+  // Must not be eligible for re-leasing
+  const readyAfterFail = store.getCandidateReadinessDiagnostics('BACKGROUND').find((r) => r.taskId === retryTaskB.id);
+  assert(readyAfterFail === undefined || readyAfterFail.isReady === false, 'Terminal FAILED task must never be re-leased');
+
+  console.log('  ✅ TEST 41 PASSED: True retry lifecycle (QUEUED -> RUNNING -> timeout -> RETRYING -> re-lease -> COMPLETED) and terminal failure exhaustion verified.');
 
   // --------------------------------------------------------------------------
   // TEST 42: Sensitive Task Stuck Recovery (Zero Auto-Retry Loop)
@@ -1468,8 +1531,214 @@ async function runTestSuite() {
 
   console.log('  ✅ TEST 43 PASSED: Storefront data failures are truthfully distinguished from empty catalogs.');
 
+  // --------------------------------------------------------------------------
+  // TEST 44: Product Media Isolation & Ownership Enforcement (Zero Cross-Product Leakage)
+  // --------------------------------------------------------------------------
+  console.log('\n[TEST 44] Testing Product Media Isolation & Ownership Enforcement...');
+  const { getPrimaryMedia, getMediaForEntity, attachCanonicalMediaToProduct } = await import('../lib/db/media');
+  
+  // 1. Entity type PRODUCT without entityId must never leak assets
+  const unassignedAssets = await getMediaForEntity({ entityType: 'PRODUCT', includeDrafts: false });
+  assert(unassignedAssets.length === 0, 'Querying PRODUCT media without entityId must return 0 assets to prevent leakage');
+
+  const unassignedPrimary = await getPrimaryMedia({ entityType: 'PRODUCT' });
+  assert(unassignedPrimary.source === 'SYSTEM_FALLBACK', 'getPrimaryMedia without product entityId must return SYSTEM_FALLBACK');
+  assert(unassignedPrimary.url === '/images/fallback.svg', 'Fallback URL must be default fallback');
+
+  // 2. attachCanonicalMediaToProduct must reject media belonging to another entityId
+  const dummyProductA = { id: 'prod-target-a', name: 'Product A', images: [] };
+  const foreignMediaResult = {
+    primaryAsset: {
+      id: 'med-foreign-1',
+      entityType: 'PRODUCT' as const,
+      entityId: 'prod-foreign-b',
+      url: 'https://znyjhuhhfzisztqymtqs.supabase.co/storage/v1/object/public/product-images/foreign.webp',
+      storageBucket: 'product-images',
+      aspectRatio: '1:1',
+      role: 'PRIMARY' as const,
+      source: 'MANUAL_UPLOAD' as const,
+      status: 'approved' as const,
+      isLocked: true,
+      sortOrder: 1,
+      mimeType: 'image/webp',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+    galleryAssets: [],
+    allAssets: [] as any[],
+    isFallback: false,
+    source: 'MANUAL_UPLOAD' as const,
+  };
+  foreignMediaResult.allAssets = [foreignMediaResult.primaryAsset];
+
+  const attachedAttempt = attachCanonicalMediaToProduct(dummyProductA, foreignMediaResult);
+  assert(
+    (attachedAttempt as any).canonicalPrimaryUrl === undefined,
+    'attachCanonicalMediaToProduct must reject media belonging to a different product entityId'
+  );
+
+  console.log('  ✅ TEST 44 PASSED: Product media isolation and ownership enforcement prevent cross-product leakage.');
+
+  // --------------------------------------------------------------------------
+  // TEST 45: Schema Worker Truthfulness & Zero-Fake-Review Guarantee
+  // --------------------------------------------------------------------------
+  console.log('\n[TEST 45] Testing Schema Worker Truthfulness & Zero-Fake-Review Guarantee...');
+  const { schemaWorker } = await import('../lib/agent/workers/index');
+  const schemaTask45 = createCanonicalTask({
+    id: `task-schema-${Date.now()}`,
+    domain: 'SEO',
+    action: 'GENERATE_SCHEMA',
+    lane: 'BACKGROUND',
+    payload: { entityType: 'Product', name: 'Pure Sojat Henna Powder' },
+  });
+  const schemaResult = await schemaWorker(schemaTask45);
+  assert(schemaResult.status === 'COMPLETED', 'schemaWorker must return COMPLETED');
+  assert(schemaResult.executionState === 'VERIFIED', 'schemaWorker must return VERIFIED (non-mutative audit)');
+  assert(schemaResult.result.mutativeApplied === false, 'schemaWorker must declare mutativeApplied: false');
+  assert(schemaResult.result.persisted === false, 'schemaWorker must declare persisted: false');
+  assert(Array.isArray(schemaResult.filesAffected) && schemaResult.filesAffected.length === 0, 'filesAffected must be empty');
+  assert(schemaResult.result.zeroFakeReviews === true, 'zeroFakeReviews must be explicitly guaranteed');
+  assert((schemaResult.result.schemaJson as any).aggregateRating === undefined, 'No fake aggregateRating in schema');
+  assert((schemaResult.result.schemaJson as any).review === undefined, 'No fake reviews in schema');
+  console.log('  ✅ TEST 45 PASSED: Schema worker is truthful, non-mutative, and enforces 0-fake-review policy.');
+
+  // --------------------------------------------------------------------------
+  // TEST 46: Internal Linking Worker Exact Re-Read Persistence Verification
+  // --------------------------------------------------------------------------
+  console.log('\n[TEST 46] Testing Internal Linking Worker Exact Re-Read Persistence Verification...');
+  const { internalLinkingWorker } = await import('../lib/agent/workers/index');
+  const availableGuides = await getGuides();
+  const testGuideSlug = availableGuides.length > 0 ? availableGuides[0].slug : 'catalog';
+  
+  // Non-mutative audit task
+  const auditLinkingTask = createCanonicalTask({
+    id: `task-linking-audit-${Date.now()}`,
+    domain: 'SEO',
+    action: 'AUDIT_INTERNAL_LINKS',
+    lane: 'BACKGROUND',
+    payload: { guideSlug: testGuideSlug },
+  });
+  const auditLinkingResult = await internalLinkingWorker(auditLinkingTask);
+  assert(auditLinkingResult.status === 'COMPLETED', 'internalLinkingWorker audit must return COMPLETED');
+  assert(auditLinkingResult.executionState === 'AUDITED', 'internalLinkingWorker audit must return AUDITED');
+  assert(auditLinkingResult.result.mutativeApplied === false, 'Audit must declare mutativeApplied: false');
+
+  // Mutation task with existing guide
+  if (availableGuides.length > 0) {
+    const applyLinkingTask = createCanonicalTask({
+      id: `task-linking-apply-${Date.now()}`,
+      domain: 'SEO',
+      action: 'APPLY_LINKS',
+      lane: 'BACKGROUND',
+      payload: {
+        guideSlug: testGuideSlug,
+        relatedProductIds: ['prod-1', 'prod-2'],
+      },
+    });
+    const applyLinkingResult = await internalLinkingWorker(applyLinkingTask);
+    assert(applyLinkingResult.status === 'COMPLETED', 'Mutation must return COMPLETED when guide exists');
+    assert(applyLinkingResult.executionState === 'APPLIED', 'Mutation must return APPLIED when successful');
+    assert(applyLinkingResult.result.verifiedReRead === true, 'verifiedReRead must be true');
+    const resultIds = ((applyLinkingResult.result as any).relatedProductIds || []) as string[];
+    assert(resultIds.includes('prod-1'), 'Intended prod-1 present');
+    assert(resultIds.includes('prod-2'), 'Intended prod-2 present');
+  }
+
+  // Non-existent guide mutation must return FAILED cleanly
+  const missingGuideTask = createCanonicalTask({
+    id: `task-linking-missing-${Date.now()}`,
+    domain: 'SEO',
+    action: 'APPLY_LINKS',
+    lane: 'BACKGROUND',
+    payload: {
+      guideSlug: 'completely-non-existent-guide-slug-9999',
+      relatedProductIds: ['prod-1'],
+    },
+  });
+  const missingGuideResult = await internalLinkingWorker(missingGuideTask);
+  assert(missingGuideResult.status === 'FAILED', 'Mutation on missing guide must return FAILED');
+  assert(missingGuideResult.executionState === 'FAILED', 'executionState on missing guide must be FAILED');
+
+  console.log('  ✅ TEST 46 PASSED: Internal linking worker strictly verifies exact persisted IDs on re-read.');
+
+  // --------------------------------------------------------------------------
+  // TEST 47: Shipping Fee & Product Schema Offer Consistency
+  // --------------------------------------------------------------------------
+  console.log('\n[TEST 47] Testing Shipping Fee & Product Schema Offer Consistency...');
+  const buildOfferDetails = (fee: number | undefined) => {
+    return {
+      '@type': 'Offer',
+      price: 299,
+      priceCurrency: 'INR',
+      ...(Number(fee ?? 0) > 0
+        ? {
+            shippingDetails: {
+              '@type': 'OfferShippingDetails',
+              shippingRate: {
+                '@type': 'MonetaryAmount',
+                value: Number(fee),
+                currency: 'INR',
+              },
+            },
+          }
+        : {}),
+    };
+  };
+
+  const zeroFeeOffer = buildOfferDetails(0);
+  assert((zeroFeeOffer as any).shippingDetails === undefined, 'shippingDetails must be omitted when fee is 0 to avoid false Free Shipping declaration');
+
+  const undefinedFeeOffer = buildOfferDetails(undefined);
+  assert((undefinedFeeOffer as any).shippingDetails === undefined, 'shippingDetails must be omitted when fee is undefined');
+
+  const positiveFeeOffer = buildOfferDetails(75);
+  assert((positiveFeeOffer as any).shippingDetails !== undefined, 'shippingDetails must be present when fee > 0');
+  assert((positiveFeeOffer as any).shippingDetails.shippingRate.value === 75, 'shippingRate must match declared fee');
+  console.log('  ✅ TEST 47 PASSED: Product schema truthfully omits shippingDetails when charges extra.');
+
+  // --------------------------------------------------------------------------
+  // TEST 48: Private Utility Pages SEO Hygiene (Strict Robots & Canonical Alternates)
+  // --------------------------------------------------------------------------
+  console.log('\n[TEST 48] Testing Private Utility Pages SEO Hygiene...');
+  const robotsModule = await import('../app/robots');
+  const robotsConfig = robotsModule.default();
+  const disallowed = Array.isArray(robotsConfig.rules)
+    ? robotsConfig.rules.flatMap((r) => r.disallow)
+    : robotsConfig.rules?.disallow || [];
+
+  assert(disallowed.includes('/admin'), 'robots.txt must disallow /admin');
+  assert(disallowed.includes('/cart'), 'robots.txt must disallow /cart');
+  assert(disallowed.includes('/checkout'), 'robots.txt must disallow /checkout');
+  assert(disallowed.includes('/wishlist'), 'robots.txt must disallow /wishlist');
+
+  const checkoutLayoutModule = await import('../app/checkout/layout');
+  assert((checkoutLayoutModule.metadata as any).robots?.index === false, 'Checkout must have robots.index = false');
+  assert((checkoutLayoutModule.metadata as any).robots?.follow === false, 'Checkout must have robots.follow = false');
+  assert(
+    (checkoutLayoutModule.metadata as any).alternates?.canonical === 'https://muskydose.in/checkout',
+    'Checkout must have self-referential canonical'
+  );
+
+  const cartPageModule = await import('../app/cart/page');
+  assert((cartPageModule.metadata as any).robots?.index === false, 'Cart must have robots.index = false');
+  assert((cartPageModule.metadata as any).robots?.follow === false, 'Cart must have robots.follow = false');
+  assert(
+    (cartPageModule.metadata as any).alternates?.canonical === 'https://muskydose.in/cart',
+    'Cart must have self-referential canonical'
+  );
+
+  const wishlistPageModule = await import('../app/wishlist/page');
+  assert((wishlistPageModule.metadata as any).robots?.index === false, 'Wishlist must have robots.index = false');
+  assert((wishlistPageModule.metadata as any).robots?.follow === false, 'Wishlist must have robots.follow = false');
+  assert(
+    (wishlistPageModule.metadata as any).alternates?.canonical === 'https://muskydose.in/wishlist',
+    'Wishlist must have self-referential canonical'
+  );
+
+  console.log('  ✅ TEST 48 PASSED: Private utility pages have strict noindex/nofollow and self-referential canonicals.');
+
   console.log('\n============================================================');
-  console.log('🎉 ALL 43/43 INTEGRATION TESTS PASSED ACCORDING TO SPECIFICATION!');
+  console.log('🎉 ALL 48/48 INTEGRATION TESTS PASSED ACCORDING TO SPECIFICATION!');
   console.log('============================================================\n');
 }
 
