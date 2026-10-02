@@ -147,6 +147,47 @@ export async function GET(req: NextRequest) {
   }
 }
 
+async function handleSignedUrlRequest(body: any) {
+  const { entityType = 'PRODUCT', entityId = 'new-product', fileName, mimeType, fileSizeBytes } = body || {};
+
+  if (!fileName || typeof fileName !== 'string' || !fileName.trim()) {
+    return NextResponse.json(
+      { success: false, error: 'File name is required to initialize signed upload.' },
+      { status: 400 }
+    );
+  }
+
+  const cleanMime = (mimeType || '').toLowerCase();
+  if (!cleanMime || !ALLOWED_MIME_TYPES.includes(cleanMime)) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: `Unsupported MIME type: ${cleanMime || 'unknown'}. Allowed: JPG, PNG, WEBP, AVIF, SVG, MP4, WEBM.`,
+      },
+      { status: 400 }
+    );
+  }
+
+  const isVideo = cleanMime.startsWith('video/');
+  const MAX_SIZE = isVideo ? 25 * 1024 * 1024 : 16 * 1024 * 1024;
+  if (typeof fileSizeBytes === 'number' && fileSizeBytes > MAX_SIZE) {
+    return NextResponse.json(
+      { success: false, error: `File size exceeds maximum allowed limit of ${isVideo ? '25MB' : '16MB'}.` },
+      { status: 413 }
+    );
+  }
+
+  const signedResult = await createSignedMediaUploadUrl({
+    entityType: (entityType as MediaEntityType) || 'PRODUCT',
+    entityId: String(entityId).trim() || 'new-product',
+    fileName: String(fileName).trim(),
+    mimeType: cleanMime,
+    fileSizeBytes,
+  });
+
+  return NextResponse.json(signedResult);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const authCheck = requireAdminAuthAndCsrf(req);
@@ -157,15 +198,7 @@ export async function POST(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     if (searchParams.get('action') === 'signed-url') {
       const body = await req.json();
-      const { entityType = 'PRODUCT', entityId, fileName, mimeType, fileSizeBytes } = body;
-      const signedResult = await createSignedMediaUploadUrl({
-        entityType,
-        entityId: entityId || 'new-product',
-        fileName,
-        mimeType,
-        fileSizeBytes,
-      });
-      return NextResponse.json(signedResult);
+      return handleSignedUrlRequest(body);
     }
 
     const contentTypeHeader = req.headers.get('content-type') || '';
@@ -321,16 +354,8 @@ export async function POST(req: NextRequest) {
 
     // JSON body registration
     const body = await req.json();
-    if (body.action === 'signed-url') {
-      const { entityType = 'PRODUCT', entityId, fileName, mimeType, fileSizeBytes } = body;
-      const signedResult = await createSignedMediaUploadUrl({
-        entityType,
-        entityId: entityId || 'new-product',
-        fileName,
-        mimeType,
-        fileSizeBytes,
-      });
-      return NextResponse.json(signedResult);
+    if (body?.action === 'signed-url') {
+      return handleSignedUrlRequest(body);
     }
 
     const {

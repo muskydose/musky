@@ -1260,14 +1260,31 @@ export async function saveMediaAsset(input: SaveMediaAssetInput): Promise<{
       : (input.source === 'AI_GENERATED' ? 'ai_generated' : 'manual_approved')
   );
 
-  // 1. Deduplication check via SHA-256 hash
+  // 1. Deduplication check via SHA-256 hash or matching URL for same entity
   let finalUrl = input.url;
   let finalStoragePath = input.storagePath;
+  let existingToReuse: MediaAsset | null = null;
+
   if (input.fileHash) {
     const existingSameHash = await findAssetByHash(input.fileHash);
     if (existingSameHash) {
       finalUrl = existingSameHash.url;
       finalStoragePath = existingSameHash.storagePath;
+      deduplicated = true;
+    }
+  }
+
+  if (!input.id && input.url) {
+    const { assets } = await getAllMediaAssetsRaw();
+    const existingSameUrl = assets.find(
+      (a) =>
+        a.url === input.url &&
+        a.entityType === input.entityType &&
+        a.entityId === input.entityId &&
+        a.status !== 'archived'
+    );
+    if (existingSameUrl) {
+      existingToReuse = existingSameUrl;
       deduplicated = true;
     }
   }
@@ -1291,7 +1308,11 @@ export async function saveMediaAsset(input: SaveMediaAssetInput): Promise<{
     }
   }
 
-  const assetId = input.id || `med-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  const assetId =
+    input.id ||
+    (existingToReuse
+      ? existingToReuse.id
+      : `med-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`);
   const isLocked = input.isLocked ?? (assetOrigin === 'real_owner_photo' || (role === 'PRIMARY' && input.source === 'MANUAL_UPLOAD'));
 
   const fullAsset: MediaAsset = {
@@ -1483,6 +1504,7 @@ export async function createSignedMediaUploadUrl(options: {
 }): Promise<{
   success: boolean;
   signedUrl?: string;
+  path?: string;
   token?: string;
   storagePath: string;
   publicUrl: string;
@@ -1517,6 +1539,7 @@ export async function createSignedMediaUploadUrl(options: {
       return {
         success: true,
         signedUrl: data.signedUrl,
+        path: (data as any).path || storagePath,
         token: data.token,
         storagePath,
         publicUrl: urlData.publicUrl,
@@ -1829,18 +1852,67 @@ export async function syncProductMedia(
         });
       }
     } else {
-      await saveMediaAsset({
-        entityType: 'PRODUCT',
-        entityId: productId,
-        url,
-        role,
-        sortOrder: idx + 1,
-        source: 'MANUAL_UPLOAD',
-        status: 'approved',
-        isLocked: isFirst,
-      });
+      // Check if an unassigned/temporary new-product asset exists with this exact URL
+      const { assets: allRaw } = await getAllMediaAssetsRaw();
+      const tempAsset = allRaw.find(
+        (a) =>
+          a.url === url &&
+          a.entityType === 'PRODUCT' &&
+          (!a.entityId || a.entityId === 'new-product' || a.entityId.startsWith('temp-'))
+      );
+
+      if (tempAsset) {
+        // Transfer ownership from temporary placeholder to real canonical product ID
+        await updateMediaAsset(tempAsset.id, {
+          entityId: productId,
+          role,
+          sortOrder: idx + 1,
+          isLocked: isFirst,
+        });
+
+        const supabase = getSupabaseAdmin();
+        if (supabase) {
+          try {
+            await supabase
+              .from('media_assets')
+              .update({
+                entity_id: productId,
+                role,
+                sort_order: idx + 1,
+                is_locked: isFirst,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', tempAsset.id);
+          } catch {}
+        }
+      } else {
+        await saveMediaAsset({
+          entityType: 'PRODUCT',
+          entityId: productId,
+          url,
+          role,
+          sortOrder: idx + 1,
+          source: 'MANUAL_UPLOAD',
+          status: 'approved',
+          isLocked: isFirst,
+        });
+      }
     }
   }
+
+  // Prune any temporary new-product assets that were abandoned and not included in final product
+  try {
+    const { assets: postSyncAll } = await getAllMediaAssetsRaw();
+    const abandonedTemp = postSyncAll.filter(
+      (a) =>
+        a.entityType === 'PRODUCT' &&
+        (a.entityId === 'new-product' || a.entityId?.startsWith('temp-')) &&
+        !validUrlSet.has(a.url)
+    );
+    for (const ab of abandonedTemp) {
+      await deleteMediaAsset({ assetId: ab.id, entityType: 'PRODUCT' });
+    }
+  } catch {}
 
   // Clear memory cache so next queries fetch fresh state
   memoryCache = null;
