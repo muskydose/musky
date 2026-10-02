@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { MediaItem } from '@/lib/types';
 import SideDrawer from '@/components/ui/SideDrawer';
+import { uploadMediaFile } from '@/lib/media-upload';
 import { Search, Upload, X, Check, Image as ImageIcon, Plus, Loader2 } from 'lucide-react';
 
 interface MediaSelectModalProps {
@@ -80,23 +81,19 @@ export default function MediaSelectModal({
     setUploadError('');
 
     try {
-      const formData = new FormData();
-      formData.append('file', uploadFile);
-      formData.append('category', uploadCategory);
-      formData.append('altText', uploadAltText);
+      const res = await uploadMediaFile(
+        uploadFile,
+        uploadCategory,
+        uploadAltText,
+        uploadCategory === 'products' ? 'catalog-asset' : undefined
+      );
 
-      const res = await fetch('/api/admin/media', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (data.success && data.mediaItem) {
+      if (res.success && res.url) {
         // Auto-select newly uploaded media
-        onSelect(data.mediaItem.url, data.mediaItem);
+        onSelect(res.url, res.asset as any);
         onClose();
       } else {
-        setUploadError(data.error || 'Failed to upload image.');
+        setUploadError(res.error || 'Failed to upload image.');
       }
     } catch (err: any) {
       setUploadError('Server error while uploading image.');

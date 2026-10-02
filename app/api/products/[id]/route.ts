@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidateCatalogSurfaces } from '@/lib/revalidation';
 import { getProductByIdOrSlug, saveProduct, deleteProduct } from '@/lib/db/products';
+import { syncProductMedia, getMediaForEntity, deleteMediaAsset } from '@/lib/db/media';
 import { requireAdminAuthAndCsrf } from '@/lib/admin-middleware';
 import { UniversalGovernanceCore } from '@/lib/governance';
 import { recordAuditLog } from '@/lib/auth';
@@ -107,6 +108,9 @@ export async function PUT(
 
     const updated = await saveProduct({ ...body, id });
 
+    // Synchronize media assets with canonical Media DAL
+    await syncProductMedia(id, body.media, body.images);
+
     await recordAuditLog({
       action: 'PRODUCT_UPDATE',
       resource: updated.name,
@@ -140,6 +144,16 @@ export async function DELETE(
 
     await deleteProduct(id);
     await UniversalGovernanceCore.executeDeletionLifecycle('PRODUCT', id, existingProduct?.slug);
+
+    // Clean up dedicated product media assets
+    try {
+      const productAssets = await getMediaForEntity({ entityType: 'PRODUCT', entityId: id });
+      for (const asset of productAssets) {
+        await deleteMediaAsset({ assetId: asset.id, entityType: 'PRODUCT', entityId: id });
+      }
+    } catch (mediaErr) {
+      console.warn('[products/[id]] Media cleanup notice on product delete:', mediaErr);
+    }
 
     await recordAuditLog({
       action: 'PRODUCT_DELETE',

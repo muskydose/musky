@@ -7,6 +7,7 @@ import { getProducts } from '@/lib/db/products';
 import { getCategories } from '@/lib/db/categories';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { MediaItem } from '@/lib/types';
+import { saveMediaAsset, deleteMediaAsset, getAllMediaAssetsRaw } from '@/lib/db/media';
 
 // Helper to sanitize filenames
 function sanitizeFileName(name: string): string {
@@ -352,9 +353,31 @@ export async function POST(req: NextRequest) {
       details: { url: mediaItem.url, category: mediaItem.category },
     });
 
+    // Register canonical MediaAsset in unified media DAL
+    let canonicalAsset: any = undefined;
+    try {
+      const { asset } = await saveMediaAsset({
+        entityType: (mediaItem.category === 'categories' ? 'CATEGORY' : mediaItem.category === 'products' ? 'PRODUCT' : 'BRAND'),
+        entityId: (mediaItem.category === 'products' ? 'new-product' : undefined),
+        url: mediaItem.url,
+        role: 'GALLERY',
+        title: mediaItem.name,
+        altText: mediaItem.altText,
+        mimeType: mediaItem.type,
+        fileSizeBytes: mediaItem.size,
+        source: 'MANUAL_UPLOAD',
+        status: 'approved',
+      });
+      canonicalAsset = asset;
+    } catch (saveErr) {
+      console.warn('[media/route.ts] Canonical saveMediaAsset notice:', saveErr);
+    }
+
     return NextResponse.json({
       success: true,
       mediaItem,
+      media: { url: mediaItem.url },
+      asset: canonicalAsset,
       mediaLibrary: updatedSettings.mediaLibrary,
     });
   } catch (error: any) {
@@ -415,22 +438,14 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    // Try deleting from Supabase Storage if it's a Supabase storage URL
-    const supabaseAdmin = getSupabaseAdmin();
-    if (supabaseAdmin && targetItem.url.includes('musky-dose-media')) {
-      try {
-        const parts = targetItem.url.split('musky-dose-media/');
-        if (parts.length > 1) {
-          const filePath = parts[1];
-          await supabaseAdmin.storage.from('musky-dose-media').remove([filePath]);
-        }
-      } catch (err) {
-        console.warn('Error deleting file from Supabase storage:', err);
-      }
-    }
+    // Canonical Media DAL deletion: checks references, deletes storage object if unreferenced, removes from DB/memory, promotes new primary if needed, invalidates cache
+    const deleteResult = await deleteMediaAsset({
+      url: targetItem.url,
+      force,
+    });
 
-    // Remove from mediaLibrary array
-    const updatedLibrary = library.filter((m) => m.id !== mediaId);
+    // Remove from siteSettings mediaLibrary array
+    const updatedLibrary = library.filter((m) => m.id !== mediaId && m.url !== targetItem.url);
     await updateSiteSettings({
       ...siteSettings,
       mediaLibrary: updatedLibrary,
@@ -439,13 +454,15 @@ export async function DELETE(req: NextRequest) {
     await recordAuditLog({
       action: 'MEDIA_DELETE',
       resource: targetItem.name,
-      details: { mediaId, url: targetItem.url },
+      details: { mediaId, url: targetItem.url, storageDeleted: deleteResult.storageDeleted },
     });
 
     return NextResponse.json({
       success: true,
       deletedId: mediaId,
       message: 'Media item deleted successfully',
+      storageDeleted: deleteResult.storageDeleted,
+      referencesRemaining: deleteResult.remainingReferences,
     });
   } catch (error: any) {
     return sanitizeAdminError(error, 'Failed to delete media item.');

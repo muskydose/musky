@@ -5,11 +5,10 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Product, Category, ProductVariant, BulkPricingRule } from '@/lib/types';
-import MediaSelectModal from '@/components/MediaSelectModal';
 import ProductMediaManager from '@/components/admin/products/ProductMediaManager';
+import MediaSelectModal from '@/components/MediaSelectModal';
 import ProductAutoFillModal from '@/components/admin/products/ProductAutoFillModal';
 import { ProductAutoFillDraft } from '@/lib/growth/product-autofill-engine';
-import { uploadMediaFile } from '@/lib/media-upload';
 import { deriveProductAutoSeo } from '@/lib/growth/product-keyword-engine';
 import { validateProductVariants, formatVariantWeight } from '@/lib/product-variants';
 import { resolveProductWholesaleUnits, calculateProductBaseWholesaleRate } from '@/lib/wholesale-units';
@@ -248,12 +247,10 @@ export default function ProductFormClient({
     }));
   };
 
-  const [imageInput, setImageInput] = useState('');
   const [ingredientInput, setIngredientInput] = useState('');
   const [benefitInput, setBenefitInput] = useState('');
-  const [imageUploadError, setImageUploadError] = useState('');
-  const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
   const [isAutoFillModalOpen, setIsAutoFillModalOpen] = useState(false);
+  const [isOgMediaModalOpen, setIsOgMediaModalOpen] = useState(false);
 
   // --- Step 3: Product Retail Variations & Wholesale Bulk Pricing State ---
   const [productVariants, setProductVariants] = useState<ProductVariant[]>(
@@ -520,40 +517,6 @@ export default function ProductFormClient({
     setIsDirty(true);
   };
 
-  const handleSelectFromMediaLibrary = (url: string) => {
-    if (!url || url.includes('fallback.svg')) return;
-    setIsDirty(true);
-    setFormData((prev) => ({
-      ...prev,
-      images: [...(prev.images || []).filter((img) => !img.includes('fallback.svg')), url],
-    }));
-  };
-
-  const handleSetCoverImage = (index: number) => {
-    if (index === 0) return;
-    setIsDirty(true);
-    setFormData((prev) => {
-      const images = [...(prev.images || [])];
-      const target = images[index];
-      images.splice(index, 1);
-      images.unshift(target);
-      return { ...prev, images };
-    });
-  };
-
-  const handleMoveImage = (index: number, direction: 'left' | 'right') => {
-    setIsDirty(true);
-    setFormData((prev) => {
-      const images = [...(prev.images || [])];
-      const newIndex = direction === 'left' ? index - 1 : index + 1;
-      if (newIndex < 0 || newIndex >= images.length) return prev;
-      const temp = images[index];
-      images[index] = images[newIndex];
-      images[newIndex] = temp;
-      return { ...prev, images };
-    });
-  };
-
   const [autoFilling, setAutoFilling] = useState(false);
   const [hasManuallyEdited, setHasManuallyEdited] = useState(false);
   const [autoFillChecklist, setAutoFillChecklist] = useState<any | null>(null);
@@ -709,74 +672,6 @@ export default function ProductFormClient({
         : 'AI draft applied to empty fields! Please review and click "Save Product".'
     );
     setTimeout(() => setSuccessMsg(''), 6000);
-  };
-
-  const handleAddImageUrl = () => {
-    if (!imageInput.trim()) return;
-    if (imageInput.trim().includes('fallback.svg')) {
-      setImageUploadError('Fallback placeholder cannot be added as a product image.');
-      return;
-    }
-    if (imageInput.startsWith('data:image/')) {
-      setImageUploadError('Base64 image data cannot be stored directly. Please upload the file or provide a clean HTTPS URL.');
-      return;
-    }
-    if (!imageInput.startsWith('http://') && !imageInput.startsWith('https://') && !imageInput.startsWith('/')) {
-      setImageUploadError('Please provide a valid image URL starting with http:// or https://');
-      return;
-    }
-    setImageUploadError('');
-    setIsDirty(true);
-    setFormData((prev) => ({
-      ...prev,
-      images: [...(prev.images || []).filter((img) => !img.includes('fallback.svg')), imageInput.trim()],
-    }));
-    setImageInput('');
-  };
-
-  // Image File Uploader (Uploads image files to Supabase Storage via Media API)
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    setImageUploadError('');
-    setSaving(true);
-
-    const fileList = Array.from(files);
-    for (const file of fileList) {
-      if (!file.type.startsWith('image/')) {
-        setImageUploadError(`"${file.name}" is not an image file. Please select JPEG, PNG, WEBP, or SVG.`);
-        setSaving(false);
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        setImageUploadError(`"${file.name}" exceeds maximum allowed file size of 5MB.`);
-        setSaving(false);
-        return;
-      }
-
-      const targetProductId = formData.id || formData.slug || 'new-product';
-      const res = await uploadMediaFile(file, 'products', undefined, targetProductId);
-      if (res.success && res.url) {
-        setIsDirty(true);
-        setFormData((prev) => ({
-          ...prev,
-          images: [...(prev.images || []).filter((img) => !img.includes('fallback.svg')), res.url],
-        }));
-      } else {
-        setImageUploadError(`Failed to upload "${file.name}": ${res.error || 'Upload error'}`);
-      }
-    }
-
-    setSaving(false);
-    e.target.value = '';
-  };
-
-  const handleRemoveImage = (index: number) => {
-    setIsDirty(true);
-    setFormData((prev) => ({
-      ...prev,
-      images: (prev.images || []).filter((_, i) => i !== index),
-    }));
   };
 
   const handleAddIngredient = () => {
@@ -2568,7 +2463,7 @@ export default function ProductFormClient({
                     />
                     <button
                       type="button"
-                      onClick={() => setIsMediaModalOpen(true)}
+                      onClick={() => setIsOgMediaModalOpen(true)}
                       className="px-3.5 py-2 bg-[#f5f1e8] hover:bg-[#e8e2d5] text-[#0f2d22] border border-[#e8e2d5] rounded-xl font-bold text-xs shrink-0"
                     >
                       Choose from Media Library
@@ -2992,11 +2887,11 @@ export default function ProductFormClient({
       </form>
 
       <MediaSelectModal
-        isOpen={isMediaModalOpen}
-        onClose={() => setIsMediaModalOpen(false)}
-        onSelect={(url) => handleSelectFromMediaLibrary(url)}
-        categoryFilter="products"
-        title="Select Product Gallery Image"
+        isOpen={isOgMediaModalOpen}
+        onClose={() => setIsOgMediaModalOpen(false)}
+        onSelect={(url) => updateForm('ogImageUrl', url)}
+        categoryFilter="all"
+        title="Select Social Share (OG) Image"
       />
     </div>
   );

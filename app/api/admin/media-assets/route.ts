@@ -5,6 +5,7 @@ import { recordAuditLog } from '@/lib/auth';
 import { sanitizeAdminError } from '@/lib/api-errors';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { validateImageBinary } from '@/lib/ai/image-integrity';
+import { revalidateCatalogSurfaces } from '@/lib/revalidation';
 import {
   MediaAsset,
   MediaEntityType,
@@ -16,6 +17,8 @@ import {
   archiveMediaAsset,
   setPrimaryMedia,
   findAssetByHash,
+  deleteMediaAsset,
+  createSignedMediaUploadUrl,
 } from '@/lib/db/media';
 
 function sanitizeFileName(name: string): string {
@@ -151,6 +154,20 @@ export async function POST(req: NextRequest) {
       return authCheck.errorResponse!;
     }
 
+    const { searchParams } = new URL(req.url);
+    if (searchParams.get('action') === 'signed-url') {
+      const body = await req.json();
+      const { entityType = 'PRODUCT', entityId, fileName, mimeType, fileSizeBytes } = body;
+      const signedResult = await createSignedMediaUploadUrl({
+        entityType,
+        entityId: entityId || 'new-product',
+        fileName,
+        mimeType,
+        fileSizeBytes,
+      });
+      return NextResponse.json(signedResult);
+    }
+
     const contentTypeHeader = req.headers.get('content-type') || '';
 
     if (contentTypeHeader.includes('multipart/form-data')) {
@@ -186,6 +203,16 @@ export async function POST(req: NextRequest) {
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());
+
+      // 1. Verify file magic bytes signature
+      if (!validateMagicBytes(buffer, mimeType)) {
+        return NextResponse.json(
+          { success: false, error: 'Security alert: File signature does not match declared MIME type.' },
+          { status: 400 }
+        );
+      }
+
+      // 2. Extra binary validation for raster images
       if (!isVideo && mimeType !== 'image/svg+xml') {
         const imgValidation = validateImageBinary(buffer);
         if (!imgValidation.isValid) {
@@ -194,11 +221,6 @@ export async function POST(req: NextRequest) {
             { status: 400 }
           );
         }
-      } else if (!validateMagicBytes(buffer, mimeType)) {
-        return NextResponse.json(
-          { success: false, error: 'Security alert: File signature mismatch.' },
-          { status: 400 }
-        );
       }
 
       if (mimeType === 'image/svg+xml') {
@@ -291,37 +313,73 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         asset,
+        url: asset.url,
+        media: { url: asset.url },
         deduplicated,
       });
     }
 
     // JSON body registration
     const body = await req.json();
-    const { entityType, entityId, url, role, title, altText, isLocked } = body;
+    if (body.action === 'signed-url') {
+      const { entityType = 'PRODUCT', entityId, fileName, mimeType, fileSizeBytes } = body;
+      const signedResult = await createSignedMediaUploadUrl({
+        entityType,
+        entityId: entityId || 'new-product',
+        fileName,
+        mimeType,
+        fileSizeBytes,
+      });
+      return NextResponse.json(signedResult);
+    }
+
+    const {
+      entityType,
+      entityId,
+      url,
+      role,
+      title,
+      altText,
+      isLocked,
+      storagePath,
+      fileName,
+      fileSizeBytes,
+      mimeType,
+    } = body;
 
     if (!url || !url.startsWith('http')) {
       return NextResponse.json({ success: false, error: 'Valid URL is required.' }, { status: 400 });
     }
 
-    const { asset } = await saveMediaAsset({
+    const { asset, deduplicated } = await saveMediaAsset({
       entityType: entityType || 'PRODUCT',
       entityId,
       url,
       role: role || 'GALLERY',
-      source: 'EXTERNAL_IMPORT',
+      source: storagePath ? 'MANUAL_UPLOAD' : 'EXTERNAL_IMPORT',
       status: 'approved',
       isLocked: Boolean(isLocked),
-      title,
-      altText,
+      title: title || fileName,
+      altText: altText || title || fileName,
+      storagePath,
+      fileName,
+      fileSizeBytes,
+      mimeType,
     });
 
     await recordAuditLog({
       action: 'MEDIA_ASSET_REGISTER',
       resource: asset.id,
-      details: { entityType, entityId, url },
+      details: { entityType, entityId, url, deduplicated },
     });
 
-    return NextResponse.json({ success: true, asset });
+    return NextResponse.json({
+      success: true,
+      asset,
+      url: asset.url,
+      media: { url: asset.url },
+      deduplicated,
+    });
   } catch (error: any) {
     return sanitizeAdminError(error, 'Failed to process media asset.');
   }
@@ -393,26 +451,57 @@ export async function DELETE(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
+    const url = searchParams.get('url');
+    const productId = searchParams.get('productId');
+    const force = searchParams.get('force') === 'true';
 
-    if (!id) {
-      return NextResponse.json({ success: false, error: 'Asset ID is required.' }, { status: 400 });
+    if (!id && !url) {
+      return NextResponse.json({ success: false, error: 'Asset ID or URL is required.' }, { status: 400 });
     }
 
-    // Soft archive: status='archived', never drops data or storage file
-    const success = await archiveMediaAsset(id);
-    if (!success) {
-      return NextResponse.json({ success: false, error: 'Asset not found or already archived.' }, { status: 404 });
+    const deleteResult = await deleteMediaAsset({
+      assetId: id || undefined,
+      url: url || undefined,
+      entityType: 'PRODUCT',
+      entityId: productId || undefined,
+      force,
+    });
+
+    if (!deleteResult.success) {
+      return NextResponse.json({ success: false, error: deleteResult.error || 'Failed to delete asset.' }, { status: 500 });
     }
 
     await recordAuditLog({
-      action: 'MEDIA_ASSET_ARCHIVE',
-      resource: id,
-      details: { id },
+      action: 'MEDIA_ASSET_DELETE',
+      resource: id || url || '',
+      details: {
+        id,
+        url,
+        productId,
+        deleted: deleteResult.deleted,
+        storageDeleted: deleteResult.storageDeleted,
+        promotedPrimaryId: deleteResult.promotedPrimaryId,
+      },
     });
 
-    return NextResponse.json({ success: true, archivedId: id });
+    // Revalidate affected catalog and product pages
+    if (productId) {
+      await revalidateCatalogSurfaces({
+        slugs: [productId],
+      });
+    }
+
+    return NextResponse.json({
+      success: true,
+      deletedId: id || deleteResult.deletedAssetId,
+      deleted: deleteResult.deleted,
+      unlinked: deleteResult.unlinked,
+      storageDeleted: deleteResult.storageDeleted,
+      promotedPrimaryId: deleteResult.promotedPrimaryId,
+      remainingReferences: deleteResult.remainingReferences,
+    });
   } catch (error: any) {
-    return sanitizeAdminError(error, 'Failed to archive media asset.');
+    return sanitizeAdminError(error, 'Failed to delete media asset.');
   }
 }
 

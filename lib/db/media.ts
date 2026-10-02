@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { getSupabase, getSupabaseAdmin } from '@/lib/supabase';
+import type { ProductMediaItem } from '@/lib/types';
 
 // ============================================================================
 // 1. TYPES & CONTRACTS
@@ -1456,5 +1457,392 @@ async function persistAssetRecord(asset: MediaAsset): Promise<void> {
       // In-memory fallback
     }
   }
+}
+
+// ============================================================================
+// 9. CANONICAL UPLOAD, DELETION, AND RECONCILIATION METHODS
+// ============================================================================
+
+export function sanitizeFileName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, '-')
+    .replace(/-+/g, '-');
+}
+
+/**
+ * Creates a signed upload URL for direct browser-to-Supabase upload,
+ * preventing serverless body payload limit exceptions.
+ */
+export async function createSignedMediaUploadUrl(options: {
+  entityType: MediaEntityType;
+  entityId: string;
+  fileName: string;
+  mimeType: string;
+  fileSizeBytes?: number;
+}): Promise<{
+  success: boolean;
+  signedUrl?: string;
+  token?: string;
+  storagePath: string;
+  publicUrl: string;
+  bucket: string;
+  error?: string;
+}> {
+  const { entityType, entityId, fileName } = options;
+  const cleanName = sanitizeFileName(fileName || 'image.webp');
+  const cleanEntityId = sanitizeFileName(entityId || 'new-product');
+  const folder = entityType.toLowerCase();
+  const storagePath = `${folder}/${cleanEntityId}/${Date.now()}-${cleanName}`;
+  const bucket = 'product-images';
+
+  const supabaseAdmin = getSupabaseAdmin();
+  if (supabaseAdmin) {
+    try {
+      const { data, error } = await supabaseAdmin.storage
+        .from(bucket)
+        .createSignedUploadUrl(storagePath, { upsert: true });
+
+      if (error || !data) {
+        return {
+          success: false,
+          storagePath,
+          publicUrl: '',
+          bucket,
+          error: error?.message || 'Failed to create signed upload URL',
+        };
+      }
+
+      const { data: urlData } = supabaseAdmin.storage.from(bucket).getPublicUrl(storagePath);
+      return {
+        success: true,
+        signedUrl: data.signedUrl,
+        token: data.token,
+        storagePath,
+        publicUrl: urlData.publicUrl,
+        bucket,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        storagePath,
+        publicUrl: '',
+        bucket,
+        error: err?.message || 'Storage signed URL exception',
+      };
+    }
+  }
+
+  // Fallback for environments where Supabase storage is not configured (mock/test)
+  return {
+    success: false,
+    storagePath,
+    publicUrl: `/storage/fallback/${storagePath}`,
+    bucket,
+    error: 'Storage admin not configured',
+  };
+}
+
+/**
+ * Scans for external references to a media URL across all entity tables
+ * to prevent accidental deletion of shared or cross-referenced media assets.
+ */
+export async function scanMediaReferences(
+  url: string,
+  excludeEntity?: { entityType?: MediaEntityType; entityId?: string; assetId?: string }
+): Promise<Array<{ type: string; id: string; name?: string }>> {
+  const references: Array<{ type: string; id: string; name?: string }> = [];
+  if (!url) return references;
+
+  const { assets } = await getAllMediaAssetsRaw();
+  // 1. Check other media_assets rows
+  for (const a of assets) {
+    if (a.url === url && a.status === 'approved') {
+      if (excludeEntity?.assetId && a.id === excludeEntity.assetId) continue;
+      if (
+        excludeEntity?.entityType &&
+        excludeEntity?.entityId &&
+        a.entityType === excludeEntity.entityType &&
+        a.entityId === excludeEntity.entityId
+      ) {
+        continue;
+      }
+      references.push({
+        type: `MediaAsset (${a.entityType})`,
+        id: a.entityId || a.id,
+        name: a.title || a.fileName,
+      });
+    }
+  }
+
+  // 2. Check catalog and site settings tables
+  const supabase = getSupabaseAdmin() || getSupabase();
+  if (supabase) {
+    try {
+      const [prodRes, catRes, guideRes, setRes] = await Promise.all([
+        supabase.from('products').select('id, name, images, slug'),
+        supabase.from('categories').select('id, name, image, slug'),
+        supabase.from('product_guides').select('id, title, cover_image, slug'),
+        supabase.from('site_settings').select('data'),
+      ]);
+
+      if (Array.isArray(prodRes.data)) {
+        for (const p of prodRes.data) {
+          if (excludeEntity?.entityType === 'PRODUCT' && excludeEntity?.entityId === p.id) continue;
+          if (Array.isArray(p.images) && p.images.some((img: string) => img === url)) {
+            references.push({ type: 'PRODUCT', id: p.id, name: p.name });
+          }
+        }
+      }
+
+      if (Array.isArray(catRes.data)) {
+        for (const c of catRes.data) {
+          if (excludeEntity?.entityType === 'CATEGORY' && (excludeEntity?.entityId === c.id || excludeEntity?.entityId === c.slug)) continue;
+          if (c.image === url) {
+            references.push({ type: 'CATEGORY', id: c.id, name: c.name });
+          }
+        }
+      }
+
+      if (Array.isArray(guideRes.data)) {
+        for (const g of guideRes.data) {
+          if (excludeEntity?.entityType === 'GUIDE' && (excludeEntity?.entityId === g.id || excludeEntity?.entityId === g.slug)) continue;
+          if (g.cover_image === url) {
+            references.push({ type: 'GUIDE', id: g.id, name: g.title });
+          }
+        }
+      }
+
+      const settingsData = setRes?.data?.[0]?.data;
+      if (settingsData) {
+        if (settingsData.logoUrl === url) references.push({ type: 'BRAND', id: 'logo', name: 'Brand Logo' });
+        if (settingsData.faviconUrl === url) references.push({ type: 'BRAND', id: 'favicon', name: 'Favicon' });
+        if (settingsData.heroImageUrl === url) references.push({ type: 'BRAND', id: 'hero', name: 'Hero Image' });
+        if (settingsData.factoryImageUrl === url) references.push({ type: 'BRAND', id: 'factory', name: 'Factory Image' });
+        if (settingsData.ogImageUrl === url) references.push({ type: 'BRAND', id: 'og', name: 'OG Image' });
+      }
+    } catch {
+      // ignore scan error
+    }
+  }
+
+  return references;
+}
+
+export interface DeleteMediaAssetOptions {
+  assetId?: string;
+  url?: string;
+  entityType?: MediaEntityType;
+  entityId?: string;
+  force?: boolean;
+}
+
+export interface DeleteMediaAssetResult {
+  success: boolean;
+  deleted: boolean;
+  unlinked: boolean;
+  storageDeleted: boolean;
+  deletedAssetId?: string;
+  promotedPrimaryId?: string;
+  remainingReferences?: Array<{ type: string; id: string; name?: string }>;
+  error?: string;
+}
+
+/**
+ * Universal deletion handler:
+ * 1. Resolves target asset.
+ * 2. Scans for references across all entities.
+ * 3. If shared, unlinks only for target entity and preserves physical storage.
+ * 4. If unreferenced (or force), removes DB row and purges physical storage object.
+ * 5. Deterministically recalculates primary if deleted asset was PRIMARY.
+ */
+export async function deleteMediaAsset(options: DeleteMediaAssetOptions): Promise<DeleteMediaAssetResult> {
+  const { assetId, url, entityType, entityId, force } = options;
+  const { assets } = await getAllMediaAssetsRaw();
+
+  let targetAsset: MediaAsset | undefined;
+  if (assetId) {
+    targetAsset = assets.find((a) => a.id === assetId);
+  } else if (url) {
+    targetAsset = assets.find((a) => {
+      if (a.url !== url) return false;
+      if (entityType && a.entityType !== entityType) return false;
+      if (entityId && a.entityId !== entityId) return false;
+      return true;
+    });
+  }
+
+  if (!targetAsset) {
+    return {
+      success: true,
+      deleted: false,
+      unlinked: false,
+      storageDeleted: false,
+    };
+  }
+
+  const targetEntityType = targetAsset.entityType;
+  const targetEntityId = targetAsset.entityId;
+  const wasPrimary = targetAsset.role === 'PRIMARY';
+
+  // Safety reference scan
+  const remainingReferences = await scanMediaReferences(targetAsset.url, {
+    entityType: targetEntityType,
+    entityId: targetEntityId,
+    assetId: targetAsset.id,
+  });
+
+  const isShared = remainingReferences.length > 0;
+  let storageDeleted = false;
+
+  // Purge physical storage only if NOT shared or force is specified
+  if (!isShared || force) {
+    const supabaseAdmin = getSupabaseAdmin();
+    if (supabaseAdmin) {
+      let storagePathToDelete = targetAsset.storagePath;
+      if (!storagePathToDelete && targetAsset.url.includes('/object/public/')) {
+        const parts = targetAsset.url.split('/object/public/');
+        if (parts.length > 1) {
+          const subparts = parts[1].split('/');
+          storagePathToDelete = subparts.slice(1).join('/');
+        }
+      }
+
+      if (storagePathToDelete) {
+        try {
+          const bucket = targetAsset.storageBucket || 'product-images';
+          const { error: removeErr } = await supabaseAdmin.storage.from(bucket).remove([storagePathToDelete]);
+          if (!removeErr) {
+            storageDeleted = true;
+          }
+        } catch (e) {
+          console.warn('[deleteMediaAsset] Storage deletion exception:', e);
+        }
+      }
+    }
+  }
+
+  // Remove DB record
+  const supabaseAdmin = getSupabaseAdmin();
+  if (supabaseAdmin) {
+    try {
+      await supabaseAdmin.from('media_assets').delete().eq('id', targetAsset.id);
+    } catch {}
+  }
+
+  // Remove from in-memory fallback store and cache
+  memoryMediaStore = memoryMediaStore.filter((a) => a.id !== targetAsset!.id);
+  if (memoryCache) {
+    memoryCache.assets = memoryCache.assets.filter((a) => a.id !== targetAsset!.id);
+  }
+
+  // Recalculate primary if the deleted asset was PRIMARY
+  let promotedPrimaryId: string | undefined;
+  if (wasPrimary && targetEntityId) {
+    const remainingForEntity = await getMediaForEntity({
+      entityType: targetEntityType,
+      entityId: targetEntityId,
+      includeDrafts: false,
+    });
+
+    if (remainingForEntity.length > 0) {
+      const nextPrimary = remainingForEntity[0];
+      await setPrimaryMedia({
+        assetId: nextPrimary.id,
+        entityType: targetEntityType,
+        entityId: targetEntityId,
+      });
+      promotedPrimaryId = nextPrimary.id;
+    }
+  }
+
+  return {
+    success: true,
+    deleted: true,
+    unlinked: true,
+    storageDeleted,
+    deletedAssetId: targetAsset.id,
+    promotedPrimaryId,
+    remainingReferences: isShared ? remainingReferences : undefined,
+  };
+}
+
+/**
+ * Synchronizes a product's media items and image URLs with the canonical Media DAL.
+ * Guaranteed to create/update approved canonical MediaAssets and prune any removed images.
+ */
+export async function syncProductMedia(
+  productId: string,
+  mediaItems: ProductMediaItem[] = [],
+  imageUrls: string[] = []
+): Promise<void> {
+  if (!productId) return;
+
+  const validImageUrls: string[] = [];
+  if (Array.isArray(mediaItems) && mediaItems.length > 0) {
+    for (const m of mediaItems) {
+      if (m && m.type === 'image' && m.url && isSafeInternalMediaUrl(m.url) && !m.url.includes('fallback.svg')) {
+        if (!validImageUrls.includes(m.url)) validImageUrls.push(m.url);
+      }
+    }
+  }
+  if (Array.isArray(imageUrls)) {
+    for (const img of imageUrls) {
+      if (img && typeof img === 'string' && isSafeInternalMediaUrl(img) && !img.includes('fallback.svg')) {
+        if (!validImageUrls.includes(img)) validImageUrls.push(img);
+      }
+    }
+  }
+
+  const existingAssets = await getMediaForEntity({
+    entityType: 'PRODUCT',
+    entityId: productId,
+    includeDrafts: true,
+  });
+
+  const validUrlSet = new Set(validImageUrls);
+
+  // 1. Delete/unlink any assets no longer in the product's image list
+  for (const ex of existingAssets) {
+    if (!validUrlSet.has(ex.url)) {
+      await deleteMediaAsset({
+        assetId: ex.id,
+        entityType: 'PRODUCT',
+        entityId: productId,
+      });
+    }
+  }
+
+  // 2. Register or update retained assets with deterministic roles and sort order
+  for (let idx = 0; idx < validImageUrls.length; idx++) {
+    const url = validImageUrls[idx];
+    const isFirst = idx === 0;
+    const role: MediaAssetRole = isFirst ? 'PRIMARY' : 'GALLERY';
+    const matchingExisting = existingAssets.find((a) => a.url === url);
+
+    if (matchingExisting) {
+      if (matchingExisting.role !== role || matchingExisting.sortOrder !== idx + 1) {
+        await updateMediaAsset(matchingExisting.id, {
+          role,
+          sortOrder: idx + 1,
+          isLocked: isFirst ? true : matchingExisting.isLocked,
+        });
+      }
+    } else {
+      await saveMediaAsset({
+        entityType: 'PRODUCT',
+        entityId: productId,
+        url,
+        role,
+        sortOrder: idx + 1,
+        source: 'MANUAL_UPLOAD',
+        status: 'approved',
+        isLocked: isFirst,
+      });
+    }
+  }
+
+  // Clear memory cache so next queries fetch fresh state
+  memoryCache = null;
 }
 

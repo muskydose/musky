@@ -12,7 +12,7 @@ import {
   MEDIA_PLACEMENT_SPECS,
   validateExternalVideoUrl,
 } from '@/lib/growth/product-media-governance';
-import { uploadMediaFile } from '@/lib/media-upload';
+import { uploadMediaFile, deleteMediaAssetClient } from '@/lib/media-upload';
 import MediaSelectModal from '@/components/MediaSelectModal';
 import {
   Image as ImageIcon,
@@ -236,7 +236,8 @@ export default function ProductMediaManager({
     propagateChange(updated);
   };
 
-  const handleRemoveMedia = (targetId: string) => {
+  const handleRemoveMedia = async (targetId: string) => {
+    const targetItem = consolidatedMedia.find((m) => m.id === targetId);
     const remaining = consolidatedMedia.filter((m) => m.id !== targetId);
     // If we removed the primary image, promote next available image
     const remainingImages = remaining.filter((m) => m.type === 'image');
@@ -244,6 +245,18 @@ export default function ProductMediaManager({
       remainingImages[0].role = 'PRIMARY';
     }
     propagateChange(remaining);
+
+    // If item had a valid non-fallback URL, call server to clean up / dissociate
+    if (targetItem?.url && !targetItem.url.includes('fallback.svg')) {
+      try {
+        await deleteMediaAssetClient({
+          url: targetItem.url,
+          productId: productId !== 'new-product' ? productId : undefined,
+        });
+      } catch (err) {
+        console.warn('[ProductMediaManager] Notice on media removal:', err);
+      }
+    }
   };
 
   // ---------------------------------------------------------------------------

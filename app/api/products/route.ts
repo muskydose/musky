@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidateCatalogSurfaces } from '@/lib/revalidation';
 import { getProducts, getAllProductsAdmin, saveProduct } from '@/lib/db/products';
+import { syncProductMedia } from '@/lib/db/media';
 import { requireAdminAuthAndCsrf, isRequestAdminAuthenticated } from '@/lib/admin-middleware';
 import { UniversalGovernanceCore } from '@/lib/governance';
 import { recordAuditLog } from '@/lib/auth';
@@ -115,6 +116,9 @@ export async function POST(req: NextRequest) {
     }
 
     const saved = await saveProduct(body);
+
+    // Synchronize media assets with canonical Media DAL
+    await syncProductMedia(saved.id, body.media, body.images);
 
     await recordAuditLog({
       action: 'PRODUCT_CREATE',
